@@ -108,7 +108,10 @@ public sealed class WebhookFlowsTests : IClassFixture<PaymentsWebAppFactory>, IA
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Wait for the consumer to process the validated event.
-        (await harness.Consumed.Any<PaymentWebhookValidatedEvent>()).Should().BeTrue();
+        // Pass an explicit cancellation token; harness.TestTimeout doesn't
+        // bind to all Consumed.Any() overloads consistently.
+        using var consumeCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        (await harness.Consumed.Any<PaymentWebhookValidatedEvent>(consumeCts.Token)).Should().BeTrue();
 
         // Surface any consumer fault before chasing publication assertions —
         // a thrown exception inside Consume() shows up here, not as a missing

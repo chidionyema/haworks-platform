@@ -5,7 +5,7 @@
 - `Npgsql.NpgsqlException: Exception while reading from stream → System.IO.EndOfStreamException: Attempted to read past the end of the stream` on the consumer's lookup query
 - `System.ArgumentException: Docker is either not running or misconfigured` if Docker Desktop has crashed under sustained Testcontainers load
 
-**Status (2026-05-03):** Architecture (3) + Unit (20) + Contract (3) all green. Integration tests run end-to-end against the rebuilt Postgres + EF retry-on-failure path on a healthy Docker daemon. Repeated runs occasionally hit the EOF flake; the EF retry-on-failure (5 × 500ms) inside `Payments.Infrastructure.DependencyInjection` masks it in CI but doesn't eliminate the underlying race.
+**Status (2026-05-03):** Architecture (3) + Unit (20) + Contract (3) all green. Integration tests **5/7** on a healthy Docker daemon: `Health`, the two negative-signature tests, the basic `valid_signature_publishes` test, and the `for_known_payment_session_publishes_PaymentCompletedEvent` happy path all pass reliably. The remaining two — `Stripe_webhook_amount_mismatch_flags_…` and `Webhook_idempotency_replaying_…` — fail with `Npgsql.NpgsqlException: Failed to connect to 127.0.0.1:<port>` after exhausting the EF retry budget, which means the testcontainer's host port mapping has gone away mid-test. This is **not a code bug** — the tests pass against a freshly-restarted Docker Desktop with the runtime + parallelism + retry hardening listed below; they then start failing again as the macOS Docker proxy degrades. Repro pattern is "run the integration suite N times; failure rate climbs as N grows."
 
 ## Root cause hypothesis
 
@@ -27,8 +27,10 @@ Two separate forces:
 ## What's already wired in code
 
 - `Payments.Infrastructure.DependencyInjection` calls `EnableRetryOnFailure(5, 500ms)` on the `UseNpgsql(...)` block — masks transient connection failures with EF's automatic retry.
-- `tests/Payments.Integration/WebhookFlowsTests` sets `harness.TestTimeout = 30s, harness.TestInactivityTimeout = 10s` so the EF retry budget fits inside the harness's wait window.
+- `tests/Payments.Integration/WebhookFlowsTests` sets `harness.TestTimeout = 30s` AND passes an explicit `CancellationTokenSource(30s).Token` to `Consumed.Any<T>(...)` — `harness.TestTimeout` doesn't bind to all overloads.
+- `tests/Payments.Integration/AssemblyInfo.cs` carries `[assembly: CollectionBehavior(DisableTestParallelization = true)]` so tests run serially against the shared testcontainer.
 - `tests/Payments.Integration/PaymentsWebAppFactory` uses `postgres:16-alpine` (smallest image) to minimize container start latency.
+- The consumer publishes domain events BEFORE `SaveChangesAsync` — matches production outbox semantics and ensures a fault during commit doesn't drop the publish.
 
 ## What to investigate next (Phase 3+)
 

@@ -111,8 +111,15 @@ public sealed class PaymentWebhookValidatedConsumer(
                 if (paidAmount.HasValue && paidAmount.Value != payment.Amount)
                 {
                     payment.Flag();
-                    await payments.SaveChangesAsync(context.CancellationToken);
 
+                    // Publish BEFORE SaveChangesAsync (matches the success
+                    // branch + production outbox semantics: the publish is
+                    // captured into the OutboxMessage row written in the same
+                    // EF transaction, so state change + downstream event
+                    // commit atomically. Save-then-publish would double the
+                    // failure surface — if save threw after retries, the
+                    // publish would never run and ops would never see the
+                    // mismatch alert.)
                     await eventPublisher.PublishAsync(new PaymentAmountMismatchEvent
                     {
                         PaymentId = payment.Id,
@@ -123,6 +130,8 @@ public sealed class PaymentWebhookValidatedConsumer(
                         Difference = Math.Abs(paidAmount.Value - payment.Amount),
                         Reason = $"Stripe captured {paidAmount.Value} {payment.Currency}; expected {payment.Amount} {payment.Currency}",
                     }, context.CancellationToken);
+
+                    await payments.SaveChangesAsync(context.CancellationToken);
 
                     logger.LogWarning(
                         "Payment {PaymentId} flagged: expected={Expected}, actual={Actual}",
