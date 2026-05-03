@@ -136,3 +136,7 @@ app.UseRateLimiter();
 app.MapControllers();
 
 app.Run();
+
+// Top-level Program needs a partial declaration so
+// WebApplicationFactory<Program> in the integration test project can find it.
+public partial class Program { }

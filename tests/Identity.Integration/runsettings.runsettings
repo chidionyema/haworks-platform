@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <EnvironmentVariables>
+      <!--
+        Testcontainers' Resource Reaper (Ryuk) tries to bind-mount the
+        Docker socket from a per-user path that Docker Desktop on macOS
+        does not expose. Override with the canonical /var/run/docker.sock
+        so Ryuk starts cleanly. The reaper handles container cleanup if
+        the test process crashes.
+      -->
+      <TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>/var/run/docker.sock</TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>
+      <DOCKER_HOST>unix:///var/run/docker.sock</DOCKER_HOST>
+    </EnvironmentVariables>
+  </RunConfiguration>
+</RunSettings>
