@@ -22,6 +22,8 @@
     <ProjectReference Include="../../src/Identity/Identity.Domain/Identity.Domain.csproj" />
     <ProjectReference Include="../../src/Identity/Identity.Application/Identity.Application.csproj" />
     <ProjectReference Include="../../src/Identity/Identity.Infrastructure/Identity.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/BuildingBlocks.Testing/Haworks.BuildingBlocks.Testing.csproj" />
+    <ProjectReference Include="../../src/Identity/Identity.Api/Identity.Api.csproj" />
   </ItemGroup>
 
 </Project>

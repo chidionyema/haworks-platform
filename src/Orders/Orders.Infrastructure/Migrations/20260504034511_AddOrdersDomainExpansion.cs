@@ -1,0 +1,169 @@
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace Haworks.Orders.Infrastructure.Migrations
+{
+    /// <inheritdoc />
+    public partial class AddOrdersDomainExpansion : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.AlterColumn<byte[]>(
+                name: "RowVersion",
+                schema: "orders",
+                table: "Orders",
+                type: "bytea",
+                nullable: false,
+                oldClrType: typeof(byte[]),
+                oldType: "bytea",
+                oldDefaultValueSql: "'\\x0000000000000000'::bytea");
+
+            migrationBuilder.AlterColumn<byte[]>(
+                name: "RowVersion",
+                schema: "orders",
+                table: "OrderItems",
+                type: "bytea",
+                nullable: false,
+                oldClrType: typeof(byte[]),
+                oldType: "bytea",
+                oldDefaultValueSql: "'\\x0000000000000000'::bytea");
+
+            migrationBuilder.CreateTable(
+                name: "GuestOrders",
+                schema: "orders",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    OrderId = table.Column<Guid>(type: "uuid", nullable: false),
+                    IsComplete = table.Column<bool>(type: "boolean", nullable: false),
+                    Email = table.Column<string>(type: "character varying(254)", maxLength: 254, nullable: true),
+                    FirstName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    LastName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    Address = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    City = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    State = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    PostalCode = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    Country = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    Phone = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: true),
+                    OrderToken = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_GuestOrders", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_GuestOrders_Orders_OrderId",
+                        column: x => x.OrderId,
+                        principalSchema: "orders",
+                        principalTable: "Orders",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StockReleaseFailures",
+                schema: "orders",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    OrderId = table.Column<Guid>(type: "uuid", nullable: false),
+                    FailedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    AttemptCount = table.Column<int>(type: "integer", nullable: false),
+                    ErrorMessage = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    LastAttemptAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    Status = table.Column<int>(type: "integer", nullable: false),
+                    CreatedFromIp = table.Column<string>(type: "text", nullable: true),
+                    ModifiedFromIp = table.Column<string>(type: "text", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false),
+                    CreatedBy = table.Column<string>(type: "text", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    LastModifiedBy = table.Column<string>(type: "text", nullable: true),
+                    LastModifiedDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StockReleaseFailures", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StockReleaseFailureItems",
+                schema: "orders",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ProductId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Quantity = table.Column<int>(type: "integer", nullable: false),
+                    StockReleaseFailureId = table.Column<Guid>(type: "uuid", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StockReleaseFailureItems", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StockReleaseFailureItems_StockReleaseFailures_StockReleaseF~",
+                        column: x => x.StockReleaseFailureId,
+                        principalSchema: "orders",
+                        principalTable: "StockReleaseFailures",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_GuestOrders_OrderId",
+                schema: "orders",
+                table: "GuestOrders",
+                column: "OrderId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_GuestOrders_Token",
+                schema: "orders",
+                table: "GuestOrders",
+                column: "OrderToken",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StockReleaseFailureItems_StockReleaseFailureId",
+                schema: "orders",
+                table: "StockReleaseFailureItems",
+                column: "StockReleaseFailureId");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropTable(
+                name: "GuestOrders",
+                schema: "orders");
+
+            migrationBuilder.DropTable(
+                name: "StockReleaseFailureItems",
+                schema: "orders");
+
+            migrationBuilder.DropTable(
+                name: "StockReleaseFailures",
+                schema: "orders");
+
+            migrationBuilder.AlterColumn<byte[]>(
+                name: "RowVersion",
+                schema: "orders",
+                table: "Orders",
+                type: "bytea",
+                nullable: false,
+                defaultValueSql: "'\\x0000000000000000'::bytea",
+                oldClrType: typeof(byte[]),
+                oldType: "bytea");
+
+            migrationBuilder.AlterColumn<byte[]>(
+                name: "RowVersion",
+                schema: "orders",
+                table: "OrderItems",
+                type: "bytea",
+                nullable: false,
+                defaultValueSql: "'\\x0000000000000000'::bytea",
+                oldClrType: typeof(byte[]),
+                oldType: "bytea");
+        }
+    }
+}

@@ -11,7 +11,8 @@ public sealed record OrderDto(
     Guid? PaymentId,
     string? AbandonReason,
     DateTime CreatedAt,
-    IReadOnlyList<OrderItemDto> Items);
+    IReadOnlyList<OrderItemDto> Items,
+    string? GuestOrderToken = null);
 
 public sealed record OrderItemDto(
     Guid Id,

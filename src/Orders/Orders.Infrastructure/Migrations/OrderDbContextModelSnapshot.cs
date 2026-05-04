@@ -23,6 +23,71 @@ namespace Haworks.Orders.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Haworks.Orders.Domain.GuestOrderInfo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsComplete")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LastName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OrderToken")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("PostalCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("State")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique();
+
+                    b.HasIndex("OrderToken")
+                        .IsUnique()
+                        .HasDatabaseName("IX_GuestOrders_Token");
+
+                    b.ToTable("GuestOrders", "orders");
+                });
+
             modelBuilder.Entity("Haworks.Orders.Domain.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -71,9 +136,7 @@ namespace Haworks.Orders.Infrastructure.Migrations
 
                     b.Property<byte[]>("RowVersion")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bytea")
-                        .HasDefaultValueSql("'\\x0000000000000000'::bytea");
+                        .HasColumnType("bytea");
 
                     b.Property<Guid>("SagaId")
                         .HasColumnType("uuid");
@@ -155,9 +218,7 @@ namespace Haworks.Orders.Infrastructure.Migrations
 
                     b.Property<byte[]>("RowVersion")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bytea")
-                        .HasDefaultValueSql("'\\x0000000000000000'::bytea");
+                        .HasColumnType("bytea");
 
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("numeric(18,2)");
@@ -171,6 +232,59 @@ namespace Haworks.Orders.Infrastructure.Migrations
                         .HasDatabaseName("IX_OrderItems_ProductId");
 
                     b.ToTable("OrderItems", "orders");
+                });
+
+            modelBuilder.Entity("Haworks.Orders.Domain.StockReleaseFailure", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreatedFromIp")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ErrorMessage")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("FailedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LastAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("LastModifiedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ModifiedFromIp")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StockReleaseFailures", "orders");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.InboxState", b =>
@@ -341,6 +455,17 @@ namespace Haworks.Orders.Infrastructure.Migrations
                     b.ToTable("OutboxState", "orders");
                 });
 
+            modelBuilder.Entity("Haworks.Orders.Domain.GuestOrderInfo", b =>
+                {
+                    b.HasOne("Haworks.Orders.Domain.Order", "Order")
+                        .WithOne()
+                        .HasForeignKey("Haworks.Orders.Domain.GuestOrderInfo", "OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("Haworks.Orders.Domain.OrderItem", b =>
                 {
                     b.HasOne("Haworks.Orders.Domain.Order", "Order")
@@ -350,6 +475,36 @@ namespace Haworks.Orders.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("Haworks.Orders.Domain.StockReleaseFailure", b =>
+                {
+                    b.OwnsMany("Haworks.Orders.Domain.StockReservation", "Items", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("uuid");
+
+                            b1.Property<Guid>("ProductId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("Quantity")
+                                .HasColumnType("integer");
+
+                            b1.Property<Guid>("StockReleaseFailureId")
+                                .HasColumnType("uuid");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("StockReleaseFailureId");
+
+                            b1.ToTable("StockReleaseFailureItems", "orders");
+
+                            b1.WithOwner()
+                                .HasForeignKey("StockReleaseFailureId");
+                        });
+
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>

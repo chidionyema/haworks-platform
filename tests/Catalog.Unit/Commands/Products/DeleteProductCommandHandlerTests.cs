@@ -1,0 +1,66 @@
+using Haworks.BuildingBlocks.Common;
+using Haworks.Catalog.Application.Commands;
+using Haworks.Catalog.Domain;
+using Haworks.Catalog.Domain.Interfaces;
+using Haworks.BuildingBlocks.Testing;
+using Haworks.Catalog.UnitTests.Helpers;
+using Microsoft.Extensions.Logging;
+using Moq;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace Haworks.Catalog.UnitTests.Commands.Products;
+
+public class DeleteProductCommandHandlerTests : TestBase
+{
+    private readonly Mock<IProductRepository> _productRepositoryMock;
+    private readonly DeleteProductCommandHandler _handler;
+
+    public DeleteProductCommandHandlerTests(ITestOutputHelper output) : base(output)
+    {
+        _productRepositoryMock = MockRepository.Create<IProductRepository>();
+        var loggerMock = new Mock<ILogger<DeleteProductCommandHandler>>();
+
+        _handler = new DeleteProductCommandHandler(
+            _productRepositoryMock.Object,
+            loggerMock.Object);
+    }
+
+    [Fact]
+    public async Task Handle_WithValidRequest_ReturnsSuccess()
+    {
+        var product = DomainTestHelpers.CreateProduct();
+        var command = new DeleteProductCommand(product.Id);
+
+        _productRepositoryMock
+            .Setup(x => x.GetByIdAsync(product.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(product);
+
+        _productRepositoryMock
+            .Setup(x => x.DeleteAsync(product.Id, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _productRepositoryMock
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task Handle_WithInvalidProduct_ReturnsFailure()
+    {
+        var command = new DeleteProductCommand(Guid.NewGuid());
+
+        _productRepositoryMock
+            .Setup(x => x.GetByIdAsync(command.ProductId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Product?)null);
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Products.NotFound", result.Error.Code);
+    }
+}

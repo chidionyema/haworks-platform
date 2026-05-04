@@ -1,14 +1,13 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Haworks.Payments.Domain;
+using Haworks.BuildingBlocks.CurrentUser;
+using Haworks.BuildingBlocks.Persistence;
 
 namespace Haworks.Payments.Infrastructure;
 
-/// <summary>
-/// DbContext for the Payments bounded context. Owns the Payments table +
-/// MassTransit transactional outbox tables (InboxState, OutboxState,
-/// OutboxMessage). Per ADR-0009 (DB-per-service), no entities reference
-/// types from other contexts.
-/// </summary>
 public class PaymentDbContext : DbContext
 {
     private readonly IHostEnvironment _environment;
@@ -30,17 +29,15 @@ public class PaymentDbContext : DbContext
     }
 
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
+    public DbSet<WebhookEvent> WebhookEvents => Set<WebhookEvent>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);
-
         optionsBuilder.UseLoggerFactory(_loggerFactory);
-
-        if (_environment.IsDevelopment())
-        {
-            optionsBuilder.EnableSensitiveDataLogging();
-        }
+        if (_environment.IsDevelopment()) optionsBuilder.EnableSensitiveDataLogging();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -70,13 +67,6 @@ public class PaymentDbContext : DbContext
             entity.Property(p => p.ProviderTransactionId).HasMaxLength(500);
             entity.Property(p => p.ProviderCheckoutUrl).HasMaxLength(2000);
 
-            // RowVersion left as plain bytea (see Catalog rationale). Real
-            // optimistic concurrency on payment state is via xmin shadow.
-            entity.Property(p => p.RowVersion).HasDefaultValueSql("'\\x0000000000000000'::bytea");
-
-            // xmin shadow concurrency token — Postgres native row-version.
-            // Catches concurrent state transitions on the same Payment row
-            // (e.g., webhook arriving while a refund is being processed).
             entity.Property<uint>("xmin")
                 .HasColumnName("xmin")
                 .HasColumnType("xid")
@@ -90,7 +80,46 @@ public class PaymentDbContext : DbContext
                 .HasDatabaseName("IX_Payments_Provider_ProviderSessionId");
         });
 
-        // MassTransit transactional outbox tables.
+        modelBuilder.Entity<Subscription>(entity =>
+        {
+            entity.ToTable("Subscriptions");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.UserId).HasMaxLength(450).IsRequired();
+            entity.Property(s => s.ProviderSubscriptionId).HasMaxLength(500).IsRequired();
+            entity.Property(s => s.PlanId).HasMaxLength(100).IsRequired();
+            entity.Property(s => s.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(s => s.Provider).HasConversion<string>().HasMaxLength(20).IsRequired();
+            
+            entity.HasIndex(s => s.UserId).HasDatabaseName("IX_Subscriptions_UserId");
+            entity.HasIndex(s => s.ProviderSubscriptionId).IsUnique().HasDatabaseName("IX_Subscriptions_ProviderId");
+        });
+
+        modelBuilder.Entity<SubscriptionPlan>(entity =>
+        {
+            entity.ToTable("SubscriptionPlans");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            entity.Property(p => p.InternalPlanId).HasMaxLength(100).IsRequired();
+            entity.Property(p => p.Price).HasColumnType("numeric(18,2)").IsRequired();
+            entity.Property(p => p.ProviderPriceIds).HasColumnType("jsonb").IsRequired();
+
+            entity.HasIndex(p => p.InternalPlanId).IsUnique().HasDatabaseName("IX_SubscriptionPlans_PlanId");
+        });
+
+        modelBuilder.Entity<WebhookEvent>(entity =>
+        {
+            entity.ToTable("WebhookEvents");
+            entity.HasKey(w => w.Id);
+            entity.Property(w => w.ProviderEventId).HasMaxLength(500).IsRequired();
+            entity.Property(w => w.EventType).HasMaxLength(200).IsRequired();
+            entity.Property(w => w.EventJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(w => w.Provider).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(w => w.HandlerType).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(w => w.Error).HasMaxLength(2000);
+
+            entity.HasIndex(w => new { w.Provider, w.ProviderEventId }).IsUnique().HasDatabaseName("IX_WebhookEvents_Provider_Id");
+        });
+
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxStateEntity();
         modelBuilder.AddOutboxMessageEntity();
@@ -106,13 +135,11 @@ public class PaymentDbContext : DbContext
     {
         var entries = ChangeTracker.Entries<AuditableEntity>()
             .Where(e => e.State is EntityState.Added or EntityState.Modified);
-
         foreach (var entry in entries)
         {
             entry.Entity.LastModifiedDate = DateTime.UtcNow;
             entry.Entity.LastModifiedBy = _currentUserService.UserId ?? "system";
             entry.Entity.ModifiedFromIp = _currentUserService.ClientIp ?? "unknown";
-
             if (entry.State == EntityState.Added)
             {
                 entry.Entity.CreatedAt = DateTime.UtcNow;

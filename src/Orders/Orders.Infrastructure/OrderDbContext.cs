@@ -1,14 +1,13 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Haworks.Orders.Domain;
+using Haworks.BuildingBlocks.CurrentUser;
+using Haworks.BuildingBlocks.Persistence;
 
 namespace Haworks.Orders.Infrastructure;
 
-/// <summary>
-/// DbContext for the Orders bounded context. Owns Orders + OrderItems +
-/// MassTransit transactional outbox tables. Per ADR-0009 no entities
-/// reference types from other contexts — UserId is opaque string FK,
-/// PaymentId/ProductId are opaque Guids.
-/// </summary>
 public class OrderDbContext : DbContext
 {
     private readonly IHostEnvironment _environment;
@@ -31,6 +30,8 @@ public class OrderDbContext : DbContext
 
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<GuestOrderInfo> GuestOrders => Set<GuestOrderInfo>();
+    public DbSet<StockReleaseFailure> StockReleaseFailures => Set<StockReleaseFailure>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -58,14 +59,7 @@ public class OrderDbContext : DbContext
             entity.Property(o => o.Currency).HasMaxLength(3).IsRequired();
             entity.Property(o => o.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
             entity.Property(o => o.AbandonReason).HasMaxLength(500);
-            entity.Property(o => o.RowVersion).HasDefaultValueSql("'\\x0000000000000000'::bytea");
 
-            // xmin shadow concurrency token — same pattern as catalog/payments.
-            // Catches concurrent state transitions on the same Order
-            // (e.g., StockReservationFailed and PaymentSessionFailed both
-            // arriving for the same Created order — first one wins, second
-            // hits DbUpdateConcurrencyException → MT retries → sees the
-            // already-Abandoned order and bails idempotently).
             entity.Property<uint>("xmin")
                 .HasColumnName("xmin")
                 .HasColumnType("xid")
@@ -84,7 +78,6 @@ public class OrderDbContext : DbContext
             entity.HasKey(i => i.Id);
             entity.Property(i => i.ProductName).HasMaxLength(200).IsRequired();
             entity.Property(i => i.UnitPrice).HasColumnType("numeric(18,2)").IsRequired();
-            entity.Property(i => i.RowVersion).HasDefaultValueSql("'\\x0000000000000000'::bytea");
 
             entity.HasOne(i => i.Order)
                 .WithMany(o => o.Items)
@@ -93,6 +86,44 @@ public class OrderDbContext : DbContext
 
             entity.HasIndex(i => i.OrderId).HasDatabaseName("IX_OrderItems_OrderId");
             entity.HasIndex(i => i.ProductId).HasDatabaseName("IX_OrderItems_ProductId");
+        });
+
+        modelBuilder.Entity<GuestOrderInfo>(entity =>
+        {
+            entity.ToTable("GuestOrders");
+            entity.HasKey(g => g.Id);
+            entity.Property(g => g.Email).HasMaxLength(254);
+            entity.Property(g => g.FirstName).HasMaxLength(100);
+            entity.Property(g => g.LastName).HasMaxLength(100);
+            entity.Property(g => g.Address).HasMaxLength(500);
+            entity.Property(g => g.City).HasMaxLength(100);
+            entity.Property(g => g.State).HasMaxLength(100);
+            entity.Property(g => g.PostalCode).HasMaxLength(20);
+            entity.Property(g => g.Country).HasMaxLength(100);
+            entity.Property(g => g.Phone).HasMaxLength(30);
+            entity.Property(g => g.OrderToken).HasMaxLength(500).IsRequired();
+
+            entity.HasOne(g => g.Order)
+                .WithOne()
+                .HasForeignKey<GuestOrderInfo>(g => g.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            entity.HasIndex(g => g.OrderToken).IsUnique().HasDatabaseName("IX_GuestOrders_Token");
+        });
+
+        modelBuilder.Entity<StockReleaseFailure>(entity =>
+        {
+            entity.ToTable("StockReleaseFailures");
+            entity.HasKey(f => f.Id);
+            entity.Property(f => f.ErrorMessage).HasMaxLength(2000);
+            
+            entity.OwnsMany(f => f.Items, items =>
+            {
+                items.ToTable("StockReleaseFailureItems");
+                items.WithOwner().HasForeignKey("StockReleaseFailureId");
+                items.Property<Guid>("Id");
+                items.HasKey("Id");
+            });
         });
 
         modelBuilder.AddInboxStateEntity();

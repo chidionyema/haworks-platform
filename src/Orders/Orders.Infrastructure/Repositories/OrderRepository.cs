@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Haworks.Orders.Domain;
+using Haworks.Orders.Domain.Interfaces;
 
 namespace Haworks.Orders.Infrastructure.Repositories;
 
@@ -38,4 +40,32 @@ internal sealed class OrderRepository(OrderDbContext db) : IOrderRepository
 
     public Task<int> SaveChangesAsync(CancellationToken ct = default) =>
         db.SaveChangesAsync(ct);
+
+    public async Task AddGuestInfoAsync(GuestOrderInfo guestInfo, CancellationToken ct = default) =>
+        await db.GuestOrders.AddAsync(guestInfo, ct);
+
+    public Task<GuestOrderInfo?> GetGuestInfoAsync(Guid orderId, CancellationToken ct = default) =>
+        db.GuestOrders.FirstOrDefaultAsync(g => g.OrderId == orderId, ct);
+
+    public Task<GuestOrderInfo?> GetGuestByTokenAsync(string token, CancellationToken ct = default) =>
+        db.GuestOrders.FirstOrDefaultAsync(g => g.OrderToken == token, ct);
+
+    public async Task<IReadOnlyList<Order>> GetAbandonedOrdersAsync(DateTime cutoffTime, int take = 100, CancellationToken ct = default)
+    {
+        return await db.Orders
+            .Include(o => o.Items)
+            .Where(o => o.Status == OrderStatus.Created && o.CreatedAt < cutoffTime)
+            .Take(take)
+            .ToListAsync(ct);
+    }
+
+    public async Task<bool> MarkStockReleasedAsync(Guid orderId, OrderStatus newStatus, string reason, CancellationToken ct = default)
+    {
+        var rowsAffected = await db.Orders
+            .Where(o => o.Id == orderId && o.Status != newStatus)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(o => o.Status, newStatus), ct);
+
+        return rowsAffected > 0;
+    }
 }

@@ -12,5 +12,9 @@
     <PackageReference Include="MediatR" Version="12.4.1" />
     <PackageReference Include="FluentValidation" Version="11.10.0" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
+    <!-- Stripe.net types referenced by IStripeClientFactory abstraction. The
+         concrete client lives in Payments.Infrastructure; the interface in
+         Application needs the Stripe.net types it abstracts. -->
+    <PackageReference Include="Stripe.net" Version="47.2.0" />
   </ItemGroup>
 </Project>
