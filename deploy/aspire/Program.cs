@@ -1,10 +1,13 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
+using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // =============================================================================
 // PER-SERVICE VAULT CREDENTIAL PATHS
-// =============================================================================
-// vault-init.sh writes per-service AppRole creds under vault-creds/<svc>/.
-// Each service binds to its own subdirectory; no service can read another's.
 // =============================================================================
 var credsHostDir = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "vault-creds"));
 Directory.CreateDirectory(credsHostDir);
@@ -12,21 +15,11 @@ Directory.CreateDirectory(credsHostDir);
 string RoleIdPath(string svc)   => Path.Combine(credsHostDir, svc, "role_id");
 string SecretIdPath(string svc) => Path.Combine(credsHostDir, svc, "secret_id");
 
-// Shared Vault config manifests (per-service policy template + AppRole template,
-// KV layout, dynamic DB roles). Same files prod IaC consumes.
 var vaultManifestsHostDir = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "infra", "vault"));
 
 // =============================================================================
 // INFRASTRUCTURE RESOURCES
 // =============================================================================
-
-// Postgres + per-service databases. init-postgres.sql also creates per-DB
-// "_owner" group roles that Vault dynamic credentials join.
-//
-// Volume name is namespaced (`ritualworks-platform-*`) so the ritualworks
-// platform stack can co-exist with the legacy modular-monolith stack on the
-// same Docker daemon without colliding on Aspire-generated postgres
-// passwords baked into pg_hba on first init.
 var postgres = builder.AddPostgres("postgres")
     .WithDataVolume("ritualworks-platform-postgres-data")
     .WithBindMount("./init-postgres.sql", "/docker-entrypoint-initdb.d/init.sql")
@@ -43,16 +36,9 @@ var redis = builder.AddRedis("redis")
     .WithDataVolume("ritualworks-platform-redis-data")
     .WithRedisCommander();
 
-// Pinned host port — Aspire DCP otherwise drifts the rabbit Service port,
-// breaking ConnectionStrings:rabbitmq for clients.
-// Note: must use the canonical rabbitmq image (not masstransit/rabbitmq) for
-// WithManagementPlugin() to recognize the registry/tag.
 var rabbitmq = builder.AddRabbitMQ("rabbitmq", port: 5672)
     .WithManagementPlugin();
 
-// Pact broker — self-hosted (ADR-0006). Used by every service's CI for
-// publishing pacts and by every PR for can-i-deploy. Has its own Postgres
-// sidecar (kept separate from the application Postgres cluster).
 var pactDb = builder.AddPostgres("pact-db", port: null, password: null)
     .WithDataVolume("ritualworks-platform-pact-db-data");
 var pactBroker = builder.AddContainer("pact-broker", "pactfoundation/pact-broker", "latest")
@@ -64,13 +50,12 @@ var pactBroker = builder.AddContainer("pact-broker", "pactfoundation/pact-broker
         ctx.EnvironmentVariables["PACT_BROKER_DATABASE_PORT"]     = pactDbEndpoint.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
         ctx.EnvironmentVariables["PACT_BROKER_DATABASE_NAME"]     = "postgres";
         ctx.EnvironmentVariables["PACT_BROKER_DATABASE_USERNAME"] = "postgres";
-        // Aspire-generated random password from the pact-db resource:
-        ctx.EnvironmentVariables["PACT_BROKER_DATABASE_PASSWORD"] = pactDb.Resource.PasswordParameter.Value;
+        // Pass the parameter directly to avoid obsolete .Value call.
+        ctx.EnvironmentVariables["PACT_BROKER_DATABASE_PASSWORD"] = pactDb.Resource.PasswordParameter;
         ctx.EnvironmentVariables["PACT_BROKER_BASE_URL"]          = "http://localhost:9292";
     })
     .WithHttpEndpoint(targetPort: 9292, name: "ui");
 
-// MinIO — wired up but only content-svc references it (when extracted).
 var minio = builder.AddContainer("minio", "minio/minio", "latest")
     .WithVolume("ritualworks-platform-minio-data", "/data")
     .WithEnvironment("MINIO_ROOT_USER", "minioadmin")
@@ -79,25 +64,12 @@ var minio = builder.AddContainer("minio", "minio/minio", "latest")
     .WithHttpEndpoint(targetPort: 9000, name: "s3")
     .WithHttpEndpoint(targetPort: 9001, name: "console");
 
-// ClamAV — same: wired up but only content-svc uses it.
 var clamav = builder.AddContainer("clamav", "clamav/clamav", "latest")
     .WithEndpoint(port: 3310, targetPort: 3310, name: "clamd");
 
-// =============================================================================
-// TEMPO (Grafana Tempo for distributed traces)
-// =============================================================================
-// Stub container so the OTLP endpoint references in services below resolve.
-// Gemini's G5 task expands this with proper config + Tempo HTTP query API
-// for the /api/traces/{traceId} demo endpoint.
 var tempo = builder.AddContainer("tempo", "grafana/tempo", "latest")
     .WithEndpoint(targetPort: 4317, name: "grpc", scheme: "http")
     .WithEndpoint(targetPort: 3200, name: "http", scheme: "http");
-
-// =============================================================================
-// VAULT
-// =============================================================================
-// Dev server (auto-unsealed, in-memory). Bootstrap-token only — services
-// authenticate via per-service AppRoles set up by vault-init.sh below.
 
 var vaultBootstrapToken = "dev-root-token";
 var vault = builder.AddContainer("vault", "hashicorp/vault", "1.15")
@@ -107,33 +79,17 @@ var vault = builder.AddContainer("vault", "hashicorp/vault", "1.15")
     .WithHttpEndpoint(targetPort: 8200, name: "http")
     .WithArgs("server", "-dev");
 
-// One-shot init container — for each service in services.json:
-//   * writes Vault policy svc-<name>
-//   * configures AppRole haworks-<name>
-//   * issues role_id + secret_id, writes them to vault-creds/<name>/
-// Plus enables KV v2, seeds dev placeholder values, configures the database
-// secrets engine + per-context dynamic roles.
-//
-// NOTE: no .WaitFor(vault) — Aspire 9's WaitFor blocks until the dependency
-// reports Healthy, and AddContainer-defined resources have no health check
-// by default. The script (`vault-init.sh`) has its own `until vault status`
-// retry loop. Same reasoning for postgres — vault-init's bash script blocks
-// on Aspire-injected ConnectionStrings__postgres before it does any DB work.
 var vaultInit = builder.AddContainer("vault-init", "hashicorp/vault", "1.15")
-    .WithReference(postgres)  // injects ConnectionStrings__postgres for the DB engine
+    .WithReference(postgres)
     .WithBindMount("./vault-init.sh", "/init.sh")
     .WithBindMount(credsHostDir, "/creds")
     .WithBindMount(vaultManifestsHostDir, "/manifests", isReadOnly: true)
     .WithEnvironment("VAULT_ADDR",  "http://vault:8200")
     .WithEnvironment("VAULT_TOKEN", vaultBootstrapToken)
-    // vault-init.sh refuses to run without this guard.
     .WithEnvironment("ALLOW_DEV_SEED", "yes")
     .WithEntrypoint("/bin/sh")
     .WithArgs("/init.sh");
 
-// Second one-shot — currently a no-op safety net (vault-init handles KV
-// values too). Kept as a separate resource so future flows can refresh
-// just the secret values without re-creating the AppRoles.
 var seedScriptHostPath = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "scripts", "seed-vault-dev.sh"));
 var vaultSeed = builder.AddContainer("vault-seed", "hashicorp/vault", "1.15")
     .WaitForCompletion(vaultInit)
@@ -143,36 +99,13 @@ var vaultSeed = builder.AddContainer("vault-seed", "hashicorp/vault", "1.15")
     .WithEntrypoint("/bin/sh")
     .WithArgs("/seed.sh");
 
-// =============================================================================
-// SERVICES
-// =============================================================================
-// Per docs/microservices-migration/03-build-plan.md.
-// Each service is wired with:
-//   • WaitForCompletion(vaultSeed) — KV secrets must exist before
-//     VaultConfigBootstrap reads them (when wired)
-//   • WithReference(<svc>Db)      — Aspire injects ConnectionStrings__<svc>
-//   • Vault credential paths for the service's own AppRole
-
 // --- identity-svc -----------------------------------------------------------
-// Identity is the only service with Vault__Enabled=true at boot.
-// VaultConfigBootstrap.LoadAsync needs THREE things to be true:
-//   1. The role_id + secret_id files exist on disk under vault-creds/identity/
-//      (written by vault-init's first phase).
-//   2. The AppRole itself is configured on the Vault server with a policy
-//      that grants read access to secret/identity/* (vault-init's second phase).
-//   3. The KV secrets at secret/identity/* exist (vault-seed populates them).
-// All three are true only after vault-seed completes — `WaitFor(vault)`
-// looks tempting but identity then loses the AppRole-login race and
-// crash-loops because the AppRole isn't configured yet.
-//
-// Aspire 9.x's container reconciler bug means WaitForCompletion costs
-// ~25-30s extra wait, but it's the only correct gate. See
-// docs/architecture/vault-credential-delivery.md §4 for why naive
-// WaitFor(vault) breaks and the proper Layer 3 fix.
 var identity = builder.AddProject<Projects.Identity_Api>("identity-svc")
     .WaitForCompletion(vaultSeed)
+    .WaitFor(identityDb)
     .WithReference(identityDb)
-    .WithReference(rabbitmq)            // identity now publishes VaultRotationStageEvent for the demo
+    .WaitFor(rabbitmq)
+    .WithReference(rabbitmq)
     .WithEnvironment("Vault__Enabled",      "true")
     .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
     .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("identity"))
@@ -180,29 +113,25 @@ var identity = builder.AddProject<Projects.Identity_Api>("identity-svc")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
 // --- catalog-svc -----------------------------------------------------------
-// Catalog publishes stock events to RabbitMQ (per-context outbox in
-// catalog DB). Has its own per-service Vault AppRole (no Vault secrets
-// needed yet — all stock state is in postgres, not Vault).
 var catalog = builder.AddProject<Projects.Catalog_Api>("catalog-svc")
     .WaitFor(vault)
+    .WaitFor(catalogDb)
     .WithReference(catalogDb)
+    .WaitFor(rabbitmq)
     .WithReference(rabbitmq)
     .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
-    .WithEnvironment("Vault__Enabled",      "false")  // no Vault secrets in Phase 2; flip when needed
+    .WithEnvironment("Vault__Enabled",      "false")
     .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
     .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("catalog"))
     .WithEnvironment("Vault__SecretIdPath", SecretIdPath("catalog"))
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
 // --- checkout-orchestrator-svc --------------------------------------------
-// The saga. Consumes everything (CheckoutInitiated, StockReserved/Failed,
-// PaymentSessionCreated/Failed, PaymentCompleted, PaymentAmountMismatch);
-// publishes orchestration triggers (StockReservationRequested,
-// PaymentSessionRequested, StockReleaseRequested). Per-context outbox in
-// checkout DB.
 var checkout = builder.AddProject<Projects.CheckoutOrchestrator_Api>("checkout-svc")
     .WaitFor(vault)
+    .WaitFor(checkoutDb)
     .WithReference(checkoutDb)
+    .WaitFor(rabbitmq)
     .WithReference(rabbitmq)
     .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
     .WithEnvironment("Vault__Enabled",      "false")
@@ -212,13 +141,11 @@ var checkout = builder.AddProject<Projects.CheckoutOrchestrator_Api>("checkout-s
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
 // --- orders-svc ------------------------------------------------------------
-// Orders consumes PaymentCompleted / PaymentSessionFailed / StockReservationFailed
-// from RabbitMQ; publishes OrderCreated / OrderCompleted / OrderAbandoned via
-// per-context outbox in orders DB. Per-service Vault AppRole; no Vault secrets
-// needed yet (no external API calls — pure event-driven state).
 var orders = builder.AddProject<Projects.Orders_Api>("orders-svc")
     .WaitFor(vault)
+    .WaitFor(ordersDb)
     .WithReference(ordersDb)
+    .WaitFor(rabbitmq)
     .WithReference(rabbitmq)
     .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
     .WithEnvironment("Vault__Enabled",      "false")
@@ -228,44 +155,34 @@ var orders = builder.AddProject<Projects.Orders_Api>("orders-svc")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
 // --- payments-svc ----------------------------------------------------------
-// Payments owns Stripe + PayPal webhook ingress and publishes
-// PaymentCompleted / PaymentSessionFailed / PaymentAmountMismatch /
-// PaymentVerified / PaymentWebhookValidated to RabbitMQ via the
-// per-context outbox in payments DB. Per-service Vault AppRole holds the
-// provider API keys + webhook secrets (wired in Phase 3b/3c).
 var payments = builder.AddProject<Projects.Payments_Api>("payments-svc")
     .WaitFor(vault)
+    .WaitFor(paymentsDb)
     .WithReference(paymentsDb)
+    .WaitFor(rabbitmq)
     .WithReference(rabbitmq)
     .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
-    .WithEnvironment("Vault__Enabled",      "false")  // flip when Phase 3b wires Stripe/PayPal secrets
+    .WithEnvironment("Vault__Enabled",      "false")
     .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
     .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("payments"))
     .WithEnvironment("Vault__SecretIdPath", SecretIdPath("payments"))
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
 // --- bff-web ---------------------------------------------------------------
-// Public HTTP edge. Composes services via REST clients (Phase 7b),
-// pushes checkout updates to browsers via SignalR (Phase 7c), and hosts
-// the demo surface (DemoController + DemoHub) the portfolio site talks to
-// (Phase 9 — see docs/agent-briefs/portfolio-integration.md when written).
-// Owns no DB; consumes PaymentSessionCreatedEvent from RabbitMQ to bridge
-// the saga -> SignalR -> browser flow.
-//
-// Pinned to :5050 / :5051 because the portfolio site's .env.local hardcodes
-// PUBLIC_API_URL=http://localhost:5050. macOS Control Center owns :5000
-// so we shifted off it; :5050 is conventionally free. WithEndpoint(name,
-// mutator) is used instead of WithHttpEndpoint(name:) to avoid the
-// "Endpoint with name 'http' already exists" collision with the auto-
-// generated endpoint from launchSettings.
 var bffWeb = builder.AddProject<Projects.BffWeb_Api>("bff-web")
     .WaitFor(vault)
+    .WaitFor(rabbitmq)
     .WithReference(rabbitmq)
     .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
+    .WaitFor(identity)
     .WithReference(identity)
+    .WaitFor(catalog)
     .WithReference(catalog)
+    .WaitFor(orders)
     .WithReference(orders)
+    .WaitFor(payments)
     .WithReference(payments)
+    .WaitFor(checkout)
     .WithReference(checkout)
     .WithEndpoint("http",  e => e.Port = 5050)
     .WithEndpoint("https", e => e.Port = 5051)
@@ -276,4 +193,43 @@ var bffWeb = builder.AddProject<Projects.BffWeb_Api>("bff-web")
     .WithEnvironment("Vault__SecretIdPath", SecretIdPath("bff-web"))
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
+builder.Services.AddHostedService<ResourceFileLogger>();
+
 builder.Build().Run();
+
+// =============================================================================
+// RESOURCE FILE LOGGER
+// =============================================================================
+internal sealed class ResourceFileLogger(
+    ResourceLoggerService loggerService,
+    ResourceNotificationService notificationService,
+    IConfiguration configuration) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await foreach (var resourceEvent in notificationService.WatchAsync(stoppingToken))
+        {
+            var state = resourceEvent.Snapshot.State;
+            if (state == "Starting" || state == "Running")
+            {
+                _ = Task.Run(() => CaptureLogsAsync(resourceEvent.ResourceId, stoppingToken), stoppingToken);
+            }
+        }
+    }
+
+    private async Task CaptureLogsAsync(string resourceId, CancellationToken ct)
+    {
+        var logDir = configuration["ASPIRE_LOGS_DIR"] ?? Path.Combine(AppContext.BaseDirectory, "logs");
+        Directory.CreateDirectory(logDir);
+        var logPath = Path.Combine(logDir, resourceId + ".log");
+
+        using var writer = new StreamWriter(logPath, append: true) { AutoFlush = true };
+        await foreach (var logs in loggerService.WatchAsync(resourceId).WithCancellation(ct))
+        {
+            foreach (var line in logs)
+            {
+                await writer.WriteLineAsync("[" + DateTime.Now.ToString("T") + "] " + (line.IsErrorMessage ? "ERR" : "INF") + " " + line.Content);
+            }
+        }
+    }
+}
