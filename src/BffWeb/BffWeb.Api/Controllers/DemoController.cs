@@ -167,7 +167,7 @@ public class DemoController : ControllerBase
     {
         var sagaId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var idempotencyKey = $"demo-{sagaId:N}";
+        var idempotencyKey = $"demo-{sagaId:N}-{request.ScenarioType}";
 
         _logger.LogInformation(
             "Saga demo: routing to checkout-orchestrator scenario={Scenario} sagaId={SagaId}",
