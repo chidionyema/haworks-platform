@@ -22,10 +22,18 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString, npgsql =>
             {
                 npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "payments");
-                // Retry transient Npgsql connection failures (EOF stream,
-                // socket timeouts) — bites under Testcontainers on macOS where
-                // the docker port-forward occasionally hiccups between scopes.
-                npgsql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromMilliseconds(500), errorCodesToAdd: null);
+                // NOTE: EnableRetryOnFailure() is intentionally OFF here.
+                // The MT EF outbox installs a SaveChangesInterceptor that
+                // serializes deferred publishes into OutboxMessage rows in
+                // the same transaction as user changes; Npgsql's retrying
+                // execution strategy wraps SaveChanges in its own state
+                // machine that breaks that handoff — publishes get dropped
+                // silently (no exception, no row, no message at the
+                // broker), which is what we observed for T2.5 demo events
+                // before this fix. If transient-failure retries become
+                // necessary again, do them at the HTTP-handler layer (or
+                // wrap operations in db.Database.CreateExecutionStrategy()
+                // explicitly) — not at the DbContext options level.
             }));
 
         services.AddScoped<IPaymentRepository, PaymentRepository>();
@@ -63,11 +71,13 @@ public static class DependencyInjection
 
                 cfg.Host(new Uri(rabbitConn));
 
-                // Send-pipeline filter that gates outbox dispatch on the
+                // Publish-pipeline filter that gates outbox dispatch on the
                 // process-wide RelayPauseGate. Demo /admin/relay-pause flips
-                // the flag; failed dispatches keep their OutboxMessage rows
+                // the flag; failed publishes keep their OutboxMessage rows
                 // intact and retry on the next BusOutboxDeliveryService tick.
-                cfg.UseSendFilter(typeof(RelayPauseFilter<>), context);
+                // Must be UsePublishFilter (not UseSendFilter): publishes go
+                // through the publish pipeline; send is for raw IBus.Send only.
+                cfg.UsePublishFilter(typeof(RelayPauseFilter<>), context);
 
                 cfg.ConfigureEndpoints(context);
             });

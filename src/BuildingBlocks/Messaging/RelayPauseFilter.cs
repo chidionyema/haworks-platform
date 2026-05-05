@@ -3,25 +3,39 @@ using MassTransit;
 namespace Haworks.BuildingBlocks.Messaging;
 
 /// <summary>
-/// MassTransit send-pipeline filter that throws <see cref="RelayPausedException"/>
-/// while <see cref="RelayPauseGate.IsPaused"/> is true. Throwing in the
-/// outbox dispatcher's send path keeps the <c>OutboxMessage</c> row
-/// marked as "not yet delivered"; the next <c>BusOutboxDeliveryService</c>
-/// tick (default 1s) re-attempts and either fails again (still paused) or
-/// succeeds and removes the row.
+/// MassTransit publish-pipeline filter that throws <see cref="RelayPausedException"/>
+/// while <see cref="RelayPauseGate.IsPaused"/> is true.
 ///
-/// Wire it into the bus via:
-///   cfg.UseSendFilter(typeof(RelayPauseFilter&lt;&gt;), context);
+/// Behavior: when the gate is paused, every <c>IPublishEndpoint.Publish</c>
+/// call (including those routed through the EF outbox via
+/// <c>UseEntityFrameworkOutbox + UseBusOutbox</c>) fails fast with
+/// <see cref="RelayPausedException"/> — no <c>OutboxMessage</c> row is
+/// staged, no broker delivery occurs. Callers see a 500 from the publish
+/// path and can choose to retry or surface the failure.
+///
+/// This is publish-source backpressure, NOT outbox-drain pausing. The
+/// distinction matters for the portfolio events-flow demo: paused →
+/// triggers fail at the source (visible to the user as
+/// <c>PaymentsRejected</c>); resumed → triggers succeed normally and the
+/// usual outbox → broker → consumer flow runs. There is no "queued
+/// while paused" state to drain — that would require gating
+/// <c>BusOutboxDeliveryService</c> dispatch instead, which MT does not
+/// expose a clean hook for.
+///
+/// Wire via:
+///   cfg.UsePublishFilter(typeof(RelayPauseFilter&lt;&gt;), context);
+/// (NOT UseSendFilter — that's only for raw IBus.Send / SendEndpoint
+/// pipelines and would silently no-op for publishes.)
 /// </summary>
-public sealed class RelayPauseFilter<T> : IFilter<SendContext<T>>
+public sealed class RelayPauseFilter<T> : IFilter<PublishContext<T>>
     where T : class
 {
-    public Task Send(SendContext<T> context, IPipe<SendContext<T>> next)
+    public Task Send(PublishContext<T> context, IPipe<PublishContext<T>> next)
     {
         if (RelayPauseGate.IsPaused)
         {
             throw new RelayPausedException(
-                $"Relay paused: send of {typeof(T).Name} blocked. Outbox row will retry on next tick.");
+                $"Relay paused: publish of {typeof(T).Name} blocked.");
         }
         return next.Send(context);
     }

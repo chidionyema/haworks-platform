@@ -22,7 +22,7 @@ public sealed class DemoOutboxEventConsumer(
     public Task Consume(ConsumeContext<DemoOutboxEvent> ctx)
     {
         var evt = ctx.Message;
-        logger.LogDebug(
+        logger.LogInformation(
             "Bridging DemoOutboxEvent -> OnEventFlow consumed for session={SessionId} eventId={EventId}",
             evt.SessionId, evt.EventId);
 
