@@ -99,6 +99,11 @@ if (!builder.Environment.IsEnvironment("Test"))
         mt.AddConsumer<PaymentSessionFailedSagaBridge>();
         mt.AddConsumer<PaymentCompletedSagaBridge>();
 
+        // T2.5: closes the persisted -> consumed loop for the event-flow demo.
+        // Subscribes to DemoOutboxEvent (relayed from payments-svc's outbox)
+        // and emits OnEventFlow stage='consumed' to the SignalR hub.
+        mt.AddConsumer<DemoOutboxEventConsumer>();
+
         mt.UsingRabbitMq((context, cfg) =>
         {
             var rabbitConn = builder.Configuration.GetConnectionString("rabbitmq")

@@ -318,50 +318,79 @@ public class DemoController : ControllerBase
     }
 
     // ========================================================================
-    // Event Flow (Outbox Pattern) — PHASE 2 will write to payments outbox
+    // Event Flow (Outbox Pattern) — T2.5: real round-trip via payments outbox
     // ========================================================================
+    //
+    // BffWeb POSTs to payments-svc /admin/demo-event. Payments begins a
+    // transaction on PaymentDbContext, publishes a DemoOutboxEvent via
+    // its EF outbox (commits atomically), and the MT relay drains the
+    // outbox row to RabbitMQ. BffWeb's DemoOutboxEventConsumer translates
+    // the inbound message back to OnEventFlow stage='consumed' so the
+    // frontend animates the full persisted -> consumed lifecycle against
+    // the real EF outbox + broker plumbing.
+    //
+    // 'relayed' intermediate stage isn't emitted: would need
+    // IDemoHubNotifier injection into MT's outbox dispatcher
+    // (BuildingBlocks/Messaging plumbing). Tracked as follow-up.
 
     private static bool s_relayPaused;
     private static int s_relayQueued;
 
     [HttpPost("events/trigger")]
-    public async Task<IActionResult> TriggerEvent([FromBody] EventTriggerRequest request)
+    public async Task<IActionResult> TriggerEvent([FromBody] EventTriggerRequest request, CancellationToken ct)
     {
         var sessionId = Guid.NewGuid();
-        var eventId = Guid.NewGuid();
-        var payload = request.Payload?.ToString() ?? "{}";
 
         if (s_relayPaused)
         {
             Interlocked.Increment(ref s_relayQueued);
+            var queuedEventId = Guid.NewGuid();
             await _notifier.NotifyEventFlowAsync(new EventFlowEvent(
-                sessionId, eventId.ToString(), "persisted", payload, DateTime.UtcNow));
+                sessionId, queuedEventId.ToString(), "persisted", request.Payload?.ToString(), DateTime.UtcNow), ct);
             return Ok(new
             {
                 sessionId,
-                eventId,
+                eventId = queuedEventId,
                 status = "QueuedWhileRelayPaused",
                 queuedCount = s_relayQueued,
             });
         }
 
-        // PHASE 2: BeginTransactionAsync on payments DbContext, Publish, Commit.
-        // EF outbox writes the OutboxMessage row in the same TX; relay drains it.
-        await _notifier.NotifyEventFlowAsync(new EventFlowEvent(
-            sessionId, eventId.ToString(), "persisted", payload, DateTime.UtcNow));
-
-        // Simulate the relay + consumer stages so the UI animates the full flow.
-        _ = Task.Run(async () =>
+        // Real round-trip: payments-svc owns the publish + outbox commit.
+        var client = _httpClientFactory.CreateClient(BackendClients.Payments);
+        var payload = new
         {
-            await Task.Delay(150);
-            await _notifier.NotifyEventFlowAsync(new EventFlowEvent(
-                sessionId, eventId.ToString(), "relayed", payload, DateTime.UtcNow));
-            await Task.Delay(120);
-            await _notifier.NotifyEventFlowAsync(new EventFlowEvent(
-                sessionId, eventId.ToString(), "consumed", payload, DateTime.UtcNow));
-        });
+            sessionId,
+            payload = request.Payload?.ToString() ?? "{}",
+        };
 
-        return Ok(new { sessionId, eventId, status = "Persisted" });
+        try
+        {
+            using var resp = await client.PostAsJsonAsync("/admin/demo-event", payload, ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("payments admin/demo-event returned {Status}", resp.StatusCode);
+                return StatusCode((int)resp.StatusCode, new { sessionId, status = "PaymentsRejected" });
+            }
+
+            // Payments returns the EventId it stamped on the outbox row.
+            // We re-emit the 'persisted' stage with that id so the
+            // 'consumed' notification (driven by DemoOutboxEventConsumer)
+            // matches it on the frontend's session timeline.
+            using var stream = await resp.Content.ReadAsStreamAsync(ct);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            var eventId = doc.RootElement.GetProperty("eventId").GetGuid();
+
+            await _notifier.NotifyEventFlowAsync(new EventFlowEvent(
+                sessionId, eventId.ToString(), "persisted", request.Payload?.ToString(), DateTime.UtcNow), ct);
+
+            return Ok(new { sessionId, eventId, status = "Persisted" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "events/trigger: payments-svc unreachable");
+            return StatusCode(503, new { sessionId, status = "PaymentsUnreachable" });
+        }
     }
 
     [HttpGet("events/relay-status")]
