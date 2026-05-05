@@ -173,13 +173,31 @@ public class DemoController : ControllerBase
             "Saga demo: routing to checkout-orchestrator scenario={Scenario} sagaId={SagaId}",
             request.ScenarioType, sagaId);
 
-        // Synthetic order data — one demo widget at $39.99. Real-product
-        // integration (catalog GET to pick a live product) is a follow-up.
+        // Resolve the real demo product id from catalog. The previous
+        // hardcoded GUID never existed in the DB, which made the saga's
+        // stock consumer always emit StockReservationFailed. Calling
+        // /demo/cache/seed-demo-product is idempotent — creates the product
+        // with stock 1000 the first time, returns the existing id afterwards.
+        Guid demoProductId;
+        try
+        {
+            var seedClient = _httpClientFactory.CreateClient(BackendClients.Catalog);
+            using var seedResp = await seedClient.PostAsync("/demo/cache/seed-demo-product", content: null, ct);
+            seedResp.EnsureSuccessStatusCode();
+            var seedBody = await seedResp.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+            demoProductId = seedBody.GetProperty("productId").GetGuid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Saga demo: catalog seed unreachable; saga will likely fail at stock");
+            return StatusCode(503, new { sessionId = sagaId, status = "CatalogUnreachable" });
+        }
+
         var demoItems = new[]
         {
             new CheckoutItemData
             {
-                ProductId = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                ProductId = demoProductId,
                 ProductName = "Demo Widget",
                 Quantity = request.ScenarioType == "stockRace" ? 3 : 1,
                 UnitPrice = 39.99m,

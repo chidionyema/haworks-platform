@@ -71,6 +71,12 @@ public static class DependencyInjection
                 o.DuplicateDetectionWindow = TimeSpan.FromMinutes(30);
             });
 
+            // Forward consumer for the saga's StockReservationRequested.
+            // Closes Phase 4: orchestrator publishes the request, this consumer
+            // reserves stock and publishes StockReservedEvent (or Failed),
+            // both routed through the outbox for atomicity.
+            mt.AddConsumer<StockReservationRequestedConsumer, CatalogConsumerDefinition<StockReservationRequestedConsumer>>();
+
             // Compensation consumer for the saga's StockReleaseRequested.
             // Anchored to CatalogDbContext outbox via CatalogConsumerDefinition
             // so release + StockReleasedEvent publish commit atomically.
