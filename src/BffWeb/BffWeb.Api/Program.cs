@@ -98,6 +98,8 @@ if (!builder.Environment.IsEnvironment("Test"))
         mt.AddConsumer<PaymentSessionCreatedSagaBridge>();
         mt.AddConsumer<PaymentSessionFailedSagaBridge>();
         mt.AddConsumer<PaymentCompletedSagaBridge>();
+            mt.AddConsumer<PaymentAmountMismatchSagaBridge>();
+            mt.AddConsumer<VaultRotationStageBridge>();
 
         // T2.5: closes the persisted -> consumed loop for the event-flow demo.
         // Subscribes to DemoOutboxEvent (relayed from payments-svc's outbox)

@@ -54,4 +54,23 @@ public sealed class CheckoutsController(
             createdAt = saga.CreatedAt,
         });
     }
+
+    [HttpGet("by-order/{orderId:guid}")]
+    public async Task<IActionResult> GetByOrderId(Guid orderId, CancellationToken ct)
+    {
+        var saga = await db.CheckoutSagas.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.OrderId == orderId, ct);
+        if (saga is null) return NotFound();
+
+        return Ok(new
+        {
+            sagaId = saga.CorrelationId,
+            currentState = saga.CurrentState,
+            orderId = saga.OrderId,
+            paymentId = saga.PaymentId,
+            paymentCheckoutUrl = saga.PaymentCheckoutUrl,
+            failureReason = saga.FailureReason,
+            createdAt = saga.CreatedAt,
+        });
+    }
 }

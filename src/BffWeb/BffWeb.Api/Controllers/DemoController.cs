@@ -333,30 +333,15 @@ public class DemoController : ControllerBase
     // IDemoHubNotifier injection into MT's outbox dispatcher
     // (BuildingBlocks/Messaging plumbing). Tracked as follow-up.
 
-    private static bool s_relayPaused;
-    private static int s_relayQueued;
-
     [HttpPost("events/trigger")]
     public async Task<IActionResult> TriggerEvent([FromBody] EventTriggerRequest request, CancellationToken ct)
     {
         var sessionId = Guid.NewGuid();
 
-        if (s_relayPaused)
-        {
-            Interlocked.Increment(ref s_relayQueued);
-            var queuedEventId = Guid.NewGuid();
-            await _notifier.NotifyEventFlowAsync(new EventFlowEvent(
-                sessionId, queuedEventId.ToString(), "persisted", request.Payload?.ToString(), DateTime.UtcNow), ct);
-            return Ok(new
-            {
-                sessionId,
-                eventId = queuedEventId,
-                status = "QueuedWhileRelayPaused",
-                queuedCount = s_relayQueued,
-            });
-        }
-
-        // Real round-trip: payments-svc owns the publish + outbox commit.
+        // Always publish through payments-svc. The OutboxMessage row commits
+        // atomically with the demo-event handler's transaction. If the relay
+        // is paused (via /admin/relay-pause) the row stays in the outbox and
+        // the 'consumed' SignalR push won't fire until /admin/relay-resume.
         var client = _httpClientFactory.CreateClient(BackendClients.Payments);
         var payload = new
         {
@@ -394,20 +379,59 @@ public class DemoController : ControllerBase
     }
 
     [HttpGet("events/relay-status")]
-    public IActionResult GetRelayStatus() =>
-        Ok(new { isPaused = s_relayPaused, queuedCount = s_relayQueued });
+    public async Task<IActionResult> GetRelayStatus(CancellationToken ct)
+    {
+        // Reads real RelayPauseGate flag + live OutboxMessage row count
+        // from payments-svc. The queuedCount is the number of undelivered
+        // outbox rows in the payments DB — if the relay is paused, this
+        // grows with each demo-event publish; on resume it drops to 0
+        // within ~1s as BusOutboxDeliveryService drains.
+        var client = _httpClientFactory.CreateClient(BackendClients.Payments);
+        try
+        {
+            using var resp = await client.GetAsync("/admin/relay-status", ct);
+            resp.EnsureSuccessStatusCode();
+            var body = await resp.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+            return Ok(new
+            {
+                isPaused = body.GetProperty("paused").GetBoolean(),
+                queuedCount = body.GetProperty("queuedMessages").GetInt32(),
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "events/relay-status: payments-svc unreachable");
+            return StatusCode(503, new { isPaused = false, queuedCount = 0, error = "payments unreachable" });
+        }
+    }
 
     [HttpPost("events/relay-pause")]
-    public IActionResult SetRelayPause([FromBody] RelayPauseRequest request)
+    public async Task<IActionResult> SetRelayPause([FromBody] RelayPauseRequest request, CancellationToken ct)
     {
-        if (request.Paused)
+        var client = _httpClientFactory.CreateClient(BackendClients.Payments);
+        var endpoint = request.Paused ? "/admin/relay-pause" : "/admin/relay-resume";
+        try
         {
-            s_relayPaused = true;
-            return Ok(new { isPaused = true, queuedCount = s_relayQueued, drained = 0 });
+            using var resp = await client.PostAsync(endpoint, content: null, ct);
+            resp.EnsureSuccessStatusCode();
+
+            // Re-read status to get the live drained count after resume.
+            using var statusResp = await client.GetAsync("/admin/relay-status", ct);
+            statusResp.EnsureSuccessStatusCode();
+            var status = await statusResp.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+
+            return Ok(new
+            {
+                isPaused = status.GetProperty("paused").GetBoolean(),
+                queuedCount = status.GetProperty("queuedMessages").GetInt32(),
+                drained = 0, // post-resume drain happens async via BusOutboxDeliveryService
+            });
         }
-        var drained = Interlocked.Exchange(ref s_relayQueued, 0);
-        s_relayPaused = false;
-        return Ok(new { isPaused = false, queuedCount = 0, drained });
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "events/relay-pause: payments-svc unreachable");
+            return StatusCode(503, new { isPaused = request.Paused, queuedCount = 0, error = "payments unreachable" });
+        }
     }
 
     // ========================================================================
@@ -524,15 +548,39 @@ public class DemoController : ControllerBase
     private static DateTime s_vaultLeaseExpiry = DateTime.UtcNow.AddSeconds(3600);
 
     [HttpGet("vault/status")]
-    public IActionResult GetVaultStatus()
+    public async Task<IActionResult> GetVaultStatus(CancellationToken ct)
     {
-        var ttl = (int)Math.Max(0, (s_vaultLeaseExpiry - DateTime.UtcNow).TotalSeconds);
+        var client = _httpClientFactory.CreateClient(BackendClients.Identity);
+        try
+        {
+            using var resp = await client.GetAsync("/admin/vault/status", ct);
+            if (resp.IsSuccessStatusCode)
+            {
+                var body = await resp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(cancellationToken: ct);
+                var ttl = body.TryGetProperty("ttlSeconds", out var t) ? t.GetInt32() : 0;
+                return Ok(new
+                {
+                    sessionId = Guid.NewGuid(),
+                    currentVersion = s_vaultVersion,
+                    status = ttl > 0 ? "Healthy" : "Expired",
+                    ttlSeconds = ttl,
+                });
+            }
+            _logger.LogWarning("Identity /admin/vault/status returned {Status}", resp.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Identity unreachable for vault status");
+        }
+        
+        // Fallback to local logic if identity is unreachable or returns error
+        var fallbackTtl = (int)Math.Max(0, (s_vaultLeaseExpiry - DateTime.UtcNow).TotalSeconds);
         return Ok(new
         {
             sessionId = Guid.NewGuid(),
             currentVersion = s_vaultVersion,
-            status = ttl > 0 ? "Healthy" : "Expired",
-            ttlSeconds = ttl,
+            status = fallbackTtl > 0 ? "Healthy" : "Expired",
+            ttlSeconds = fallbackTtl,
         });
     }
 
@@ -540,20 +588,10 @@ public class DemoController : ControllerBase
     public async Task<IActionResult> RotateVault(CancellationToken ct)
     {
         var sessionId = Guid.NewGuid();
-        var previousVersion = s_vaultVersion;
-        var newVersion = Interlocked.Increment(ref s_vaultVersion);
-        s_vaultLeaseExpiry = DateTime.UtcNow.AddSeconds(3600);
-
-        // T2.4: route through identity-svc's /admin/vault/rotate endpoint.
-        // Identity does the actual IVaultService.RefreshCredentials call (or
-        // logs warning + 202 if Vault integration isn't wired). BffWeb still
-        // owns the SignalR per-stage simulation — real per-stage events
-        // would require IVaultService to publish them, which is a larger
-        // refactor (BuildingBlocks/Vault scope) tracked as follow-up.
         var client = _httpClientFactory.CreateClient(BackendClients.Identity);
         try
         {
-            using var resp = await client.PostAsync("/admin/vault/rotate-credentials?roleName=identity-jwt", content: null, ct);
+            using var resp = await client.PostAsync($"/admin/vault/rotate-credentials?roleName=identity-jwt&sessionId={sessionId}", content: null, ct);
             if (!resp.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Identity vault-rotate returned {Status}", resp.StatusCode);
@@ -561,28 +599,8 @@ public class DemoController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Identity vault-rotate request failed (continuing with simulated stages)");
+            _logger.LogWarning(ex, "Identity vault-rotate request failed");
         }
-
-        // Stream the four-stage progression for the frontend's vault demo.
-        // Stages are simulated locally; identity-svc above is doing the
-        // actual rotation in the background. CancellationToken.None is
-        // intentional: this background task must outlive the request that
-        // started it (the request's ct fires when the response is sent).
-        _ = Task.Run(async () =>
-        {
-            await _notifier.NotifyVaultRotationAsync(new VaultRotationEvent(
-                sessionId, "started", newVersion, previousVersion.ToString(), DateTime.UtcNow));
-            await Task.Delay(150);
-            await _notifier.NotifyVaultRotationAsync(new VaultRotationEvent(
-                sessionId, "activated", newVersion, previousVersion.ToString(), DateTime.UtcNow));
-            await Task.Delay(150);
-            await _notifier.NotifyVaultRotationAsync(new VaultRotationEvent(
-                sessionId, "grace_period", newVersion, previousVersion.ToString(), DateTime.UtcNow));
-            await Task.Delay(300);
-            await _notifier.NotifyVaultRotationAsync(new VaultRotationEvent(
-                sessionId, "revoked", newVersion, previousVersion.ToString(), DateTime.UtcNow));
-        }, CancellationToken.None);
 
         return Ok(new { sessionId, status = "Rotating" });
     }

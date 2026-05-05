@@ -84,6 +84,16 @@ var clamav = builder.AddContainer("clamav", "clamav/clamav", "latest")
     .WithEndpoint(port: 3310, targetPort: 3310, name: "clamd");
 
 // =============================================================================
+// TEMPO (Grafana Tempo for distributed traces)
+// =============================================================================
+// Stub container so the OTLP endpoint references in services below resolve.
+// Gemini's G5 task expands this with proper config + Tempo HTTP query API
+// for the /api/traces/{traceId} demo endpoint.
+var tempo = builder.AddContainer("tempo", "grafana/tempo", "latest")
+    .WithEndpoint(targetPort: 4317, name: "grpc", scheme: "http")
+    .WithEndpoint(targetPort: 3200, name: "http", scheme: "http");
+
+// =============================================================================
 // VAULT
 // =============================================================================
 // Dev server (auto-unsealed, in-memory). Bootstrap-token only — services
@@ -176,6 +186,7 @@ var catalog = builder.AddProject<Projects.Catalog_Api>("catalog-svc")
     .WaitFor(vault)
     .WithReference(catalogDb)
     .WithReference(rabbitmq)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
     .WithEnvironment("Vault__Enabled",      "false")  // no Vault secrets in Phase 2; flip when needed
     .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
     .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("catalog"))
@@ -192,6 +203,7 @@ var checkout = builder.AddProject<Projects.CheckoutOrchestrator_Api>("checkout-s
     .WaitFor(vault)
     .WithReference(checkoutDb)
     .WithReference(rabbitmq)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
     .WithEnvironment("Vault__Enabled",      "false")
     .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
     .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("checkout-orchestrator"))
@@ -207,6 +219,7 @@ var orders = builder.AddProject<Projects.Orders_Api>("orders-svc")
     .WaitFor(vault)
     .WithReference(ordersDb)
     .WithReference(rabbitmq)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
     .WithEnvironment("Vault__Enabled",      "false")
     .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
     .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("orders"))
@@ -223,6 +236,7 @@ var payments = builder.AddProject<Projects.Payments_Api>("payments-svc")
     .WaitFor(vault)
     .WithReference(paymentsDb)
     .WithReference(rabbitmq)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
     .WithEnvironment("Vault__Enabled",      "false")  // flip when Phase 3b wires Stripe/PayPal secrets
     .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
     .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("payments"))
@@ -246,6 +260,7 @@ var payments = builder.AddProject<Projects.Payments_Api>("payments-svc")
 var bffWeb = builder.AddProject<Projects.BffWeb_Api>("bff-web")
     .WaitFor(vault)
     .WithReference(rabbitmq)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
     .WithReference(identity)
     .WithReference(catalog)
     .WithReference(orders)

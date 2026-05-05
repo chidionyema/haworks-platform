@@ -1,8 +1,10 @@
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Infrastructure;
 using MassTransit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Haworks.Payments.Api.Controllers;
 
@@ -69,6 +71,48 @@ public sealed class AdminController(
             sessionId,
             eventId = demoEvent.EventId,
             status = "Persisted",
+        });
+    }
+
+    /// <summary>
+    /// Pauses the MassTransit outbox relay for this payments-svc instance.
+    /// Subsequent demo-event publishes still land in the OutboxMessage
+    /// table, but BusOutboxDeliveryService can't dispatch them — the
+    /// RelayPauseFilter on the bus's send pipeline throws while paused,
+    /// keeping rows undelivered. Resume drains the backlog on the next
+    /// 1s tick.
+    /// </summary>
+    [HttpPost("relay-pause")]
+    public IActionResult PauseRelay()
+    {
+        RelayPauseGate.Pause();
+        logger.LogWarning("MT outbox relay paused (payments-svc)");
+        return Ok(new { paused = true });
+    }
+
+    /// <summary>Resume relay; queued OutboxMessage rows drain on the next tick.</summary>
+    [HttpPost("relay-resume")]
+    public IActionResult ResumeRelay()
+    {
+        RelayPauseGate.Resume();
+        logger.LogWarning("MT outbox relay resumed (payments-svc)");
+        return Ok(new { paused = false });
+    }
+
+    /// <summary>
+    /// Reports current relay state + the live count of undelivered
+    /// OutboxMessage rows. The count is a real query against the
+    /// payments DB — no synthetic counters.
+    /// </summary>
+    [HttpGet("relay-status")]
+    public async Task<IActionResult> RelayStatus(CancellationToken ct)
+    {
+        var queued = await db.Set<MassTransit.EntityFrameworkCoreIntegration.OutboxMessage>()
+            .CountAsync(ct);
+        return Ok(new
+        {
+            paused = RelayPauseGate.IsPaused,
+            queuedMessages = queued,
         });
     }
 }

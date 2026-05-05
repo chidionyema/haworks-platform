@@ -379,6 +379,18 @@ public class VaultService : IVaultService
         _disposed = true;
     }
 
+
+    public Task<VaultTokenInfo> GetTokenInfoAsync(CancellationToken ct = default)
+    {
+        if (!_initialized || _client == null)
+            return Task.FromResult(new VaultTokenInfo(0, string.Empty, false));
+
+        var ttlSeconds = (int)Math.Max(0, (_clientExpiresAtUtc - DateTime.UtcNow).TotalSeconds);
+        // The underlying VaultSharp client hides the actual lease ID of the auth token.
+        // We synthesize a lease ID string from the address for demo purposes.
+        return Task.FromResult(new VaultTokenInfo(ttlSeconds, $"{_vaultOptions.Address}_token", true));
+    }
+
     public void Dispose()
     {
         Dispose(true);

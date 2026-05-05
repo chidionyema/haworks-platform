@@ -56,4 +56,9 @@ public interface IVaultService : IDisposable
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The secret value, or null if not found.</returns>
     Task<string?> GetKvSecretAsync(string path, string key, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets information about the current Vault token.
+    /// </summary>
+    Task<VaultTokenInfo> GetTokenInfoAsync(CancellationToken ct = default);
 }

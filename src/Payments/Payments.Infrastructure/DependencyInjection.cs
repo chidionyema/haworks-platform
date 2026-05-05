@@ -62,6 +62,13 @@ public static class DependencyInjection
                         "ConnectionStrings:rabbitmq is missing. Aspire injects it via WithReference(rabbitmq).");
 
                 cfg.Host(new Uri(rabbitConn));
+
+                // Send-pipeline filter that gates outbox dispatch on the
+                // process-wide RelayPauseGate. Demo /admin/relay-pause flips
+                // the flag; failed dispatches keep their OutboxMessage rows
+                // intact and retry on the next BusOutboxDeliveryService tick.
+                cfg.UseSendFilter(typeof(RelayPauseFilter<>), context);
+
                 cfg.ConfigureEndpoints(context);
             });
         });

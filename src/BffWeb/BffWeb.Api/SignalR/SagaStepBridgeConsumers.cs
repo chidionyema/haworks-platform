@@ -107,3 +107,44 @@ public sealed class PaymentCompletedSagaBridge(IDemoHubNotifier notifier, ILogge
             Timestamp: DateTime.UtcNow), ctx.CancellationToken);
     }
 }
+
+
+public sealed class PaymentAmountMismatchSagaBridge(
+    IDemoHubNotifier notifier, 
+    IHttpClientFactory httpClientFactory,
+    ILogger<PaymentAmountMismatchSagaBridge> logger)
+    : IConsumer<PaymentAmountMismatchEvent>
+{
+    public async Task Consume(ConsumeContext<PaymentAmountMismatchEvent> ctx)
+    {
+        logger.LogWarning("Bridging PaymentAmountMismatchEvent for order {OrderId}", ctx.Message.OrderId);
+        
+        var client = httpClientFactory.CreateClient(Haworks.BffWeb.Api.BackendClients.Checkout);
+        try
+        {
+            using var resp = await client.GetAsync($"/api/checkouts/by-order/{ctx.Message.OrderId}", ctx.CancellationToken);
+            if (resp.IsSuccessStatusCode)
+            {
+                var body = await System.Net.Http.Json.HttpContentJsonExtensions.ReadFromJsonAsync<System.Text.Json.JsonElement>(resp.Content, cancellationToken: ctx.CancellationToken);
+                var sagaId = body.GetProperty("sagaId").GetGuid();
+                
+                await notifier.NotifySagaStepAsync(new SagaStepEvent(
+                    SessionId: sagaId,
+                    Step: "payment_failed",
+                    Service: "payments-svc",
+                    Status: "failed",
+                    Description: $"Payment amount mismatch: Expected {ctx.Message.ExpectedTotal}, received {ctx.Message.ActualPaid}",
+                    ProgressPercent: 70,
+                    Timestamp: DateTime.UtcNow), ctx.CancellationToken);
+            }
+            else
+            {
+                logger.LogWarning("Failed to lookup saga for order {OrderId}: {StatusCode}", ctx.Message.OrderId, resp.StatusCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error looking up saga for order {OrderId}", ctx.Message.OrderId);
+        }
+    }
+}
