@@ -172,6 +172,7 @@ var vaultSeed = builder.AddContainer("vault-seed", "hashicorp/vault", "1.15")
 var identity = builder.AddProject<Projects.Identity_Api>("identity-svc")
     .WaitForCompletion(vaultSeed)
     .WithReference(identityDb)
+    .WithReference(rabbitmq)            // identity now publishes VaultRotationStageEvent for the demo
     .WithEnvironment("Vault__Enabled",      "true")
     .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
     .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("identity"))

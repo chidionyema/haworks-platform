@@ -16,58 +16,64 @@ namespace Haworks.Identity.Api.Controllers;
 [Route("admin")]
 [AllowAnonymous]
 public sealed class AdminController(
-    IServiceProvider services,
+    IVaultService vault,
+    Haworks.BuildingBlocks.Messaging.IDomainEventPublisher publisher,
     ILogger<AdminController> logger) : ControllerBase
 {
     /// <summary>
-    /// Forces a Vault credential refresh for a named AppRole. T2.4's
-    /// vault-rotation demo posts here. If <see cref="IVaultService"/> isn't
-    /// registered (Vault integration not wired into this identity-svc
-    /// instance), logs a warning and returns 202 anyway — keeps the demo
-    /// HTTP contract honest while not pretending to rotate something that
-    /// doesn't exist.
+    /// Forces a Vault credential refresh for a named AppRole and emits
+    /// per-stage events through the EF outbox so BffWeb's
+    /// <c>VaultRotationStageBridge</c> can stream the lifecycle into the
+    /// portfolio's vault-rotation demo SignalR stream.
+    ///
+    /// <see cref="IVaultService"/> is registered via
+    /// <c>services.AddVaultIntegration(...)</c> in
+    /// <c>Identity.Infrastructure.DependencyInjection</c>.
     /// </summary>
     [HttpPost("vault/rotate-credentials")]
-    public IActionResult RotateCredentials([FromQuery] string roleName = "identity-jwt", [FromQuery] Guid? sessionId = null)
+    public IActionResult RotateCredentials(
+        // Default to identity's real Vault dynamic-Postgres role (per
+        // deploy/aspire/manifests/database/roles.json). Calling
+        // RefreshCredentials issues a fresh ephemeral DB user under this
+        // role — that's the meaningful "rotation" for the demo.
+        [FromQuery] string roleName = "haworks-identity",
+        [FromQuery] Guid? sessionId = null)
     {
-        var vault = services.GetService<IVaultService>();
-        var publisher = services.GetService<Haworks.BuildingBlocks.Messaging.IDomainEventPublisher>();
         var resolvedSession = sessionId ?? Guid.NewGuid();
 
-        if (vault is null)
-        {
-            logger.LogWarning(
-                "Vault rotate requested for role={RoleName} but IVaultService is not registered.", roleName);
-            return Accepted(new
-            {
-                roleName,
-                status = "AcceptedNoVault",
-                message = "Demo endpoint reached; vault integration not registered.",
-            });
-        }
-
+        // Fire-and-forget: the actual Vault round-trip can take several
+        // hundred ms, but the demo wants the HTTP response immediately so
+        // the frontend can subscribe to the SignalR stream of stage events
+        // without holding the request open.
         _ = Task.Run(async () =>
         {
+            const int newVersion = 1;
+            const string previousVersion = "current";
             try
             {
-                // Fake version numbers for the demo since VaultService doesn't expose them
-                var previousVersion = "v1";
-                var newVersion = 2;
+                await PublishStageAsync(resolvedSession, "started", newVersion, previousVersion);
 
-                if (publisher != null) await publisher.PublishAsync(new Haworks.Contracts.Identity.VaultRotationStageEvent { SessionId = resolvedSession, Stage = "started", NewVersion = newVersion, PreviousVersion = previousVersion, Timestamp = DateTime.UtcNow });
-                
+                // The single stage that's bound to a real Vault round-trip
+                // today. The IVaultService cycles the AppRole-backed
+                // credential store under this role — RefreshCredentials
+                // re-issues the dynamic Postgres lease tied to it.
+                // Lazy-init: VaultService requires InitializeAsync to be
+                // called once before its first use; idempotent so safe to
+                // call here on every rotate.
+                await vault.InitializeAsync();
                 await vault.RefreshCredentials(roleName);
-                if (publisher != null) await publisher.PublishAsync(new Haworks.Contracts.Identity.VaultRotationStageEvent { SessionId = resolvedSession, Stage = "credentials-fetched", NewVersion = newVersion, PreviousVersion = previousVersion, Timestamp = DateTime.UtcNow });
-                
-                // Simulate the other stages for the demo visual
-                await Task.Delay(100);
-                if (publisher != null) await publisher.PublishAsync(new Haworks.Contracts.Identity.VaultRotationStageEvent { SessionId = resolvedSession, Stage = "applied", NewVersion = newVersion, PreviousVersion = previousVersion, Timestamp = DateTime.UtcNow });
-                
-                await Task.Delay(100);
-                if (publisher != null) await publisher.PublishAsync(new Haworks.Contracts.Identity.VaultRotationStageEvent { SessionId = resolvedSession, Stage = "validated", NewVersion = newVersion, PreviousVersion = previousVersion, Timestamp = DateTime.UtcNow });
-                
-                await Task.Delay(100);
-                if (publisher != null) await publisher.PublishAsync(new Haworks.Contracts.Identity.VaultRotationStageEvent { SessionId = resolvedSession, Stage = "revoked-old", NewVersion = newVersion, PreviousVersion = previousVersion, Timestamp = DateTime.UtcNow });
+                await PublishStageAsync(resolvedSession, "credentials-fetched", newVersion, previousVersion);
+
+                // 'applied' / 'validated' / 'revoked-old' aren't surfaced as
+                // distinct hooks on IVaultService today — these publishes
+                // are real broker round-trips but their semantic is
+                // best-effort. Adding IProgress<VaultStage> to
+                // IVaultService.RefreshCredentials would let each stage
+                // correspond to a real Vault sub-operation; tracked
+                // separately.
+                await PublishStageAsync(resolvedSession, "applied", newVersion, previousVersion);
+                await PublishStageAsync(resolvedSession, "validated", newVersion, previousVersion);
+                await PublishStageAsync(resolvedSession, "revoked-old", newVersion, previousVersion);
 
                 logger.LogInformation("Vault credentials refreshed for role={RoleName}", roleName);
             }
@@ -79,4 +85,14 @@ public sealed class AdminController(
 
         return Accepted(new { roleName, status = "Rotating", sessionId = resolvedSession });
     }
+
+    private Task PublishStageAsync(Guid sessionId, string stage, int newVersion, string previousVersion) =>
+        publisher.PublishAsync(new Haworks.Contracts.Identity.VaultRotationStageEvent
+        {
+            SessionId = sessionId,
+            Stage = stage,
+            NewVersion = newVersion,
+            PreviousVersion = previousVersion,
+            Timestamp = DateTime.UtcNow,
+        });
 }

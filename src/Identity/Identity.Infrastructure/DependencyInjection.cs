@@ -2,8 +2,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MassTransit;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Caching;
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Vault;
 
 namespace Haworks.Identity.Infrastructure;
@@ -12,6 +14,12 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        // Vault DI: registers IVaultService + supporting types from
+        // BuildingBlocks.Vault. Required for the demo vault-rotation
+        // endpoint to do real per-stage RefreshCredentials calls
+        // through the registered IVaultService instance.
+        services.AddVaultIntegration(configuration);
+
         // L1+L2 hybrid cache used by TokenRevocationService for fast JTI lookups.
         // L2 backing: in-memory fallback for now (single-process dev). When Aspire
         // injects ConnectionStrings__redis, swap to AddStackExchangeRedisCache.
@@ -159,6 +167,31 @@ public static class DependencyInjection
         services.AddSingleton<Microsoft.Extensions.Options.IPostConfigureOptions<
             Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>>(sp =>
             new JwtBearerPostConfigureOptions(sp));
+
+        // MassTransit + IDomainEventPublisher for the vault-rotation demo's
+        // VaultRotationStageEvent publishes. Identity has no DB writes that
+        // need to be transactionally bound to these events, so we skip the
+        // EF outbox and publish straight to RabbitMQ — IDomainEventPublisher
+        // routes through IPublishEndpoint either way. Skipped in Test
+        // environment so the unit/integration fixtures can supply their own
+        // bus or dispense with one entirely.
+        var aspNetEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        if (!string.Equals(aspNetEnv, "Test", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddMassTransit(mt =>
+            {
+                mt.SetKebabCaseEndpointNameFormatter();
+                mt.UsingRabbitMq((context, cfg) =>
+                {
+                    var rabbitConn = configuration.GetConnectionString("rabbitmq")
+                        ?? throw new InvalidOperationException(
+                            "ConnectionStrings:rabbitmq is missing. Aspire injects it via WithReference(rabbitmq).");
+                    cfg.Host(new Uri(rabbitConn));
+                    cfg.ConfigureEndpoints(context);
+                });
+            });
+            services.AddDomainEventPublisher();
+        }
 
         return services;
     }

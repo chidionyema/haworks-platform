@@ -591,7 +591,7 @@ public class DemoController : ControllerBase
         var client = _httpClientFactory.CreateClient(BackendClients.Identity);
         try
         {
-            using var resp = await client.PostAsync($"/admin/vault/rotate-credentials?roleName=identity-jwt&sessionId={sessionId}", content: null, ct);
+            using var resp = await client.PostAsync($"/admin/vault/rotate-credentials?roleName=haworks-identity&sessionId={sessionId}", content: null, ct);
             if (!resp.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Identity vault-rotate returned {Status}", resp.StatusCode);
