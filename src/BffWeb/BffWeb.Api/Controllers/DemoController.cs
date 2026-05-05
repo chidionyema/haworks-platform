@@ -456,8 +456,15 @@ public class DemoController : ControllerBase
         Policy
             .HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
             .Or<HttpRequestException>()
+            .Or<TaskCanceledException>()
             .CircuitBreakerAsync(handledEventsAllowedBeforeBreaking: 2,
                                   durationOfBreak: TimeSpan.FromSeconds(6));
+
+    // Process-wide counters the frontend reads to render the demo's metric
+    // tiles. Reset on circuit/reset.
+    private static int s_circuitSuccess;
+    private static int s_circuitFailure;
+    private static int s_circuitRejected;
 
     [HttpPost("circuit/request")]
     public async Task<IActionResult> CircuitRequest([FromBody] CircuitRequest request)
@@ -465,11 +472,17 @@ public class DemoController : ControllerBase
         var sessionId = request.SessionId ?? Guid.NewGuid();
         var client = _httpClientFactory.CreateClient(BackendClients.CatalogDemo);
         var path = request.ShouldFail ? "/demo/fail" : "/demo/health-with-chaos";
+        var sw = System.Diagnostics.Stopwatch.StartNew();
 
         try
         {
             using var resp = await s_circuit.ExecuteAsync(() => client.GetAsync(path));
+            sw.Stop();
             var stateAfter = MapState(s_circuit.CircuitState);
+
+            if (resp.IsSuccessStatusCode) Interlocked.Increment(ref s_circuitSuccess);
+            else Interlocked.Increment(ref s_circuitFailure);
+
             await _notifier.NotifyCircuitBreakerStateAsync(new CircuitBreakerStateEvent(
                 sessionId, "catalog-svc", stateAfter, DateTime.UtcNow));
 
@@ -479,23 +492,50 @@ public class DemoController : ControllerBase
                 success = resp.IsSuccessStatusCode,
                 circuitState = stateAfter,
                 statusCode = (int)resp.StatusCode,
+                isRejected = false,
+                failureCount = s_circuitFailure,
+                successCount = s_circuitSuccess,
+                rejectedCount = s_circuitRejected,
+                responseTimeMs = sw.ElapsedMilliseconds,
+                message = resp.IsSuccessStatusCode ? "OK" : $"Upstream {(int)resp.StatusCode}",
             });
         }
         catch (BrokenCircuitException)
         {
+            sw.Stop();
+            Interlocked.Increment(ref s_circuitRejected);
             await _notifier.NotifyCircuitBreakerStateAsync(new CircuitBreakerStateEvent(
                 sessionId, "catalog-svc", "open", DateTime.UtcNow));
-            return Ok(new { sessionId, success = false, circuitState = "open", isRejected = true });
+            return Ok(new
+            {
+                sessionId,
+                success = false,
+                circuitState = "open",
+                isRejected = true,
+                failureCount = s_circuitFailure,
+                successCount = s_circuitSuccess,
+                rejectedCount = s_circuitRejected,
+                responseTimeMs = sw.ElapsedMilliseconds,
+                retryAfterSeconds = 6,
+                message = "Circuit open — fail-fast",
+            });
         }
         catch (Exception ex)
         {
+            sw.Stop();
+            Interlocked.Increment(ref s_circuitFailure);
             _logger.LogWarning(ex, "Circuit demo: catalog-svc call threw {Type}", ex.GetType().Name);
             return Ok(new
             {
                 sessionId,
                 success = false,
                 circuitState = MapState(s_circuit.CircuitState),
-                error = ex.Message,
+                isRejected = false,
+                failureCount = s_circuitFailure,
+                successCount = s_circuitSuccess,
+                rejectedCount = s_circuitRejected,
+                responseTimeMs = sw.ElapsedMilliseconds,
+                message = ex.Message,
             });
         }
     }
@@ -532,9 +572,19 @@ public class DemoController : ControllerBase
         // current state. The demo's "Manual_Reset" button uses this to skip
         // the half-open dance.
         s_circuit.Reset();
+        Interlocked.Exchange(ref s_circuitSuccess, 0);
+        Interlocked.Exchange(ref s_circuitFailure, 0);
+        Interlocked.Exchange(ref s_circuitRejected, 0);
         await _notifier.NotifyCircuitBreakerStateAsync(new CircuitBreakerStateEvent(
             request.SessionId, "catalog-svc", "closed", DateTime.UtcNow));
-        return Ok(new { sessionId = request.SessionId });
+        return Ok(new
+        {
+            sessionId = request.SessionId,
+            circuitState = "closed",
+            failureCount = 0,
+            successCount = 0,
+            rejectedCount = 0,
+        });
     }
 
     // Maps Polly's CircuitState enum to the kebab-case strings the frontend expects.
@@ -650,15 +700,27 @@ public class DemoController : ControllerBase
         await _notifier.NotifyConcurrencyEventAsync(new ConcurrencyEvent(
             sessionId, "idempotency_check", key, isWinner ? "new" : "duplicate", 0, now));
 
+        // Wire shape matches portfolio-site IdempotencyResponse:
+        //   { sessionId, idempotencyKey, isDuplicate, result: { orderId,
+        //     status }, keyInfo: { createdAt, expiresAt, ttlSeconds } }
         return Ok(new
         {
             sessionId,
-            result = settled.Result,
+            idempotencyKey = key,
             isDuplicate = !isWinner,
             isWinner,
+            result = new
+            {
+                orderId = settled.Result.OrderId,
+                status = settled.Result.Status,
+            },
+            keyInfo = new
+            {
+                createdAt = settled.CreatedAt,
+                expiresAt = settled.ExpiresAt,
+                ttlSeconds = (int)ttl.TotalSeconds,
+            },
             cacheAgeSeconds = (int)(now - settled.CreatedAt).TotalSeconds,
-            expiresInSeconds = (int)Math.Max(0, (settled.ExpiresAt - now).TotalSeconds),
-            ttlSeconds = (int)ttl.TotalSeconds,
         });
     }
 
@@ -993,24 +1055,38 @@ public class DemoController : ControllerBase
     }
 
     [HttpPost("ratelimit/request")]
-    public async Task<IActionResult> RateLimitRequest([FromBody] SessionRequest request)
+    public async Task<IActionResult> RateLimitRequest(
+        [FromBody] SessionRequest request,
+        [FromHeader(Name = "X-Demo-Session")] Guid? demoSession)
     {
-        var sessionId = request.SessionId ?? Guid.NewGuid();
-        var limiter = _stateStore.GetOrCreateLimiter(sessionId, 5, 60);
+        var sessionId = request.SessionId ?? (demoSession is { } id && id != Guid.Empty ? id : Guid.NewGuid());
+        const int Limit = 5;
+        var limiter = _stateStore.GetOrCreateLimiter(sessionId, Limit, 60);
 
         using var lease = await limiter.AcquireAsync(1);
         var permits = limiter.GetStatistics();
-        var eventData = new RateLimitEvent(
+        var remaining = (int)(permits?.CurrentAvailablePermits ?? 0);
+        var retryAfterSeconds = lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter) ? (int?)retryAfter.TotalSeconds : null;
+        var resetAt = DateTime.UtcNow.AddSeconds(retryAfterSeconds ?? 60);
+
+        await _notifier.NotifyRateLimitAsync(new RateLimitEvent(
+            sessionId, lease.IsAcquired, remaining, retryAfterSeconds, DateTime.UtcNow));
+
+        // Wire shape matches portfolio-site RateLimitResponse:
+        //   { sessionId, allowed, bucket: { remaining, limit, resetAt,
+        //     retryAfterSeconds }, requestNumber? }
+        return Ok(new
+        {
             sessionId,
-            lease.IsAcquired,
-            (int)(permits?.CurrentAvailablePermits ?? 0),
-            lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter) ? (int?)retryAfter.TotalSeconds : null,
-            DateTime.UtcNow);
-
-        await _notifier.NotifyRateLimitAsync(eventData);
-
-        if (lease.IsAcquired) return Ok(new { allowed = true, remaining = eventData.Remaining });
-        return StatusCode(429, new { allowed = false, retryAfter = eventData.RetryAfterSeconds });
+            allowed = lease.IsAcquired,
+            bucket = new
+            {
+                remaining,
+                limit = Limit,
+                resetAt,
+                retryAfterSeconds,
+            },
+        });
     }
 
     [HttpPost("ratelimit/burst")]

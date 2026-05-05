@@ -72,10 +72,28 @@ foreach (var name in new[]
 // separate name so the demo's policy doesn't affect real catalog traffic.
 // The Polly circuit breaker itself lives statically in DemoController so
 // it survives across requests (per-session state would defeat the point).
+//
+// Bare 3s timeout, NO standard resilience: ServiceDefaults wires
+// AddStandardResilienceHandler globally, which retries 5xx responses.
+// That defeats the demo — we WANT 503s to bubble up instantly so the
+// outer Polly circuit can count them. AddStandardResilienceHandler()
+// here a second time replaces the global registration with a no-op
+// configuration just for this client.
 builder.Services.AddHttpClient(BackendClients.CatalogDemo, client =>
 {
     client.BaseAddress = new Uri($"https+http://{BackendClients.Catalog}");
     client.Timeout = TimeSpan.FromSeconds(3);
+})
+.AddStandardResilienceHandler(o =>
+{
+    // Outer demo Polly does retry/breaker; this handler must be a no-op for
+    // failures so 503s bubble up instantly. MaxRetryAttempts=0 fails the
+    // Range(1,...) validator at startup, so we keep the default count and
+    // make the predicate never match.
+    o.Retry.ShouldHandle = static _ => ValueTask.FromResult(false);
+    o.CircuitBreaker.ShouldHandle = static _ => ValueTask.FromResult(false);
+    o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(2);
+    o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(3);
 });
 
 // MassTransit + the bff-web-side SignalR-bridge consumer. Production
@@ -140,7 +158,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Skip HTTPS redirect in dev — portfolio-site hits http://localhost:5050
+// and a 307→https cross-scheme redirect blocks the browser fetch.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 // CORS must run before auth so the preflight OPTIONS request is answered
 // without challenging credentials. Demo endpoints are AllowAnonymous so
 // position relative to UseAuthentication doesn't matter for the response,
