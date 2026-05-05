@@ -670,21 +670,31 @@ public class DemoController : ControllerBase
     // ========================================================================
 
     [HttpPost("cache/stampede")]
-    public IActionResult SimulateStampede([FromBody] StampedeRequest request)
+    public async Task<IActionResult> SimulateStampede([FromBody] StampedeRequest request, CancellationToken ct)
     {
-        // PHASE 2: drive real HybridCache.GetOrCreateAsync against catalog-svc
-        // and count actual DB hits. Phase 1 returns the canned shape: with
-        // singleflight protection, exactly 1 query serves N concurrent reads.
-        var sessionId = Guid.NewGuid();
-        var dbQueries = request.ProtectionMode == "singleflight" ? 1 : request.ConcurrentRequests;
-        return Ok(new
+        // T2.6: real cache-stampede demo via catalog-svc HybridCache.
+        // catalog's /demo/cache-stampede runs Parallel.ForEachAsync of N
+        // GetOrCreateAsync calls; HybridCache's singleflight collapses
+        // them to 1 factory invocation (vs 'none' which bypasses cache and
+        // runs the factory N times).
+        var client = _httpClientFactory.CreateClient(BackendClients.Catalog);
+        try
         {
-            sessionId,
-            protectionMode = request.ProtectionMode,
-            cacheHits = request.ConcurrentRequests - dbQueries,
-            cacheMisses = dbQueries,
-            dbQueries,
-        });
+            using var resp = await client.PostAsJsonAsync("/demo/cache-stampede", request, ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                return StatusCode((int)resp.StatusCode, new { error = "catalog stampede demo failed" });
+            }
+            // Forward catalog's response shape verbatim — fields match what
+            // the frontend expects.
+            var json = await resp.Content.ReadAsStringAsync(ct);
+            return Content(json, "application/json");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "cache/stampede: catalog-svc unreachable");
+            return StatusCode(503, new { sessionId = Guid.NewGuid(), error = "catalog unreachable" });
+        }
     }
 
     [HttpGet("cache/product/demo")]
