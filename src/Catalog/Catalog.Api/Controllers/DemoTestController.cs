@@ -72,6 +72,14 @@ public sealed class DemoTestController(
         });
     }
 
+    [HttpPost("chaos/clear")]
+    public IActionResult ClearChaos()
+    {
+        Interlocked.Exchange(ref s_chaosUntilTicks, 0);
+        logger.LogInformation("CHAOS cleared manually");
+        return Ok(new { cleared = true });
+    }
+
     [HttpGet("health-with-chaos")]
     public IActionResult HealthWithChaos() =>
         IsChaosActive()

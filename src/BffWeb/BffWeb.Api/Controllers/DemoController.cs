@@ -433,7 +433,7 @@ public class DemoController : ControllerBase
     {
         var sessionId = request.SessionId ?? Guid.NewGuid();
         var client = _httpClientFactory.CreateClient(BackendClients.CatalogDemo);
-        var path = request.ShouldFail ? "/demo/fail" : "/health";
+        var path = request.ShouldFail ? "/demo/fail" : "/demo/health-with-chaos";
 
         try
         {
@@ -470,8 +470,29 @@ public class DemoController : ControllerBase
     }
 
     [HttpPost("circuit/toggle-failure")]
-    public IActionResult ToggleCircuitFailure([FromBody] ToggleFailureRequest request) =>
-        Ok(new { sessionId = request.SessionId });
+    public async Task<IActionResult> ToggleCircuitFailure([FromBody] ToggleFailureRequest request, CancellationToken ct)
+    {
+        var client = _httpClientFactory.CreateClient(BackendClients.CatalogDemo);
+        try
+        {
+            if (request.FailureMode)
+            {
+                using var resp = await client.PostAsJsonAsync("/demo/chaos/trigger", new ChaosRequest("circuit-breaker-demo", 60), ct);
+                resp.EnsureSuccessStatusCode();
+            }
+            else
+            {
+                using var resp = await client.PostAsync("/demo/chaos/clear", null, ct);
+                resp.EnsureSuccessStatusCode();
+            }
+            return Ok(new { sessionId = request.SessionId, failureMode = request.FailureMode });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Circuit toggle failed: catalog-svc unreachable");
+            return StatusCode(503, new { sessionId = request.SessionId, error = "catalog unreachable" });
+        }
+    }
 
     [HttpPost("circuit/reset")]
     public async Task<IActionResult> ResetCircuit([FromBody] ResetRequest request)
