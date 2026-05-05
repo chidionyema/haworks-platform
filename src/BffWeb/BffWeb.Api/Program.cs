@@ -47,7 +47,11 @@ builder.Services.AddCors(o => o.AddPolicy("portfolio-site", p => p
         "Content-Type", "Authorization", "X-Correlation-ID",
         "X-Requested-With", "Accept", "Origin",
         "X-Demo-Session", "X-Idempotency-Key", "X-Idempotency-Ttl-Seconds",
-        "If-Match")
+        "If-Match",
+        // SignalR's JS client adds this on the negotiate POST. Without it
+        // in the allowlist, the browser blocks the preflight and no demo
+        // can subscribe to push events.
+        "x-signalr-user-agent")
     .WithExposedHeaders("X-Trace-Id", "X-Correlation-ID")
     .AllowCredentials()));
 
