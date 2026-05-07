@@ -87,6 +87,12 @@ foreach (var name in new[]
     builder.Services.AddHttpClient(name, client =>
     {
         client.BaseAddress = new Uri($"https+http://{name}");
+        // Tight timeout so container chaos surfaces fast in the topology
+        // map's auto-prober. Default of 100s used to make a paused
+        // postgres / rabbitmq look like an indefinite hang from the
+        // visitor's perspective. 4s is enough for normal demo round-trips
+        // while still failing fast under chaos.
+        client.Timeout = TimeSpan.FromSeconds(4);
     })
     // Chaos fault injection runs FIRST: while "paused" via the topology
     // map, the request short-circuits to a synthetic 503 before any

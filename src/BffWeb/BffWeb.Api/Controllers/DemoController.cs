@@ -633,47 +633,39 @@ public class DemoController : ControllerBase
     };
 
     // ========================================================================
-    // Vault / Secrets — PHASE 2 will trigger real Vault rotation via identity-svc
+    // Vault / Secrets — proxies to identity-svc which makes the real
+    // vault round-trip via IVaultService. No fallback / no static state:
+    // pausing the vault container surfaces here as a real 5xx so the
+    // topology auto-prober flips the corresponding card to broken.
     // ========================================================================
-
-    private static int s_vaultVersion = 1;
-    private static DateTime s_vaultLeaseExpiry = DateTime.UtcNow.AddSeconds(3600);
 
     [HttpGet("vault/status")]
     public async Task<IActionResult> GetVaultStatus(CancellationToken ct)
     {
+        // Honest passthrough — no static fallback. If identity (or its
+        // upstream Vault) is unreachable, the visitor sees a real 5xx in
+        // the topology auto-prober. This used to fall back to in-memory
+        // s_vaultVersion / s_vaultLeaseExpiry which made docker-pausing
+        // the vault container look like the system was still healthy.
         var client = _httpClientFactory.CreateClient(BackendClients.Identity);
         try
         {
             using var resp = await client.GetAsync("/admin/vault/status", ct);
-            if (resp.IsSuccessStatusCode)
-            {
-                var body = await resp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(cancellationToken: ct);
-                var ttl = body.TryGetProperty("ttlSeconds", out var t) ? t.GetInt32() : 0;
-                return Ok(new
-                {
-                    sessionId = Guid.NewGuid(),
-                    currentVersion = s_vaultVersion,
-                    status = ttl > 0 ? "Healthy" : "Expired",
-                    ttlSeconds = ttl,
-                });
-            }
-            _logger.LogWarning("Identity /admin/vault/status returned {Status}", resp.StatusCode);
+            var body = await resp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(cancellationToken: ct);
+            return resp.IsSuccessStatusCode
+                ? Ok(body)
+                : StatusCode((int)resp.StatusCode, body);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Identity unreachable for vault status");
+            return StatusCode(503, new
+            {
+                status = "Unreachable",
+                error = ex.GetType().Name,
+                message = ex.Message,
+            });
         }
-        
-        // Fallback to local logic if identity is unreachable or returns error
-        var fallbackTtl = (int)Math.Max(0, (s_vaultLeaseExpiry - DateTime.UtcNow).TotalSeconds);
-        return Ok(new
-        {
-            sessionId = Guid.NewGuid(),
-            currentVersion = s_vaultVersion,
-            status = fallbackTtl > 0 ? "Healthy" : "Expired",
-            ttlSeconds = fallbackTtl,
-        });
     }
 
     [HttpPost("vault/rotate")]

@@ -5,6 +5,22 @@ using Microsoft.AspNetCore.Mvc;
 namespace Haworks.Identity.Api.Controllers;
 
 /// <summary>
+/// HttpClient marker for the dedicated Vault health probe. Registered
+/// with a 2s timeout so a paused vault container surfaces as a 5xx
+/// fast in the topology auto-prober.
+/// </summary>
+public sealed class VaultProbeClient
+{
+    public HttpClient Client { get; }
+    public Uri Address { get; }
+    public VaultProbeClient(HttpClient client, Uri address)
+    {
+        Client = client;
+        Address = address;
+    }
+}
+
+/// <summary>
 /// Operational endpoints for identity-svc — exposed for the portfolio
 /// site's demo flow via BffWeb. NOT part of identity's user-facing
 /// surface; in production these MUST be locked behind a localhost-only
@@ -17,6 +33,7 @@ namespace Haworks.Identity.Api.Controllers;
 [AllowAnonymous]
 public sealed class AdminController(
     IVaultService vault,
+    VaultProbeClient probe,
     Haworks.BuildingBlocks.Messaging.IDomainEventPublisher publisher,
     ILogger<AdminController> logger) : ControllerBase
 {
@@ -30,6 +47,60 @@ public sealed class AdminController(
     /// <c>services.AddVaultIntegration(...)</c> in
     /// <c>Identity.Infrastructure.DependencyInjection</c>.
     /// </summary>
+    /// <summary>
+    /// Real round-trip to Vault via <see cref="IVaultService.GetTokenInfoAsync"/>.
+    /// Honest: returns 503 if Vault is unreachable instead of any cached
+    /// fallback — pausing the vault container must surface as a real
+    /// failure in the topology map's auto-prober, not a cosmetic green
+    /// dot. <see cref="IVaultService.LeaseDurationFor"/> + <see cref="IVaultService.LeaseExpiryFor"/>
+    /// supply the role-specific lease info from the cache populated by
+    /// the most recent vault refresh.
+    /// </summary>
+    [HttpGet("vault/status")]
+    public async Task<IActionResult> GetVaultStatus(CancellationToken ct)
+    {
+        // Raw HTTP probe to vault's /v1/sys/health endpoint (unauthenticated
+        // by spec). This bypasses IVaultService entirely — its
+        // GetTokenInfoAsync reads from the local lease cache and would
+        // happily report "healthy" even with the vault container paused.
+        // 2s timeout on the typed client; container chaos surfaces fast.
+        try
+        {
+            using var resp = await probe.Client.GetAsync("/v1/sys/health", ct);
+            // /v1/sys/health uses non-2xx codes for non-active states
+            // (sealed/standby/etc) but the body still parses. Any reachable
+            // response counts as "vault is alive" for our purposes.
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            const string roleName = "haworks-identity";
+            var leaseExpiry = vault.LeaseExpiryFor(roleName);
+            var leaseTtlSeconds = (int)Math.Max(
+                0, (leaseExpiry - DateTime.UtcNow).TotalSeconds);
+            return Ok(new
+            {
+                status = "Healthy",
+                vaultAddress = probe.Address.ToString(),
+                vaultStatusCode = (int)resp.StatusCode,
+                vaultBody = body,
+                roleName,
+                leaseTtlSeconds,
+                leaseExpiry,
+            });
+        }
+        catch (Exception ex)
+        {
+            // Container paused / network unreachable / TLS failure all
+            // land here and surface as 503 to the BFF.
+            logger.LogWarning(ex, "Vault HTTP probe failed");
+            return StatusCode(503, new
+            {
+                status = "Unreachable",
+                vaultAddress = probe.Address.ToString(),
+                error = ex.GetType().Name,
+                message = ex.Message,
+            });
+        }
+    }
+
     [HttpPost("vault/rotate-credentials")]
     public IActionResult RotateCredentials(
         // Default to identity's real Vault dynamic-Postgres role (per
