@@ -123,18 +123,15 @@ for app in "${INTERNAL_APPS[@]}"; do
   set_secrets "$app" "${common[@]}" "${DB_KEY[$app]}=$conn"
 done
 
-# BFF: no DB, but needs service-discovery overrides for HttpClients.
-# Keys must match BackendClients.cs constants exactly.
-bff_extra=(
-  "Services__identity-svc__http__0=http://ritualworks-identity.flycast:8080"
-  "Services__catalog-svc__http__0=http://ritualworks-catalog.flycast:8080"
-  "Services__orders-svc__http__0=http://ritualworks-orders.flycast:8080"
-  "Services__payments-svc__http__0=http://ritualworks-payments.flycast:8080"
-  "Services__checkout-svc__http__0=http://ritualworks-checkout.flycast:8080"
-)
-# CORS origins for the Cloudflare-Pages-hosted UI. The BFF has sensible
-# defaults baked in (localhost dev + canonical pages.dev URLs); only set
-# this when a custom domain is in play.
+# BFF: only secrets here. Service-discovery overrides for the BFF's
+# HttpClients (Services__<svc>__http__0=...flycast:8080) live in
+# fly.bffweb.toml's [env] block — Fly's secrets API rejects hyphens in
+# names, and these aren't secrets anyway (just internal flycast hostnames).
+bff_extra=()
+
+# CORS origins for a custom-domain UI. The BFF has sensible defaults
+# baked in (localhost dev + canonical pages.dev URLs); only set this
+# when a custom domain is in play.
 if [[ -n "${PORTFOLIO_SITE_URL:-}" ]]; then
   bff_extra+=(
     "Cors__AllowedOrigins__0=http://localhost:4321"
@@ -143,7 +140,12 @@ if [[ -n "${PORTFOLIO_SITE_URL:-}" ]]; then
     "Cors__AllowedOrigins__3=$PORTFOLIO_SITE_URL"
   )
 fi
-set_secrets "$PUBLIC_APP" "${common[@]}" "${bff_extra[@]}"
+
+if [[ ${#bff_extra[@]} -gt 0 ]]; then
+  set_secrets "$PUBLIC_APP" "${common[@]}" "${bff_extra[@]}"
+else
+  set_secrets "$PUBLIC_APP" "${common[@]}"
+fi
 
 # Identity-specific: JWT key + optional issuer/audience + optional OAuth.
 id_extra=(
