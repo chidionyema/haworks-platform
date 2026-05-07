@@ -76,12 +76,15 @@ public sealed class CatalogFlowsTests : IClassFixture<CatalogWebAppFactory>, IAs
     [Fact]
     public async Task Create_product_with_unknown_category_returns_404()
     {
+        // Use a random Guid (not Guid.Empty) so the FluentValidation rule
+        // `NotEqual(Guid.Empty)` doesn't short-circuit with a 400 before the
+        // handler's not-found check runs.
         var resp = await _client.PostAsJsonAsync("/api/products", new
         {
             name = "Orphan",
             description = "x",
             unitPrice = 1m,
-            categoryId = Guid.Empty,
+            categoryId = Guid.NewGuid(),
             initialStock = 0,
         });
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
