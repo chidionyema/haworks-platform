@@ -89,7 +89,11 @@ fi
 
 set_secrets() {
   local app="$1"; shift
-  printf '%s\n' "$@" | flyctl secrets import --stage -a "$app" >/dev/null
+  # `flyctl secrets set` takes K=V pairs as positional args — bulletproof
+  # for any value. Avoid `flyctl secrets import` (stdin pipe) which mangles
+  # values containing `&` and similar special characters when parsed
+  # line-by-line in some flyctl versions.
+  flyctl secrets set --stage -a "$app" "$@" >/dev/null
   echo "    staged $# secrets for $app"
 }
 
