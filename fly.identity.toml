@@ -1,0 +1,26 @@
+# Internal-only service. Do NOT allocate public IPs:
+#   flyctl ips list -a ritualworks-identity     -> should be empty
+# BFF reaches it at http://ritualworks-identity.flycast:8080
+
+app            = "ritualworks-identity"
+primary_region = "iad"
+
+[build]
+  dockerfile = "src/Identity/Identity.Api/Dockerfile"
+
+[env]
+  ASPNETCORE_URLS        = "http://+:8080"
+  ASPNETCORE_ENVIRONMENT = "Production"
+
+[http_service]
+  internal_port        = 8080
+  force_https          = false
+  auto_stop_machines   = "stop"
+  auto_start_machines  = true
+  min_machines_running = 0
+  processes            = ["app"]
+
+[[vm]]
+  memory   = "512mb"
+  cpu_kind = "shared"
+  cpus     = 1

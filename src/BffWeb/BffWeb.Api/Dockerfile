@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1.7
+# Build context: repo root (ritualworks-platform/).
+# fly.toml at the repo root references this path via [build].dockerfile.
+
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+COPY Directory.Build.props ./
+COPY src/ ./src/
+
+RUN dotnet restore src/BffWeb/BffWeb.Api/BffWeb.Api.csproj
+
+RUN dotnet publish src/BffWeb/BffWeb.Api/BffWeb.Api.csproj \
+        -c Release \
+        -o /app/publish \
+        --no-restore \
+        /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/publish ./
+
+ENV ASPNETCORE_URLS=http://+:8080 \
+    DOTNET_RUNNING_IN_CONTAINER=true \
+    DOTNET_gcServer=1
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "BffWeb.Api.dll"]
