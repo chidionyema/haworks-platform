@@ -4,6 +4,19 @@ End-to-end deploy for the seven ritualworks microservices on Fly.io. The
 local Aspire AppHost (`deploy/aspire/`) is unaffected by anything here —
 it keeps working for local dev. This directory only covers Fly.
 
+## TL;DR
+
+```bash
+deploy/fly/up.sh
+```
+
+That's the whole deploy. The wizard installs missing tools, walks you
+through Fly + GitHub auth, prompts (silently) for four runtime URLs,
+creates the seven apps, deploys, and wires `FLY_API_TOKEN` into GitHub
+Actions so every subsequent push to `main` auto-deploys. Idempotent —
+re-run any time. Read the rest if you want to understand what it's doing
+or override pieces.
+
 ## What runs where
 
 | Service | Fly app | Public? | Reachable at |
@@ -21,13 +34,15 @@ goes over Fly's flycast (private 6PN with load balancing).
 
 ## Prerequisites
 
-1. **Install flyctl + openssl + dotnet 9 SDK.** macOS: `brew install flyctl openssl`.
-2. **Fly account, logged in:** `flyctl auth login`.
-3. **Three managed services** (free tiers are fine for a portfolio deploy):
+1. **macOS with Homebrew, OR Linux with `brew` available.** `up.sh` will
+   install missing tools (`flyctl`, `gh`) on demand.
+2. **A Fly.io account** and **a GitHub account that owns this repo**.
+   The wizard walks you through both browser logins.
+3. **Three managed services** signed up. The wizard reads URLs from these:
 
 | Provider | What you grab |
 |---|---|
-| **Neon** (Postgres) | One project; create 6 databases inside it (`identity`, `catalog`, `orders`, `payments`, `checkout`, `content`). Copy the connection string from the dashboard — only the database-name segment differs per service. |
+| **Neon** (Postgres) | One project; create 6 databases inside it (`identity`, `catalog`, `orders`, `payments`, `checkout`, `content`). Connection string from the dashboard — only the database-name segment differs per service. |
 | **CloudAMQP** (RabbitMQ) | One instance; copy the AMQPS URL. |
 | **Upstash** (Redis) | One database; copy the `rediss://` URL. |
 
@@ -42,75 +57,101 @@ cd ritualworks-platform
 deploy/fly/up.sh
 ```
 
-What it does, in order:
+That's it. The wizard is idempotent — re-run safely. What it does:
 
-1. **Prereq check** — flyctl installed, logged in, openssl available.
-2. **Env file** — copies `.env.example` → `.env.local` if missing, asks you
-   to fill in `RABBITMQ_URL`, `REDIS_URL`, `POSTGRES_BASE`. Press Enter to
-   continue. `.env.local` is gitignored (the `.env.*` rule already covers it).
-3. **Bootstrap** — generates an RSA-2048 JWT signing key on first run and
-   persists it back to `.env.local` so future redeploys keep the same key
-   (existing tokens stay valid). Creates the seven Fly apps if missing,
-   allocates a public IPv4+IPv6 only on the BFF, stages all per-service
-   secrets via `flyctl secrets import --stage`.
-4. **Deploy** — identity first (others auth against it), then
-   catalog/orders/payments/checkout in parallel, then BFF.
-5. **Status summary** — prints per-app status and the public URL.
+1. **Tools** — detects missing `flyctl` / `gh`; asks before brew-installing.
+2. **Auth** — detects unauthenticated state; runs `flyctl auth login` and
+   `gh auth login` as needed (browser flows).
+3. **Prompts for the four required runtime URLs** with `read -rs` (silent
+   input — characters never echo to the terminal). Values land in
+   `deploy/fly/.env.local` (gitignored). Already-filled values are left
+   alone, so partial re-runs are fine.
+4. **Bootstrap** — auto-generates an RSA-2048 JWT signing key, creates the
+   seven Fly apps, allocates a public IP only on `ritualworks-bffweb`,
+   stages every per-service secret via `flyctl secrets import --stage`.
+5. **First deploy** — `identity` first (others auth against it), then
+   `catalog`/`orders`/`payments`/`checkout` in parallel, then BFF last.
+   Cold first run takes ~10 minutes (image pulls).
+6. **GitHub Actions deploy token** — generates a Fly deploy token and
+   pipes it directly into `gh secret set FLY_API_TOKEN`. The token never
+   lands on disk or in shell history. Skips this step if the secret is
+   already set; rotate via `FORCE_ROTATE_TOKEN=1 deploy/fly/up.sh`.
+7. **Status board** — prints per-app `Status:`, the public URL, and a
+   confirmation that auto-deploy is now live.
 
-Re-run safely after editing `.env.local`. It's fully idempotent.
+After this, every green-CI push to `main` triggers
+`.github/workflows/deploy.yml` and lands on Fly automatically.
 
-## What's in `.env.local`
+## What lands in `.env.local`
 
-Three required values, the rest optional. See `.env.example` for the full
-template with comments.
+The four values the wizard prompts for. Plus auto-generated and optional
+fields. **Never commit this file** — it's gitignored via the existing
+`.env.*` rule.
 
 ```
-RABBITMQ_URL=amqps://USER:PASS@host.cloudamqp.com/VHOST
-REDIS_URL=rediss://default:TOKEN@host.upstash.io:6379
-POSTGRES_BASE=postgres://default:PASS@ep-xxx-pooler.us-east-1.aws.neon.tech
-POSTGRES_QUERY=?sslmode=require&channel_binding=require
+RABBITMQ_URL=amqps://...                   # wizard prompts
+REDIS_URL=rediss://...                     # wizard prompts
+POSTGRES_BASE=postgres://...               # wizard prompts (no /dbname, no ?query)
+POSTGRES_QUERY=?sslmode=require&...        # wizard prompts
 
-JWT_SIGNING_KEY_PEM=        # auto-generated on first bootstrap; do not edit
-JWT_KEY_ID=fly-1            # bumps if you rotate keys
+JWT_SIGNING_KEY_PEM=<base64 RSA PEM>       # auto-generated on first bootstrap
+JWT_KEY_ID=fly-1                           # bump if you rotate the key
 
-# Optional — leave blank if unused. Identity boots without OAuth providers.
+# Optional — leave blank if unused. Edit the file directly to add these.
 OAUTH_GOOGLE_CLIENT_ID=
 OAUTH_GOOGLE_CLIENT_SECRET=
-# (microsoft, facebook, stripe webhook also optional)
-
-DEPLOY_CONTENT=false        # see "Adding Content" below
+# (microsoft, facebook similar)
+STRIPE_WEBHOOK_SECRET=
+# MinIO/Tigris block — only if DEPLOY_CONTENT=true (see "Adding Content")
+DEPLOY_CONTENT=false
 ```
 
-**Never commit `.env.local`.** It contains every credential the platform
-needs. The repo's `.gitignore` already excludes `.env.*` but check before
-pushing.
+To add an optional value later: edit `.env.local`, re-run `up.sh`. The
+wizard restages affected secrets onto Fly.
 
 ## Subsequent deploys
 
+After the wizard has activated CD once, just push to `main`:
+
 ```bash
-deploy/fly/deploy.sh        # re-deploys all services
-flyctl deploy -c fly.<svc>.toml --remote-only   # one service
+git push origin main
 ```
 
-Or via GitHub Actions: `git push origin main` triggers
-`.github/workflows/deploy.yml` after CI passes. The workflow needs a single
-repo secret:
+`.github/workflows/ci.yml` runs unit + integration tests; on green,
+`.github/workflows/deploy.yml` fires automatically and deploys to Fly.
 
+Manual deploy options if you need them:
+
+```bash
+deploy/fly/deploy.sh                            # all services in dependency order
+flyctl deploy -c fly.<svc>.toml --remote-only   # one specific service
+gh workflow run "Deploy" --repo chidionyema/ritualworks-platform
+                                                # trigger the GH workflow manually
 ```
-FLY_API_TOKEN = <output of: flyctl tokens create deploy --name github-actions>
-```
 
-Set it at *Repo → Settings → Secrets and variables → Actions → New repository secret*.
+## Rotating secrets
 
-## Rotating a secret
+**Runtime credentials** (RabbitMQ, Redis, Postgres, JWT, OAuth, Stripe).
+Edit `.env.local` and re-run `up.sh`. The bootstrap step restages every
+secret onto Fly via `flyctl secrets import --stage`; deploy applies them.
 
-Edit `.env.local`, then re-run `deploy/fly/bootstrap.sh` to restage, then
-`deploy/fly/deploy.sh` to apply. Or for a one-off:
+**Single Fly secret without going through `.env.local`** (e.g. one-off
+overrides):
 
 ```bash
 flyctl secrets set -a ritualworks-payments \
   Webhooks__Stripe__WebhookSecret='whsec_...'
 ```
+
+**The GitHub Actions deploy token (`FLY_API_TOKEN`).** Tokens have an
+8760h (1y) expiry by default. To rotate:
+
+```bash
+FORCE_ROTATE_TOKEN=1 deploy/fly/up.sh
+```
+
+The wizard generates a new token, pipes it into `gh secret set`, and
+discards the old one. The new token is never visible to you.
 
 ## Rollback
 
@@ -171,12 +212,25 @@ flyctl secrets set -a ritualworks-payments \
 
 **Identity crashloops with "Jwt:SigningKeyPem is required when Vault:Enabled=false".**
 The bootstrap didn't generate the key, or the env file was edited and the
-key field cleared. Re-run `deploy/fly/bootstrap.sh` — it auto-generates if
-the field is empty.
+key field cleared. Re-run `up.sh` — it auto-generates if blank.
 
 **A backend service crashloops with "ConnectionStrings:rabbitmq is missing".**
 Bootstrap failed for that app. Run `flyctl secrets list -a ritualworks-<svc>`
-to confirm. Re-run `bootstrap.sh`.
+to confirm. Re-run `up.sh` — it restages secrets that aren't already set.
+
+**`up.sh` says "FLY_API_TOKEN already set" but I want to rotate it.**
+`FORCE_ROTATE_TOKEN=1 deploy/fly/up.sh`.
+
+**`up.sh` exits at "Auth" — `gh auth login` complains about no browser.**
+You're on a remote shell or headless box. Run `gh auth login --web` and
+follow the device-code flow, or generate a personal-access token with
+`workflow` scope and paste it via `gh auth login --with-token`.
+
+**The wizard prompted for `RABBITMQ_URL` even though I set it in
+`.env.local` directly.** It's checking against the placeholder pattern in
+`.env.example`. If your URL contains `USER:PASS@` literally (an example),
+edit it. Otherwise the prompt accepts what you already saved when it
+detects a non-placeholder value.
 
 **Identity boots but `/api/external-authentication/google-callback` returns 404.**
 You didn't supply `OAUTH_GOOGLE_CLIENT_ID`. Conditional registration means
@@ -215,8 +269,23 @@ to change.
 ```
 .env.example       — template for .env.local
 .env.local         — your filled-in secrets (gitignored, never committed)
-bootstrap.sh       — creates apps + stages secrets; idempotent
+bootstrap.sh       — creates apps, stages secrets, generates JWT key
 deploy.sh          — deploys all services in dependency order
-up.sh              — one-command entrypoint (bootstrap + deploy + summary)
+up.sh              — the wizard: tools, auth, prompts, bootstrap, deploy,
+                     GitHub-secret wiring, status. Run this.
 README.md          — this file
 ```
+
+## Cheatsheet
+
+| I want to… | Run |
+|---|---|
+| Activate Fly + CD from scratch | `deploy/fly/up.sh` |
+| Re-deploy after a code change (no infra change) | `git push origin main` |
+| Change a runtime secret | edit `.env.local`, re-run `up.sh` |
+| Rotate the GitHub Actions deploy token | `FORCE_ROTATE_TOKEN=1 deploy/fly/up.sh` |
+| Deploy a single service manually | `flyctl deploy -c fly.<svc>.toml --remote-only` |
+| Roll back one service | `flyctl releases rollback -a ritualworks-<svc>` |
+| Tail logs | `flyctl logs -a ritualworks-<svc>` |
+| SSH into a running machine | `flyctl ssh console -a ritualworks-<svc>` |
+| See deploy status of all apps | `for s in bffweb identity catalog orders payments checkout; do flyctl status -a ritualworks-$s --json \| grep Status; done` |
