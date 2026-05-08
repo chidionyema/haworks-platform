@@ -61,6 +61,11 @@ public static class DependencyInjection
         {
             mt.SetKebabCaseEndpointNameFormatter();
 
+            // In-bus message scheduler — required by StockReleaseRequestedConsumer-
+            // Definition's UseDelayedRedelivery filter. Uses the broker's delay
+            // mechanism (RabbitMQ delayed-message-exchange plugin) when available.
+            mt.AddDelayedMessageScheduler();
+
             // Producer-side outbox: PublishEndpoint.Publish(...) writes to
             // OutboxMessage instead of going straight to the broker. The row
             // commits with the surrounding business transaction.
@@ -99,6 +104,7 @@ public static class DependencyInjection
                         "ConnectionStrings:rabbitmq is missing. Aspire injects it via WithReference(rabbitmq).");
 
                 cfg.Host(new Uri(rabbitConn));
+                cfg.UseDelayedMessageScheduler();
                 cfg.ConfigureEndpoints(context);
             });
         });

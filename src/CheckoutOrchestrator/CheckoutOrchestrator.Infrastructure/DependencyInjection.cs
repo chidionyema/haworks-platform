@@ -34,6 +34,12 @@ public static class DependencyInjection
         {
             mt.SetKebabCaseEndpointNameFormatter();
 
+            // In-bus message scheduler — used by CheckoutSaga's PaymentExpiry
+            // Schedule to fire a PaymentExpiredEvent 15 min after stock is
+            // reserved. Uses the broker's delay mechanism (RabbitMQ delayed-
+            // message-exchange plugin) when available.
+            mt.AddDelayedMessageScheduler();
+
             mt.AddEntityFrameworkOutbox<CheckoutDbContext>(o =>
             {
                 o.UsePostgres();
@@ -60,6 +66,7 @@ public static class DependencyInjection
                     ?? throw new InvalidOperationException(
                         "ConnectionStrings:rabbitmq is missing.");
                 cfg.Host(new Uri(rabbitConn));
+                cfg.UseDelayedMessageScheduler();
                 cfg.ConfigureEndpoints(context);
             });
         });

@@ -44,17 +44,20 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
         var options = checkoutOptions.Value;
         InstanceState(s => s.CurrentState);
 
-        // TODO Phase 5+: payment-expiry timeout schedule.
-        // The MT pattern is `Schedule(() => PaymentExpiry, …)` + `Then(ctx => ctx.Schedule(...))`
-        // on the StockReserved transition, and `Then(ctx => ctx.Unschedule(...))` on the
-        // PaymentCompleted transition. Requires a delayed-message scheduler — either
-        // RabbitMQ's delayed-message-exchange plugin (one-time broker setup), Quartz.NET
-        // (separate persistence), or `services.AddDelayedMessageScheduler()` for in-memory
-        // dev transport. Compensation triggered by the timeout uses the same code path as
-        // PaymentSessionFailed (publish StockReleaseRequested + transition Abandoned).
-        // Out of Phase 5 scope; the StockReservationFailed and PaymentSessionFailed
-        // compensation paths below cover the failure modes that don't require a wall-clock
-        // timer.
+        // PaymentExpiry timeout: stock is reserved on StockReserved transition,
+        // payment session lives in StockReserved + ReadyForPayment. If the
+        // customer never completes payment within the deadline, the timeout
+        // fires PaymentExpired which compensates the same way PaymentSessionFailed
+        // does — publish StockReleaseRequested + Abandoned. Without this timer,
+        // an abandoned Stripe/PayPal session leaves stock locked indefinitely.
+        Schedule(
+            () => PaymentExpirySchedule,
+            instance => instance.PaymentExpiryTokenId,
+            s =>
+            {
+                s.Delay = TimeSpan.FromMinutes(15);
+                s.Received = r => r.CorrelateById(ctx => ctx.Message.SagaId);
+            });
 
         Event(() => CheckoutInitiated, e => e.SelectId(ctx => ctx.Message.SagaId));
         Event(() => StockReserved, e => e.SelectId(ctx => ctx.Message.SagaId));
@@ -123,6 +126,16 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     CancelUrl = options.CancelUrl,
                     IdempotencyKey = ctx.Saga.IdempotencyKey,
                 }))
+                // Start the 15-min payment-expiry clock the moment stock is
+                // reserved. The token is stored on the saga so it can be
+                // cancelled when payment lands in time.
+                .Schedule(
+                    PaymentExpirySchedule,
+                    ctx => ctx.Init<PaymentExpiredEvent>(new PaymentExpiredEvent
+                    {
+                        SagaId = ctx.Saga.CorrelationId,
+                        OrderId = ctx.Saga.OrderId,
+                    }))
                 .TransitionTo(StockReservedState),
             When(StockReservationFailed)
                 .Then(ctx => ctx.Saga.FailureReason = $"StockReservationFailed: {ctx.Message.Reason}")
@@ -139,12 +152,23 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 .TransitionTo(ReadyForPayment),
             When(PaymentSessionFailed)
                 .Then(ctx => ctx.Saga.FailureReason = $"PaymentSessionFailed: {ctx.Message.ErrorCode}")
+                .Unschedule(PaymentExpirySchedule)
                 .PublishAsync(ctx => ctx.Init<StockReleaseRequestedEvent>(new StockReleaseRequestedEvent
                 {
                     OrderId = ctx.Saga.OrderId,
                     SagaId = ctx.Saga.CorrelationId,
                     Items = DeserializeItems(ctx.Saga.ReservedItemsJson),
                     Reason = "payment_session_failed",
+                }))
+                .TransitionTo(Abandoned),
+            When(PaymentExpirySchedule!.Received)
+                .Then(ctx => ctx.Saga.FailureReason = "PaymentExpired (no payment session created within 15min)")
+                .PublishAsync(ctx => ctx.Init<StockReleaseRequestedEvent>(new StockReleaseRequestedEvent
+                {
+                    OrderId = ctx.Saga.OrderId,
+                    SagaId = ctx.Saga.CorrelationId,
+                    Items = DeserializeItems(ctx.Saga.ReservedItemsJson),
+                    Reason = "payment_expired",
                 }))
                 .TransitionTo(Abandoned));
 
@@ -155,10 +179,14 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     // PaymentId already set in StockReserved transition;
                     // the PaymentCompletedEvent carries the same id.
                 })
+                // Customer paid in time — cancel the expiry clock so no
+                // orphaned StockReleaseRequested fires later.
+                .Unschedule(PaymentExpirySchedule)
                 .TransitionTo(Completed)
                 .Finalize(),
             When(PaymentSessionFailed)
                 .Then(ctx => ctx.Saga.FailureReason = $"PaymentSessionFailed (mid-flight): {ctx.Message.ErrorCode}")
+                .Unschedule(PaymentExpirySchedule)
                 .PublishAsync(ctx => ctx.Init<StockReleaseRequestedEvent>(new StockReleaseRequestedEvent
                 {
                     OrderId = ctx.Saga.OrderId,
@@ -167,9 +195,20 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     Reason = "payment_session_failed_post_session",
                 }))
                 .TransitionTo(Abandoned),
+            When(PaymentExpirySchedule!.Received)
+                .Then(ctx => ctx.Saga.FailureReason = "PaymentExpired (customer abandoned payment session)")
+                .PublishAsync(ctx => ctx.Init<StockReleaseRequestedEvent>(new StockReleaseRequestedEvent
+                {
+                    OrderId = ctx.Saga.OrderId,
+                    SagaId = ctx.Saga.CorrelationId,
+                    Items = DeserializeItems(ctx.Saga.ReservedItemsJson),
+                    Reason = "payment_expired",
+                }))
+                .TransitionTo(Abandoned),
             When(PaymentAmountMismatch)
                 .Then(ctx => ctx.Saga.FailureReason =
                     $"PaymentAmountMismatch: expected={ctx.Message.ExpectedTotal}, actual={ctx.Message.ActualPaid}")
+                .Unschedule(PaymentExpirySchedule)
                 .TransitionTo(RequiresReview));
 
         // Idempotency: late-arriving duplicate events on a finalized saga
@@ -202,6 +241,13 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
     public Event<PaymentSessionFailedEvent> PaymentSessionFailed { get; private set; } = null!;
     public Event<PaymentCompletedEvent> PaymentCompleted { get; private set; } = null!;
     public Event<PaymentAmountMismatchEvent> PaymentAmountMismatch { get; private set; } = null!;
+
+    // Scheduled tick. Schedule.Received is the Event the saga reacts to
+    // when the timer fires; the schedule is started via .Schedule(...) on
+    // the StockReserved transition and cancelled via .Unschedule(...) on
+    // any terminal transition (PaymentCompleted, PaymentSessionFailed,
+    // PaymentAmountMismatch).
+    public Schedule<CheckoutSagaState, PaymentExpiredEvent> PaymentExpirySchedule { get; private set; } = null!;
 
     private static IReadOnlyList<StockReservationItem> DeserializeItems(string? json)
     {
