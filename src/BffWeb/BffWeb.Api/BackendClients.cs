@@ -13,6 +13,7 @@ public static class BackendClients
     public const string Orders = "orders-svc";
     public const string Payments = "payments-svc";
     public const string Checkout = "checkout-svc";
+    public const string Search = "search-svc";
 
     /// <summary>
     /// Separate typed-client identity for the T2.3 circuit-breaker demo
