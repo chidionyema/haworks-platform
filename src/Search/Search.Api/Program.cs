@@ -6,12 +6,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+builder.Services.AddControllers();
 
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
 
 app.MapGet("/health", () => Results.Ok());
+app.MapControllers();
 
 // One-shot bootstrap of the Meilisearch index settings. Wrapped in
 // try/catch + warning so a transiently down Meilisearch on first deploy
