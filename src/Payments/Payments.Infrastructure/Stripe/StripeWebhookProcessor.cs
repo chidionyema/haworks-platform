@@ -65,7 +65,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
             if (string.IsNullOrEmpty(signature))
             {
                 _logger.LogWarning("Rejecting Stripe webhook: missing signature header.");
-                return Task.FromResult(WebhookValidationResult.Failure("Missing signature"));
+                return Task.FromResult(WebhookValidationResult.Failure("Missing Stripe-Signature header"));
             }
 
             var stripeEvent = EventUtility.ConstructEvent(
