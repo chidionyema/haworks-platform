@@ -33,6 +33,19 @@ public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
     public async Task InitializeAsync()
     {
         await _dbContainer.StartAsync();
+
+        // Set env vars BEFORE WebApplicationFactory builds the host. With
+        // top-level Program.cs, `builder.Configuration` is constructed in
+        // user code BEFORE WAF's ConfigureAppConfiguration hooks fire, so
+        // values set there aren't visible to AddInfrastructure. Env vars
+        // are read by ConfigurationBuilder.AddEnvironmentVariables which
+        // IS active during CreateBuilder, so they ARE visible.
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Test");
+        Environment.SetEnvironmentVariable("ConnectionStrings__payments", _dbContainer.GetConnectionString());
+        Environment.SetEnvironmentVariable("PaymentProviders__Stripe__WebhookSecret", TestStripeSecret);
+        Environment.SetEnvironmentVariable("PaymentProviders__Stripe__SecretKey", "sk_test_dummy");
+        Environment.SetEnvironmentVariable("PaymentProviders__Active", "Stripe");
+
         // Ensure schema exists and migrations are run
         await EnsureSchemaAsync();
     }
