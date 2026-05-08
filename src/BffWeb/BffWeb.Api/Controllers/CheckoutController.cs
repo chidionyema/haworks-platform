@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Net.Http.Json;
+using Haworks.BuildingBlocks.Idempotency;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Haworks.BffWeb.Api.Controllers;
@@ -29,7 +31,23 @@ public sealed class CheckoutController(
     {
         var sagaId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var idempotencyKey = body.IdempotencyKey ?? Guid.NewGuid().ToString("N");
+
+        // User-scoped idempotency key. Every retry of the *same* checkout from the
+        // *same* user collapses to the same key; a different user's replay with
+        // the same client-supplied nonce can't collide because UserId is in the
+        // hash. Per .claude/rules/dotnet-clean-arch.md "MANDATORY: SHA-256
+        // Idempotency".
+        var cartShape = string.Join(
+            ",",
+            body.Items
+                .OrderBy(i => i.ProductId)
+                .Select(i => $"{i.ProductId}:{i.Quantity}:{i.UnitPrice.ToString("F2", CultureInfo.InvariantCulture)}"));
+        var idempotencyKey = IdempotencyKey.Derive(
+            userId: body.UserId,
+            operation: "checkout.start",
+            body.TotalAmount.ToString("F2", CultureInfo.InvariantCulture),
+            cartShape,
+            body.IdempotencyKey ?? string.Empty);
 
         var client = httpClientFactory.CreateClient(BackendClients.Checkout);
         var resp = await client.PostAsJsonAsync("/api/checkouts", new
