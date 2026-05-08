@@ -13,7 +13,10 @@ internal sealed class PayPalCheckoutService(
     IPayPalClientFactory clientFactory,
     IResiliencePolicyFactory resiliencePolicyFactory) : ICheckoutSessionService, ISubscriptionService
 {
-    private readonly IAsyncPolicy _resiliencePolicy = resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.Default);
+    // Use the PayPal-specific resilience profile (longer initial delay,
+    // higher CB threshold than the generic Default — PayPal is slower
+    // and historically flaky enough to warrant the dedicated tuning).
+    private readonly IAsyncPolicy _resiliencePolicy = resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
 
     public async Task<CheckoutSessionResult> CreateSessionAsync(CreateCheckoutSessionRequest request, CancellationToken ct = default)
     {
