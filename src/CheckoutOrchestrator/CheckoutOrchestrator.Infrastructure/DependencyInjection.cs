@@ -73,6 +73,16 @@ public static class DependencyInjection
 
         services.AddDomainEventPublisher();
 
+        // Belt-and-braces fallback for the saga's MT-scheduler-based
+        // payment-expiry timeout. Polls every 60s for sagas stuck past
+        // 15min and publishes PaymentExpiredEvent directly. Guards
+        // against the broker's delayed-message-exchange plugin being
+        // missing or silently dropping scheduled messages.
+        if (!env.IsEnvironment("Test"))
+        {
+            services.AddHostedService<Workers.PaymentExpiryWatcher>();
+        }
+
         services.AddOptions<Haworks.CheckoutOrchestrator.Application.Options.CheckoutOptions>()
             .Bind(configuration.GetSection(Haworks.CheckoutOrchestrator.Application.Options.CheckoutOptions.SectionName))
             .ValidateDataAnnotations()
