@@ -1,6 +1,8 @@
 using Haworks.BuildingBlocks.Extensions;
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Middleware;
 using Haworks.BuildingBlocks.Persistence;
+using Haworks.Catalog.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -10,6 +12,7 @@ builder.AddServiceDefaults();
 
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddApplication(builder.Configuration);
+builder.Services.AddPostgresIdempotency<CatalogDbContext>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -58,6 +61,9 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+// Idempotency middleware — opt-in via X-Idempotency-Key header. Sits
+// AFTER auth so the stored key is server-side scoped to UserId.
+app.UseIdempotency();
 app.MapControllers();
 
 app.Run();

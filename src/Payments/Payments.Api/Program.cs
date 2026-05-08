@@ -1,6 +1,8 @@
 using Haworks.BuildingBlocks.Extensions;
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.Payments.Api.Webhooks;
+using Haworks.Payments.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -10,6 +12,7 @@ builder.AddServiceDefaults();
 
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddApplication(builder.Configuration);
+builder.Services.AddPostgresIdempotency<PaymentDbContext>();
 
 // Bind webhook options. DataAnnotations validation is OFF here because the
 // integration tests stub Stripe's WebhookSecret per-test rather than via
@@ -69,6 +72,9 @@ app.Use(async (context, next) =>
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+// Idempotency middleware — opt-in via X-Idempotency-Key. Server-side
+// scoped by UserId so cross-user replay is impossible.
+app.UseIdempotency();
 app.MapControllers();
 
 app.Run();

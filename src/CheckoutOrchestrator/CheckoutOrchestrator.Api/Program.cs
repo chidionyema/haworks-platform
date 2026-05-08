@@ -1,5 +1,7 @@
 using Haworks.BuildingBlocks.Extensions;
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
+using Haworks.CheckoutOrchestrator.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -9,6 +11,7 @@ builder.AddServiceDefaults();
 
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddApplication(builder.Configuration);
+builder.Services.AddPostgresIdempotency<CheckoutDbContext>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -44,6 +47,10 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+// Idempotency middleware — opt-in via X-Idempotency-Key. Server-side
+// scoped by UserId; checkout's POST /api/checkouts is the highest-value
+// caller since the BFF retries on transient failures.
+app.UseIdempotency();
 app.MapControllers();
 
 app.Run();
