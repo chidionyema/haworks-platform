@@ -101,7 +101,7 @@ builder.Services.AddCors(o => o.AddPolicy("portfolio-site", p => p
 foreach (var name in new[]
 {
     BackendClients.Identity, BackendClients.Catalog, BackendClients.Orders,
-    BackendClients.Payments, BackendClients.Checkout,
+    BackendClients.Payments, BackendClients.Checkout, BackendClients.Search,
 })
 {
     var serviceName = name; // capture for handlers
