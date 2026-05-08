@@ -1,0 +1,404 @@
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # INFRASTRUCTURE
+  # ===========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: rw-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../aspire/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: rw-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rw-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: rw-vault
+    cap_add:
+      - IPC_LOCK
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=dev-root-token
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+      - VAULT_ADDR=http://127.0.0.1:8200
+    ports:
+      - "8200:8200"
+    command: server -dev
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: rw-minio
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+
+  clamav:
+    image: clamav/clamav:latest
+    container_name: rw-clamav
+    ports:
+      - "3310:3310"
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: rw-tempo
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ../../infra/tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200:3200"   # tempo
+      - "4317:4317"   # otlp grpc
+      - "4318:4318"   # otlp http
+
+  pact-db:
+    image: postgres:16-alpine
+    container_name: rw-pact-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=pact_broker
+    volumes:
+      - pact-db-data:/var/lib/postgresql/data
+
+  pact-broker:
+    image: pactfoundation/pact-broker:latest
+    container_name: rw-pact-broker
+    depends_on:
+      pact-db:
+        condition: service_healthy
+    ports:
+      - "9292:9292"
+    environment:
+      - PACT_BROKER_DATABASE_HOST=pact-db
+      - PACT_BROKER_DATABASE_PORT=5432
+      - PACT_BROKER_DATABASE_NAME=pact_broker
+      - PACT_BROKER_DATABASE_USERNAME=postgres
+      - PACT_BROKER_DATABASE_PASSWORD=postgres
+      - PACT_BROKER_BASE_URL=http://localhost:9292
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: rw-redis-commander
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: rw-pgadmin
+    depends_on:
+      - postgres
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@ritualworks.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "5055:80"
+
+  # ===========================================================================
+  # INITIALIZATION (One-shot)
+  # ===========================================================================
+  vault-init:
+    image: hashicorp/vault:1.15
+    container_name: rw-vault-init
+    depends_on:
+      vault:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=dev-root-token
+      - ALLOW_DEV_SEED=yes
+      - ConnectionStrings__postgres=Host=postgres;Port=5432;Username=postgres;Password=postgres
+    volumes:
+      - ../../infra/vault:/manifests
+      - ../aspire/vault-init.sh:/init.sh
+      - ./vault-creds:/creds
+    entrypoint: /bin/sh
+    command: /init.sh
+
+  vault-seed:
+    image: hashicorp/vault:1.15
+    container_name: rw-vault-seed
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    environment:
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=dev-root-token
+    volumes:
+      - ../../scripts/seed-vault-dev.sh:/seed.sh
+    entrypoint: /bin/sh
+    command: /seed.sh
+
+  # ===========================================================================
+  # SERVICES
+  # ===========================================================================
+  identity-svc:
+    build:
+      context: ../..
+      dockerfile: src/Identity/Identity.Api/Dockerfile
+    container_name: rw-identity-svc
+    depends_on:
+      vault-seed:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__identity=Host=postgres;Port=5432;Database=identity;Username=postgres;Password=postgres
+      - ConnectionStrings__rabbitmq=amqp://guest:guest@rabbitmq:5672/
+      - Vault__Enabled=true
+      - Vault__Address=http://vault:8200
+      - Vault__RoleIdPath=/creds/identity/role_id
+      - Vault__SecretIdPath=/creds/identity/secret_id
+    volumes:
+      - ./vault-creds:/creds:ro
+
+  catalog-svc-1:
+    build:
+      context: ../..
+      dockerfile: src/Catalog/Catalog.Api/Dockerfile
+    container_name: rw-catalog-svc-1
+    depends_on:
+      vault-seed:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__catalog=Host=postgres;Port=5432;Database=catalog;Username=postgres;Password=postgres
+      - ConnectionStrings__rabbitmq=amqp://guest:guest@rabbitmq:5672/
+      - Vault__Enabled=false
+      - Vault__Address=http://vault:8200
+      - Vault__RoleIdPath=/creds/catalog/role_id
+      - Vault__SecretIdPath=/creds/catalog/secret_id
+    volumes:
+      - ./vault-creds:/creds:ro
+
+  catalog-svc-2:
+    build:
+      context: ../..
+      dockerfile: src/Catalog/Catalog.Api/Dockerfile
+    container_name: rw-catalog-svc-2
+    depends_on:
+      vault-seed:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__catalog=Host=postgres;Port=5432;Database=catalog;Username=postgres;Password=postgres
+      - ConnectionStrings__rabbitmq=amqp://guest:guest@rabbitmq:5672/
+      - Vault__Enabled=false
+      - Vault__Address=http://vault:8200
+      - Vault__RoleIdPath=/creds/catalog/role_id
+      - Vault__SecretIdPath=/creds/catalog/secret_id
+    volumes:
+      - ./vault-creds:/creds:ro
+
+  orders-svc:
+    build:
+      context: ../..
+      dockerfile: src/Orders/Orders.Api/Dockerfile
+    container_name: rw-orders-svc
+    depends_on:
+      vault-seed:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__orders=Host=postgres;Port=5432;Database=orders;Username=postgres;Password=postgres
+      - ConnectionStrings__rabbitmq=amqp://guest:guest@rabbitmq:5672/
+      - Vault__Enabled=false
+      - Vault__Address=http://vault:8200
+      - Vault__RoleIdPath=/creds/orders/role_id
+      - Vault__SecretIdPath=/creds/orders/secret_id
+    volumes:
+      - ./vault-creds:/creds:ro
+
+  payments-svc:
+    build:
+      context: ../..
+      dockerfile: src/Payments/Payments.Api/Dockerfile
+    container_name: rw-payments-svc
+    depends_on:
+      vault-seed:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__payments=Host=postgres;Port=5432;Database=payments;Username=postgres;Password=postgres
+      - ConnectionStrings__rabbitmq=amqp://guest:guest@rabbitmq:5672/
+      - Vault__Enabled=false
+      - Vault__Address=http://vault:8200
+      - Vault__RoleIdPath=/creds/payments/role_id
+      - Vault__SecretIdPath=/creds/payments/secret_id
+    volumes:
+      - ./vault-creds:/creds:ro
+
+  checkout-svc:
+    build:
+      context: ../..
+      dockerfile: src/CheckoutOrchestrator/CheckoutOrchestrator.Api/Dockerfile
+    container_name: rw-checkout-svc
+    depends_on:
+      vault-seed:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__checkout=Host=postgres;Port=5432;Database=checkout;Username=postgres;Password=postgres
+      - ConnectionStrings__rabbitmq=amqp://guest:guest@rabbitmq:5672/
+      - Vault__Enabled=false
+      - Vault__Address=http://vault:8200
+      - Vault__RoleIdPath=/creds/checkout-orchestrator/role_id
+      - Vault__SecretIdPath=/creds/checkout-orchestrator/secret_id
+    volumes:
+      - ./vault-creds:/creds:ro
+
+  content-svc:
+    build:
+      context: ../..
+      dockerfile: src/Content/Content.Api/Dockerfile
+    container_name: rw-content-svc
+    depends_on:
+      vault-seed:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__content=Host=postgres;Port=5432;Database=content;Username=postgres;Password=postgres
+      - ConnectionStrings__rabbitmq=amqp://guest:guest@rabbitmq:5672/
+      - Vault__Enabled=false
+      - Vault__Address=http://vault:8200
+      - Vault__RoleIdPath=/creds/content/role_id
+      - Vault__SecretIdPath=/creds/content/secret_id
+    volumes:
+      - ./vault-creds:/creds:ro
+
+  search-svc:
+    build:
+      context: ../..
+      dockerfile: src/Search/Search.Api/Dockerfile
+    container_name: rw-search-svc
+    depends_on:
+      vault-seed:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__rabbitmq=amqp://guest:guest@rabbitmq:5672/
+      - Vault__Enabled=false
+      - Vault__Address=http://vault:8200
+      - Vault__RoleIdPath=/creds/search/role_id
+      - Vault__SecretIdPath=/creds/search/secret_id
+    volumes:
+      - ./vault-creds:/creds:ro
+
+  bff-web:
+    build:
+      context: ../..
+      dockerfile: src/BffWeb/BffWeb.Api/Dockerfile
+    container_name: rw-bff-web
+    ports:
+      - "5050:8080" # ASPNETCORE_URLS is http://+:8080 in Dockerfile
+    depends_on:
+      - identity-svc
+      - catalog-svc-1
+      - catalog-svc-2
+      - orders-svc
+      - payments-svc
+      - checkout-svc
+      - content-svc
+      - search-svc
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__rabbitmq=amqp://guest:guest@rabbitmq:5672/
+      - Services__identity-svc__http__0=http://identity-svc:8080
+      - Services__catalog-svc__http__0=http://catalog-svc-1:8080
+      - Services__catalog-svc__http__1=http://catalog-svc-2:8080
+      - Services__orders-svc__http__0=http://orders-svc:8080
+      - Services__payments-svc__http__0=http://payments-svc:8080
+      - Services__checkout-svc__http__0=http://checkout-svc:8080
+      - Services__content-svc__http__0=http://content-svc:8080
+      - Services__search-svc__http__0=http://search-svc:8080
+      - Vault__Enabled=false
+      - Vault__Address=http://vault:8200
+      - Vault__RoleIdPath=/creds/bff-web/role_id
+      - Vault__SecretIdPath=/creds/bff-web/secret_id
+    volumes:
+      - ./vault-creds:/creds:ro
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  minio-data:
+  pact-db-data:
