@@ -100,7 +100,7 @@ Call from Program.cs.
 - Test `Upsert_then_Get_roundtrips_a_document`.
 - Test `Delete_removes_a_document`.
 - Test `SearchAsync_returns_seeded_doc_for_term_in_name` — seed one doc, call `SearchAsync(new SearchQuery { Query = "<word from name>" })`, assert TotalHits == 1 and the hit's productId matches. **B6 depends on this method working** — without this test, B6 may discover the implementation is a stub.
-- **Extend** `tests/Search.Integration/SearchWebAppFactory.cs` (created empty by B1) to spin up the Meili container in `InitializeAsync` and set `Meilisearch__Url` + `Meilisearch__MasterKey` env vars **before** `base.CreateHost(...)` is invoked — same pattern as `PaymentsWebAppFactory.InitializeAsync()`.
+- **Create or extend** `tests/Search.Integration/SearchWebAppFactory.cs` — if B1 created an empty stub, extend it; otherwise create it from scratch as a `WebApplicationFactory<Program>, IAsyncLifetime` mirroring `tests/Payments.Integration/PaymentsWebAppFactory.cs`'s shape. Spin up the Meili container in `InitializeAsync` and set `Meilisearch__Url` + `Meilisearch__MasterKey` env vars **before** `base.CreateHost(...)` is invoked — same pattern as `PaymentsWebAppFactory.InitializeAsync()`. Update `tests/Search.Integration/SmokeTest.cs` (created by B1, currently using `WebApplicationFactory<Program>` directly) to use `IClassFixture<SearchWebAppFactory>` instead.
 
 `tests/Search.Unit/` — no new tests for B2 (the wrapper is too thin to unit-test meaningfully; integration is the right level).
 

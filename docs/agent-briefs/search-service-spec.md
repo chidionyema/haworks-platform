@@ -190,7 +190,7 @@ This is a 1+1 round-trip per index event. At expected volume (catalog edits, not
 4. Retries: MassTransit default exponential backoff. After max retries, message goes to error queue. **No DLQ-replay tooling for v1** — operator can re-trigger by republishing from catalog.
 5. Catalog API is the single point of truth for product detail. If the BFF reads from search and search is stale by a few hundred ms, that's acceptable.
 
-**Initial backfill.** First-time bring-up: call `POST /admin/reindex` (auth: identity-scoped admin role) which paginates `GET /api/products?cursor=…` from catalog and pushes batches of 1000 to Meilisearch. Idempotent — safe to re-run.
+**Initial backfill.** First-time bring-up: call `POST /admin/reindex` (auth: identity-scoped admin role) which paginates `GET /api/products?skip=&take=` from catalog (catalog uses offset pagination, not cursor) — skipping in pages of 100 — collects each `productId`, then enriches each via `GET /api/products/{id}` (the per-product endpoint includes the denormalized `categoryName` that the list projection doesn't), and pushes batches of 1000 to Meilisearch. N+1 by design: backfill is rare and admin-triggered. Idempotent — safe to re-run.
 
 ---
 

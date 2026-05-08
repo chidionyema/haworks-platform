@@ -2,7 +2,11 @@
 
 ## Goal
 
-Add a typed HTTP client in `Search.Infrastructure` that fetches an enriched product (Product + Category) from catalog over flycast, with Polly retry + timeout policies, plus a paginated `GET /api/products` for backfill. Tested against a WireMock stub.
+Add a typed HTTP client in `Search.Infrastructure` that fetches an enriched product (Product + Category) from catalog over flycast, with Polly retry + timeout policies, plus a `GET /api/products?skip=&take=` listing for backfill. Tested against a WireMock stub.
+
+**Two facts the brief must respect — verified against the catalog code:**
+1. The list endpoint uses **offset pagination** (`?skip={int}&take={int}&categoryId={guid?}`), not cursor pagination.
+2. The list-projection sets `categoryName = null` for performance reasons. **Only `GET /api/products/{id}` returns the denormalized `categoryName`.** The backfill flow is therefore: list to get IDs → per-ID enrichment → upsert. Indexer events (B5) only ever use the per-ID endpoint.
 
 The codebase **does not currently use Refit** — every existing service-to-service call uses raw `IHttpClientFactory` via `AddHttpClient<TInterface, TImpl>`. This brief sticks with that pattern. Don't introduce Refit.
 
@@ -33,13 +37,26 @@ Phase 2. Blocks-on: B1 done. **Independent of B2 and B3** — runs in parallel.
 public interface ICatalogProductsApi
 {
     Task<CatalogProductDto> GetProductAsync(Guid id, CancellationToken ct);
-    Task<CatalogProductPage> ListProductsAsync(string? cursor, int pageSize, CancellationToken ct);
+
+    // Offset pagination, matching catalog's actual API. CategoryName on the
+    // returned items is null — backfill must enrich each via GetProductAsync.
+    Task<CatalogProductPage> ListProductsAsync(int skip, int take, Guid? categoryId, CancellationToken ct);
 }
 ```
 
-`src/Search/Search.Infrastructure/Catalog/CatalogProductsApiClient.cs` — concrete implementation that takes a `HttpClient` (injected by `IHttpClientFactory`) and uses `System.Net.Http.Json`'s `GetFromJsonAsync<T>` to call `/api/products/{id}` and `/api/products?cursor=…&pageSize=…`. Throws on non-2xx; let the policy handler retry and surface the failure.
+`src/Search/Search.Infrastructure/Catalog/CatalogProductsApiClient.cs` — concrete implementation that takes an `HttpClient` (injected by `IHttpClientFactory`) and uses `System.Net.Http.Json`'s `GetFromJsonAsync<T>` to call `/api/products/{id}` and `/api/products?skip={n}&take={n}&categoryId={guid?}`. Throws on non-2xx; let the policy handler retry and surface the failure.
 
-`CatalogProductDto` and `CatalogProductPage` POCOs in `src/Search/Search.Infrastructure/Catalog/`. **Field names match catalog's actual API response** (read `ProductsController.cs` in step 3 above to confirm; do not invent).
+`CatalogProductDto` and `CatalogProductPage` POCOs in `src/Search/Search.Infrastructure/Catalog/`. **Field names match catalog's actual API response** — verified shapes:
+
+```csharp
+public sealed record CatalogProductDto(
+    Guid Id, string Name, string Description, decimal UnitPrice,
+    int StockQuantity, bool IsInStock, bool IsListed,
+    Guid CategoryId, string? CategoryName);          // null on list, populated on get-by-id
+
+public sealed record CatalogProductPage(
+    IReadOnlyList<CatalogProductDto> Items, int Total, int Skip, int Take);
+```
 
 ### DI registration
 
@@ -53,11 +70,13 @@ services.AddHttpClient<ICatalogProductsApi, CatalogProductsApiClient>(c =>
         c.Timeout = TimeSpan.FromSeconds(5);
     })
     .AddPolicyHandler((sp, _) =>
-        sp.GetRequiredService<IResiliencePolicyFactory>()
-          .CreateHttpRetryPolicy(ResilienceOptions.CatalogReadApi));
+    {
+        var factory = sp.GetRequiredService<IResiliencePolicyFactory>();
+        return factory.CreateCombinedPolicy(ResilienceOptions.ForExternalApi("catalog"));
+    });
 ```
 
-If `IResiliencePolicyFactory` doesn't have `CreateHttpRetryPolicy` or `ResilienceOptions.CatalogReadApi`, look for whatever the closest existing policy-factory method is and use that, noting the deviation in out-of-scope observations. Do not stuff a new Polly chain inline.
+`ResilienceOptions.ForExternalApi(string serviceName, bool includeBulkhead = true)` is the canonical preset for cross-service HTTP calls (see `src/BuildingBlocks/Resilience/IResiliencePolicyFactory.cs`). Use it as-is — do not invent a new `ResilienceOptions.Catalog` preset, do not stuff a new Polly chain inline.
 
 ### Tests
 
@@ -66,7 +85,7 @@ If `IResiliencePolicyFactory` doesn't have `CreateHttpRetryPolicy` or `Resilienc
 1. `GetProductAsync_returns_dto_when_catalog_returns_200` — WireMock stub returns a canned JSON, assert the client deserializes it.
 2. `GetProductAsync_throws_after_retry_when_catalog_5xx` — WireMock returns 500; assert we retry per the resilience policy and ultimately throw.
 3. `GetProductAsync_throws_404_for_unknown_product` — assert an `HttpRequestException` (or whatever the policy surfaces) with status 404.
-4. `ListProductsAsync_paginates_via_cursor` — WireMock returns two pages with a `nextCursor`, assert the client surfaces them correctly.
+4. `ListProductsAsync_paginates_via_skip_take` — WireMock returns two pages (skip=0/take=100 and skip=100/take=100); assert the client requests both with the correct query string and surfaces `Total`/`Skip`/`Take` correctly.
 
 These tests do **not** start a SearchWebAppFactory — they spin up just the DI container with the WireMock URL.
 
