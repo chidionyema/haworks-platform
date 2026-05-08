@@ -17,8 +17,9 @@ docs/
 infra/
 deploy/argocd/
 deploy/helm/
-deploy/vault/
 deploy/aspire/
+# deploy/vault/ is intentionally NOT excluded — fly.vault.toml's Dockerfile
+# COPYs deploy/vault/entrypoint.sh + seed.sh into the image.
 
 **/.DS_Store
 **/*.user

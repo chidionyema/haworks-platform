@@ -27,6 +27,37 @@ cp deploy/fly/.env.example deploy/fly/.env.local
 * stages all the `Vault__*` config on identity (Address, RoleIdPath,
   SecretIdPath, RequireHmacValidation=false)
 
+### First run output
+
+What to expect the first time you run it (truncated, real run):
+
+```
+==> Generating Vault dev root token (first run)
+    written to .../deploy/fly/.env.local (gitignored)
+==> Creating Fly apps (skip if exists)
+    ritualworks-bffweb exists
+New app created: ritualworks-vault
+    ritualworks-identity exists
+    [...other apps already existed...]
+==> Vault setup
+    staged 1 secrets for ritualworks-vault
+    staged 9 secrets for ritualworks-identity
+
+Secrets staged. They take effect on the next deploy.
+```
+
+Verify with `flyctl secrets list -a ritualworks-vault`:
+
+```
+NAME                      | DIGEST           | STATUS
+* VAULT_DEV_ROOT_TOKEN_ID | <16-hex digits>  | Staged
+```
+
+And `flyctl secrets list -a ritualworks-identity | grep -i vault` — the
+`VAULT_ROOT_TOKEN` digest **must match** `VAULT_DEV_ROOT_TOKEN_ID`'s
+digest from the vault app. They're the same value piped to two apps;
+if the digests differ, re-run bootstrap to resync.
+
 **Every push to main**:
 
 `.github/workflows/deploy.yml` runs `flyctl deploy -c fly.vault.toml`
@@ -34,6 +65,16 @@ cp deploy/fly/.env.example deploy/fly/.env.local
 when its bootstrap shim runs. If Vault is genuinely down for >30s on
 identity startup, the shim **fails open** — identity boots with
 `Vault__Enabled=false`, the demo degrades, but auth itself stays up.
+
+> **Note:** `deploy.yml` is gated on the `CI` workflow passing. If CI is
+> red for unrelated reasons (a flaky test, etc.) the deploy is skipped.
+> Trigger it manually with:
+>
+> ```bash
+> gh workflow run deploy.yml --ref main
+> ```
+>
+> The `workflow_dispatch` path bypasses the conclusion check.
 
 ## What the seed sets up
 
