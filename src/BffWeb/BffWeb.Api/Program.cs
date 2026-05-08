@@ -50,6 +50,34 @@ builder.Services.AddSingleton<LiveConsoleBroadcaster>();
 // Runs in every environment, including production.
 builder.Services.AddHostedService<JourneyScheduler>();
 
+// Upstream warmup — fires GET /health against every backend microservice
+// once after the BFF binds, in parallel, with a small retry budget so any
+// sleeping Fly machine has time to autostart. Eliminates the cold-start
+// race that used to leave the BFF's resilience-handler circuit breakers
+// tripped open after the first burst of demo traffic.
+builder.Services.AddHostedService<UpstreamWarmup>();
+
+// Resilience tuning for the portfolio cluster. The default
+// AddStandardResilienceHandler from ServiceDefaults trips its circuit
+// breaker on 10% failures over a 30s window — too eager for the demo's
+// low-traffic profile, where a single cold-start storm easily passes
+// the threshold and then the breaker stays open because half-open
+// probes are sparse. Override:
+//   • FailureRatio       0.10 → 0.70   (only trip on sustained failures)
+//   • MinimumThroughput  100  → 10     (fits demo traffic)
+//   • SamplingDuration   30s  → 15s    (failures decay fast)
+//   • BreakDuration      5s   → 3s     (auto-recover quickly)
+// Real downstream-protection still applies: a backend that's genuinely
+// dead (>70% errors over 10 requests in 15s) still trips the breaker;
+// it just doesn't stay open for ages on a single transient blip.
+builder.Services.Configure<Microsoft.Extensions.Http.Resilience.HttpStandardResilienceOptions>(o =>
+{
+    o.CircuitBreaker.FailureRatio       = 0.70;
+    o.CircuitBreaker.MinimumThroughput  = 10;
+    o.CircuitBreaker.SamplingDuration   = TimeSpan.FromSeconds(15);
+    o.CircuitBreaker.BreakDuration      = TimeSpan.FromSeconds(3);
+});
+
 // HttpContext access for the upstream-capture handler. Required so the
 // per-call DelegatingHandler can append its hop to the live HTTP request's
 // items dictionary (no AsyncLocal indirection needed).
