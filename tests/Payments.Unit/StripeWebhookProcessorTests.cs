@@ -73,11 +73,13 @@ public class StripeWebhookProcessorTests
     }
 
     [Fact]
-    public async Task ValidateAndParseAsync_MissingSignature_ReturnsFailure()
+    public async Task ValidateAndParseAsync_PayloadMissingIdOrType_ReturnsFailure()
     {
-        var result = await _processor.ValidateAndParseAsync("{}", "", CancellationToken.None);
+        // Signature validation lives in StripeSignatureValidator at the
+        // controller boundary; the processor only parses the payload envelope.
+        var result = await _processor.ValidateAndParseAsync("{}", "sig", CancellationToken.None);
         Assert.False(result.IsValid);
-        Assert.Equal("Missing Stripe-Signature header", result.ErrorMessage);
+        Assert.Contains("id", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -107,15 +109,26 @@ public class StripeWebhookProcessorTests
     [Fact]
     public async Task ProcessEventAsync_CheckoutSessionCompleted_PaymentMode_ProcessesPayment()
     {
-        var session = new Session
-        {
-            Id = "cs_123",
-            Mode = "payment",
-            PaymentIntentId = "pi_123",
-            AmountTotal = 1000,
-            Currency = "usd",
-            Metadata = new Dictionary<string, string> { ["orderId"] = Guid.NewGuid().ToString() }
-        };
+        // Processor parses session details from RawPayload (the original
+        // webhook body), not from the SDK's strongly-typed Data object.
+        var orderId = Guid.NewGuid().ToString();
+        var rawPayload = $$"""
+            {
+              "id": "evt_123",
+              "type": "checkout.session.completed",
+              "data": {
+                "object": {
+                  "id": "cs_123",
+                  "object": "checkout.session",
+                  "mode": "payment",
+                  "payment_intent": "pi_123",
+                  "amount_total": 1000,
+                  "currency": "usd",
+                  "metadata": { "orderId": "{{orderId}}" }
+                }
+              }
+            }
+            """;
 
         var webhookEvent = new PaymentWebhookEvent
         {
@@ -123,7 +136,7 @@ public class StripeWebhookProcessorTests
             EventType = "checkout.session.completed",
             Provider = PaymentProvider.Stripe,
             CreatedAt = DateTime.UtcNow,
-            Data = session
+            RawPayload = rawPayload
         };
 
         _idempotencyGuardMock

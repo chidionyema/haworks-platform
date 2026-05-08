@@ -51,7 +51,7 @@ public sealed class WebhookIdempotencyTests : IClassFixture<PaymentsWebAppFactor
         var payment = await SeedPendingPaymentAsync(sessionId, amount: 100m);
 
         var eventId = "evt_idem_" + Guid.NewGuid().ToString("N");
-        var payload = StripePayload(eventId, "checkout.session.completed", sessionId, paidMinor: 10000);
+        var payload = StripePayload(eventId, "checkout.session.completed", sessionId, paidMinor: 10000, orderId: payment.OrderId);
         var signature = PaymentsWebAppFactory.SignStripe(payload);
 
         // Act - Send the same webhook 3 times
@@ -96,7 +96,7 @@ public sealed class WebhookIdempotencyTests : IClassFixture<PaymentsWebAppFactor
         var payment = await SeedPendingPaymentAsync(sessionId, amount: 50m);
 
         var eventId = "evt_race_" + Guid.NewGuid().ToString("N");
-        var payload = StripePayload(eventId, "checkout.session.completed", sessionId, paidMinor: 5000);
+        var payload = StripePayload(eventId, "checkout.session.completed", sessionId, paidMinor: 5000, orderId: payment.OrderId);
         var signature = PaymentsWebAppFactory.SignStripe(payload);
 
         // Act - Fire multiple requests concurrently
@@ -154,22 +154,38 @@ public sealed class WebhookIdempotencyTests : IClassFixture<PaymentsWebAppFactor
         return payment;
     }
 
-    private static string StripePayload(string eventId, string eventType, string sessionId, long paidMinor)
+    private static string StripePayload(string eventId, string eventType, string sessionId, long paidMinor, Guid? orderId = null)
     {
+        // Stripe.EventUtility.ParseEvent dereferences envelope fields; minimal
+        // payloads NRE inside EventConverter. Mirror the canonical Stripe shape.
+        var sessionObj = new Dictionary<string, object?>
+        {
+            ["id"] = sessionId,
+            ["object"] = "checkout.session",
+            ["mode"] = "payment",
+            ["payment_intent"] = "pi_" + sessionId,
+            ["payment_method_types"] = new[] { "card" },
+            ["currency"] = "usd",
+            ["amount_total"] = paidMinor,
+        };
+        if (orderId is not null)
+        {
+            // StripePaymentProcessor.ValidateSessionEventMetadata requires
+            // metadata.orderId to match the seeded Payment.OrderId.
+            sessionObj["metadata"] = new Dictionary<string, object?> { ["orderId"] = orderId.Value.ToString() };
+        }
+
         var dict = new Dictionary<string, object?>
         {
             ["id"] = eventId,
+            ["object"] = "event",
+            ["api_version"] = "2024-06-20",
+            ["created"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            ["livemode"] = false,
+            ["pending_webhooks"] = 0,
+            ["request"] = new Dictionary<string, object?> { ["id"] = (string?)null, ["idempotency_key"] = (string?)null },
             ["type"] = eventType,
-            ["data"] = new Dictionary<string, object?>
-            {
-                ["object"] = new Dictionary<string, object?>
-                {
-                    ["id"] = sessionId,
-                    ["payment_intent"] = "pi_" + sessionId,
-                    ["payment_method_types"] = new[] { "card" },
-                    ["amount_total"] = paidMinor
-                },
-            }
+            ["data"] = new Dictionary<string, object?> { ["object"] = sessionObj }
         };
         return JsonSerializer.Serialize(dict);
     }

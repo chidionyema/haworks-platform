@@ -23,6 +23,7 @@ public static class DependencyInjection
         IHostEnvironment env)
     {
         var connectionString = configuration.GetConnectionString("payments")
+            ?? configuration.GetConnectionString("paymentsdb")
             ?? throw new InvalidOperationException("ConnectionStrings:payments is missing.");
 
         services.AddDbContext<PaymentDbContext>(options =>

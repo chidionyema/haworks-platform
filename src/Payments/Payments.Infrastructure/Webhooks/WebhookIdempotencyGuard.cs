@@ -58,7 +58,10 @@ internal sealed class WebhookIdempotencyGuard : IWebhookIdempotencyGuard
         string eventType,
         CancellationToken ct = default)
     {
-        var webhookEvent = WebhookEvent.Create(provider, providerEventId, eventType, string.Empty);
+        // EventJson is mapped to jsonb (NOT NULL); empty string fails Postgres'
+        // JSON parser. The dedup row only needs to exist — payload contents are
+        // not the source of truth — so an empty JSON object is sufficient.
+        var webhookEvent = WebhookEvent.Create(provider, providerEventId, eventType, "{}");
         await _repository.AddWebhookEventAsync(webhookEvent, ct);
         await _repository.SaveChangesAsync(ct);
 

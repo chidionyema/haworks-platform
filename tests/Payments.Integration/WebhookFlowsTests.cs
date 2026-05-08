@@ -102,28 +102,27 @@ public sealed class WebhookFlowsTests : IClassFixture<PaymentsWebAppFactory>, IA
         var payment = await SeedPendingPaymentAsync(sessionId, amount: 50m);
 
         var eventId = "evt_complete_" + Guid.NewGuid().ToString("N");
-        var payload = StripePayload(eventId, "checkout.session.completed", sessionId, paidMinor: 5000);
+        var payload = StripePayload(eventId, "checkout.session.completed", sessionId, paidMinor: 5000, orderId: payment.OrderId);
 
         var resp = await PostStripeAsync(payload, PaymentsWebAppFactory.SignStripe(payload));
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // Wait for the consumer to process the validated event.
-        // Pass an explicit cancellation token; harness.TestTimeout doesn't
-        // bind to all Consumed.Any() overloads consistently.
-        using var consumeCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        (await harness.Consumed.Any<PaymentWebhookValidatedEvent>(consumeCts.Token)).Should().BeTrue();
+        // Poll for the downstream PaymentCompletedEvent matching THIS payment.
+        // harness.Consumed.Any<T>() short-circuits on prior tests' events
+        // because the class fixture shares one harness across tests.
+        await PollUntilAsync(
+            () => harness.Published.Select<PaymentCompletedEvent>()
+                .Any(p => p.Context.Message.PaymentId == payment.Id),
+            TimeSpan.FromSeconds(30));
 
-        // Surface any consumer fault before chasing publication assertions —
-        // a thrown exception inside Consume() shows up here, not as a missing
-        // published event, and the bare "Expected … not to be null" message
-        // hides the underlying root cause.
+        // Surface any consumer fault for THIS event before chasing publication
+        // assertions — a thrown Consume() shows up here, not as a missing publish.
         var consumerHarness = harness.GetConsumerHarness<Haworks.Payments.Application.Consumers.PaymentWebhookValidatedConsumer>();
         var faults = consumerHarness.Consumed.Select<PaymentWebhookValidatedEvent>()
-            .Where(c => c.Exception is not null).ToList();
+            .Where(c => c.Exception is not null && c.Context.Message.ProviderEventId == eventId).ToList();
         faults.Should().BeEmpty(string.Join(" | ",
             faults.Select(f => $"{f.Exception?.GetType().Name}: {f.Exception?.Message}")));
 
-        // Downstream PaymentCompletedEvent should land for our payment.
         var completed = harness.Published.Select<PaymentCompletedEvent>()
             .FirstOrDefault(p => p.Context.Message.PaymentId == payment.Id);
         completed.Should().NotBeNull("the consumer must publish PaymentCompletedEvent");
@@ -150,7 +149,7 @@ public sealed class WebhookFlowsTests : IClassFixture<PaymentsWebAppFactory>, IA
 
         // Stripe captures 75 instead of 50 -> amount mismatch.
         var eventId = "evt_mismatch_" + Guid.NewGuid().ToString("N");
-        var payload = StripePayload(eventId, "checkout.session.completed", sessionId, paidMinor: 7500);
+        var payload = StripePayload(eventId, "checkout.session.completed", sessionId, paidMinor: 7500, orderId: payment.OrderId);
 
         var resp = await PostStripeAsync(payload, PaymentsWebAppFactory.SignStripe(payload));
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -192,7 +191,7 @@ public sealed class WebhookFlowsTests : IClassFixture<PaymentsWebAppFactory>, IA
         var payment = await SeedPendingPaymentAsync(sessionId, amount: 25m);
 
         var eventId = "evt_idempotent_" + Guid.NewGuid().ToString("N");
-        var payload = StripePayload(eventId, "checkout.session.completed", sessionId, paidMinor: 2500);
+        var payload = StripePayload(eventId, "checkout.session.completed", sessionId, paidMinor: 2500, orderId: payment.OrderId);
         var signature = PaymentsWebAppFactory.SignStripe(payload);
 
         // Replay 3x.
@@ -299,28 +298,47 @@ public sealed class WebhookFlowsTests : IClassFixture<PaymentsWebAppFactory>, IA
     /// Builds a synthetic Stripe webhook payload sufficient for the
     /// consumer's parser. paidMinor=0 means "amount field absent".
     /// </summary>
-    private static string StripePayload(string eventId, string eventType, string sessionId, long paidMinor)
+    private static string StripePayload(string eventId, string eventType, string sessionId, long paidMinor, Guid? orderId = null)
     {
+        // Stripe.EventUtility.ParseEvent dereferences envelope fields; minimal
+        // payloads NRE inside EventConverter. Mirror the canonical Stripe shape.
         var dict = new Dictionary<string, object?>
         {
             ["id"] = eventId,
+            ["object"] = "event",
+            ["api_version"] = "2024-06-20",
+            ["created"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            ["livemode"] = false,
+            ["pending_webhooks"] = 0,
+            ["request"] = new Dictionary<string, object?> { ["id"] = (string?)null, ["idempotency_key"] = (string?)null },
             ["type"] = eventType,
             ["data"] = new Dictionary<string, object?>
             {
-                ["object"] = BuildObject(sessionId, paidMinor),
+                ["object"] = BuildObject(sessionId, paidMinor, orderId),
             }
         };
-        return JsonSerializer.Serialize(dict);
 
-        static Dictionary<string, object?> BuildObject(string sid, long minor)
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+        return JsonSerializer.Serialize(dict, options);
+
+        static Dictionary<string, object?> BuildObject(string sid, long minor, Guid? orderId)
         {
             var inner = new Dictionary<string, object?>
             {
                 ["id"] = sid,
+                ["object"] = "checkout.session",
+                ["mode"] = "payment",
                 ["payment_intent"] = "pi_" + sid,
                 ["payment_method_types"] = new[] { "card" },
+                ["currency"] = "usd",
             };
             if (minor > 0) inner["amount_total"] = minor;
+            if (orderId is not null)
+            {
+                // StripePaymentProcessor.ValidateSessionEventMetadata requires
+                // metadata.orderId to match the seeded Payment.OrderId.
+                inner["metadata"] = new Dictionary<string, object?> { ["orderId"] = orderId.Value.ToString() };
+            }
             return inner;
         }
     }
