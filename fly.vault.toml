@@ -24,6 +24,13 @@ primary_region = "iad"
   # — same value is also staged on ritualworks-identity as VAULT_ROOT_TOKEN so
   # the bootstrap shim can fetch role_id/secret_id at startup.
 
+[deploy]
+  # Replace the existing machine instead of running rolling. Dev-mode is
+  # in-memory so two machines = two independent vaults with diverging state.
+  # immediate = stop the old machine first, then start the new one. Brief
+  # downtime during deploys is fine for a demo.
+  strategy = "immediate"
+
 [http_service]
   internal_port        = 8200
   force_https          = false
@@ -31,6 +38,15 @@ primary_region = "iad"
   auto_start_machines  = true
   min_machines_running = 1
   processes            = ["app"]
+
+  # Basic health check so Fly knows when the new machine is ready and
+  # can retire the previous one cleanly.
+  [[http_service.checks]]
+    interval     = "10s"
+    timeout      = "2s"
+    grace_period = "30s"
+    method       = "GET"
+    path         = "/v1/sys/health"
 
 [[vm]]
   memory   = "256mb"

@@ -53,17 +53,28 @@ if [ "${Vault__Enabled:-false}" = "true" ]; then
     fail_open "Vault did not respond within 90s at $Vault__Address"
   fi
 
+  # Vault's seed.sh runs on every container start and takes ~30-60s for the
+  # AppRole+policy steps before it writes secret/identity/bootstrap. If
+  # identity comes up faster than that, the path will 404 briefly. Retry
+  # for up to 90s before giving up.
   echo "[bootstrap] fetching bootstrap creds from secret/identity/bootstrap..."
-  RESPONSE=$(curl -fsS \
-    -H "X-Vault-Token: $VAULT_ROOT_TOKEN" \
-    "$Vault__Address/v1/secret/data/identity/bootstrap" 2>/dev/null) \
-    || fail_open "could not read secret/identity/bootstrap (vault token bad? seed not run?)"
+  ROLE_ID=""
+  SECRET_ID=""
+  for attempt in $(seq 1 30); do
+    RESPONSE=$(curl -fsS \
+      -H "X-Vault-Token: $VAULT_ROOT_TOKEN" \
+      "$Vault__Address/v1/secret/data/identity/bootstrap" 2>/dev/null) || RESPONSE=""
 
-  ROLE_ID=$(echo "$RESPONSE"   | jq -r '.data.data.role_id')
-  SECRET_ID=$(echo "$RESPONSE" | jq -r '.data.data.secret_id')
+    if [ -n "$RESPONSE" ]; then
+      ROLE_ID=$(echo "$RESPONSE"   | jq -r '.data.data.role_id // empty')
+      SECRET_ID=$(echo "$RESPONSE" | jq -r '.data.data.secret_id // empty')
+      if [ -n "$ROLE_ID" ]; then break; fi
+    fi
+    sleep 3
+  done
 
-  if [ -z "$ROLE_ID" ] || [ "$ROLE_ID" = "null" ]; then
-    fail_open "role_id missing from Vault response"
+  if [ -z "$ROLE_ID" ]; then
+    fail_open "secret/identity/bootstrap not populated after 90s — seed.sh may be slow"
   fi
 
   printf '%s' "$ROLE_ID"   > "$ROLE_ID_PATH"
