@@ -79,9 +79,18 @@ public static class DependencyInjection
             mt.AddConsumer<StockReservationRequestedConsumer, CatalogConsumerDefinition<StockReservationRequestedConsumer>>();
 
             // Compensation consumer for the saga's StockReleaseRequested.
-            // Anchored to CatalogDbContext outbox via CatalogConsumerDefinition
-            // so release + StockReleasedEvent publish commit atomically.
-            mt.AddConsumer<StockReleaseRequestedConsumer, CatalogConsumerDefinition<StockReleaseRequestedConsumer>>();
+            // Anchored to CatalogDbContext outbox via the dedicated
+            // StockReleaseRequestedConsumerDefinition which adds 3 immediate
+            // retries + 5 delayed redeliveries up to 1h before falling
+            // through to the fault topic. Stock release is the saga's last
+            // line of defense — if it fails silently, reserved inventory
+            // gets stuck.
+            mt.AddConsumer<StockReleaseRequestedConsumer, StockReleaseRequestedConsumerDefinition>();
+
+            // Fault observer: catches Fault<StockReleaseRequestedEvent> after
+            // all retry/redelivery is exhausted and logs CRITICAL with the
+            // orderId + items operators need to unstick the reservation.
+            mt.AddConsumer<StockReleaseFaultConsumer>();
 
             mt.UsingRabbitMq((context, cfg) =>
             {
