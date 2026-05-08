@@ -23,6 +23,20 @@ Run these shell commands in order. If any fail, STOP and report.
 
   CURRENT=$(git rev-parse --abbrev-ref HEAD)
   [ "$CURRENT" = "$BRANCH" ] || { echo "ERROR: expected $BRANCH, on $CURRENT" >&2; exit 1; }
+
+  # Precondition: every prior brief must be merged into feat/search-service-spec.
+  missing=""
+  [ ! -f "src/Search/Search.Api/Controllers/SearchController.cs" ] \
+      && missing="$missing\n  - B6: src/Search/Search.Api/Controllers/SearchController.cs"
+  [ ! -f "src/Search/Search.Application/Consumers/ProductCacheInvalidatedConsumer.cs" ] \
+      && missing="$missing\n  - B5: src/Search/Search.Application/Consumers/ProductCacheInvalidatedConsumer.cs"
+  if [ -n "$missing" ]; then
+      printf "BLOCKER: prior brief deliverables missing on this base:%b\n" "$missing" >&2
+      echo "The user must merge B5 and B6 into feat/search-service-spec" >&2
+      echo "and push it to origin before this brief can run. STOP." >&2
+      exit 1
+  fi
+
   echo "Worktree ready: $WORKTREE on $BRANCH"
 
 ================================================================
@@ -50,7 +64,7 @@ STEP 3 — EXECUTE
 ================================================================
 STEP 4 — HARD STOPS (forbidden — the user does these manually)
 ================================================================
-  ✗ git push (any branch, any time)
+  ✗ git push to main or feat/search-service-spec
   ✗ git push --force
   ✗ git commit --amend / --no-verify / --no-gpg-sign
   ✗ git rebase / git reset --hard
@@ -59,21 +73,17 @@ STEP 4 — HARD STOPS (forbidden — the user does these manually)
   ✗ Editing other briefs' files
   ✗ Editing CI workflow files unless the brief authorizes it
   ✗ flyctl deploy / flyctl secrets set / flyctl scale
+  ✗ Triggering the Deploy GitHub Actions workflow
+  ✗ Running the staging-BFF smoke test (BFF_BASE_URL=...) — user runs that
   ✗ Opening PRs / auto-merging
   ✗ Continuing past 30 minutes — emit a blocker and stop
-
-  EXCEPTION for B7 only: this brief authorizes you to push the merged
-  feat/search-service-spec branch and watch the Deploy workflow per the
-  brief's Acceptance section. Do this only when explicitly directed by
-  the brief, not opportunistically.
 
 Allowed:
   ✓ Local file create/edit per the brief
   ✓ Running tests, builds, formatters, linters
   ✓ flyctl config validate (read-only)
   ✓ Local git add / git commit (no amend, no force)
-  ✓ git push and gh run watch — only when the B7 brief's Acceptance
-    section explicitly tells you to (Phase 4 is the deploy phase)
+  ✓ git push origin feat/search/B7 — ONLY this branch, ONLY at the end
 
 ================================================================
 STEP 5 — OUTPUT

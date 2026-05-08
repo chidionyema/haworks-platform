@@ -23,6 +23,10 @@ Run these shell commands in order. If any fail, STOP and report.
 
   CURRENT=$(git rev-parse --abbrev-ref HEAD)
   [ "$CURRENT" = "$BRANCH" ] || { echo "ERROR: expected $BRANCH, on $CURRENT" >&2; exit 1; }
+
+  # Precondition: B3 only touches catalog code and is independent of B1/B2/B4.
+  # No additional checks needed — base branch is fine as-is.
+
   echo "Worktree ready: $WORKTREE on $BRANCH"
 
 ================================================================

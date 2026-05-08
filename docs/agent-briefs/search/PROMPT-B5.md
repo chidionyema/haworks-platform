@@ -23,6 +23,22 @@ Run these shell commands in order. If any fail, STOP and report.
 
   CURRENT=$(git rev-parse --abbrev-ref HEAD)
   [ "$CURRENT" = "$BRANCH" ] || { echo "ERROR: expected $BRANCH, on $CURRENT" >&2; exit 1; }
+
+  # Precondition: B1+B2+B3+B4 must all be merged into feat/search-service-spec.
+  missing=""
+  [ ! -f "src/Search/Search.Application/Interfaces/ISearchIndex.cs" ] \
+      && missing="$missing\n  - B2: src/Search/Search.Application/Interfaces/ISearchIndex.cs"
+  [ ! -f "src/Search/Search.Infrastructure/Catalog/ICatalogProductsApi.cs" ] \
+      && missing="$missing\n  - B4: src/Search/Search.Infrastructure/Catalog/ICatalogProductsApi.cs"
+  [ ! -f "src/Contracts/Catalog/CategoryUpdatedEvent.cs" ] \
+      && missing="$missing\n  - B3: src/Contracts/Catalog/CategoryUpdatedEvent.cs"
+  if [ -n "$missing" ]; then
+      printf "BLOCKER: prior brief deliverables missing on this base:%b\n" "$missing" >&2
+      echo "The user must merge B1, B2, B3, and B4 into feat/search-service-spec" >&2
+      echo "and push it to origin before this brief can run. STOP." >&2
+      exit 1
+  fi
+
   echo "Worktree ready: $WORKTREE on $BRANCH"
 
 ================================================================

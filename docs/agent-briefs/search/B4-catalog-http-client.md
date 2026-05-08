@@ -2,7 +2,9 @@
 
 ## Goal
 
-Add a typed Refit client in `Search.Infrastructure` that fetches an enriched product (Product + Category) from catalog over flycast, with Polly retry + timeout policies, plus a paginated `GET /api/products` for backfill. Tested against a WireMock stub.
+Add a typed HTTP client in `Search.Infrastructure` that fetches an enriched product (Product + Category) from catalog over flycast, with Polly retry + timeout policies, plus a paginated `GET /api/products` for backfill. Tested against a WireMock stub.
+
+The codebase **does not currently use Refit** — every existing service-to-service call uses raw `IHttpClientFactory` via `AddHttpClient<TInterface, TImpl>`. This brief sticks with that pattern. Don't introduce Refit.
 
 ## Phase / blocks-on
 
@@ -12,47 +14,39 @@ Phase 2. Blocks-on: B1 done. **Independent of B2 and B3** — runs in parallel.
 
 1. `docs/agent-briefs/search/README.md`.
 2. `docs/agent-briefs/search-service-spec.md` §3.2 (events) and §5 (indexer pipeline) — confirms the read-API contract you're consuming.
-3. `src/Catalog/Catalog.Api/Controllers/` — find the existing `GET /api/products/{id}` endpoint and read its response DTO. **The DTO you build here must match what catalog actually returns.** If the endpoint doesn't exist or the projection misses Category data, file a blocker — do not modify catalog (that would be cross-brief scope).
+3. `src/Catalog/Catalog.Api/Controllers/ProductsController.cs` — read the existing `GET /api/products/{id:guid}` endpoint and its response DTO. **The DTO you build here must match what catalog actually returns.** If the projection misses Category data needed by the spec, file a blocker — do not modify catalog (cross-brief scope).
 4. `src/BuildingBlocks/Resilience/` — there's already a `ResiliencePolicyFactory`. Use it; don't write a new Polly setup from scratch.
-5. `src/Search/Search.Infrastructure/Search.Infrastructure.csproj` — confirm Refit and WireMock.NET aren't yet listed (if they are, just use them; if not, add them via `Directory.Build.props`).
-6. Any existing service-to-service HTTP client in the repo — search for `[Refit.Get]` or `Refit.RestService` for the established pattern.
+5. `src/BffWeb/BffWeb.Api/Program.cs` — find any `services.AddHttpClient<...>(...)` block. That's the established service-to-service HTTP-client pattern in this repo. Mirror it.
+6. `src/Search/Search.Infrastructure/Search.Infrastructure.csproj` — confirm `WireMock.Net` isn't yet listed for tests (if it is, just use it; if not, you'll add it test-side).
 
 ## Deliverable
 
 ### NuGet additions
 
-Add to `Directory.Build.props` (centrally pinned) if not already present:
-- `Refit` (latest stable)
-- `Refit.HttpClientFactory` (latest stable)
-- `WireMock.Net` (latest stable, **test-only** — only reference from `Search.Integration.csproj`)
+`WireMock.Net` (latest stable) added to `Directory.Build.props` (centrally pinned) **test-only** — only reference it from `tests/Search.Integration/Search.Integration.csproj`. No production-side packages added by this brief.
 
-### Refit interface
+### Typed-client interface
 
 `src/Search/Search.Infrastructure/Catalog/ICatalogProductsApi.cs`:
 
 ```csharp
 public interface ICatalogProductsApi
 {
-    [Get("/api/products/{id}")]
     Task<CatalogProductDto> GetProductAsync(Guid id, CancellationToken ct);
-
-    [Get("/api/products")]
-    Task<CatalogProductPage> ListProductsAsync(
-        [Query] string? cursor,
-        [Query] int pageSize,
-        CancellationToken ct);
+    Task<CatalogProductPage> ListProductsAsync(string? cursor, int pageSize, CancellationToken ct);
 }
 ```
 
-`CatalogProductDto` and `CatalogProductPage` POCOs in `src/Search/Search.Infrastructure/Catalog/`. **Field names match catalog's actual API response** (read the controller in step 3 above to confirm; do not invent).
+`src/Search/Search.Infrastructure/Catalog/CatalogProductsApiClient.cs` — concrete implementation that takes a `HttpClient` (injected by `IHttpClientFactory`) and uses `System.Net.Http.Json`'s `GetFromJsonAsync<T>` to call `/api/products/{id}` and `/api/products?cursor=…&pageSize=…`. Throws on non-2xx; let the policy handler retry and surface the failure.
+
+`CatalogProductDto` and `CatalogProductPage` POCOs in `src/Search/Search.Infrastructure/Catalog/`. **Field names match catalog's actual API response** (read `ProductsController.cs` in step 3 above to confirm; do not invent).
 
 ### DI registration
 
 In `Search.Infrastructure.DependencyInjection.AddInfrastructure(...)`:
 
 ```csharp
-services.AddRefitClient<ICatalogProductsApi>()
-    .ConfigureHttpClient(c =>
+services.AddHttpClient<ICatalogProductsApi, CatalogProductsApiClient>(c =>
     {
         c.BaseAddress = new Uri(configuration["Catalog:BaseAddress"]
             ?? "http://ritualworks-catalog.flycast:8080");
@@ -63,15 +57,15 @@ services.AddRefitClient<ICatalogProductsApi>()
           .CreateHttpRetryPolicy(ResilienceOptions.CatalogReadApi));
 ```
 
-If `IResiliencePolicyFactory` doesn't have `CreateHttpRetryPolicy` or `ResilienceOptions.CatalogReadApi` — file a blocker. Do not stuff a new Polly chain inline.
+If `IResiliencePolicyFactory` doesn't have `CreateHttpRetryPolicy` or `ResilienceOptions.CatalogReadApi`, look for whatever the closest existing policy-factory method is and use that, noting the deviation in out-of-scope observations. Do not stuff a new Polly chain inline.
 
 ### Tests
 
 `tests/Search.Integration/CatalogProductsApiTests.cs`:
 
-1. `GetProductAsync_returns_dto_when_catalog_returns_200` — WireMock stub returns a canned JSON, assert the Refit client deserializes it.
+1. `GetProductAsync_returns_dto_when_catalog_returns_200` — WireMock stub returns a canned JSON, assert the client deserializes it.
 2. `GetProductAsync_throws_after_retry_when_catalog_5xx` — WireMock returns 500; assert we retry per the resilience policy and ultimately throw.
-3. `GetProductAsync_throws_404_for_unknown_product` — assert a `Refit.ApiException` with status 404.
+3. `GetProductAsync_throws_404_for_unknown_product` — assert an `HttpRequestException` (or whatever the policy surfaces) with status 404.
 4. `ListProductsAsync_paginates_via_cursor` — WireMock returns two pages with a `nextCursor`, assert the client surfaces them correctly.
 
 These tests do **not** start a SearchWebAppFactory — they spin up just the DI container with the WireMock URL.
@@ -92,11 +86,11 @@ All green.
 - Do **not** modify catalog code, even to "fix" a missing field on the response DTO. File a blocker if the response shape doesn't match the spec.
 - Do **not** add a consumer or an endpoint here.
 - Do **not** instantiate Polly policies inline; use `IResiliencePolicyFactory`.
-- Do **not** add a generic `IHttpClientFactory` registration — Refit's `AddRefitClient` covers it.
+- Do **not** introduce Refit. The repo does not currently use it; stay with raw `AddHttpClient<TInterface, TImpl>`.
 
 ## Done-report
 
 Standard format. Confirm:
 - 4 new tests pass.
-- Refit client uses `IResiliencePolicyFactory`, not inline Polly.
+- The typed client uses `IResiliencePolicyFactory`, not inline Polly.
 - The DTO field names exactly match what catalog's controller returns (call out the controller path you verified against).

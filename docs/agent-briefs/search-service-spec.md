@@ -112,11 +112,12 @@ Snippet is generated server-side via `ts_headline` so the BFF doesn't have to hi
 
 Search consumes from RabbitMQ (in-process MassTransit consumer, EF outbox per the existing pattern):
 
-| Event                              | Source        | Action                                   |
-| ---------------------------------- | ------------- | ---------------------------------------- |
-| `ProductCacheInvalidatedEvent`     | catalog (existing) | fetch product → upsert SearchDocument; if `Reason=="deleted"`, soft-delete |
-| `CategoryUpdatedEvent`         | catalog (**NEW** — see §6) | re-denormalize `categoryName` for all products in that category |
-| `CategoryDeletedEvent`         | catalog (**NEW**) | reassign products to "Uncategorized" virtual or soft-delete docs |
+| Event                          | Source                | Action                                   |
+| ------------------------------ | --------------------- | ---------------------------------------- |
+| `ProductCacheInvalidatedEvent` | catalog (existing)    | fetch product → upsert SearchDocument; if `Reason=="deleted"`, hard-delete |
+| `CategoryUpdatedEvent`         | catalog (**NEW**, §6) | re-denormalize `categoryName` for all products in that category |
+
+**Note on category deletion.** The platform currently has no `DeleteCategoryCommand` in catalog — categories cannot be deleted in v1 of the platform. A `CategoryDeletedEvent` is therefore not part of this spec. When category deletion is implemented in a future phase, add the event + a `CategoryDeletedConsumer` then; the spec slot is reserved.
 
 ### 3.3 Outbound
 
@@ -186,9 +187,8 @@ This is a 1+1 round-trip per index event. At expected volume (catalog edits, not
    - Else → call catalog read API: `GET http://ritualworks-catalog.flycast:8080/api/products/{id}` returning the Product+Category projection.
    - Apply OOO version guard from §4, then `index.addDocuments([…])`.
 3. On `CategoryUpdatedEvent` → query Meilisearch for all products in that category (`filter: categoryId = <guid>`), update `categoryName` on each, batch `addDocuments`. Meilisearch handles up to ~10k docs per batch comfortably; if a category has more, the indexer paginates.
-4. On `CategoryDeletedEvent` → reassign products to a virtual `"00000000-0000-0000-0000-000000000000"` "uncategorized" id with `categoryName="Uncategorized"`. Catalog should reject deleting a category that still has products in it; this consumer is a defence-in-depth.
-5. Retries: MassTransit default exponential backoff. After max retries, message goes to error queue. **No DLQ-replay tooling for v1** — operator can re-trigger by republishing from catalog.
-6. Catalog API is the single point of truth for product detail. If the BFF reads from search and search is stale by a few hundred ms, that's acceptable.
+4. Retries: MassTransit default exponential backoff. After max retries, message goes to error queue. **No DLQ-replay tooling for v1** — operator can re-trigger by republishing from catalog.
+5. Catalog API is the single point of truth for product detail. If the BFF reads from search and search is stale by a few hundred ms, that's acceptable.
 
 **Initial backfill.** First-time bring-up: call `POST /admin/reindex` (auth: identity-scoped admin role) which paginates `GET /api/products?cursor=…` from catalog and pushes batches of 1000 to Meilisearch. Idempotent — safe to re-run.
 
@@ -196,7 +196,7 @@ This is a 1+1 round-trip per index event. At expected volume (catalog edits, not
 
 ## 6. Catalog-side changes (small but required)
 
-Two new events in `src/Contracts/Catalog/`:
+One new event in `src/Contracts/Catalog/`:
 
 ```csharp
 public sealed record CategoryUpdatedEvent : DomainEvent
@@ -204,16 +204,11 @@ public sealed record CategoryUpdatedEvent : DomainEvent
     public required Guid CategoryId { get; init; }
     public required string Name { get; init; }
 }
-
-public sealed record CategoryDeletedEvent : DomainEvent
-{
-    public required Guid CategoryId { get; init; }
-}
 ```
 
-Catalog publishes these in the existing outbox transaction whenever `UpdateCategoryCommand` / `DeleteCategoryCommand` runs. **This is a mandatory dependency** of the search service — without it, category renames silently rot the index.
+Catalog publishes this in the existing outbox transaction whenever `UpdateCategoryCommand` runs. **This is a mandatory dependency** of the search service — without it, category renames silently rot the index. (`DeleteCategoryCommand` does not exist in the platform yet; the corresponding event is deferred until it does.)
 
-**Read endpoint.** Catalog should already expose `GET /api/products/{id}` returning the projection the search indexer needs (Name, Description, Category{Id,Name}, UnitPrice, IsInStock, IsListed). Confirmed in the plan task: a small auditing pass on this endpoint is part of the implementation, not the spec.
+**Read endpoint.** Catalog already exposes `GET /api/products/{id}` via `Catalog.Api/Controllers/ProductsController.cs` returning the projection the search indexer needs (Name, Description, Category{Id,Name}, UnitPrice, IsInStock, IsListed). Confirmed during the planning research pass.
 
 ---
 

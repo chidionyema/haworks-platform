@@ -2,11 +2,13 @@
 
 ## Goal
 
-Three MassTransit consumers in `Search.Application` that react to catalog events and push updates to Meilisearch via `ISearchIndex`. Includes the Product → ProductSearchDocument projector and the OOO version guard.
+Two MassTransit consumers in `Search.Application` that react to catalog events and push updates to Meilisearch via `ISearchIndex`. Includes the Product → ProductSearchDocument projector and the OOO version guard.
+
+(A third consumer for category-delete is deferred — the platform has no `DeleteCategoryCommand` and therefore no `CategoryDeletedEvent` per the spec.)
 
 ## Phase / blocks-on
 
-Phase 3. Blocks-on: **B2 (ISearchIndex) AND B3 (CategoryUpdatedEvent / CategoryDeletedEvent contract records exist) AND B4 (ICatalogProductsApi)** all green.
+Phase 3. Blocks-on: **B2 (ISearchIndex) AND B3 (CategoryUpdatedEvent contract record) AND B4 (ICatalogProductsApi)** all green.
 
 ## Inputs (read in order)
 
@@ -14,7 +16,7 @@ Phase 3. Blocks-on: **B2 (ISearchIndex) AND B3 (CategoryUpdatedEvent / CategoryD
 2. `docs/agent-briefs/search-service-spec.md` §5 (indexer pipeline — every step), §4 (document shape — exact field names).
 3. `src/Search/Search.Application/Interfaces/ISearchIndex.cs` (B2).
 4. `src/Search/Search.Infrastructure/Catalog/ICatalogProductsApi.cs` (B4).
-5. `src/Contracts/Catalog/ProductCacheInvalidatedEvent.cs` (existing) and the new `CategoryUpdatedEvent.cs` / `CategoryDeletedEvent.cs` (B3).
+5. `src/Contracts/Catalog/ProductCacheInvalidatedEvent.cs` (existing) and the new `CategoryUpdatedEvent.cs` (B3).
 6. `src/Payments/Payments.Application/Consumers/PaymentWebhookValidatedConsumer.cs` — the canonical consumer pattern (logging, retries, no try-swallow).
 7. `tests/Payments.Integration/PaymentsWebAppFactory.cs` — fixture pattern. SearchWebAppFactory should mirror it: env-vars-before-build, MassTransit test harness, Testcontainers Meili.
 
@@ -38,11 +40,6 @@ Phase 3. Blocks-on: **B2 (ISearchIndex) AND B3 (CategoryUpdatedEvent / CategoryD
   - Page through Meilisearch with `searchIndex.SearchAsync(new SearchQuery { Filter = $"categoryId = {e.CategoryId}", PageSize = 1000 }, ct)`.
   - For each page, build documents with `categoryName = e.Name`, batch upsert.
   - Stop when no more hits.
-
-`src/Search/Search.Application/Consumers/CategoryDeletedConsumer.cs`:
-
-- On `CategoryDeletedEvent`:
-  - Same pagination as above; reassign each doc to `categoryId = "00000000-0000-0000-0000-000000000000"`, `categoryName = "Uncategorized"`.
 
 ### Projector
 
@@ -83,7 +80,6 @@ if (!env.IsEnvironment("Test"))
         mt.SetKebabCaseEndpointNameFormatter();
         mt.AddConsumer<ProductCacheInvalidatedConsumer>();
         mt.AddConsumer<CategoryUpdatedConsumer>();
-        mt.AddConsumer<CategoryDeletedConsumer>();
         mt.UsingRabbitMq((ctx, cfg) =>
         {
             cfg.Host(new Uri(configuration.GetConnectionString("rabbitmq")
@@ -109,7 +105,6 @@ if (!env.IsEnvironment("Test"))
 - `ProductCacheInvalidated_with_Reason_deleted_removes_document`
 - `ProductCacheInvalidated_with_lower_SourceVersion_is_a_noop` (seed a doc with version 10, publish event with version 5, assert doc unchanged)
 - `CategoryUpdated_renames_category_for_all_products` (seed 3 products in same category, publish CategoryUpdatedEvent, assert all 3 updated)
-- `CategoryDeleted_reassigns_products_to_uncategorized`
 
 Each integration test uses `harness.Bus.Publish(...)` then polls Meilisearch for the expected state with a 30s deadline, mirroring the `PollUntilAsync` pattern from WebhookFlowsTests.
 
@@ -121,7 +116,7 @@ dotnet test tests/Search.Unit -c Release
 dotnet test tests/Search.Integration -c Release
 ```
 
-All green. The 5 new integration tests + 3 new unit tests are listed as passed.
+All green. The 4 new integration tests + 3 new unit tests are listed as passed.
 
 ## Hard stops
 
@@ -135,6 +130,6 @@ All green. The 5 new integration tests + 3 new unit tests are listed as passed.
 ## Done-report
 
 Standard format. Confirm:
-- 5 integration + 3 unit tests new and green.
+- 4 integration + 3 unit tests new and green.
 - OOO guard verified via the `lower_SourceVersion_is_a_noop` test.
-- All three consumers registered behind the `!env.IsEnvironment("Test")` guard.
+- Both consumers registered behind the `!env.IsEnvironment("Test")` guard.

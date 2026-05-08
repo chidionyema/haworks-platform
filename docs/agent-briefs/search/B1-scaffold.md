@@ -40,11 +40,12 @@ Create the following files. **Do not create or modify anything else.**
 - `tests/Search.Unit/Search.Unit.csproj` — packages match Catalog.Unit. References Search.Domain, Search.Application, BuildingBlocks.Testing.
 - `tests/Search.Unit/SmokeTest.cs` — one test: `Assert.True(true)` so the runner has something to discover.
 - `tests/Search.Integration/Search.Integration.csproj` — packages match Catalog.Integration. References Search.Api + the linked `TestModuleInitializer.cs`.
-- `tests/Search.Integration/SmokeTest.cs` — one test: build a `WebApplicationFactory<Program>`, call `GET /health`, assert 200.
+- `tests/Search.Integration/SearchWebAppFactory.cs` — a `WebApplicationFactory<Program>` subclass implementing `IAsyncLifetime` (mirror `tests/Payments.Integration/PaymentsWebAppFactory.cs`'s shape). For B1 it has empty `InitializeAsync`/`DisposeAsync` and only sets `ASPNETCORE_ENVIRONMENT=Test` before the host builds. Subsequent briefs (B2, B5) extend it with Meili + WireMock containers.
+- `tests/Search.Integration/SmokeTest.cs` — one test, uses `IClassFixture<SearchWebAppFactory>`, calls `GET /health`, asserts 200.
 
 ### Fly + ops
 
-- `fly.search.toml` — clone `fly.catalog.toml`, change app name to `ritualworks-search`, dockerfile path to `src/Search/Search.Api/Dockerfile`, add `[env] Meilisearch__Url = "http://ritualworks-meilisearch.flycast:7700"`.
+- `fly.search.toml` — clone `fly.catalog.toml`, then **set the `[http_service]` block to `auto_stop_machines = "off"`, `min_machines_running = 1`** (per spec §7 — no cold starts allowed). Change app name to `ritualworks-search`, dockerfile path to `src/Search/Search.Api/Dockerfile`, add `[env] Meilisearch__Url = "http://ritualworks-meilisearch.flycast:7700"`.
 - `fly.meilisearch.toml` — see spec §8 for the exact content. Use `getmeili/meilisearch:v1.10`. Volume name `meili_data`, mount `/meili_data`, initial_size 1gb.
 
 ### bootstrap.sh additions (modifications, not new file)

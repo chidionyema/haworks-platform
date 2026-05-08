@@ -86,35 +86,40 @@ dotnet test tests/Smoke -c Release                    # smoke test compiles
 
 All build/test green.
 
-**Then** the agent commits, pushes to main, and watches the Deploy workflow:
+**Then** commit your work locally on the `feat/search/B7` branch, then push **that branch only** so the user can review:
 
 ```bash
-gh run list --workflow Deploy --limit 1
-gh run watch <run_id> --exit-status
+git push origin feat/search/B7
 ```
 
-Deploy must finish green (all matrix entries succeed). Then run the smoke against the deployed BFF:
+Stop there. **Do not push to main.** **Do not run the Deploy workflow.** **Do not run the smoke test against the deployed BFF.** Those steps belong to the user's release process: they review your branch, merge it into `feat/search-service-spec`, merge that into `main` when satisfied, and the existing Deploy workflow fires automatically. Once deployed, the user runs the BFF-against-staging smoke themselves.
 
-```bash
-BFF_BASE_URL=https://ritualworks-bffweb.fly.dev dotnet test tests/Smoke -c Release \
-    --filter "FullyQualifiedName~SearchSmokeTests"
-```
-
-Must pass.
+In your done-report, include:
+- The exact `dotnet test` outputs from local runs.
+- The push output (`git push origin feat/search/B7`) confirming the branch is on origin.
+- A short checklist the user should run after merging:
+  ```
+  # After merging feat/search/B7 into main:
+  gh run watch $(gh run list --workflow Deploy --limit 1 --json databaseId -q '.[0].databaseId')
+  BFF_BASE_URL=https://ritualworks-bffweb.fly.dev dotnet test tests/Smoke -c Release \
+      --filter "FullyQualifiedName~SearchSmokeTests"
+  ```
 
 ## Hard stops
 
 - Do **not** modify search-svc code (B5/B6 are done).
 - Do **not** modify Meilisearch settings.
 - Do **not** add CORS rules or auth scopes to the new BFF route beyond what the existing pattern does (the BFF already has CORS configured globally).
-- Do **not** force-push or skip CI hooks to ship.
-- If the deploy fails, **stop**. Don't try to flip the matrix or retry blindly. File a blocker with the failed job name and the last 30 lines of its log.
+- Do **not** push to `main` or to `feat/search-service-spec`. Push only your `feat/search/B7` branch.
+- Do **not** trigger the Deploy workflow. Do **not** run flyctl deploy.
+- Do **not** run the staging smoke test (`BFF_BASE_URL=...`) — that's a post-deploy check the user runs.
+- Do **not** force-push or skip CI hooks.
 - The user has flagged cost concerns — do **not** scale up Meilisearch's machine size or add a second Fly machine to "fix" latency without explicit user approval.
 
 ## Done-report
 
 Standard format, plus:
-- Paste the deployed-BFF smoke test output.
-- Paste a sample curl: `curl https://<bff-url>/api/search?q=…` and the JSON body.
-- Note the deploy run URL.
+- Confirm the local `dotnet test tests/BffWeb.Integration` and `dotnet test tests/Smoke` outputs (paste the summary lines).
+- Paste the `git push origin feat/search/B7` output confirming the branch landed on origin.
+- Include the post-merge checklist (gh run watch + BFF smoke) for the user to run themselves.
 - "Out-of-scope observations" should explicitly list anything that would benefit from phase 5 hardening (perf, ops runbook, backfill UX).
