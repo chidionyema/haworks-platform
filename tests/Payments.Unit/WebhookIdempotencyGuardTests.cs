@@ -1,4 +1,5 @@
 using Haworks.Payments.Application.Interfaces;
+using Haworks.Contracts.Payments;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.Payments.Infrastructure.Webhooks;

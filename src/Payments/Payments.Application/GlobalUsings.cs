@@ -6,6 +6,7 @@ global using Haworks.BuildingBlocks.Common;
 global using Haworks.BuildingBlocks.Caching;
 global using Haworks.BuildingBlocks.CurrentUser;
 global using Haworks.BuildingBlocks.Messaging;
+global using Haworks.Contracts.Payments;
 global using Haworks.Payments.Domain;
 global using Haworks.Payments.Domain.Interfaces;
 global using Haworks.Payments.Application.Interfaces;

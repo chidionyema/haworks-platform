@@ -1,9 +1,9 @@
 using Haworks.Payments.Application.Interfaces;
-using Haworks.Payments.Domain;
+using Haworks.Contracts.Payments;
 using Haworks.Payments.Infrastructure.Options;
 using Haworks.Payments.Infrastructure;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
 
@@ -11,15 +11,16 @@ namespace Haworks.Payments.Unit;
 
 public class PaymentGatewayTests
 {
-    private readonly Mock<ICheckoutSessionService> _checkoutMock;
-    private readonly Mock<IWebhookProcessor> _webhooksMock;
-    private readonly Mock<ILogger<PaymentGateway>> _loggerMock;
+    private readonly Mock<IServiceProvider> _serviceProviderMock = new();
+    private readonly Mock<ICheckoutSessionService> _checkoutMock = new();
+    private readonly Mock<ISubscriptionManager> _subscriptionsMock = new();
+    private readonly Mock<IRefundService> _refundsMock = new();
 
     public PaymentGatewayTests()
     {
-        _checkoutMock = new Mock<ICheckoutSessionService>();
-        _webhooksMock = new Mock<IWebhookProcessor>();
-        _loggerMock = new Mock<ILogger<PaymentGateway>>();
+        _serviceProviderMock.Setup(sp => sp.GetService(typeof(Haworks.Payments.Infrastructure.Stripe.StripeCheckoutSessionService))).Returns(_checkoutMock.Object);
+        _serviceProviderMock.Setup(sp => sp.GetService(typeof(Haworks.Payments.Infrastructure.Stripe.StripeSubscriptionManager))).Returns(_subscriptionsMock.Object);
+        _serviceProviderMock.Setup(sp => sp.GetService(typeof(Haworks.Payments.Infrastructure.Stripe.StripeRefundService))).Returns(_refundsMock.Object);
     }
 
     private PaymentGateway CreateGateway(PaymentProvider provider)
@@ -29,10 +30,7 @@ public class PaymentGatewayTests
             Active = provider
         });
 
-        return new PaymentGateway(
-            options,
-            _checkoutMock.Object,
-            _webhooksMock.Object);
+        return new PaymentGateway(_serviceProviderMock.Object, options);
     }
 
     [Fact]
@@ -40,13 +38,5 @@ public class PaymentGatewayTests
     {
         var gateway = CreateGateway(PaymentProvider.Stripe);
         Assert.Equal(PaymentProvider.Stripe, gateway.ActiveProvider);
-    }
-
-    [Fact]
-    public void Constructor_ExposesServices()
-    {
-        var gateway = CreateGateway(PaymentProvider.Stripe);
-        Assert.Same(_checkoutMock.Object, gateway.Checkout);
-        Assert.Same(_webhooksMock.Object, gateway.Webhooks);
     }
 }

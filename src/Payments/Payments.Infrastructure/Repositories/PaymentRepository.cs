@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Domain.Interfaces;
+using Haworks.Contracts.Payments;
 
 namespace Haworks.Payments.Infrastructure.Repositories;
 
@@ -21,12 +22,16 @@ internal sealed class PaymentRepository(PaymentDbContext db) : IPaymentRepositor
     public Task<Payment?> GetByOrderIdTrackedAsync(Guid orderId, CancellationToken ct = default) =>
         db.Payments.FirstOrDefaultAsync(p => p.OrderId == orderId, ct);
 
+    public Task<Payment?> GetByProviderTransactionIdAsync(string providerTransactionId, CancellationToken ct = default) =>
+        db.Payments.FirstOrDefaultAsync(p => p.ProviderTransactionId == providerTransactionId, ct);
+
     public async Task AddAsync(Payment payment, CancellationToken ct = default) =>
         await db.Payments.AddAsync(payment, ct);
 
     public Task<int> SaveChangesAsync(CancellationToken ct = default) =>
         db.SaveChangesAsync(ct);
 
+    // Subscription methods
     public Task<Subscription?> GetSubscriptionByProviderIdAsync(string providerSubscriptionId, CancellationToken ct = default) =>
         db.Subscriptions.FirstOrDefaultAsync(s => s.ProviderSubscriptionId == providerSubscriptionId, ct);
 
@@ -36,6 +41,7 @@ internal sealed class PaymentRepository(PaymentDbContext db) : IPaymentRepositor
     public async Task AddSubscriptionAsync(Subscription subscription, CancellationToken ct = default) =>
         await db.Subscriptions.AddAsync(subscription, ct);
 
+    // WebhookEvent methods
     public async Task AddWebhookEventAsync(WebhookEvent webhookEvent, CancellationToken ct = default) =>
         await db.WebhookEvents.AddAsync(webhookEvent, ct);
 

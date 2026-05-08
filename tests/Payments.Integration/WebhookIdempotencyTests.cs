@@ -6,6 +6,7 @@ using MassTransit.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using Haworks.Contracts.Payments;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Infrastructure;
 

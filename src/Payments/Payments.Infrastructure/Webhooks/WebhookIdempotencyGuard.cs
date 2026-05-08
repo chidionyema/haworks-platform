@@ -1,95 +1,69 @@
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Domain.Interfaces;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Logging;
+using Haworks.Contracts.Payments;
 
 namespace Haworks.Payments.Infrastructure.Webhooks;
 
 /// <summary>
-/// Guards against duplicate webhook processing.
-/// Uses a combination of distributed cache (fast check) and database (source of truth).
+/// Infrastructure guard for webhook idempotency.
+/// Uses a two-layer check: Distributed Cache (Redis) and the DB.
 /// </summary>
-public sealed class WebhookIdempotencyGuard : IWebhookIdempotencyGuard
+internal sealed class WebhookIdempotencyGuard : IWebhookIdempotencyGuard
 {
-    private readonly IPaymentRepository _paymentRepository;
+    private readonly IPaymentRepository _repository;
     private readonly IDistributedCache _cache;
     private readonly ILogger<WebhookIdempotencyGuard> _logger;
 
-    private const string CacheKeyPrefix = "webhook-idemp:";
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
+    private const string CacheKeyPrefix = "webhook:";
 
     public WebhookIdempotencyGuard(
-        IPaymentRepository paymentRepository,
+        IPaymentRepository repository,
         IDistributedCache cache,
         ILogger<WebhookIdempotencyGuard> logger)
     {
-        _paymentRepository = paymentRepository ?? throw new ArgumentNullException(nameof(paymentRepository));
-        _cache = cache ?? throw new ArgumentNullException(nameof(cache));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _repository = repository;
+        _cache = cache;
+        _logger = logger;
     }
 
-    /// <inheritdoc />
     public async Task<bool> IsAlreadyProcessedAsync(
         PaymentProvider provider,
-        string eventId,
+        string providerEventId,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(eventId))
-        {
-            return false;
-        }
+        if (string.IsNullOrEmpty(providerEventId)) return false;
 
-        var cacheKey = $"{CacheKeyPrefix}{provider}:{eventId}";
+        var cacheKey = $"{CacheKeyPrefix}{provider}:{providerEventId}";
+        var cached = await _cache.GetAsync(cacheKey, ct);
+        if (cached != null) return true;
 
-        // 1. Fast path: check distributed cache
-        var cached = await _cache.GetStringAsync(cacheKey, ct);
-        if (cached != null)
-        {
-            _logger.LogDebug("Webhook {EventId} found in idempotency cache", eventId);
-            return true;
-        }
-
-        // 2. Slow path: check database
-        var exists = await _paymentRepository.WebhookEventExistsAsync(provider, eventId, ct);
+        var exists = await _repository.WebhookEventExistsAsync(provider, providerEventId, ct);
+        
         if (exists)
         {
-            // Backfill cache
-            await _cache.SetStringAsync(cacheKey, "1", new DistributedCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = CacheDuration
-            }, ct);
+            // Backfill cache to avoid DB hits on duplicate retries
+            await _cache.SetAsync(cacheKey, new byte[] { 1 }, 
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24) }, ct);
         }
 
         return exists;
     }
 
-    /// <inheritdoc />
     public async Task MarkProcessedAsync(
         PaymentProvider provider,
-        string eventId,
+        string providerEventId,
         string eventType,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(eventId))
-        {
-            return;
-        }
+        var webhookEvent = WebhookEvent.Create(provider, providerEventId, eventType, string.Empty);
+        await _repository.AddWebhookEventAsync(webhookEvent, ct);
+        await _repository.SaveChangesAsync(ct);
 
-        var cacheKey = $"{CacheKeyPrefix}{provider}:{eventId}";
-
-        // We don't insert into DB here because it's usually done in the same transaction
-        // as the state mutation in the consumer. This method is used to mark it in cache
-        // AFTER successful processing.
-        
-        await _cache.SetStringAsync(cacheKey, "1", new DistributedCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheDuration
-        }, ct);
-
-        _logger.LogInformation(
-            "Marked webhook event {EventId} from {Provider} as processed in cache",
-            eventId, provider);
+        var cacheKey = $"{CacheKeyPrefix}{provider}:{providerEventId}";
+        await _cache.SetAsync(cacheKey, new byte[] { 1 }, 
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24) }, ct);
     }
 }

@@ -7,65 +7,53 @@ using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
 using Xunit;
 using Haworks.BuildingBlocks.Messaging;
+using Haworks.BuildingBlocks.Telemetry;
+using Haworks.BuildingBlocks.Resilience;
 using Haworks.Payments.Application.Consumers;
 
 namespace Haworks.Payments.Integration;
 
 /// <summary>
-/// WebApplicationFactory for payments-svc integration tests.
-///
-/// • Spins up its own postgres via Testcontainers — no shared Aspire.
-/// • Sets ASPNETCORE_ENVIRONMENT=Test BEFORE Program.cs runs so
-///   AddInfrastructure short-circuits the production MassTransit/RabbitMQ
-///   wiring (catalog-svc pattern).
-/// • Wires in-memory MassTransit + the PaymentWebhookValidatedConsumer
-///   so end-to-end webhook → consumer → published event flow can be
-///   asserted via ITestHarness.Published.
-/// • Supplies a known Stripe webhook secret in config so the controller
-///   can validate test signatures.
+/// Custom WebApplicationFactory that wires up:
+/// 1. A real PostgreSQL container (Testcontainers).
+/// 2. An in-memory MassTransit harness (replaces RabbitMQ).
+/// 3. In-memory configuration overrides.
 /// </summary>
-public sealed class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    public const string TestStripeSecret = "whsec_test_secret_phase3d_deterministic";
-
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
+    private readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder()
+        .WithImage("postgres:15-alpine")
         .WithDatabase("payments")
         .WithUsername("postgres")
         .WithPassword("postgres")
         .Build();
 
-    public string ConnectionString => _postgres.GetConnectionString();
+    public const string TestStripeSecret = "whsec_test";
 
     public async Task InitializeAsync()
     {
-        await _postgres.StartAsync();
-
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Test");
-        Environment.SetEnvironmentVariable("ConnectionStrings__payments", ConnectionString);
-        Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", "amqp://guest:guest@localhost:5672/");
-        Environment.SetEnvironmentVariable("Vault__Enabled", "false");
-        Environment.SetEnvironmentVariable("Webhooks__Stripe__WebhookSecret", TestStripeSecret);
+        await _dbContainer.StartAsync();
+        // Ensure schema exists and migrations are run
+        await EnsureSchemaAsync();
     }
 
-    async Task IAsyncLifetime.DisposeAsync()
+    public new async Task DisposeAsync()
     {
-        await _postgres.DisposeAsync();
-        await base.DisposeAsync();
+        await _dbContainer.StopAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Test");
 
-        builder.ConfigureAppConfiguration((ctx, config) =>
+        builder.ConfigureAppConfiguration((_, config) =>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:payments"] = ConnectionString,
-                ["ConnectionStrings:rabbitmq"] = "amqp://guest:guest@localhost:5672/",
-                ["Vault:Enabled"] = "false",
-                ["Webhooks:Stripe:WebhookSecret"] = TestStripeSecret,
+                ["ConnectionStrings:payments"] = _dbContainer.GetConnectionString(),
+                // Fix: PaymentProviderOptions expects keys under the SectionName "PaymentProviders"
+                ["PaymentProviders:Stripe:WebhookSecret"] = TestStripeSecret,
+                ["PaymentProviders:Active"] = "Stripe"
             });
         });
 
@@ -81,6 +69,10 @@ public sealed class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsy
                 mt.AddConsumer<PaymentWebhookValidatedConsumer>();
             });
             services.AddDomainEventPublisher();
+            services.AddSingleton<ITelemetryService>(_ => NullTelemetryService.Instance);
+            
+            // Fix: Explicitly register ResiliencePolicyFactory to satisfy implementation dependencies
+            services.AddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
         });
     }
 
@@ -89,14 +81,16 @@ public sealed class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsy
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider
             .GetRequiredService<Haworks.Payments.Infrastructure.PaymentDbContext>();
+        
+        // Explicitly create schema before MigrateAsync checks for history table
+        await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS payments;");
         await db.Database.MigrateAsync();
     }
 
     /// <summary>Convenience: build a Stripe-Signature header for a given payload.</summary>
     public static string SignStripe(string rawPayload, DateTimeOffset? at = null, string? secret = null)
     {
-        var time = at ?? DateTimeOffset.UtcNow;
-        var unix = time.ToUnixTimeSeconds();
+        var unix = (at ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds();
         var signed = $"{unix}.{rawPayload}";
         using var hmac = new System.Security.Cryptography.HMACSHA256(
             System.Text.Encoding.UTF8.GetBytes(secret ?? TestStripeSecret));

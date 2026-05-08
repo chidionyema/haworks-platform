@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Haworks.Payments.Domain;
+using Haworks.Contracts.Payments;
 using Xunit;
 
 namespace Haworks.Payments.Unit.Domain;

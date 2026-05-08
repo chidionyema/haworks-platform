@@ -240,7 +240,7 @@ public sealed class WebhookFlowsTests : IClassFixture<PaymentsWebAppFactory>, IA
 
     /// <summary>
     /// Polls the predicate every 250ms up to the deadline. Used instead of
-    /// `harness.Consumed.Any<T>()` for tests that need a downstream publish
+    /// `harness.Consumed.Any&lt;T&gt;()` for tests that need a downstream publish
     /// — Consumed.Any can return true microseconds before the publish
     /// reaches harness.Published in the in-memory transport.
     /// </summary>

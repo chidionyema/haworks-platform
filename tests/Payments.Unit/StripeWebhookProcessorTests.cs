@@ -1,7 +1,8 @@
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.Payments.Application.Interfaces;
-using Haworks.Payments.Domain;
+using Haworks.Contracts.Payments;
+using Haworks.Payments.Domain.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.Payments.Infrastructure.Options;
 using Haworks.Payments.Infrastructure.Stripe;

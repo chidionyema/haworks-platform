@@ -66,7 +66,7 @@ public sealed class PaymentSessionRequestedConsumer(
                 evt.Amount,
                 0m, // Tax not in event?
                 evt.Currency,
-                Haworks.Payments.Domain.PaymentProvider.Stripe,
+                Haworks.Contracts.Payments.PaymentProvider.Stripe,
                 evt.SagaId);
 
             await paymentRepository.AddAsync(payment, context.CancellationToken);
@@ -104,7 +104,7 @@ public sealed class PaymentSessionRequestedConsumer(
                 PaymentId = payment.Id,
                 SessionId = result.SessionId,
                 CheckoutUrl = result.SessionUrl,
-                Provider = Haworks.Payments.Domain.PaymentProvider.Stripe.ToString(),
+                Provider = Haworks.Contracts.Payments.PaymentProvider.Stripe.ToString(),
                 Amount = evt.Amount,
                 Currency = evt.Currency
             }, context.CancellationToken);
@@ -117,7 +117,7 @@ public sealed class PaymentSessionRequestedConsumer(
             {
                 OrderId = evt.OrderId,
                 SagaId = evt.SagaId,
-                Provider = Haworks.Payments.Domain.PaymentProvider.Stripe.ToString(),
+                Provider = Haworks.Contracts.Payments.PaymentProvider.Stripe.ToString(),
                 ErrorCode = "provider_error",
                 ErrorMessage = ex.Message,
                 AttemptNumber = 1,

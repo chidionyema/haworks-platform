@@ -1,185 +1,79 @@
-using Haworks.BuildingBlocks.Resilience;
 using Haworks.Payments.Application.Interfaces;
-using Haworks.Payments.Domain;
+using Haworks.Contracts.Payments;
+using Haworks.Payments.Infrastructure.Options;
+using Haworks.BuildingBlocks.Caching;
 using Microsoft.Extensions.Logging;
-using Polly;
+using Microsoft.Extensions.Options;
 using Stripe;
 using Stripe.Checkout;
 
 namespace Haworks.Payments.Infrastructure.Stripe;
 
-/// <summary>
-/// Stripe implementation of ICheckoutSessionService.
-/// Handles one-time payment checkout sessions.
-/// </summary>
 internal sealed class StripeCheckoutSessionService(
     IStripeClientFactory clientFactory,
-    IResiliencePolicyFactory resiliencePolicyFactory,
-    ILogger<StripeCheckoutSessionService> logger) : ICheckoutSessionService
+    IPaymentSessionCache cache) : ICheckoutSessionService
 {
-    private readonly IAsyncPolicy _resiliencePolicy =
-        resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.Stripe);
-
-    /// <inheritdoc />
     public async Task<CheckoutSessionResult> CreateSessionAsync(
         CreateCheckoutSessionRequest request,
         CancellationToken ct = default)
     {
-        var sessionService = await GetSessionServiceAsync(ct);
-        var options = BuildPaymentSessionOptions(request);
-        var requestOptions = new RequestOptions { IdempotencyKey = request.IdempotencyKey };
-
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
-        {
-            logger.LogInformation(
-                "Creating Stripe payment session with idempotency key {Key}",
-                request.IdempotencyKey);
-
-            var session = await sessionService.CreateAsync(options, requestOptions, token);
-
-            logger.LogInformation("Stripe payment session created: {SessionId}", session.Id);
-
-            return new CheckoutSessionResult
-            {
-                SessionId = session.Id,
-                SessionUrl = session.Url,
-                TransactionId = session.PaymentIntentId,
-                Provider = PaymentProvider.Stripe
-            };
-        }, new Context(), ct);
-    }
-
-    /// <inheritdoc />
-    public async Task<CheckoutSession?> GetSessionAsync(
-        string sessionId,
-        CancellationToken ct = default)
-    {
-        if (string.IsNullOrEmpty(sessionId))
-        {
-            logger.LogWarning("GetSessionAsync called with empty sessionId");
-            return null;
-        }
-
-        var sessionService = await GetSessionServiceAsync(ct);
-
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
-        {
-            try
-            {
-                var session = await sessionService.GetAsync(sessionId, cancellationToken: token);
-                return MapToCheckoutSession(session);
-            }
-            catch (StripeException ex) when (ex.StripeError?.Code == StripeConstants.ErrorCodes.ResourceMissing)
-            {
-                logger.LogWarning("Stripe session {SessionId} not found", sessionId);
-                return null;
-            }
-        }, new Context(), ct);
-    }
-
-    /// <inheritdoc />
-    public async Task<bool> ExpireSessionAsync(
-        string sessionId,
-        CancellationToken ct = default)
-    {
-        if (string.IsNullOrEmpty(sessionId))
-        {
-            logger.LogWarning("ExpireSessionAsync called with empty sessionId");
-            return false;
-        }
-
-        var sessionService = await GetSessionServiceAsync(ct);
-
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
-        {
-            try
-            {
-                logger.LogInformation("Expiring Stripe session {SessionId}", sessionId);
-                await sessionService.ExpireAsync(sessionId, cancellationToken: token);
-                logger.LogInformation("Stripe session {SessionId} expired successfully", sessionId);
-                return true;
-            }
-            catch (StripeException ex) when (ex.StripeError?.Code == StripeConstants.ErrorCodes.ResourceMissing)
-            {
-                logger.LogWarning("Cannot expire Stripe session {SessionId} - not found", sessionId);
-                return false;
-            }
-            catch (StripeException ex) when (ex.Message.Contains("already expired"))
-            {
-                logger.LogInformation("Stripe session {SessionId} was already expired", sessionId);
-                return true;
-            }
-        }, new Context(), ct);
-    }
-
-    private async Task<SessionService> GetSessionServiceAsync(CancellationToken ct)
-    {
         var client = await clientFactory.GetClientAsync(ct);
-        return new SessionService(client);
-    }
-
-    private static SessionCreateOptions BuildPaymentSessionOptions(CreateCheckoutSessionRequest request)
-    {
-        var lineItems = request.LineItems.Select(item => new SessionLineItemOptions
-        {
-            PriceData = new SessionLineItemPriceDataOptions
-            {
-                Currency = item.Currency,
-                ProductData = new SessionLineItemPriceDataProductDataOptions
-                {
-                    Name = item.Name,
-                    Description = item.Description
-                },
-                UnitAmount = item.UnitAmountCents
-            },
-            Quantity = item.Quantity
-        }).ToList();
+        var service = new SessionService(client);
 
         var options = new SessionCreateOptions
         {
-            PaymentMethodTypes = [StripeConstants.PaymentMethods.Card],
-            LineItems = lineItems,
+            PaymentMethodTypes = new List<string> { StripeConstants.PaymentMethods.Card },
+            LineItems = request.LineItems.Select(item => new SessionLineItemOptions
+            {
+                PriceData = new SessionLineItemPriceDataOptions
+                {
+                    UnitAmount = item.UnitAmountCents,
+                    Currency = item.Currency ?? "USD",
+                    ProductData = new SessionLineItemPriceDataProductDataOptions { Name = item.Name }
+                },
+                Quantity = item.Quantity
+            }).ToList(),
             Mode = StripeConstants.SessionModes.Payment,
             SuccessUrl = request.SuccessUrl,
             CancelUrl = request.CancelUrl,
-            CustomerEmail = string.IsNullOrEmpty(request.CustomerEmail) ? null : request.CustomerEmail,
-            Customer = request.CustomerId,
-            Metadata = request.Metadata
+            Metadata = request.Metadata != null ? new Dictionary<string, string>(request.Metadata) : new Dictionary<string, string>()
         };
 
-        // Add orderId to metadata if present to ensure validation works
-        if (request.OrderId.HasValue && !options.Metadata.ContainsKey("orderId"))
-        {
-            options.Metadata["orderId"] = request.OrderId.Value.ToString();
-        }
+        var requestOptions = new RequestOptions { IdempotencyKey = request.IdempotencyKey };
+        var session = await service.CreateAsync(options, requestOptions, ct);
 
-        return options;
+        await cache.SetAsync(session.Id, Guid.Parse(options.Metadata["orderId"]), options.Metadata["userId"], ct);
+
+        return new CheckoutSessionResult
+        {
+            SessionId = session.Id,
+            SessionUrl = session.Url,
+            Provider = PaymentProvider.Stripe
+        };
     }
 
-    private static CheckoutSession MapToCheckoutSession(Session session)
+    public async Task<CheckoutSession?> GetSessionAsync(string sessionId, CancellationToken ct = default)
     {
+        var client = await clientFactory.GetClientAsync(ct);
+        var service = new SessionService(client);
+        var session = await service.GetAsync(sessionId, cancellationToken: ct);
+
         return new CheckoutSession
         {
             SessionId = session.Id,
-            Status = MapSessionStatus(session.Status),
-            TransactionId = session.PaymentIntentId ?? session.SubscriptionId,
-            CustomerId = session.CustomerId,
-            AmountTotal = session.AmountTotal,
+            Status = session.Status == "complete" ? SessionStatus.Complete : SessionStatus.Open,
+            TransactionId = session.PaymentIntentId,
+            AmountTotal = session.AmountTotal ?? 0,
             Currency = session.Currency,
-            Provider = PaymentProvider.Stripe,
-            Metadata = session.Metadata?.ToDictionary(k => k.Key, v => v.Value)
-                       ?? []
+            Provider = PaymentProvider.Stripe
         };
     }
 
-    private static SessionStatus MapSessionStatus(string? stripeStatus)
+    public async Task<bool> ExpireSessionAsync(string sessionId, CancellationToken ct = default)
     {
-        return stripeStatus switch
-        {
-            StripeConstants.SessionStatuses.Open => SessionStatus.Open,
-            StripeConstants.SessionStatuses.Complete => SessionStatus.Complete,
-            StripeConstants.SessionStatuses.Expired => SessionStatus.Expired,
-            _ => SessionStatus.Open
-        };
+        var client = await clientFactory.GetClientAsync(ct);
+        var service = new SessionService(client);
+        await service.ExpireAsync(sessionId, cancellationToken: ct);
+        return true;
     }
 }

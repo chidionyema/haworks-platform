@@ -1,4 +1,4 @@
-using Haworks.Payments.Domain;
+using Haworks.Contracts.Payments;
 
 namespace Haworks.Payments.Application.Interfaces;
 
@@ -19,7 +19,32 @@ public interface IPaymentGateway
     ICheckoutSessionService Checkout { get; }
 
     /// <summary>
+    /// Subscription lifecycle management.
+    /// </summary>
+    ISubscriptionManager Subscriptions { get; }
+
+    /// <summary>
+    /// Refund processing.
+    /// </summary>
+    IRefundService Refunds { get; }
+
+    /// <summary>
     /// Webhook validation and processing.
     /// </summary>
     IWebhookProcessor Webhooks { get; }
+
+    /// <summary>
+    /// Checks the health of the active payment provider.
+    /// </summary>
+    Task<ProviderHealthStatus> CheckHealthAsync(CancellationToken ct = default);
+}
+
+/// <summary>
+/// Health status of a payment provider.
+/// </summary>
+public record ProviderHealthStatus
+{
+    public required bool IsHealthy { get; init; }
+    public string? Message { get; init; }
+    public PaymentProvider Provider { get; init; }
 }
