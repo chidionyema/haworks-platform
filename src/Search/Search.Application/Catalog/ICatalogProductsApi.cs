@@ -1,4 +1,4 @@
-namespace Haworks.Search.Infrastructure.Catalog;
+namespace Haworks.Search.Application.Catalog;
 
 /// <summary>
 /// Typed catalog-service HTTP client. Read-only — search-svc never writes

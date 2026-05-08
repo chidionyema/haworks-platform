@@ -1,18 +1,23 @@
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
+using Haworks.Search.Application.Consumers;
+using MassTransit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using WireMock.Server;
 using Xunit;
 
 namespace Haworks.Search.Integration;
 
 /// <summary>
-/// Test fixture for Search.Integration. Spins a Meilisearch container,
-/// sets <c>Meilisearch__Url</c> + <c>Meilisearch__MasterKey</c> env vars
+/// Test fixture for Search.Integration. Spins a Meilisearch container +
+/// a WireMock server (the catalog stub), sets configuration env vars
 /// before the host builds (Program.cs reads <c>builder.Configuration</c>
-/// before <c>ConfigureAppConfiguration</c> fires), and exposes Services
-/// for tests to resolve <c>ISearchIndex</c>.
+/// before <c>ConfigureAppConfiguration</c> fires), and registers an
+/// in-memory MassTransit harness with the indexer's consumers.
 ///
 /// Mirrors the pattern stabilised in PaymentsWebAppFactory.
 /// </summary>
@@ -28,6 +33,8 @@ public sealed class SearchWebAppFactory : WebApplicationFactory<Program>, IAsync
         .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(r => r.ForPath("/health").ForPort(7700)))
         .Build();
 
+    public WireMockServer Catalog { get; } = WireMockServer.Start();
+
     public string MeiliUrl => $"http://{_meili.Hostname}:{_meili.GetMappedPublicPort(7700)}";
 
     public async Task InitializeAsync()
@@ -40,10 +47,13 @@ public sealed class SearchWebAppFactory : WebApplicationFactory<Program>, IAsync
         Environment.SetEnvironmentVariable("Meilisearch__Url", MeiliUrl);
         Environment.SetEnvironmentVariable("Meilisearch__MasterKey", TestMasterKey);
         Environment.SetEnvironmentVariable("Meilisearch__IndexName", $"products_test_{Guid.NewGuid():N}");
+        Environment.SetEnvironmentVariable("Catalog__BaseAddress", Catalog.Url);
     }
 
     public new async Task DisposeAsync()
     {
+        Catalog.Stop();
+        Catalog.Dispose();
         await _meili.DisposeAsync();
     }
 
@@ -58,6 +68,18 @@ public sealed class SearchWebAppFactory : WebApplicationFactory<Program>, IAsync
                 ["Meilisearch:Url"] = MeiliUrl,
                 ["Meilisearch:MasterKey"] = TestMasterKey,
                 ["Meilisearch:IndexName"] = Environment.GetEnvironmentVariable("Meilisearch__IndexName"),
+                ["Catalog:BaseAddress"] = Catalog.Url,
+            });
+        });
+
+        // In-memory MassTransit harness with our consumers — production's
+        // AddMassTransit(...) is skipped under Test (see DependencyInjection.cs).
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddMassTransitTestHarness(mt =>
+            {
+                mt.AddConsumer<ProductCacheInvalidatedConsumer>();
+                mt.AddConsumer<CategoryUpdatedConsumer>();
             });
         });
     }

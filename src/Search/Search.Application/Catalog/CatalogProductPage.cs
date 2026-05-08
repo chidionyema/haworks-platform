@@ -1,4 +1,4 @@
-namespace Haworks.Search.Infrastructure.Catalog;
+namespace Haworks.Search.Application.Catalog;
 
 /// <summary>
 /// Catalog's offset-paginated list response. Mirrors

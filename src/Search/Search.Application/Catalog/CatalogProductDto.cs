@@ -1,4 +1,4 @@
-namespace Haworks.Search.Infrastructure.Catalog;
+namespace Haworks.Search.Application.Catalog;
 
 /// <summary>
 /// Mirror of <c>Haworks.Catalog.Application.DTOs.ProductDto</c>. Search-svc

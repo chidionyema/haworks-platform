@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Haworks.BuildingBlocks.Resilience;
+using Haworks.Search.Application.Catalog;
 using Haworks.Search.Infrastructure.Catalog;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;

@@ -1,4 +1,5 @@
 using Haworks.BuildingBlocks.Resilience;
+using Haworks.Search.Application.Catalog;
 using Microsoft.Extensions.Logging;
 using Polly;
 using System.Net;
