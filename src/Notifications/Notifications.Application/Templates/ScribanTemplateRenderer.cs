@@ -22,6 +22,8 @@ namespace Haworks.Notifications.Application.Templates;
 /// </summary>
 internal sealed class ScribanTemplateRenderer : ITemplateRenderer
 {
+    private static readonly IReadOnlyList<string> EmptyRequired = Array.Empty<string>();
+
     /// <inheritdoc/>
     public Task<string> RenderAsync(string template, IDictionary<string, object> data)
     {
@@ -67,8 +69,8 @@ internal sealed class ScribanTemplateRenderer : ITemplateRenderer
         IReadOnlyList<string> required;
         try
         {
-            required = JsonSerializer.Deserialize<List<string>>(template.RequiredVariablesJson!)
-                       ?? Array.Empty<string>();
+            var parsed = JsonSerializer.Deserialize<List<string>>(template.RequiredVariablesJson!);
+            required = parsed is null ? EmptyRequired : parsed;
         }
         catch (JsonException ex)
         {
