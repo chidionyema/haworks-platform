@@ -1,23 +1,21 @@
+using Haworks.Notifications.Application.Templates;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Haworks.Notifications.Application.Templates;
+// Lives under /Templates (track L1.B's owned subdir) but declares the
+// parent namespace `Haworks.Notifications.Application` so the existing
+// call-site `services.AddNotificationTemplates()` in DependencyInjection.cs
+// resolves to this implementation without an extra `using` (which would
+// require touching shared files outside L1.B's owned-paths set).
+//
+// REPLACES the L0 stub of the same name in DependencyInjection.Stubs.cs
+// (the stub line was deleted per the L1.B brief — see the comment marker
+// in that file).
+namespace Haworks.Notifications.Application;
 
 /// <summary>
 /// Composition root for the L1.B template engine — registers the Scriban-backed
 /// renderer and the locale-aware selector. Repository registration lives in
 /// the Infrastructure layer (<c>AddNotificationTemplatesPersistence</c>).
-///
-/// Method signature matches the L0 stub's <c>AddNotificationTemplates</c>; in
-/// the current build environment the stub line in
-/// <c>DependencyInjection.Stubs.cs</c> cannot be reliably deleted from this
-/// agent session (an out-of-band auto-restore re-creates it on every Write).
-/// To avoid a duplicate-extension-method compile error at the L0 call site
-/// (<c>DependencyInjection.AddNotificationsApplication</c>), this method
-/// lives in the <c>Templates</c> sub-namespace which is NOT imported by the
-/// L0 file — so the no-op stub continues to satisfy the application-layer
-/// composition surface. The real registration is wired from
-/// <c>AddNotificationTemplatesPersistence</c> (Infrastructure layer) which
-/// owns the dependency triple (repo + renderer + selector) end-to-end.
 /// </summary>
 internal static class TemplatesServiceCollectionExtensions
 {
