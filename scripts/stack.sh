@@ -16,9 +16,7 @@
 #   ./scripts/stack.sh verify          # health-probe every running service
 #   ./scripts/stack.sh prebuild        # warm caches: dotnet build + image pulls
 #   ./scripts/stack.sh cleanup         # DAILY. Stopped containers + dangling images + old builder cache.
-#                                      # Project-built images preserved so the next `up` is fast.
-#   ./scripts/stack.sh cleanup --deep  # MONTHLY. + project images + volumes. Confirms first.
-#                                      # NEXT `up` REBUILDS .NET services from scratch (~5-10 min).
+#   ./scripts/stack.sh cleanup --deep  # + project volumes (drops DB state). Project images PRESERVED.
 #
 # When in doubt, `./scripts/stack.sh down && ./scripts/stack.sh up` returns
 # to a known-good state in ~10s warm.
@@ -209,33 +207,22 @@ cmd_verify() {
 cmd_cleanup() {
     # Janitor. Reclaims disk from THIS project's resources only — never
     # touches base images (postgres:16-alpine, …) or other Docker projects.
+    # PROJECT-BUILT IMAGES ARE NEVER REMOVED — they're the expensive build
+    # outputs; dropping them costs 5-10 min on the next `up`. Daily cleanup
+    # keeps them. If a specific image needs to go (e.g. renamed service),
+    # remove it explicitly with `docker rmi compose-<name>`.
     #
     # USAGE GUIDANCE:
-    #   `cleanup`         — DAILY. Removes stopped containers, dangling images,
-    #                       and old builder cache. Project-built images
-    #                       (compose-content-svc etc.) ARE PRESERVED so the
-    #                       next `up` is fast.
-    #   `cleanup --deep`  — MONTHLY. Also drops project images + volumes.
-    #                       *** The next `up` will REBUILD all 8 .NET services
-    #                       from scratch (~5-10 min). Don't run this right
-    #                       before you need to bring the stack up. ***
+    #   `cleanup`         — DAILY. Stopped containers + dangling (untagged)
+    #                       images + old (>72h) builder cache + orphan
+    #                       networks.
+    #   `cleanup --deep`  — Same + drops project volumes (compose_*,
+    #                       ritualworks-platform-*). DB state gone; next
+    #                       `up` re-runs migrations on empty schemas.
     local mode="${1:-shallow}"
 
     if [ "$mode" = "--deep" ] || [ "$mode" = "deep" ]; then
-        warn "============================================================"
-        warn " --deep will REMOVE all 8 project images."
-        warn " Next ./scripts/stack.sh up will REBUILD them — ~5-10 min."
-        warn " Use this only when you actually want to reclaim disk."
-        warn " For daily cleanup, use plain './scripts/stack.sh cleanup'."
-        warn "============================================================"
-        if [ -t 0 ]; then
-            printf "\nProceed? [y/N] "
-            read -r confirm
-            if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
-                log "Aborted — run plain 'cleanup' for the daily case."
-                return 0
-            fi
-        fi
+        warn "--deep drops project volumes (DB state). Project images are PRESERVED."
     fi
 
     log "Cleanup mode: $mode"
@@ -273,19 +260,10 @@ cmd_cleanup() {
     if [ "$mode" = "--deep" ] || [ "$mode" = "deep" ]; then
         warn "DEEP cleanup: removing project images + volumes. DB state gone."
 
-        # Project-built images. compose-{service}:{tag} for compose builds;
-        # ritualworks-platform-* for any Aspire-named tags. Filtering by
-        # name pattern means we never touch base images (postgres:16-alpine,
-        # localstack/localstack:3, …) which other projects on this Docker
-        # host may also use.
-        local proj_images
-        proj_images="$(docker images --format '{{.Repository}}:{{.Tag}}' \
-            | grep -E '^(compose-|ritualworks-platform-)' \
-            || true)"
-        if [ -n "$proj_images" ]; then
-            log "Removing $(echo "$proj_images" | wc -l | tr -d ' ') project-built images"
-            echo "$proj_images" | xargs -r docker rmi -f >/dev/null 2>&1 || true
-        fi
+        # Project images are NEVER removed by cleanup — they're the slow
+        # rebuild outputs and dropping them puts the next `up` 5-10 min
+        # behind. If a specific image needs to go (renamed service etc.),
+        # remove it explicitly: `docker rmi compose-<old-name>`.
 
         # Project volumes — strict prefix match so we never touch volumes
         # belonging to another project on this Docker host.
