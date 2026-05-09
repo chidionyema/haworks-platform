@@ -6,11 +6,18 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+
+builder.Services.AddPlatformAuthentication(builder.Configuration);
+builder.Services.AddHttpContextAccessor();
+
 builder.Services.AddControllers();
 
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok());
 app.MapControllers();

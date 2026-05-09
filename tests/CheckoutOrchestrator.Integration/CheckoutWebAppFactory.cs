@@ -9,6 +9,7 @@ using Xunit;
 using Haworks.CheckoutOrchestrator.Application.Sagas;
 using Haworks.CheckoutOrchestrator.Domain;
 using Haworks.CheckoutOrchestrator.Infrastructure;
+using Haworks.BuildingBlocks.Testing.Authentication;
 
 namespace Haworks.CheckoutOrchestrator.Integration;
 
@@ -34,6 +35,7 @@ public sealed class CheckoutWebAppFactory : WebApplicationFactory<Program>, IAsy
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
+        JwtTestDefaults.SetTestEnvironmentVariables();
 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Test");
         Environment.SetEnvironmentVariable("ConnectionStrings__checkout", ConnectionString);
@@ -72,6 +74,9 @@ public sealed class CheckoutWebAppFactory : WebApplicationFactory<Program>, IAsy
                         r.UsePostgres();
                     });
             });
+
+            // [Authorize]-decorated endpoints need an authentication scheme.
+            services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
         });
     }
 

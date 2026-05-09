@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Haworks.BuildingBlocks.Testing.Authentication;
 using WireMock.Server;
 using Xunit;
 
@@ -40,6 +41,7 @@ public sealed class SearchWebAppFactory : WebApplicationFactory<Program>, IAsync
     public async Task InitializeAsync()
     {
         await _meili.StartAsync();
+        JwtTestDefaults.SetTestEnvironmentVariables();
 
         // Program.cs reads builder.Configuration before WAF's ConfigureAppConfiguration
         // hook runs, so configuration must be present as env vars by then.
@@ -81,6 +83,9 @@ public sealed class SearchWebAppFactory : WebApplicationFactory<Program>, IAsync
                 mt.AddConsumer<ProductCacheInvalidatedConsumer>();
                 mt.AddConsumer<CategoryUpdatedConsumer>();
             });
+
+            // [Authorize]-decorated endpoints need an authentication scheme.
+            services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
         });
     }
 }

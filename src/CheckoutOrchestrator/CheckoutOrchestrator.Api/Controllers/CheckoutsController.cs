@@ -2,6 +2,7 @@ using Haworks.CheckoutOrchestrator.Application.Commands;
 using Haworks.CheckoutOrchestrator.Api.Models;
 using Haworks.BuildingBlocks.Common;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Haworks.CheckoutOrchestrator.Infrastructure;
@@ -13,6 +14,7 @@ namespace Haworks.CheckoutOrchestrator.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public sealed class CheckoutsController(
     IMediator mediator,
     CheckoutDbContext db) : ControllerBase

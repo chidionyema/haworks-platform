@@ -167,13 +167,20 @@ PG_HOST="${pg_rest##*@}"
 # Service name == database name on Neon. Bash 3.2 (default macOS) doesn't
 # support associative arrays, so use the simple convention directly.
 echo "==> Per-service secrets"
+jwt_secrets=(
+  "Jwt__SigningKeyPem=$JWT_SIGNING_KEY_PEM"
+  "Jwt__KeyId=${JWT_KEY_ID:-fly-1}"
+)
+[[ -n "${JWT_ISSUER:-}"   ]] && jwt_secrets+=("Jwt__Issuer=$JWT_ISSUER")
+[[ -n "${JWT_AUDIENCE:-}" ]] && jwt_secrets+=("Jwt__Audience=$JWT_AUDIENCE")
+
 for app in "${INTERNAL_APPS[@]}"; do
   if [[ "$app" == "ritualworks-meilisearch" ]]; then
     continue
   fi
   db="${app#ritualworks-}"
   conn="Host=${PG_HOST};Port=5432;Database=${db};Username=${PG_USER};Password=${PG_PASS};SslMode=Require;Trust Server Certificate=true"
-  set_secrets "$app" "${common[@]}" "ConnectionStrings__${db}=$conn"
+  set_secrets "$app" "${common[@]}" "${jwt_secrets[@]}" "ConnectionStrings__${db}=$conn"
 done
 
 # Meilisearch volume + master key secrets.

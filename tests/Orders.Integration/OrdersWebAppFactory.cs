@@ -32,6 +32,7 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
+        JwtTestDefaults.SetTestEnvironmentVariables();
 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Test");
         Environment.SetEnvironmentVariable("ConnectionStrings__orders", ConnectionString);
