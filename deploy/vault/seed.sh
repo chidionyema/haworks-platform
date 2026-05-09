@@ -51,8 +51,15 @@ vault write auth/approle/role/haworks-identity-app \
 # (e.g. during local development without bootstrap.sh).
 if [ -n "${VAULT_HAWORKS_IDENTITY_ROLE_ID:-}" ] && [ -n "${VAULT_HAWORKS_IDENTITY_SECRET_ID:-}" ]; then
   echo "[seed] applying deterministic role_id/secret_id from env"
-  vault write auth/approle/role/haworks-identity-app/custom-role-id \
+  # role-id: write to .../role-id to OVERRIDE the auto-generated value.
+  # No "custom-role-id" endpoint exists — that returns 404. The plain
+  # role-id endpoint accepts both reads (returns current value) and
+  # writes (sets a new value).
+  vault write auth/approle/role/haworks-identity-app/role-id \
     role_id="$VAULT_HAWORKS_IDENTITY_ROLE_ID" >/dev/null
+  # secret-id: custom-secret-id ASSIGNS a specific value (vs the plain
+  # secret-id endpoint which generates a fresh random one). This is
+  # the documented way to register a known secret_id.
   vault write auth/approle/role/haworks-identity-app/custom-secret-id \
     secret_id="$VAULT_HAWORKS_IDENTITY_SECRET_ID" >/dev/null
   ROLE_ID="$VAULT_HAWORKS_IDENTITY_ROLE_ID"
