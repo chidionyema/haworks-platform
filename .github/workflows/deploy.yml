@@ -4,15 +4,20 @@ name: Deploy
 #   - push to main: gated on CI passing (workflow_run + conclusion check)
 #   - manual dispatch from the Actions tab
 #
-# Runtime secrets (Postgres, RabbitMQ, etc.) are NOT touched here. They live
-# in Fly secrets and are set once via deploy/fly/bootstrap.sh from a developer
-# machine. CI only knows the Fly API token.
+# Steady-state operator workflow: `git push to main`. This workflow handles
+# the entire deploy chain — vault-pg sandbox, vault prod-mode, capturing
+# init keys + AppRole creds, staging them on identity, then rolling all
+# backends + the BFF. No more "run bootstrap.sh, then deploy, then re-run
+# bootstrap.sh, then re-deploy" dance.
+#
+# First-time setup is `cp .env.example .env.local`, fill in three URLs
+# (RABBITMQ_URL, REDIS_URL, POSTGRES_BASE), run `./deploy/fly/bootstrap.sh`
+# once to create the Fly apps + volumes + stage non-vault secrets. After
+# that everything is push-driven.
 #
 # Service set: identity/catalog/orders/payments/checkout always deploy. The
 # content service deploys only when the repo variable DEPLOY_CONTENT == "true"
 # AND bootstrap.sh was run with DEPLOY_CONTENT=true (so the Fly app exists).
-# The two switches share the same name on purpose: one source of truth, set
-# in two places that can't talk to each other.
 
 on:
   workflow_run:
@@ -20,6 +25,12 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      bypass_vault_capture:
+        description: "Skip the stage-vault-creds step (useful when vault keys are already staged and the SSH-into-vault step is failing for unrelated reasons)"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -41,11 +52,26 @@ jobs:
             echo 'services=["identity","catalog","orders","payments","checkout","search","meilisearch"]' >> "$GITHUB_OUTPUT"
           fi
 
+  deploy-vault-pg:
+    # Sandbox Postgres exclusively for vault's database secrets engine to
+    # manage. Independent of the main vault container — they can deploy
+    # in parallel because vault's seed.sh skips the database-engine block
+    # when VAULT_PG_OPERATOR_PASSWORD isn't yet wired (first-deploy ordering).
+    name: Deploy vault-pg
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy vault-pg
+        run: flyctl deploy -c fly.vault-pg.toml --remote-only
+
   deploy-vault:
-    # Vault has to be up before identity's container starts, otherwise the
-    # bootstrap shim's 30s wait expires and identity falls back to
-    # Vault__Enabled=false (degraded demo). Running it as a serial step
-    # before deploy-backends keeps that path clean.
+    # Vault has to be up before identity's container starts so identity
+    # can fetch its AppRole creds via the staging step below.
     name: Deploy vault
     needs: plan
     runs-on: ubuntu-latest
@@ -58,9 +84,40 @@ jobs:
       - name: Deploy vault
         run: flyctl deploy -c fly.vault.toml --remote-only
 
+  stage-vault-creds:
+    # CI-side equivalent of the manual capture step bootstrap.sh used to
+    # do from a developer laptop. Wakes vault up, reads /vault/data/.init.json
+    # to capture the unseal key + root token (only present once, after first
+    # operator init), then reads the haworks-identity AppRole's role_id and
+    # writes a fresh secret_id. Stages everything as Fly secrets so identity
+    # boots with direct creds and never needs a startup round-trip to vault.
+    #
+    # Idempotent: the .init.json read is best-effort (file is rotated out
+    # after first capture in some flows; the existing staged secrets stay
+    # valid). The role_id/secret_id capture works as long as vault is
+    # unsealed and we have the root token.
+    name: Stage vault creds
+    needs: deploy-vault
+    if: ${{ inputs.bypass_vault_capture != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Capture init keys + AppRole creds and stage on identity
+        run: bash deploy/fly/ci-stage-vault-creds.sh
+
   deploy-backends:
+    # Backends roll in parallel after vault and vault-pg are both up AND
+    # the AppRole creds have been staged on identity. Without the staging
+    # step, identity would boot with no Vault__RoleId/SecretId, the .NET
+    # config branch falls back to file-based creds which the new minimal
+    # shim only writes from those same staged values — circular silent
+    # failure. The staging step closes the loop.
     name: Deploy ${{ matrix.svc }}
-    needs: [plan, deploy-vault]
+    needs: [plan, deploy-vault-pg, stage-vault-creds]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:

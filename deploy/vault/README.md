@@ -1,17 +1,14 @@
-# Vault on Fly (dev-mode, auto-reseed, fully automated)
+# Vault on Fly (prod-mode, raft on a Fly volume, fully push-driven)
 
-Stands up a HashiCorp Vault server inside the cluster's 6PN so the
-`/api/demo/vault/status` and `/api/demo/vault/rotate` demos light up.
+HashiCorp Vault runs inside the cluster's 6PN as a stateful service —
+raft storage on a persistent volume, real `vault operator init`, single
+unseal key auto-applied on every restart. Powers the
+`/api/demo/vault/status` and `/api/demo/vault/rotate` demos AND the
+JWT signing-key rotation that flows through every other service.
 
-**Mode:** Vault dev-mode — in-memory storage, auto-unsealed, single
-machine. State is wiped on restart, but `entrypoint.sh` re-runs `seed.sh`
-on every boot so the demo self-heals within ~30s of any restart.
+## Operator workflow
 
-## How the deploy chain works
-
-Vault is part of the standard CI/CD flow — there is no manual step.
-
-**One-time setup** (developer machine, after cloning):
+**One-time setup** (after cloning the repo):
 
 ```bash
 cp deploy/fly/.env.example deploy/fly/.env.local
@@ -19,125 +16,90 @@ cp deploy/fly/.env.example deploy/fly/.env.local
 ./deploy/fly/bootstrap.sh
 ```
 
-`bootstrap.sh` is idempotent. It:
-* creates the `ritualworks-vault` Fly app (alongside the rest)
-* auto-generates a `VAULT_DEV_ROOT_TOKEN` and persists it to `.env.local`
-* stages it on `ritualworks-vault` as `VAULT_DEV_ROOT_TOKEN_ID`
-* stages the same value on `ritualworks-identity` as `VAULT_ROOT_TOKEN`
-* stages all the `Vault__*` config on identity (Address, RoleIdPath,
-  SecretIdPath, RequireHmacValidation=false)
+That creates all the Fly apps + volumes (vault, vault-pg, identity,
+catalog, …) and stages the non-vault secrets. After this, **everything
+runs on `git push`**.
 
-### First run output
-
-What to expect the first time you run it (truncated, real run):
-
-```
-==> Generating Vault dev root token (first run)
-    written to .../deploy/fly/.env.local (gitignored)
-==> Creating Fly apps (skip if exists)
-    ritualworks-bffweb exists
-New app created: ritualworks-vault
-    ritualworks-identity exists
-    [...other apps already existed...]
-==> Vault setup
-    staged 1 secrets for ritualworks-vault
-    staged 9 secrets for ritualworks-identity
-
-Secrets staged. They take effect on the next deploy.
-```
-
-Verify with `flyctl secrets list -a ritualworks-vault`:
-
-```
-NAME                      | DIGEST           | STATUS
-* VAULT_DEV_ROOT_TOKEN_ID | <16-hex digits>  | Staged
-```
-
-And `flyctl secrets list -a ritualworks-identity | grep -i vault` — the
-`VAULT_ROOT_TOKEN` digest **must match** `VAULT_DEV_ROOT_TOKEN_ID`'s
-digest from the vault app. They're the same value piped to two apps;
-if the digests differ, re-run bootstrap to resync.
-
-**Every push to main**:
-
-`.github/workflows/deploy.yml` runs `flyctl deploy -c fly.vault.toml`
-**before** `deploy-backends`, so identity always finds Vault reachable
-when its bootstrap shim runs. If Vault is genuinely down for >30s on
-identity startup, the shim **fails open** — identity boots with
-`Vault__Enabled=false`, the demo degrades, but auth itself stays up.
-
-> **Note:** `deploy.yml` is gated on the `CI` workflow passing. If CI is
-> red for unrelated reasons (a flaky test, etc.) the deploy is skipped.
-> Trigger it manually with:
->
-> ```bash
-> gh workflow run deploy.yml --ref main
-> ```
->
-> The `workflow_dispatch` path bypasses the conclusion check.
-
-## What the seed sets up
-
-* KV v2 at `secret/`
-* AppRole auth method enabled
-* Policy `haworks-identity-app` (read on `secret/*` and `database/creds/*`)
-* AppRole role `haworks-identity-app` bound to that policy
-* `secret/identity/bootstrap` containing `role_id` + `secret_id` for
-  identity to fetch on boot
-* `secret/identity/jwt` placeholder
-
-## Identity's bootstrap shim (how it actually works)
-
-`deploy/identity/vault-bootstrap.sh` runs as the identity container's
-ENTRYPOINT. It:
-
-1. Waits up to 30s for `$Vault__Address/v1/sys/health` to respond.
-2. Reads `secret/identity/bootstrap` using `$VAULT_ROOT_TOKEN`.
-3. Writes `role_id` to `/tmp/vault/role_id` and `secret_id` to
-   `/tmp/vault/secret_id` (chmod 600).
-4. Unsets `VAULT_ROOT_TOKEN` from the env.
-5. `exec`s `dotnet Identity.Api.dll`.
-
-The .NET app then auths to Vault via AppRole using files on disk —
-the standard production-grade path, identical to how it would behave
-against a real Vault cluster.
-
-## Verifying the demo end-to-end
-
-After `flyctl deploy` completes for both vault and identity:
+**Steady state** (every change after first-time setup):
 
 ```bash
-curl -s https://ritualworks-bffweb.fly.dev/api/demo/vault/status | jq
-# expected: 200, vault reachable=true
+git push   # main triggers .github/workflows/deploy.yml
 ```
 
-The frontend's `LabAutoRunners` and `LabBackgroundProber` both hit
-`/api/demo/vault/status` automatically — once Vault is up, the lab
-page's "Vault status" runner card flips green within a few seconds.
+The deploy chain handles vault init, key capture, AppRole staging, and
+the full backend roll-out in one workflow run.
 
-## Caveats (dev-mode)
+## Deploy chain (`.github/workflows/deploy.yml`)
 
-* **State is in-memory.** A Vault machine restart wipes everything;
-  `seed.sh` rebuilds the structural setup but any **runtime-written**
-  values (e.g. KV writes from the rotate endpoint) are lost.
-* **Same root token across deploys** (deterministic per `.env.local`).
-  Fine for a portfolio demo on private 6PN — never use this pattern in
-  real prod.
-* **No DB secrets engine.** The Postgres database secrets engine is
-  not configured because there's no shared Postgres in the cluster to
-  point it at. `/api/demo/vault/rotate` will succeed at the Vault auth
-  layer but the rotation itself will 404 from Vault until a
-  `database/config/...` is added.
+```
+plan ─┬─ deploy-vault-pg ─┐
+      └─ deploy-vault ─── stage-vault-creds ─── deploy-backends (matrix) ─── deploy-bff
+```
 
-## Upgrade path to "real prod"
+* **`deploy-vault-pg`** — first deploy stands up the sandboxed Postgres
+  on its own volume; subsequent deploys are no-ops or rolling updates.
+* **`deploy-vault`** — if the volume is empty, vault's entrypoint runs
+  `vault operator init`, persists `/vault/data/.init.json`, unseals
+  itself from the keys it just generated, and runs `seed.sh` (AppRole
+  + policy + KV + database secrets engine).
+* **`stage-vault-creds`** — CI-side capture step. SSHes into vault,
+  reads `.init.json` (only present once after first init), stages
+  `VAULT_UNSEAL_KEY` + `VAULT_ROOT_TOKEN_PROD` as Fly secrets so future
+  vault restarts auto-unseal without operator action. Then reads the
+  `haworks-identity-app` AppRole's `role_id` and writes a fresh
+  `secret_id`; stages both on identity. Idempotent — safe to re-run.
+* **`deploy-backends`** — rolls identity, catalog, orders, payments,
+  checkout in parallel. Identity boots with the just-staged direct
+  Vault creds (no boot-time round-trip to vault, no race condition).
+* **`deploy-bff`** — final.
 
-Replace dev-mode with `vault server -config=...` backed by a Fly volume:
+If the capture step ever breaks (e.g., transient SSH failure) and you
+just need to push backends without re-capturing, dispatch the workflow
+manually with `bypass_vault_capture: true`.
 
-* Fly volume + `storage "raft"` for persistent state
-* Initialize once with `vault operator init` and store the unseal keys
-  out of band (1Password, sealed Kubernetes secrets, AWS KMS)
-* Auto-unseal via Fly's `[mounts]` + a startup script that pulls the
-  unseal key from a separate machine or KMS
+## What's seeded
 
-That's a ~1-day job and only worth it if the demo grows beyond
-"prove the integration works".
+* AppRole auth method
+* Policy `haworks-identity-app` (read on `secret/*`, read on
+  `database/creds/*`, etc.)
+* AppRole role `haworks-identity-app`
+* KV v2 entries: `secret/identity/jwt`, `secret/identity/oauth/{google,
+  microsoft, facebook}` (placeholders — overwrite via the CLI for real
+  OAuth)
+* Database secrets engine + `haworks-identity` role pointing at
+  `ritualworks-vault-pg.internal:5432` (only when
+  `VAULT_PG_OPERATOR_PASSWORD` is staged — `bootstrap.sh` does that)
+
+## Verification
+
+```bash
+# Vault is up + AppRole auth works:
+curl -s https://ritualworks-bffweb.fly.dev/api/demo/vault/status | jq
+
+# JWKS endpoint returns the active key ring:
+curl -s https://ritualworks-bffweb.fly.dev/api/identity/.well-known/jwks.json | jq
+
+# Trigger a rotation (returns 200 immediately, stages stream via SignalR):
+curl -s -X POST 'https://ritualworks-bffweb.fly.dev/api/demo/vault/rotate?roleName=haworks-identity'
+```
+
+## Recovery
+
+The unseal key + root token live in two places:
+
+1. `deploy/fly/.env.local` (gitignored) — captured by an earlier
+   `bootstrap.sh` run. Lose this and you lose the only off-Fly copy.
+2. `Fly secrets on ritualworks-vault` — staged from `.env.local` /
+   captured by CI. If the Fly app is deleted, only `.env.local` is left.
+
+For a portfolio demo this is fine. For real prod you'd back up the
+unseal key to 1Password/AWS KMS and use Shamir splitting (key_shares=5,
+key_threshold=3) instead of the single-key shortcut.
+
+## Caveats
+
+* **Single-node raft** — no HA. A vault machine OOM-kill briefly takes
+  the rotation demo offline (but identity stays up because direct creds
+  are staged on it).
+* **TLS-disabled listener** — fine for 6PN-internal traffic, never expose
+  vault publicly with this config.

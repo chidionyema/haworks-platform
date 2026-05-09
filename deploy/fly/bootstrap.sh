@@ -173,10 +173,18 @@ set_secrets() {
 }
 
 # Common: every service talks to RabbitMQ + Redis, has Vault disabled on Fly.
+# Plus JWKS config — every backend service validates JWTs against identity-svc's
+# /.well-known/jwks.json. Internal-only addressing because backends never see
+# external traffic; the JwksUri resolves over Fly's 6PN. Issuer/Audience can be
+# overridden via .env.local for cross-environment compatibility but default to
+# the identity-svc URL pattern matching the JwtBearer setup in identity itself.
 common=(
   "ConnectionStrings__rabbitmq=$RABBITMQ_URL"
   "ConnectionStrings__redis=$REDIS_URL"
   "Vault__Enabled=false"
+  "Authentication__Jwks__JwksUri=http://ritualworks-identity.internal:8080/.well-known/jwks.json"
+  "Authentication__Jwks__Issuer=${JWT_ISSUER:-https://ritualworks-identity.fly.dev}"
+  "Authentication__Jwks__Audience=${JWT_AUDIENCE:-ritualworks-bffweb}"
 )
 
 # Parse POSTGRES_BASE (postgres://USER:PASS@HOST) into components for
