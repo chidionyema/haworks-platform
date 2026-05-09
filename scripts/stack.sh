@@ -13,7 +13,10 @@
 #   ./scripts/stack.sh status          # show what's running
 #   ./scripts/stack.sh rebuild <svc>   # rebuild + restart a single compose service
 #   ./scripts/stack.sh logs <svc>      # follow logs for a compose service
+#   ./scripts/stack.sh verify          # health-probe every running service
 #   ./scripts/stack.sh prebuild        # warm caches: dotnet build + image pulls
+#   ./scripts/stack.sh cleanup         # janitor: stopped containers, dangling images, builder cache
+#   ./scripts/stack.sh cleanup --deep  # … plus project volumes (drops DB state)
 #
 # When in doubt, `./scripts/stack.sh down && ./scripts/stack.sh up` returns
 # to a known-good state in ~10s warm.
@@ -201,6 +204,58 @@ cmd_verify() {
     fi
 }
 
+cmd_cleanup() {
+    # Janitor. Reclaims disk and removes the bits that accumulate after
+    # weeks of branch-switching, rebuilds, and aborted runs. Always-safe:
+    # we only touch resources owned by THIS project (compose- prefix or
+    # rw- prefix or the Aspire-named persistent containers) plus generic
+    # Docker dangling waste. Volumes with persistent data are kept by
+    # default — pass --deep to nuke those too.
+    local mode="${1:-shallow}"
+    log "Cleanup mode: $mode (use 'cleanup --deep' to also drop project volumes)"
+
+    # 1. Stop everything we control.
+    cmd_down
+
+    # 2. Compose's stopped containers (--rmi local would remove project
+    # images; we keep those — they're the slow build outputs).
+    log "Pruning stopped compose containers"
+    docker container prune -f --filter "label=com.docker.compose.project=compose" 2>/dev/null || true
+
+    # 3. Aspire-named stopped containers (the *-{suffix} ones from
+    # ContainerLifetime.Persistent runs). Match the same prefix set as stop_aspire_containers.
+    local stopped_aspire
+    stopped_aspire="$(docker ps -a --filter "status=exited" --format '{{.Names}}' \
+        | grep -E '^(postgres|redis|rabbitmq|vault|localstack|meilisearch|clamav|tempo|pact-db|pact-broker)-[a-z0-9]+$' \
+        || true)"
+    if [ -n "$stopped_aspire" ]; then
+        log "Removing $(echo "$stopped_aspire" | wc -l | tr -d ' ') stopped Aspire containers"
+        echo "$stopped_aspire" | xargs -r docker rm -f >/dev/null
+    fi
+
+    # 4. Dangling images (build cache leftovers from --no-cache rebuilds).
+    log "Pruning dangling images"
+    docker image prune -f >/dev/null
+
+    # 5. Builder cache (BuildKit accumulates, can hit 10s of GB on a busy repo).
+    log "Pruning BuildKit builder cache (filtered: until=72h)"
+    docker builder prune -f --filter "until=72h" >/dev/null 2>&1 || true
+
+    # 6. Networks orphaned by stopped projects.
+    docker network prune -f >/dev/null
+
+    if [ "$mode" = "--deep" ] || [ "$mode" = "deep" ]; then
+        warn "DEEP cleanup: removing project volumes (postgres-data, vault-creds, localstack-data, …). This drops state."
+        # All compose volumes prefixed compose_ — safe; named project-scope.
+        docker volume ls --format '{{.Name}}' | grep -E '^compose_' | xargs -r docker volume rm 2>/dev/null || true
+        # Aspire's named volumes use the prefix in WithVolume().
+        docker volume ls --format '{{.Name}}' | grep -E '^ritualworks-platform-' | xargs -r docker volume rm 2>/dev/null || true
+    fi
+
+    log "Cleanup done. Disk reclaimed:"
+    df -h "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /)" | tail -1
+}
+
 cmd_prebuild() {
     log "Pre-building solution + pulling images (used by both compose and aspire)"
     (cd "$REPO_ROOT" && dotnet build RitualworksPlatform.sln -c Release --nologo --verbosity quiet) &
@@ -231,6 +286,7 @@ case "${1:-help}" in
     logs)       shift; cmd_logs "$@" ;;
     prebuild)   cmd_prebuild ;;
     verify)     cmd_verify ;;
+    cleanup)    shift; cmd_cleanup "$@" ;;
     help|-h|--help) cmd_help ;;
     *)          warn "Unknown command: $1"; cmd_help; exit 1 ;;
 esac
