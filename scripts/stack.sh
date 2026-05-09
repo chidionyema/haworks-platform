@@ -230,6 +230,7 @@ case "${1:-help}" in
     rebuild)    shift; cmd_rebuild "$@" ;;
     logs)       shift; cmd_logs "$@" ;;
     prebuild)   cmd_prebuild ;;
+    verify)     cmd_verify ;;
     help|-h|--help) cmd_help ;;
     *)          warn "Unknown command: $1"; cmd_help; exit 1 ;;
 esac
