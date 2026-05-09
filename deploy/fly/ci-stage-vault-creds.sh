@@ -31,13 +31,17 @@
 #   VAULT_APP            — default "ritualworks-vault"
 #   SERVICES_JSON        — default "infra/vault/services.json"
 #   FLY_APP_PREFIX       — default "ritualworks-"
-#   WRAP_TTL_SECONDS     — default 300 (5min)
+#   WRAP_TTL_SECONDS     — default 1800 (30min). Sized to cover the worst-
+#                          case deploy lag: ci-stage-vault-creds runs once
+#                          before deploy-backends starts; a slow service
+#                          may not boot + try to unwrap until 10+min later.
+#                          5min would expire mid-deploy.
 set -euo pipefail
 
 VAULT_APP="${VAULT_APP:-ritualworks-vault}"
 SERVICES_JSON="${SERVICES_JSON:-infra/vault/services.json}"
 FLY_APP_PREFIX="${FLY_APP_PREFIX:-ritualworks-}"
-WRAP_TTL_SECONDS="${WRAP_TTL_SECONDS:-300}"
+WRAP_TTL_SECONDS="${WRAP_TTL_SECONDS:-1800}"
 
 log() { echo "[stage-vault-creds] $*"; }
 
