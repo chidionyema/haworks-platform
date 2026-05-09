@@ -51,7 +51,7 @@ public class ContentControllerTests : IClassFixture<ContentWebAppFactory>, IAsyn
         return content;
     }
 
-    [Fact(Skip = "Pending: IFileValidator + IMinioClient wiring (Content infrastructure incomplete)")]
+    [Fact(Skip = "Pending: IFileValidator + S3 storage wiring (feat/content/s3-presigned-storage)")]
     public async Task UploadFile_ValidFile_ReturnsCreatedContent()
     {
         // Create minimal valid JPEG file bytes
@@ -118,7 +118,7 @@ public class ContentControllerTests : IClassFixture<ContentWebAppFactory>, IAsyn
         response.Should().HaveStatusCode(HttpStatusCode.NotFound);
     }
 
-    [Fact(Skip = "Pending: IMinioClient registration (Content infrastructure incomplete)")]
+    [Fact(Skip = "Pending: S3 client registration (feat/content/s3-presigned-storage)")]
     public async Task DeleteContent_RemovesFromDatabase()
     {
         Guid contentId;
