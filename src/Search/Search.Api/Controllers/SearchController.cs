@@ -2,12 +2,14 @@ using System.ComponentModel.DataAnnotations;
 using Haworks.Search.Application.Indexing;
 using Haworks.Search.Application.Interfaces;
 using Haworks.Search.Application.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Haworks.Search.Api.Controllers;
 
 [ApiController]
 [Route("search")]
+[Authorize]
 public sealed class SearchController : ControllerBase
 {
     private readonly ISearchIndex _index;

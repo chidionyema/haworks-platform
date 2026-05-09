@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
 using Xunit;
 using Haworks.BuildingBlocks.Messaging;
+using Haworks.BuildingBlocks.Testing.Authentication;
 
 namespace Haworks.Catalog.Integration;
 
@@ -36,6 +37,7 @@ public sealed class CatalogWebAppFactory : WebApplicationFactory<Program>, IAsyn
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
+        JwtTestDefaults.SetTestEnvironmentVariables();
 
         // Env vars must be set BEFORE WebApplicationFactory builds the host.
         // Top-level Program.cs runs to construct the WebApplicationBuilder
@@ -88,6 +90,9 @@ public sealed class CatalogWebAppFactory : WebApplicationFactory<Program>, IAsyn
                 // collection to assert events landed.
             });
             services.AddDomainEventPublisher();
+
+            // [Authorize]-decorated endpoints need an authentication scheme.
+            services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
         });
     }
 

@@ -44,6 +44,11 @@ public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
         Environment.SetEnvironmentVariable("PaymentProviders__Active", "Stripe");
         Environment.SetEnvironmentVariable("PaymentProviders__Stripe__WebhookSecret", TestStripeSecret);
         Environment.SetEnvironmentVariable("PaymentProviders__Stripe__SecretKey", "sk_test_dummy");
+
+        // Production AddPlatformAuthentication runs at boot and requires Jwt:* config.
+        // Set test-grade defaults — TestAuthenticationHandler still wins as the default
+        // scheme via ConfigureTestServices below.
+        JwtTestDefaults.SetTestEnvironmentVariables();
     }
 
     public new async Task DisposeAsync()
