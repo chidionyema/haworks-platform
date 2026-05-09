@@ -7,17 +7,18 @@ name: Deploy
 # Steady-state operator workflow: `git push to main`. This workflow handles
 # the entire deploy chain — vault-pg sandbox, vault prod-mode, capturing
 # init keys + AppRole creds, staging them on identity, then rolling all
-# backends + the BFF. No more "run bootstrap.sh, then deploy, then re-run
-# bootstrap.sh, then re-deploy" dance.
+# changed backends + the BFF. No more "run bootstrap.sh, then deploy, then
+# re-run bootstrap.sh, then re-deploy" dance.
+#
+# Path filtering: each deploy job is gated on whether its files actually
+# changed in this push. A typical "fix one service" PR drops from ~7min
+# (deploy everything) to ~90s (deploy that one service). workflow_dispatch
+# always rolls everything (force redeploy via the Actions UI button).
 #
 # First-time setup is `cp .env.example .env.local`, fill in three URLs
 # (RABBITMQ_URL, REDIS_URL, POSTGRES_BASE), run `./deploy/fly/bootstrap.sh`
 # once to create the Fly apps + volumes + stage non-vault secrets. After
 # that everything is push-driven.
-#
-# Service set: identity/catalog/orders/payments/checkout always deploy. The
-# content service deploys only when the repo variable DEPLOY_CONTENT == "true"
-# AND bootstrap.sh was run with DEPLOY_CONTENT=true (so the Fly app exists).
 
 on:
   workflow_run:
@@ -27,38 +28,163 @@ on:
   workflow_dispatch:
     inputs:
       bypass_vault_capture:
-        description: "Skip the stage-vault-creds step (useful when vault keys are already staged and the SSH-into-vault step is failing for unrelated reasons)"
+        description: "Skip the stage-vault-creds step (vault keys already staged)"
         required: false
         type: boolean
         default: false
+      force_all:
+        description: "Deploy every service regardless of what changed (default true on dispatch)"
+        required: false
+        type: boolean
+        default: true
 
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  plan:
-    name: Plan service matrix
+  changes:
+    name: Detect changed paths
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
+      vault_pg: ${{ steps.filter.outputs.vault_pg }}
+      vault: ${{ steps.filter.outputs.vault }}
+      identity: ${{ steps.filter.outputs.identity }}
+      catalog: ${{ steps.filter.outputs.catalog }}
+      orders: ${{ steps.filter.outputs.orders }}
+      payments: ${{ steps.filter.outputs.payments }}
+      checkout: ${{ steps.filter.outputs.checkout }}
+      search: ${{ steps.filter.outputs.search }}
+      meilisearch: ${{ steps.filter.outputs.meilisearch }}
+      content: ${{ steps.filter.outputs.content }}
+      bff: ${{ steps.filter.outputs.bff }}
+      shared: ${{ steps.filter.outputs.shared }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # `shared` (BuildingBlocks / Contracts / build props) triggers
+          # everything because every service depends on those.
+          # Service-specific filters trigger only that service.
+          # toml + Dockerfile changes trigger their owning service.
+          filters: |
+            shared:
+              - 'src/BuildingBlocks/**'
+              - 'src/Contracts/**'
+              - 'Directory.Build.props'
+              - '.github/workflows/deploy.yml'
+            vault_pg:
+              - 'fly.vault-pg.toml'
+            vault:
+              - 'fly.vault.toml'
+              - 'deploy/vault/**'
+            identity:
+              - 'src/Identity/**'
+              - 'fly.identity.toml'
+              - 'deploy/identity/**'
+            catalog:
+              - 'src/Catalog/**'
+              - 'fly.catalog.toml'
+            orders:
+              - 'src/Orders/**'
+              - 'fly.orders.toml'
+            payments:
+              - 'src/Payments/**'
+              - 'fly.payments.toml'
+            checkout:
+              - 'src/CheckoutOrchestrator/**'
+              - 'fly.checkout.toml'
+            search:
+              - 'src/Search/**'
+              - 'fly.search.toml'
+            meilisearch:
+              - 'fly.meilisearch.toml'
+            content:
+              - 'src/Content/**'
+              - 'fly.content.toml'
+            bff:
+              - 'src/BffWeb/**'
+              - 'fly.bffweb.toml'
+
+  plan:
+    name: Plan service matrix
+    needs: changes
+    runs-on: ubuntu-latest
+    outputs:
       services: ${{ steps.set.outputs.services }}
+      deploy_vault: ${{ steps.set.outputs.deploy_vault }}
+      deploy_vault_pg: ${{ steps.set.outputs.deploy_vault_pg }}
+      deploy_bff: ${{ steps.set.outputs.deploy_bff }}
+    env:
+      FORCE_ALL: ${{ inputs.force_all || false }}
+      C_SHARED: ${{ needs.changes.outputs.shared }}
+      C_VAULT: ${{ needs.changes.outputs.vault }}
+      C_VAULT_PG: ${{ needs.changes.outputs.vault_pg }}
+      C_IDENTITY: ${{ needs.changes.outputs.identity }}
+      C_CATALOG: ${{ needs.changes.outputs.catalog }}
+      C_ORDERS: ${{ needs.changes.outputs.orders }}
+      C_PAYMENTS: ${{ needs.changes.outputs.payments }}
+      C_CHECKOUT: ${{ needs.changes.outputs.checkout }}
+      C_SEARCH: ${{ needs.changes.outputs.search }}
+      C_MEILISEARCH: ${{ needs.changes.outputs.meilisearch }}
+      C_CONTENT: ${{ needs.changes.outputs.content }}
+      C_BFF: ${{ needs.changes.outputs.bff }}
     steps:
       - id: set
         run: |
+          # Build matrix of services to deploy. shared change OR force → all.
+          # Otherwise only services whose paths changed.
+          services=()
+          add_if() { [[ "$2" == "true" || "$3" == "true" || "$FORCE_ALL" == "true" ]] && services+=("$1"); return 0; }
+
+          add_if identity    "$C_IDENTITY"    "$C_SHARED"
+          add_if catalog     "$C_CATALOG"     "$C_SHARED"
+          add_if orders      "$C_ORDERS"      "$C_SHARED"
+          add_if payments    "$C_PAYMENTS"    "$C_SHARED"
+          add_if checkout    "$C_CHECKOUT"    "$C_SHARED"
+          add_if search      "$C_SEARCH"      "$C_SHARED"
+          add_if meilisearch "$C_MEILISEARCH" "false"  # no shared triggers meili
           if [[ "${{ vars.DEPLOY_CONTENT }}" == "true" ]]; then
-            echo 'services=["identity","catalog","orders","payments","checkout","content","search","meilisearch"]' >> "$GITHUB_OUTPUT"
-          else
-            echo 'services=["identity","catalog","orders","payments","checkout","search","meilisearch"]' >> "$GITHUB_OUTPUT"
+            add_if content "$C_CONTENT" "$C_SHARED"
           fi
 
+          if [[ ${#services[@]} -eq 0 ]]; then
+            echo 'services=[]' >> "$GITHUB_OUTPUT"
+          else
+            json=$(printf '"%s",' "${services[@]}")
+            json="[${json%,}]"
+            echo "services=$json" >> "$GITHUB_OUTPUT"
+          fi
+
+          # vault-pg: only if its toml changed (no shared deps)
+          if [[ "$C_VAULT_PG" == "true" || "$FORCE_ALL" == "true" ]]; then
+            echo "deploy_vault_pg=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_vault_pg=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # vault: deploy if vault files OR shared changed
+          if [[ "$C_VAULT" == "true" || "$C_SHARED" == "true" || "$FORCE_ALL" == "true" ]]; then
+            echo "deploy_vault=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_vault=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # bff: deploy if bff files OR shared changed
+          if [[ "$C_BFF" == "true" || "$C_SHARED" == "true" || "$FORCE_ALL" == "true" ]]; then
+            echo "deploy_bff=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_bff=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Matrix: ${services[*]:-(none)}"
+
   deploy-vault-pg:
-    # Sandbox Postgres exclusively for vault's database secrets engine to
-    # manage. Independent of the main vault container — they can deploy
-    # in parallel because vault's seed.sh skips the database-engine block
-    # when VAULT_PG_OPERATOR_PASSWORD isn't yet wired (first-deploy ordering).
     name: Deploy vault-pg
     needs: plan
+    if: ${{ needs.plan.outputs.deploy_vault_pg == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -66,14 +192,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Deploy vault-pg
-        run: flyctl deploy -c fly.vault-pg.toml --remote-only
+      - run: flyctl deploy -c fly.vault-pg.toml --remote-only
 
   deploy-vault:
-    # Vault has to be up before identity's container starts so identity
-    # can fetch its AppRole creds via the staging step below.
     name: Deploy vault
     needs: plan
+    if: ${{ needs.plan.outputs.deploy_vault == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -81,24 +205,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Deploy vault
-        run: flyctl deploy -c fly.vault.toml --remote-only
+      - run: flyctl deploy -c fly.vault.toml --remote-only
 
   stage-vault-creds:
-    # CI-side equivalent of the manual capture step bootstrap.sh used to
-    # do from a developer laptop. Wakes vault up, reads /vault/data/.init.json
-    # to capture the unseal key + root token (only present once, after first
-    # operator init), then reads the haworks-identity AppRole's role_id and
-    # writes a fresh secret_id. Stages everything as Fly secrets so identity
-    # boots with direct creds and never needs a startup round-trip to vault.
-    #
-    # Idempotent: the .init.json read is best-effort (file is rotated out
-    # after first capture in some flows; the existing staged secrets stay
-    # valid). The role_id/secret_id capture works as long as vault is
-    # unsealed and we have the root token.
+    # Runs only when vault was deployed in this run (and only if not bypassed).
+    # When vault wasn't redeployed there's nothing to capture — the staged
+    # creds from the previous run are still valid.
     name: Stage vault creds
-    needs: deploy-vault
-    if: ${{ inputs.bypass_vault_capture != true }}
+    needs: [plan, deploy-vault]
+    if: ${{ needs.plan.outputs.deploy_vault == 'true' && inputs.bypass_vault_capture != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -110,14 +225,13 @@ jobs:
         run: bash deploy/fly/ci-stage-vault-creds.sh
 
   deploy-backends:
-    # Backends roll in parallel after vault and vault-pg are both up AND
-    # the AppRole creds have been staged on identity. Without the staging
-    # step, identity would boot with no Vault__RoleId/SecretId, the .NET
-    # config branch falls back to file-based creds which the new minimal
-    # shim only writes from those same staged values — circular silent
-    # failure. The staging step closes the loop.
+    # Backends roll in parallel after vault-pg, vault and stage-vault-creds
+    # are all settled (or skipped). The `if` runs the matrix only when
+    # there's a non-empty service list to deploy. `always()` lets us wait
+    # on prerequisite jobs that may have been skipped.
     name: Deploy ${{ matrix.svc }}
-    needs: [plan, deploy-vault-pg, stage-vault-creds]
+    needs: [plan, deploy-vault-pg, deploy-vault, stage-vault-creds]
+    if: ${{ always() && needs.plan.outputs.services != '[]' && (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') && (needs.stage-vault-creds.result == 'success' || needs.stage-vault-creds.result == 'skipped') && (needs.deploy-vault-pg.result == 'success' || needs.deploy-vault-pg.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -129,12 +243,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Deploy ${{ matrix.svc }}
-        run: flyctl deploy -c fly.${{ matrix.svc }}.toml --remote-only
+      - run: flyctl deploy -c fly.${{ matrix.svc }}.toml --remote-only
 
   deploy-bff:
     name: Deploy bffweb
-    needs: deploy-backends
+    needs: [plan, deploy-backends]
+    if: ${{ always() && needs.plan.outputs.deploy_bff == 'true' && (needs.deploy-backends.result == 'success' || needs.deploy-backends.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -142,5 +256,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Deploy bffweb
-        run: flyctl deploy -c fly.bffweb.toml --remote-only
+      - run: flyctl deploy -c fly.bffweb.toml --remote-only

@@ -7,9 +7,9 @@ WORKDIR /src
 COPY Directory.Build.props ./
 COPY src/ ./src/
 
-RUN dotnet restore src/CheckoutOrchestrator/CheckoutOrchestrator.Api/CheckoutOrchestrator.Api.csproj
+RUN --mount=type=cache,target=/root/.nuget/packages dotnet restore src/CheckoutOrchestrator/CheckoutOrchestrator.Api/CheckoutOrchestrator.Api.csproj
 
-RUN dotnet publish src/CheckoutOrchestrator/CheckoutOrchestrator.Api/CheckoutOrchestrator.Api.csproj \
+RUN --mount=type=cache,target=/root/.nuget/packages dotnet publish src/CheckoutOrchestrator/CheckoutOrchestrator.Api/CheckoutOrchestrator.Api.csproj \
         -c Release \
         -o /app/publish \
         --no-restore \

@@ -8,9 +8,9 @@ WORKDIR /src
 COPY Directory.Build.props ./
 COPY src/ ./src/
 
-RUN dotnet restore src/BffWeb/BffWeb.Api/BffWeb.Api.csproj
+RUN --mount=type=cache,target=/root/.nuget/packages dotnet restore src/BffWeb/BffWeb.Api/BffWeb.Api.csproj
 
-RUN dotnet publish src/BffWeb/BffWeb.Api/BffWeb.Api.csproj \
+RUN --mount=type=cache,target=/root/.nuget/packages dotnet publish src/BffWeb/BffWeb.Api/BffWeb.Api.csproj \
         -c Release \
         -o /app/publish \
         --no-restore \
