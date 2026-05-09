@@ -1,9 +1,12 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Caching;
+using Haworks.BuildingBlocks.Resilience;
+using Haworks.BuildingBlocks.Telemetry;
 using Haworks.Payments.Application.Consumers;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Infrastructure.Messaging;
@@ -33,6 +36,12 @@ public static class DependencyInjection
             }));
 
         services.AddScoped<IPaymentRepository, PaymentRepository>();
+
+        // Cross-cutting BuildingBlocks dependencies. These are also registered
+        // by AddVaultIntegration when Vault is enabled, so use TryAdd so we
+        // don't double-register and produce a duplicate-singleton warning.
+        services.TryAddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
+        services.TryAddSingleton<ITelemetryService>(NullTelemetryService.Instance);
 
         // Caching
         services.AddHybridCache();

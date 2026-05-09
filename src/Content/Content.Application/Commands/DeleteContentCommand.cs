@@ -1,55 +1,44 @@
-using Haworks.BuildingBlocks.CurrentUser;
-using Haworks.Content.Application.Interfaces;
 using Haworks.BuildingBlocks.Common;
-using Microsoft.Extensions.Logging;
+using Haworks.Content.Application.Interfaces;
 using Haworks.Content.Domain.Interfaces;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace Haworks.Content.Application.Commands;
 
 public sealed record DeleteContentCommand(Guid ContentId) : IRequest<Result>;
 
-internal sealed class DeleteContentCommandHandler : IRequestHandler<DeleteContentCommand, Result>
+internal sealed class DeleteContentCommandHandler(
+    IContentStorageService storageService,
+    IContentRepository contentRepository,
+    ILogger<DeleteContentCommandHandler> logger) : IRequestHandler<DeleteContentCommand, Result>
 {
-    private readonly IContentStorageService _storageService;
-    private readonly IContentRepository _contentRepository;
-    private readonly ILogger<DeleteContentCommandHandler> _logger;
-
-    public DeleteContentCommandHandler(
-        IContentStorageService storageService,
-        IContentRepository contentRepository,
-        ILogger<DeleteContentCommandHandler> logger)
+    public async Task<Result> Handle(DeleteContentCommand request, CancellationToken ct)
     {
-        _storageService = storageService;
-        _contentRepository = contentRepository;
-        _logger = logger;
-    }
-
-    public async Task<Result> Handle(DeleteContentCommand request, CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("Attempting to delete content. ContentId: {ContentId}", request.ContentId);
-
-        var content = await _contentRepository.GetContentByIdAsync(request.ContentId, cancellationToken);
-        if (content == null)
+        var content = await contentRepository.GetContentByIdTrackedAsync(request.ContentId, ct);
+        if (content is null)
         {
             return Result.Failure(Error.Content.NotFound);
         }
 
-        // Delete from storage first, then DB
+        // Soft-delete the row first; storage delete is best-effort and
+        // can be retried by the sweeper if it fails. Doing the soft-delete
+        // first means /content/{id} immediately starts returning 404 even
+        // if the S3 DELETE call hangs.
+        content.SoftDelete();
+        await contentRepository.SaveChangesAsync(ct);
+
         try
         {
-            await _storageService.DeleteAsync(content.BucketName, content.ObjectName, cancellationToken);
-            _logger.LogInformation("Deleted file from storage: {BucketName}/{ObjectName}",
-                content.BucketName, content.ObjectName);
+            await storageService.DeleteAsync(content.ObjectName, ct);
+            logger.LogInformation("Deleted S3 object {ObjectKey}", content.ObjectName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete file from storage for ContentId {ContentId}", request.ContentId);
-            // Continue with DB deletion even if storage fails
+            logger.LogWarning(ex,
+                "Failed to delete S3 object {ObjectKey}; row marked Deleted, sweeper will retry",
+                content.ObjectName);
         }
-
-        await _contentRepository.RemoveContentAsync(content, cancellationToken);
-        _logger.LogInformation("Content record deleted. ContentId: {ContentId}", request.ContentId);
 
         return Result.Success();
     }
