@@ -1,59 +1,94 @@
 using Microsoft.AspNetCore.Http;
-using Haworks.Content.Application.DTOs;
-using Haworks.Content.Domain.Entities;
+using Haworks.Content.Application.Models;
 using Haworks.Content.Domain.ValueObjects;
 
 namespace Haworks.Content.Application.Interfaces;
 
-public interface IContentService
-{
-    Task<ContentEntity> UploadFileAsync(FileUploadRequest request);
-    Task<FileSignatureValidationResult> ValidateFileSignatureAsync(Stream fileStream);
-    Task<VirusScanResult> ScanForVirusesAsync(Stream fileStream);
-}
-
-public record FileUploadRequest(IFormFile File, string UserId, Guid EntityId);
-
-public interface IChunkedUploadService
-{
-    Task<ChunkSession> InitSessionAsync(ChunkSessionRequest request);
-    Task ProcessChunkAsync(Guid sessionId, int chunkIndex, Stream chunkData);
-    Task<ContentEntity?> CompleteSessionAsync(Guid sessionId, string userId);
-    Task<ChunkSession> GetSessionAsync(Guid sessionId);
-}
-
+// ---------------------------------------------------------------------------
+// Storage gateway. The service is OUT OF the byte path: clients upload
+// directly to S3 via presigned URLs. This interface exposes:
+//   - Multipart-init (server-side CreateMultipartUpload)
+//   - Single-PUT presign
+//   - Per-part presign
+//   - CompleteMultipartUpload (server stitches parts; no download)
+//   - Abort (sweeper / explicit cancel)
+//   - HEAD (verification + checksum read)
+//   - Presigned GET (read path)
+//   - Delete (soft-delete callbacks)
+// ---------------------------------------------------------------------------
 public interface IContentStorageService
 {
-    Task<ContentUploadResult> UploadAsync(
-        Stream fileStream,
-        string bucketName,
-        string objectName,
+    Task<string> GetPresignedPutUrlAsync(
+        string objectKey,
         string contentType,
-        IDictionary<string, string> metadata,
-        CancellationToken cancellationToken = default);
-
-    Task<string> GetPresignedUrlAsync(
-        string bucketName,
-        string objectName,
+        long expectedSizeBytes,
         TimeSpan expiry,
-        bool requireAuth = true,
-        CancellationToken cancellationToken = default);
+        CancellationToken ct = default);
 
-    Task<Stream> DownloadAsync(
-        string bucketName,
-        string objectName,
-        CancellationToken cancellationToken = default);
+    Task<MultipartInitResult> InitMultipartUploadAsync(
+        string objectKey,
+        string contentType,
+        int partCount,
+        TimeSpan presignTtl,
+        CancellationToken ct = default);
 
-    Task DeleteAsync(
-        string bucketName,
-        string objectName,
-        CancellationToken cancellationToken = default);
+    Task<StorageObjectInfo> CompleteMultipartUploadAsync(
+        string objectKey,
+        string uploadId,
+        IReadOnlyList<UploadedPart> parts,
+        CancellationToken ct = default);
 
-    Task EnsureBucketExistsAsync(
-        string bucketName,
-        CancellationToken cancellationToken = default);
+    Task AbortMultipartUploadAsync(
+        string objectKey,
+        string uploadId,
+        CancellationToken ct = default);
+
+    Task<StorageObjectInfo?> HeadAsync(string objectKey, CancellationToken ct = default);
+
+    Task<string> GetPresignedGetUrlAsync(
+        string objectKey,
+        TimeSpan expiry,
+        CancellationToken ct = default);
+
+    Task DeleteAsync(string objectKey, CancellationToken ct = default);
+
+    /// <summary>
+    /// Compute SHA-256 of the object by streaming it server-side. Used
+    /// at validation time after client has finished uploading.
+    /// </summary>
+    Task<string> ComputeSha256Async(string objectKey, CancellationToken ct = default);
+
+    /// <summary>
+    /// Move an object from its current key to a quarantine prefix.
+    /// Used by the validator when virus / signature checks fail.
+    /// </summary>
+    Task QuarantineAsync(string objectKey, CancellationToken ct = default);
 }
 
+// ---------------------------------------------------------------------------
+// Validation. Runs after CompleteMultipartUpload (or after the client
+// signals a single-PUT is done). Composes IFileSignatureValidator +
+// IVirusScanner; returns a verdict the handler uses to transition the
+// ContentEntity to Available or Quarantined.
+// ---------------------------------------------------------------------------
+public interface IUploadValidator
+{
+    Task<UploadValidationResult> ValidateAsync(
+        string objectKey,
+        string declaredContentType,
+        CancellationToken ct = default);
+}
+
+public sealed record UploadValidationResult(
+    bool IsValid,
+    string? FailureReason,
+    string Sha256Checksum,
+    long SizeBytes,
+    string ETag);
+
+// ---------------------------------------------------------------------------
+// Validators (kept; their signatures are unchanged).
+// ---------------------------------------------------------------------------
 public interface IFileValidator
 {
     Task<FileValidationResult> ValidateAsync(IFormFile file);

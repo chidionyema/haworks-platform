@@ -31,6 +31,25 @@ public class ContentContextRepository : IContentRepository
             .FirstOrDefaultAsync(c => c.Id == id, ct);
     }
 
+    public async Task<ContentEntity?> GetContentByIdTrackedAsync(Guid id, CancellationToken ct = default)
+    {
+        // Tracked variant for state transitions: handlers mutate Status,
+        // ETag, Sha256Checksum etc. and rely on EF to detect the change.
+        return await _context.Contents
+            .Include(c => c.Metadata)
+            .FirstOrDefaultAsync(c => c.Id == id, ct);
+    }
+
+    public async Task<IReadOnlyList<ContentEntity>> ListExpiredPendingAsync(
+        DateTime cutoffUtc, int batchSize, CancellationToken ct = default)
+    {
+        return await _context.Contents
+            .Where(c => c.Status == ContentStatus.Pending && c.CreatedAt < cutoffUtc)
+            .OrderBy(c => c.CreatedAt)
+            .Take(batchSize)
+            .ToListAsync(ct);
+    }
+
     public async Task<IEnumerable<ContentEntity>> GetContentsByEntityIdAsync(Guid entityId, string entityType, CancellationToken ct = default)
     {
         _logger.LogInformation("Fetching contents for entity {EntityId} type {EntityType}", entityId, entityType);

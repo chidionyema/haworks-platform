@@ -1,18 +1,22 @@
-using Microsoft.Extensions.DependencyInjection;
+using Amazon.S3;
+using Haworks.BuildingBlocks.Persistence;
+using Haworks.BuildingBlocks.Resilience;
+using Haworks.BuildingBlocks.Telemetry;
+using Haworks.BuildingBlocks.Vault;
+using Haworks.Content.Application.Interfaces;
+using Haworks.Content.Application.Options;
+using Haworks.Content.Domain.Interfaces;
+using Haworks.Content.Infrastructure.BackgroundServices;
+using Haworks.Content.Infrastructure.ExternalServices.Storage;
+using Haworks.Content.Infrastructure.ExternalServices.Validation;
+using Haworks.Content.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.EntityFrameworkCore;
-using Haworks.Content.Application.Interfaces;
-using Haworks.Content.Infrastructure.ExternalServices.Storage;
-using Haworks.Content.Infrastructure.ExternalServices.Validation;
-using Haworks.Content.Infrastructure.Options;
-using Haworks.Content.Infrastructure.Persistence;
-using Haworks.BuildingBlocks.Persistence;
-using Haworks.BuildingBlocks.Vault;
-using Haworks.Content.Domain.Interfaces;
-using Minio;
 
 namespace Haworks.Content.Infrastructure;
 
@@ -23,20 +27,17 @@ public static class DependencyInjection
         IConfiguration configuration,
         IHostEnvironment env)
     {
-        // Connection string resolution order matches Identity/Catalog/Payments:
-        //   1. Aspire-injected ConnectionStrings__content
-        //   2. ConnectionStrings:DefaultConnection (override / standalone runs)
         var connectionString = configuration.GetConnectionString("content")
             ?? configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException(
                 "No content database connection string. Expected 'ConnectionStrings:content' " +
                 "(Aspire-injected) or 'ConnectionStrings:DefaultConnection'.");
 
-        // Vault: dynamic Postgres creds. The interceptor was already wired
-        // via sp.GetService<DynamicCredentialsConnectionInterceptor>() in
-        // the AddDbContext below; we just need to register IVaultService +
-        // a factory for the interceptor itself when Vault is enabled.
-        // Role haworks-content matches infra/vault/database/roles.json.
+        // Vault: dynamic Postgres creds. When enabled, the
+        // DynamicCredentialsConnectionInterceptor swaps the static username/
+        // password in the connection string for short-TTL Vault-issued
+        // credentials on every connection open. Role haworks-content matches
+        // infra/vault/database/roles.json.
         var vaultEnabled = configuration.GetValue("Vault:Enabled", false)
             && !env.IsEnvironment("Test");
         if (vaultEnabled)
@@ -49,12 +50,9 @@ public static class DependencyInjection
                     sp.GetRequiredService<ILogger<DynamicCredentialsConnectionInterceptor>>()));
         }
 
-        services.AddDbContext<ContentDbContext>((sp, options) => {
+        services.AddDbContext<ContentDbContext>((sp, options) =>
+        {
             options.UseNpgsql(connectionString);
-
-            // Vault dynamic credentials interceptor — optional. Wired only when
-            // services.AddVaultIntegration() is also present; otherwise the
-            // plain Aspire-injected creds are used (test envs / dev mode).
             var interceptor = sp.GetService<DynamicCredentialsConnectionInterceptor>();
             if (interceptor is not null)
             {
@@ -62,41 +60,50 @@ public static class DependencyInjection
             }
         });
 
+        // Cross-cutting BuildingBlocks dependencies. TryAdd so we don't
+        // collide with AddVaultIntegration's registrations when present.
+        services.TryAddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
+        services.TryAddSingleton<ITelemetryService>(NullTelemetryService.Instance);
+
         services.AddScoped<IContentRepository, ContentContextRepository>();
-        services.AddScoped<IContentStorageService, ContentStorageService>();
         services.AddScoped<IFileSignatureValidator, FileSignatureValidator>();
         services.AddScoped<IVirusScanner, ClamAVScanner>();
+        services.AddScoped<IUploadValidator, UploadValidator>();
+        services.AddSingleton<IContentStorageService, S3ContentStorageService>();
 
-        // S3-compatible object storage (MinIO SDK works against MinIO,
-        // Fly Tigris, Cloudflare R2, AWS S3 — anything that speaks S3).
-        // Only registered when ALL required MinIO fields are supplied;
-        // partial config is treated as "not configured" so test fixtures
-        // and dev environments without MinIO can boot. Content still boots
-        // without it, but any upload fails fast at request time with a
-        // clear DI-resolution error.
-        var minioSection = configuration.GetSection(MinioOptions.SectionName);
-        var hasFullMinioConfig =
-            !string.IsNullOrWhiteSpace(minioSection["Endpoint"]) &&
-            !string.IsNullOrWhiteSpace(minioSection["AccessKey"]) &&
-            !string.IsNullOrWhiteSpace(minioSection["SecretKey"]) &&
-            !string.IsNullOrWhiteSpace(minioSection["BucketName"]);
+        // S3 client (AWS SDK speaks S3 to anything S3-compatible). Bind
+        // StorageOptions with [Required] DataAnnotations + ValidateOnStart
+        // so a missing config key fails the host build, not the first request.
+        services.AddOptions<StorageOptions>()
+            .Bind(configuration.GetSection(StorageOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
-        if (hasFullMinioConfig)
+        services.AddSingleton<IAmazonS3>(sp =>
         {
-            services.AddOptions<MinioOptions>()
-                .Bind(minioSection)
-                .ValidateDataAnnotations()
-                .ValidateOnStart();
-
-            services.AddSingleton<IMinioClient>(sp =>
+            var opts = sp.GetRequiredService<IOptions<StorageOptions>>().Value;
+            var cfg = new AmazonS3Config
             {
-                var opts = sp.GetRequiredService<IOptions<MinioOptions>>().Value;
-                return (IMinioClient)new MinioClient()
-                    .WithEndpoint(opts.Endpoint)
-                    .WithCredentials(opts.AccessKey, opts.SecretKey)
-                    .WithSSL(opts.Secure)
-                    .Build();
-            });
+                ServiceURL = opts.ServiceUrl,
+                ForcePathStyle = opts.ForcePathStyle,
+                AuthenticationRegion = opts.Region,
+                // AWS SDK defaults presigned URLs to HTTPS regardless of what
+                // ServiceURL declares. UseHttp = true (when ServiceURL is HTTP,
+                // i.e. LocalStack in dev/test) forces presigned URLs to the
+                // same scheme; without this clients PUT to https://… and
+                // hit a TLS handshake against an HTTP-only emulator.
+                UseHttp = opts.ServiceUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase),
+            };
+            return new AmazonS3Client(opts.AccessKey, opts.SecretKey, cfg);
+        });
+
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Background sweeper for orphaned uploads. Skipped under Test so
+        // integration fixtures don't fight the sweep loop.
+        if (!env.IsEnvironment("Test"))
+        {
+            services.AddHostedService<UploadSweeperService>();
         }
 
         return services;

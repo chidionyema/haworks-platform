@@ -1,11 +1,14 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Caching;
 using Haworks.BuildingBlocks.Persistence;
+using Haworks.BuildingBlocks.Resilience;
+using Haworks.BuildingBlocks.Telemetry;
 using Haworks.BuildingBlocks.Vault;
 using Haworks.Payments.Application.Consumers;
 using Haworks.Payments.Application.Interfaces;
@@ -65,6 +68,12 @@ public static class DependencyInjection
 
         services.AddScoped<IPaymentRepository, PaymentRepository>();
 
+        // Cross-cutting BuildingBlocks dependencies. These are also registered
+        // by AddVaultIntegration when Vault is enabled, so use TryAdd so we
+        // don't double-register and produce a duplicate-singleton warning.
+        services.TryAddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
+        services.TryAddSingleton<ITelemetryService>(NullTelemetryService.Instance);
+
         // Caching
         services.AddHybridCache();
         if (env.IsEnvironment("Test") || env.IsDevelopment())
@@ -113,6 +122,17 @@ public static class DependencyInjection
         {
             PaymentProvider.Stripe => sp.GetRequiredService<StripePaymentProcessor>(),
             _ => throw new NotSupportedException()
+        });
+
+        // ISubscriptionService is consumed by CreateSubscriptionCheckoutCommandHandler.
+        // Pick the impl matching the active provider — Stripe via its dedicated
+        // service, PayPal via the dual-purpose PayPalCheckoutService which
+        // implements both ICheckoutSessionService and ISubscriptionService.
+        services.AddScoped<ISubscriptionService>(sp => sp.GetRequiredService<IPaymentGateway>().ActiveProvider switch
+        {
+            PaymentProvider.Stripe => sp.GetRequiredService<StripeSubscriptionService>(),
+            PaymentProvider.PayPal => sp.GetRequiredService<PayPalCheckoutService>(),
+            _ => throw new NotSupportedException("Active payment provider does not have an ISubscriptionService impl."),
         });
 
         services.AddScoped<IPaymentSessionCache>(sp => sp.GetRequiredService<IPaymentGateway>().ActiveProvider switch

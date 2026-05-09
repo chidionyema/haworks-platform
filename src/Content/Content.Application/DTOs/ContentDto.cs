@@ -1,52 +1,67 @@
 using System.ComponentModel.DataAnnotations;
+using Haworks.Content.Domain.Entities;
 
-namespace Haworks.Content.Application.DTOs
-{
-    public record ChunkSessionRequest(
-        Guid EntityId,
-        int ChunkSize,
-        [Required(ErrorMessage = "FileName is required.")]
-        string FileName,
+namespace Haworks.Content.Application.DTOs;
 
-        [Required(ErrorMessage = "ContentType is required.")]
-        string ContentType,
+/// <summary>
+/// Canonical read shape of a finalised <see cref="ContentEntity"/>. Only
+/// returned for <see cref="ContentStatus.Available"/> rows; other states
+/// surface via <see cref="UploadStatusDto"/>.
+/// </summary>
+public sealed record ContentDto(
+    Guid Id,
+    Guid EntityId,
+    string EntityType,
+    string DownloadUrl,
+    string ContentType,
+    long FileSize,
+    string ETag,
+    string? Sha256Checksum,
+    DateTime? ValidatedAt);
 
-        [Range(1, int.MaxValue, ErrorMessage = "TotalChunks must be greater than or equal to 1.")]
-        int TotalChunks,
+/// <summary>
+/// Returned by <c>POST /api/v1/content/uploads</c>. Holds everything the
+/// client needs to start uploading bytes directly to S3.
+///
+/// For <see cref="UploadKind.Single"/>: <c>PutUrl</c> is populated;
+/// <c>UploadId</c> and <c>PartUrls</c> are null.
+/// For <see cref="UploadKind.Multipart"/>: <c>UploadId</c> and
+/// <c>PartUrls</c> are populated; <c>PutUrl</c> is null.
+/// </summary>
+public sealed record InitUploadResultDto(
+    Guid ContentId,
+    UploadKind Kind,
+    string? PutUrl,
+    string? UploadId,
+    IReadOnlyList<PresignedPartDto>? PartUrls,
+    DateTime PresignedUntilUtc);
 
-        [Range(1, long.MaxValue, ErrorMessage = "TotalSize must be greater than or equal to 1.")]
-        long TotalSize
-    );
+public sealed record PresignedPartDto(int PartNumber, string Url);
 
-    public record StorageInfo(long FileSize)
-    {
-        public string BucketName { get; set; } = string.Empty;
-        public string ObjectName { get; set; } = string.Empty;
-        public string ETag { get; set; } = string.Empty;
-        public string StorageDetails { get; set; } = string.Empty;
-        public string Path { get; set; } = string.Empty;
-    }
+/// <summary>
+/// Returned by <c>POST /api/v1/content/uploads/{id}/complete</c> for a
+/// successful finalisation, or by <c>GET /uploads/{id}</c> for status
+/// queries before completion.
+/// </summary>
+public sealed record UploadStatusDto(
+    Guid ContentId,
+    ContentStatus Status,
+    string? FailureReason,
+    string? QuarantineReason,
+    DateTime? ValidatedAt);
 
-    public record ChunkSessionDto(
-        Guid SessionId,
-        DateTime ExpiresAt,
-        int TotalChunks);
+public sealed record InitUploadRequestDto(
+    [Required] Guid EntityId,
+    [Required] string EntityType,
+    [Required] string FileName,
+    [Required] string ContentType,
+    [Range(1, long.MaxValue)] long TotalSize);
 
-    public record ContentDto(
-        Guid Id,
-        Guid EntityId,
-        string EntityType,
-        string Url,
-        string ContentType,
-        long FileSize);
+/// <summary>
+/// Body of <c>POST /uploads/{id}/complete</c>. <c>Parts</c> is required
+/// for multipart uploads, null/empty for single-PUT.
+/// </summary>
+public sealed record CompleteUploadRequestDto(
+    IReadOnlyList<UploadedPartDto>? Parts);
 
-    public record ContentUploadResult(
-        string BucketName,
-        string ObjectName,
-        string ContentType,
-        long FileSize,
-        string VersionId,
-        string StorageDetails,
-        string Path
-    );
-}
+public sealed record UploadedPartDto(int PartNumber, string ETag);

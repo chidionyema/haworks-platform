@@ -102,6 +102,35 @@ public class ContentDbContext : DbContext
             entity.Property(c => c.Url)
                 .HasMaxLength(2000);
 
+            // New lifecycle / S3-multipart fields.
+            entity.Property(c => c.Status)
+                .HasConversion<int>()
+                .IsRequired();
+
+            entity.Property(c => c.UploadKind)
+                .HasConversion<int>()
+                .IsRequired();
+
+            entity.Property(c => c.OwnerUserId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            entity.Property(c => c.ContentTypeMime)
+                .HasMaxLength(127)
+                .IsRequired();
+
+            entity.Property(c => c.S3UploadId)
+                .HasMaxLength(256);
+
+            entity.Property(c => c.Sha256Checksum)
+                .HasMaxLength(64);
+
+            entity.Property(c => c.QuarantineReason)
+                .HasMaxLength(500);
+
+            entity.Property(c => c.FailureReason)
+                .HasMaxLength(500);
+
             entity.HasIndex(c => new { c.EntityId, c.EntityType })
                 .HasDatabaseName("IX_Contents_EntityRef");
 
@@ -110,6 +139,14 @@ public class ContentDbContext : DbContext
 
             entity.HasIndex(c => c.ContentType)
                 .HasDatabaseName("IX_Contents_ContentType");
+
+            // Sweeper queries Status + CreatedAt to find Pending rows
+            // past TTL. Index keeps that scan cheap.
+            entity.HasIndex(c => new { c.Status, c.CreatedAt })
+                .HasDatabaseName("IX_Contents_Status_CreatedAt");
+
+            entity.HasIndex(c => c.OwnerUserId)
+                .HasDatabaseName("IX_Contents_OwnerUserId");
 
             // Metadata relationship
             entity.HasMany(c => c.Metadata)

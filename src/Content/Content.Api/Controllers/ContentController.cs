@@ -1,130 +1,138 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using MediatR;
-using Haworks.Content.Api.Models;
-using Haworks.Content.Application.Commands;
-using Haworks.Content.Application.Queries;
 using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Extensions;
+using Haworks.Content.Application.Commands;
+using Haworks.Content.Application.DTOs;
+using Haworks.Content.Application.Models;
+using Haworks.Content.Application.Queries;
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Haworks.Content.Api.Controllers;
 
+/// <summary>
+/// Content uploads / reads. Bytes never traverse this server — clients
+/// upload directly to S3-compatible storage via presigned URLs minted
+/// here, and read via presigned GET URLs returned from the metadata
+/// endpoint.
+/// </summary>
 [ApiController]
-[Route("api/v1/[controller]")]
+[Route("api/v1/content")]
 [Authorize(Policy = "ContentUploader")]
-public class ContentController : ControllerBase
+public sealed class ContentController(IMediator mediator) : ControllerBase
 {
-    private readonly IMediator _mediator;
+    // ----------------------------------------------------------------
+    // Upload pipeline (presigned-URL based; the server is out of the byte path)
+    // ----------------------------------------------------------------
 
-    public ContentController(IMediator mediator)
-    {
-        _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
-    }
-
-    [HttpPost("upload")]
-    [RequestSizeLimit(100_000_000)]
-    [ProducesResponseType(typeof(ContentResponse), StatusCodes.Status201Created)]
+    [HttpPost("uploads")]
+    [ProducesResponseType(typeof(InitUploadResultDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UploadFile([FromQuery] Guid entityId, [FromForm] IFormFile file, CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> InitUpload(
+        [FromBody] InitUploadRequestDto request, CancellationToken ct)
     {
-        var result = await _mediator.Send(new UploadFileCommand(entityId, file, User.GetUserId() ?? "unknown"), cancellationToken);
+        var ownerId = HttpContext.GetForwardedUserId();
+        if (string.IsNullOrEmpty(ownerId))
+        {
+            return Unauthorized();
+        }
 
-        if (!result.IsSuccess)
-            return result.ToActionResult();
+        var result = await mediator.Send(new InitUploadCommand(
+            EntityId: request.EntityId,
+            EntityType: request.EntityType,
+            FileName: request.FileName,
+            ContentType: request.ContentType,
+            TotalSize: request.TotalSize,
+            OwnerUserId: ownerId), ct);
 
-        var dto = result.Value;
-        var response = new ContentResponse(dto.Id, dto.EntityId, dto.EntityType, dto.Url, dto.ContentType, dto.FileSize);
-        return CreatedAtAction(nameof(GetContent), new { id = dto.Id }, response);
+        if (!result.IsSuccess) return result.ToActionResult();
+
+        return CreatedAtAction(
+            nameof(GetUploadStatus),
+            new { contentId = result.Value.ContentId },
+            result.Value);
     }
+
+    [HttpPost("uploads/{contentId:guid}/complete")]
+    [ProducesResponseType(typeof(UploadStatusDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CompleteUpload(
+        Guid contentId,
+        [FromBody] CompleteUploadRequestDto request,
+        CancellationToken ct)
+    {
+        var ownerId = HttpContext.GetForwardedUserId();
+        if (string.IsNullOrEmpty(ownerId))
+        {
+            return Unauthorized();
+        }
+
+        var parts = request?.Parts?
+            .Select(p => new UploadedPart(p.PartNumber, p.ETag))
+            .ToArray();
+
+        var result = await mediator.Send(new CompleteUploadCommand(
+            ContentId: contentId,
+            OwnerUserId: ownerId,
+            Parts: parts), ct);
+
+        return result.IsSuccess ? Ok(result.Value) : result.ToActionResult();
+    }
+
+    [HttpPost("uploads/{contentId:guid}/abort")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AbortUpload(Guid contentId, CancellationToken ct)
+    {
+        var ownerId = HttpContext.GetForwardedUserId();
+        if (string.IsNullOrEmpty(ownerId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await mediator.Send(new AbortUploadCommand(contentId, ownerId), ct);
+        return result.ToNoContentActionResult();
+    }
+
+    [HttpGet("uploads/{contentId:guid}")]
+    [ProducesResponseType(typeof(UploadStatusDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetUploadStatus(Guid contentId, CancellationToken ct)
+    {
+        var ownerId = HttpContext.GetForwardedUserId();
+        if (string.IsNullOrEmpty(ownerId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await mediator.Send(new GetUploadStatusQuery(contentId, ownerId), ct);
+        return result.IsSuccess ? Ok(result.Value) : result.ToActionResult();
+    }
+
+    // ----------------------------------------------------------------
+    // Public reads (post-finalisation)
+    // ----------------------------------------------------------------
 
     [HttpGet("{id:guid}")]
-    [ProducesResponseType(typeof(ContentResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ContentDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetContent(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetContent(Guid id, CancellationToken ct)
     {
-        var result = await _mediator.Send(new GetContentQuery(id), cancellationToken);
-
-        if (!result.IsSuccess)
-            return result.ToActionResult();
-
-        var dto = result.Value;
-        var response = new ContentResponse(dto.Id, dto.EntityId, dto.EntityType, dto.Url, dto.ContentType, dto.FileSize);
-        return Ok(response);
+        var result = await mediator.Send(new GetContentQuery(id), ct);
+        return result.IsSuccess ? Ok(result.Value) : result.ToActionResult();
     }
 
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteContent(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> DeleteContent(Guid id, CancellationToken ct)
     {
-        var result = await _mediator.Send(new DeleteContentCommand(id), cancellationToken);
+        var result = await mediator.Send(new DeleteContentCommand(id), ct);
         return result.ToNoContentActionResult();
-    }
-
-    [HttpPost("chunked/init")]
-    [RequestSizeLimit(10_000)]
-    [ProducesResponseType(typeof(ChunkSessionResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> InitChunkSession([FromBody] InitChunkSessionRequest request, CancellationToken cancellationToken)
-    {
-        var result = await _mediator.Send(new InitChunkSessionCommand(
-            request.EntityId,
-            request.FileName,
-            request.ContentType,
-            request.TotalChunks,
-            request.TotalSize,
-            request.ChunkSize
-        ), cancellationToken);
-
-        if (!result.IsSuccess)
-            return result.ToActionResult();
-
-        var session = result.Value;
-        var response = new ChunkSessionResponse(session.Id, session.ExpiresAt, session.TotalChunks);
-        return CreatedAtAction(nameof(GetChunkSessionStatus), new { sessionId = session.Id }, response);
-    }
-
-    [HttpPost("chunked/{sessionId}/{chunkIndex}")]
-    [RequestSizeLimit(11_000_000)]
-    [RequestFormLimits(MultipartBodyLengthLimit = 11_000_000)]
-    public async Task<IActionResult> UploadChunk(Guid sessionId, int chunkIndex, IFormFile chunkFile, CancellationToken cancellationToken)
-    {
-        var result = await _mediator.Send(new UploadChunkCommand(sessionId, chunkIndex, chunkFile), cancellationToken);
-
-        if (result.IsSuccess)
-            return Ok(new { message = $"Chunk {chunkIndex} for session {sessionId} uploaded successfully." });
-
-        return result.ToActionResult();
-    }
-
-    [HttpPost("chunked/complete/{sessionId}")]
-    [ProducesResponseType(typeof(ContentResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CompleteChunkSession(Guid sessionId, CancellationToken cancellationToken)
-    {
-        var result = await _mediator.Send(new CompleteChunkSessionCommand(sessionId, User.GetUserId() ?? "unknown"), cancellationToken);
-
-        if (!result.IsSuccess)
-            return result.ToActionResult();
-
-        var dto = result.Value;
-        var response = new ContentResponse(dto.Id, dto.EntityId, dto.EntityType, dto.Url, dto.ContentType, dto.FileSize);
-        return CreatedAtAction(nameof(GetContent), new { id = dto.Id }, response);
-    }
-
-    [HttpGet("chunked/session/{sessionId}")]
-    [ProducesResponseType(typeof(ChunkSessionResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetChunkSessionStatus(Guid sessionId, CancellationToken cancellationToken)
-    {
-        var result = await _mediator.Send(new GetChunkSessionStatusQuery(sessionId), cancellationToken);
-
-        if (!result.IsSuccess)
-            return result.ToActionResult();
-
-        var session = result.Value;
-        var response = new ChunkSessionResponse(session.Id, session.ExpiresAt, session.TotalChunks);
-        return Ok(response);
     }
 }

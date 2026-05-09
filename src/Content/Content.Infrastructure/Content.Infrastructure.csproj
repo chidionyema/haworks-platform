@@ -10,12 +10,18 @@
     <ProjectReference Include="../../BuildingBlocks/Haworks.BuildingBlocks.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.0" />
-    <PackageReference Include="Minio" Version="6.0.3" />
+    <PackageReference Include="AWSSDK.S3" Version="3.7.405.4" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
   </ItemGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Expose internal SweepOnceAsync to integration tests so the sweeper
+       can be invoked directly rather than waiting on its periodic timer. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Content.Integration" />
   </ItemGroup>
 
 </Project>

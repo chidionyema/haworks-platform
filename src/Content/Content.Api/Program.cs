@@ -1,25 +1,30 @@
+using Haworks.BuildingBlocks.Authentication;
 using Haworks.BuildingBlocks.Extensions;
-using Haworks.Content.Infrastructure;
+using Haworks.BuildingBlocks.Persistence;
 using Haworks.Content.Application;
+using Haworks.Content.Infrastructure;
+using Haworks.Content.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add service defaults & OTel
 builder.AddServiceDefaults();
 
-// Add Infrastructure & Application
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddApplication();
+
+// JWT validation via the shared JWKS endpoint exposed by identity-svc.
+// Same scheme every backend uses; tokens minted by Identity validate
+// across the cluster. Test fixtures swap the default scheme to a no-op
+// handler in ConfigureTestServices.
+builder.Services.AddJwksAuthentication(builder.Configuration);
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Authorization policy for content controllers — referenced by
-// [Authorize(Policy = "ContentUploader")] on ContentController. Tests stamp
-// the role via the shared TestAuthenticationHandler; production grants it
-// via the upstream identity-svc-issued JWT claims.
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("ContentUploader", policy =>
@@ -27,11 +32,22 @@ builder.Services.AddAuthorization(options =>
               .RequireRole("ContentUploader", "Admin"));
 });
 
-builder.Host.UseSerilog((context, loggerConfiguration) => {
+builder.Host.UseSerilog((context, loggerConfiguration) =>
+{
     loggerConfiguration.ReadFrom.Configuration(context.Configuration);
 });
 
 var app = builder.Build();
+
+// Auto-apply EF migrations on startup. Skipped under Test where the
+// integration fixture controls schema lifecycle directly.
+if (!app.Environment.IsEnvironment("Test"))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    await db.Database.MigrateWithRetryAsync(logger);
+}
 
 app.MapDefaultEndpoints();
 
@@ -41,7 +57,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

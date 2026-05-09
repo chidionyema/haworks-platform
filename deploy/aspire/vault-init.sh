@@ -37,6 +37,22 @@ log "Waiting for Vault at $VAULT_ADDR ..."
 until vault status >/dev/null 2>&1; do sleep 1; done
 log "Vault is up"
 
+# Idempotent short-circuit. Both /creds and the vault container's storage
+# are persistent across `dotnet run` invocations (Aspire ContainerLifetime.Persistent
+# + bind-mounted creds dir). If a prior run already populated AppRole creds
+# AND the vault still has the corresponding policies, there's nothing to do.
+# Saves ~20-30s on warm boots — the slowest part of every restart.
+SENTINEL="/creds/.init-completed"
+SENTINEL_VERSION="v2"
+if [ -f "$SENTINEL" ] \
+    && [ "$(cat "$SENTINEL" 2>/dev/null)" = "$SENTINEL_VERSION" ] \
+    && [ -s "/creds/identity/role_id" ] \
+    && vault auth list 2>/dev/null | grep -q '^approle/' \
+    && vault policy list 2>/dev/null | grep -q '^svc-identity'; then
+    log "Already initialised (sentinel + AppRole present); skipping setup."
+    exit 0
+fi
+
 # --- AppRole auth method --------------------------------------------------
 if ! vault auth list 2>/dev/null | grep -q '^approle/'; then
     vault auth enable approle
@@ -167,5 +183,10 @@ while [ "$i" -lt "$ROLE_COUNT" ]; do
 
     i=$((i + 1))
 done
+
+# Sentinel — re-runs short-circuit at the top of the script. Bumped only
+# when this script's contract changes (new policies, new AppRoles, …).
+printf "%s" "$SENTINEL_VERSION" > "$SENTINEL"
+log "Wrote sentinel $SENTINEL ($SENTINEL_VERSION)"
 
 log "DONE"
