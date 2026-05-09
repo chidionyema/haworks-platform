@@ -270,16 +270,70 @@ You are ONE OF N parallel coding agents. The track list and the brief that descr
 ```
 REPO=/Users/chidionyema/Documents/code/ritualworks-platform
 GH_REPO=chidionyema/ritualworks-platform
-BASE_BRANCH=main                                       # the branch every track forks from + merges into
-BRIEF_FILE=docs/agent-briefs/<area>/follow-up-tracks.md  # one file with section "### Track <id>" per track
-TRACK_PREFIX=feat/<area>-                              # branch name prefix; full branch = ${TRACK_PREFIX}<id>
-TRACKS=(F1 F2 F3 F4 F5)                                # the unclaimed track ids
+BASE_BRANCH=<<REPLACE_WITH_BASE_BRANCH>>               # e.g. main, feat/audit-service
+BRIEF_FILE=<<REPLACE_WITH_BRIEF_PATH>>                 # e.g. docs/agent-briefs/audit/parallel-tracks.md
+TRACK_PREFIX=<<REPLACE_WITH_TRACK_PREFIX>>             # e.g. feat/audit-   ← full branch = ${TRACK_PREFIX}<id>
+TRACKS=(<<REPLACE_WITH_TRACK_IDS>>)                    # e.g. (L1A L1B L1C L1D) for audit
 WORKTREE_PARENT=/tmp                                   # ephemeral worktrees go here
 ```
 
-The brief MUST contain one `### Track <id>` section per id in `TRACKS`, plus a "universal rules" / "anti-stuck" section every track inherits. Tracks are mutually independent (no ordering required between them).
+> **Operator:** every `<<REPLACE_WITH_*>>` token MUST be substituted with the real value before the prompt is handed to an agent. Pasting this block as-is into a Gemini session will cause Pre-flight to abort.
+
+> **Agent:** if any `<<REPLACE_WITH_*>>` token survives in your filled-in prompt, **STOP** before Step 1 and emit:
+> ```
+> ## BLOCKED — unfilled parameter placeholder
+> The following parameters still contain <<REPLACE_WITH_*>> tokens: <list>
+> Operator must substitute real values before re-running.
+> ```
+> Do NOT invent values. Do NOT proceed.
+
+The brief MUST contain one `### Track <id>` section per id in `TRACKS`, plus a `## Universal rules` / `## Anti-stuck` / `## Reference file` H2 section every track inherits. Tracks are mutually independent (no ordering required between them).
+
+### Pre-flight (Mode B) — run before Step 1
+
+```bash
+set -euo pipefail
+
+# 1. No placeholders survived
+for v in BASE_BRANCH BRIEF_FILE TRACK_PREFIX; do
+    val="${!v}"
+    case "$val" in
+        *"<<REPLACE_WITH_"*)
+            echo "ERROR: $v still contains a <<REPLACE_WITH_*>> placeholder ($val). Operator must fill it in." >&2
+            exit 1
+            ;;
+    esac
+done
+[ "${#TRACKS[@]}" -gt 0 ] || { echo "ERROR: TRACKS array is empty" >&2; exit 1; }
+case "${TRACKS[*]}" in
+    *"<<REPLACE_WITH_"*) echo "ERROR: TRACKS contains a placeholder" >&2; exit 1 ;;
+esac
+
+# 2. Brief exists and looks well-formed for THIS track family
+[ -f "$REPO/$BRIEF_FILE" ] || { echo "ERROR: brief not found at $REPO/$BRIEF_FILE" >&2; exit 1; }
+
+for t in "${TRACKS[@]}"; do
+    if ! grep -qE "^### Track $t($|[: ])" "$REPO/$BRIEF_FILE"; then
+        echo "ERROR: brief at $BRIEF_FILE has no '### Track $t' section. Wrong brief or missing track." >&2
+        exit 1
+    fi
+done
+
+for h in "## Universal rules" "## Anti-stuck" "## Reference file"; do
+    if ! grep -qF "$h" "$REPO/$BRIEF_FILE"; then
+        echo "ERROR: brief at $BRIEF_FILE missing required H2: '$h'" >&2
+        exit 1
+    fi
+done
+
+echo "Pre-flight OK — brief at $BRIEF_FILE has all ${#TRACKS[@]} tracks + universal sections"
+```
+
+If any check fails: STOP, do not claim anything. Report to operator.
 
 ### Step 1 — Claim a track (atomic, no coordinator)
+
+Pre-flight (above) MUST have passed before reaching here.
 
 ```bash
 set -euo pipefail
@@ -290,8 +344,11 @@ for t in "${TRACKS[@]}"; do
     BRANCH="${TRACK_PREFIX}${t}"
     # In-flight on origin? skip
     if git -C "$REPO" ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then continue; fi
-    # Already merged? skip
-    if gh pr list -R "$GH_REPO" --state merged --head "$BRANCH" --json number --jq '.[].number' | grep -q .; then continue; fi
+    # Already merged into THIS BASE_BRANCH? skip
+    # (note: --base "$BASE_BRANCH" — without it we'd skip a track whose branch
+    # name happens to match a merged PR against a different base, which is
+    # the bug that made agents exit early when reusing prior wave's branch names)
+    if gh pr list -R "$GH_REPO" --state merged --base "$BASE_BRANCH" --head "$BRANCH" --json number --jq '.[].number' | grep -q .; then continue; fi
     # Atomic claim: race-safe push of a branch ref pointing at origin/$BASE_BRANCH
     if git -C "$REPO" push origin "refs/remotes/origin/${BASE_BRANCH}:refs/heads/${BRANCH}" 2>/dev/null; then
         CLAIMED=$t
