@@ -12,5 +12,5 @@ public static partial class DependencyInjection
     // own commit without needing a coordinator pre-merge.)
     //
     // L1.B replaced AddNotificationTemplates — see Templates/TemplatesServiceCollectionExtensions.cs.
-    internal static IServiceCollection AddNotificationConsumers(this IServiceCollection s) => s;
+    // L3   replaced AddNotificationConsumers — see Consumers/NotificationConsumersServiceCollectionExtensions.cs.
 }
