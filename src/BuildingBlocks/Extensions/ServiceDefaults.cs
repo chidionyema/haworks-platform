@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 namespace Haworks.BuildingBlocks.Extensions;
@@ -15,6 +17,8 @@ namespace Haworks.BuildingBlocks.Extensions;
 /// </summary>
 public static class ServiceDefaults
 {
+    private static readonly string[] ReadyTag = new[] { "ready" };
+
     /// <summary>
     /// Adds service defaults to the host application builder.
     /// </summary>
@@ -65,6 +69,10 @@ public static class ServiceDefaults
         });
 
         builder.Services.AddOpenTelemetry()
+            .ConfigureResource(r => r.AddService(
+                serviceName: builder.Environment.ApplicationName,
+                serviceVersion: typeof(ServiceDefaults).Assembly.GetName().Version?.ToString() ?? "unknown",
+                serviceInstanceId: Environment.MachineName))
             .WithMetrics(metrics =>
             {
                 metrics.AddAspNetCoreInstrumentation()
@@ -78,6 +86,7 @@ public static class ServiceDefaults
                     // (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                     // .AddGrpcClientInstrumentation()
                     .AddHttpClientInstrumentation()
+                    .AddEntityFrameworkCoreInstrumentation()
                     .AddSource("MassTransit");
             });
 
@@ -116,6 +125,35 @@ public static class ServiceDefaults
 
         return builder;
     }
+
+    /// <summary>
+    /// Opt-in: registers a readiness probe (tag <c>"ready"</c>) for the given EF Core
+    /// <typeparamref name="TContext"/> using <c>DbContext.Database.CanConnectAsync</c>.
+    /// Surfaces under <c>/health/ready</c> when <see cref="MapDefaultEndpoints"/> is mapped.
+    /// </summary>
+    public static IHealthChecksBuilder AddDbHealthCheck<TContext>(
+        this IHealthChecksBuilder hcBuilder,
+        string? name = null)
+        where TContext : DbContext
+        => hcBuilder.AddDbContextCheck<TContext>(
+            name: name ?? typeof(TContext).Name,
+            tags: ReadyTag,
+            customTestQuery: (ctx, ct) => ctx.Database.CanConnectAsync(ct));
+
+    /// <summary>
+    /// Opt-in: registers a readiness probe (tag <c>"ready"</c>) for RabbitMQ.
+    /// Uses the Xabaril <c>AspNetCore.HealthChecks.Rabbitmq</c> probe.
+    /// </summary>
+    public static IHealthChecksBuilder AddRabbitMqHealthCheck(
+        this IHealthChecksBuilder hcBuilder,
+        string connectionString)
+        => hcBuilder.AddRabbitMQ(
+            options =>
+            {
+                options.ConnectionUri = new Uri(connectionString);
+            },
+            name: "rabbitmq",
+            tags: ReadyTag);
 
     /// <summary>
     /// Maps default health check endpoints.
