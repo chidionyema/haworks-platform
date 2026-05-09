@@ -25,6 +25,7 @@ public static partial class DependencyInjection
         services.AddTwilioSmsProvider(configuration);
         services.AddFcmPushProvider(configuration);
         services.AddNotificationChannelGateways();
+        services.AddNotificationSmsChannel();
         services.AddNotificationPushChannel();
 
         services.AddOptions<Haworks.Notifications.Application.Webhooks.WebhookOptions>()

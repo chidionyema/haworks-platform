@@ -9,6 +9,7 @@ public static partial class DependencyInjection
     // <Track>ServiceCollectionExtensions.cs files in their owned subdirs.
     //
     // Replaced by tracks: AddNotificationTemplatesPersistence (L1.B),
-    // AddSesEmailProvider (L2.H), AddNotificationChannelGateways (L3).
-    internal static IServiceCollection AddTwilioSmsProvider(this IServiceCollection s, IConfiguration c) => s;
+    // AddSesEmailProvider (L2.H), AddSendGridEmailProvider (F1),
+    // AddTwilioSmsProvider (F2), AddFcmPushProvider (F3),
+    // AddNotificationChannelGateways (L3).
 }
