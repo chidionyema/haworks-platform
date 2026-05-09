@@ -14,6 +14,8 @@
 #   ./scripts/stack.sh rebuild <svc>   # rebuild + restart a single compose service
 #   ./scripts/stack.sh logs <svc>      # follow logs for a compose service
 #   ./scripts/stack.sh verify          # health-probe every running service
+#   ./scripts/stack.sh ci-check        # pre-push gate: same checks GitHub CI runs (fast: build + unit + arch + contract)
+#   ./scripts/stack.sh ci-check full   # ci-check + every integration suite (needs Docker, ~10min)
 #   ./scripts/stack.sh prebuild        # warm caches: dotnet build + image pulls
 #   ./scripts/stack.sh cleanup         # DAILY. Stopped containers + dangling images + old builder cache.
 #   ./scripts/stack.sh cleanup --deep  # + project volumes (drops DB state). Project images PRESERVED.
@@ -281,6 +283,58 @@ cmd_cleanup() {
     df -h "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /)" | tail -1
 }
 
+cmd_ci_check() {
+    # Runs the same checks GitHub Actions runs, locally. Use BEFORE every
+    # `git push origin main` to catch failures pre-push instead of finding
+    # out from a red CI badge 8 minutes later.
+    #
+    #   ci-check fast   — build + unit + arch + contract. No Docker needed. ~3 min.
+    #                     This is the must-pass gate. CI's `build-and-fast-tests` job.
+    #   ci-check full   — fast + every Integration suite. Needs Docker + LocalStack.
+    #                     ~10 min. CI's `integration-tests` matrix.
+    #   ci-check        — alias for `fast` (default).
+    local mode="${1:-fast}"
+    local fail=0
+    cd "$REPO_ROOT"
+
+    log "Restore + build (Release)"
+    dotnet restore RitualworksPlatform.sln >/dev/null
+    dotnet build RitualworksPlatform.sln --no-restore -c Release --nologo --verbosity quiet || fail=1
+    [ $fail -eq 1 ] && { warn "Build failed — fix before pushing."; return 1; }
+
+    log "Unit tests"
+    for proj in tests/*.Unit/*.csproj; do
+        dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || fail=1
+    done
+
+    log "Architecture tests"
+    for proj in tests/*.Architecture/*.csproj; do
+        dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || fail=1
+    done
+
+    log "Contract (Pact) tests"
+    for proj in tests/*.Contract/*.csproj; do
+        dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || fail=1
+    done
+
+    if [ "$mode" = "full" ]; then
+        log "Integration tests (matrix — needs Docker)"
+        for svc in Catalog Orders Payments Identity BffWeb CheckoutOrchestrator Content Search; do
+            local proj="tests/${svc}.Integration/${svc}.Integration.csproj"
+            [ -f "$proj" ] || continue
+            log "  → ${svc}.Integration"
+            dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || fail=1
+        done
+    fi
+
+    if [ $fail -eq 0 ]; then
+        log "ci-check $mode: GREEN. Safe to push."
+    else
+        warn "ci-check $mode: FAILED. Do NOT push — fix locally first."
+        return 1
+    fi
+}
+
 cmd_prebuild() {
     log "Pre-building solution + pulling images (used by both compose and aspire)"
     (cd "$REPO_ROOT" && dotnet build RitualworksPlatform.sln -c Release --nologo --verbosity quiet) &
@@ -312,6 +366,7 @@ case "${1:-help}" in
     prebuild)   cmd_prebuild ;;
     verify)     cmd_verify ;;
     cleanup)    shift; cmd_cleanup "$@" ;;
+    ci-check)   shift; cmd_ci_check "$@" ;;
     help|-h|--help) cmd_help ;;
     *)          warn "Unknown command: $1"; cmd_help; exit 1 ;;
 esac
