@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Authentication;
 using Haworks.BuildingBlocks.Extensions;
 using Haworks.Search.Application.Interfaces;
 using Haworks.Search.Infrastructure;
@@ -7,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 
-builder.Services.AddPlatformAuthentication(builder.Configuration);
+builder.Services.AddJwksAuthentication(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddControllers();
