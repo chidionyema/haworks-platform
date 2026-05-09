@@ -245,11 +245,32 @@ cmd_cleanup() {
     docker network prune -f >/dev/null
 
     if [ "$mode" = "--deep" ] || [ "$mode" = "deep" ]; then
-        warn "DEEP cleanup: removing project volumes (postgres-data, vault-creds, localstack-data, …). This drops state."
-        # All compose volumes prefixed compose_ — safe; named project-scope.
-        docker volume ls --format '{{.Name}}' | grep -E '^compose_' | xargs -r docker volume rm 2>/dev/null || true
-        # Aspire's named volumes use the prefix in WithVolume().
-        docker volume ls --format '{{.Name}}' | grep -E '^ritualworks-platform-' | xargs -r docker volume rm 2>/dev/null || true
+        warn "DEEP cleanup: removing project images + volumes. DB state gone."
+
+        # Project-built images. compose-{service}:{tag} for compose builds;
+        # ritualworks-platform-* for any Aspire-named tags. Filtering by
+        # name pattern means we never touch base images (postgres:16-alpine,
+        # localstack/localstack:3, …) which other projects on this Docker
+        # host may also use.
+        local proj_images
+        proj_images="$(docker images --format '{{.Repository}}:{{.Tag}}' \
+            | grep -E '^(compose-|ritualworks-platform-)' \
+            || true)"
+        if [ -n "$proj_images" ]; then
+            log "Removing $(echo "$proj_images" | wc -l | tr -d ' ') project-built images"
+            echo "$proj_images" | xargs -r docker rmi -f >/dev/null 2>&1 || true
+        fi
+
+        # Project volumes — strict prefix match so we never touch volumes
+        # belonging to another project on this Docker host.
+        local proj_volumes
+        proj_volumes="$(docker volume ls --format '{{.Name}}' \
+            | grep -E '^(compose_|ritualworks-platform-)' \
+            || true)"
+        if [ -n "$proj_volumes" ]; then
+            log "Removing $(echo "$proj_volumes" | wc -l | tr -d ' ') project volumes"
+            echo "$proj_volumes" | xargs -r docker volume rm 2>/dev/null || true
+        fi
     fi
 
     log "Cleanup done. Disk reclaimed:"
