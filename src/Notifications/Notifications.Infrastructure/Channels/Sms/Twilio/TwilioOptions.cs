@@ -8,6 +8,9 @@ namespace Haworks.Notifications.Infrastructure.Channels.Sms.Twilio;
 /// </summary>
 public sealed class TwilioOptions
 {
+    // TODO(notif-F2): Add 'notifications/providers/twilio' KV path to 
+    // infra/vault/secrets/kv-layout.json with keys AccountSid, AuthToken, FromNumber
+    // once that file is tracked in the repository.
     public const string SectionName = "Notifications:Providers:Twilio";
 
     [Required]
