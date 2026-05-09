@@ -10,8 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using Testcontainers.PostgreSql;
 using Haworks.BuildingBlocks.Testing.Authentication;
+using Haworks.BuildingBlocks.Testing.Containers;
 using Haworks.Content.Application.Interfaces;
 using Haworks.Content.Application.Options;
 using Haworks.Content.Domain.ValueObjects;
@@ -33,12 +33,7 @@ public sealed class ContentWebAppFactory : WebApplicationFactory<Program>, IAsyn
 {
     private const string BucketName = "content-test";
 
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
-        .WithDatabase("content")
-        .WithUsername("postgres")
-        .WithPassword("postgres")
-        .Build();
+    private string _connectionString = string.Empty;
 
     private readonly IContainer _localstack = new ContainerBuilder()
         .WithImage("localstack/localstack:3")
@@ -73,7 +68,10 @@ public sealed class ContentWebAppFactory : WebApplicationFactory<Program>, IAsyn
 
     public async Task InitializeAsync()
     {
-        await _postgres.StartAsync();
+        // Shared Postgres container (one per test run, reused across all
+        // backend integration projects). Each fixture gets its own
+        // database name, so tests don't collide.
+        _connectionString = await SharedTestPostgres.CreateDatabaseAsync("content");
         await _localstack.StartAsync();
 
         _localstackUrl = $"http://{_localstack.Hostname}:{_localstack.GetMappedPublicPort(4566)}";
@@ -87,8 +85,8 @@ public sealed class ContentWebAppFactory : WebApplicationFactory<Program>, IAsyn
         // top-level Program.cs runs to construct the WebApplicationBuilder
         // before WAF's ConfigureAppConfiguration hook fires.
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Test");
-        Environment.SetEnvironmentVariable("ConnectionStrings__content", _postgres.GetConnectionString());
-        Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", _postgres.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings__content", _connectionString);
+        Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", _connectionString);
         Environment.SetEnvironmentVariable("Storage__ServiceUrl",     _localstackUrl);
         Environment.SetEnvironmentVariable("Storage__AccessKey",      "test");
         Environment.SetEnvironmentVariable("Storage__SecretKey",      "test");
@@ -105,10 +103,11 @@ public sealed class ContentWebAppFactory : WebApplicationFactory<Program>, IAsyn
 
     async Task IAsyncLifetime.DisposeAsync()
     {
-        await _postgres.DisposeAsync();
-        // _localstack uses .WithReuse(true) — Testcontainers keeps the container
-        // alive across runs to amortize the ~3s startup cost. Skipping explicit
-        // DisposeAsync on the localstack container is intentional.
+        // SharedTestPostgres + LocalStack both use the .WithReuse pattern —
+        // Testcontainers keeps the underlying containers alive across runs
+        // to amortize the ~3s startup cost. The per-test database created
+        // on the shared Postgres is leaked on purpose; cheap, and a fresh
+        // run gets a brand-new database name each test class.
         await base.DisposeAsync();
     }
 
@@ -120,8 +119,8 @@ public sealed class ContentWebAppFactory : WebApplicationFactory<Program>, IAsyn
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:content"] = _postgres.GetConnectionString(),
-                ["ConnectionStrings:DefaultConnection"] = _postgres.GetConnectionString(),
+                ["ConnectionStrings:content"] = _connectionString,
+                ["ConnectionStrings:DefaultConnection"] = _connectionString,
                 ["Storage:ServiceUrl"]     = _localstackUrl,
                 ["Storage:AccessKey"]      = "test",
                 ["Storage:SecretKey"]      = "test",
