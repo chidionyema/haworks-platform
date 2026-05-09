@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
 using Xunit;
 using Haworks.BuildingBlocks.Messaging;
+using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.Catalog.Application.Consumers;
 using Haworks.Catalog.Domain;
 using Haworks.Catalog.Domain.Interfaces;
@@ -267,17 +268,14 @@ public sealed class SagaCompensationFixture : WebApplicationFactory<Program>, IA
     {
         await Task.WhenAll(_checkoutPostgres.StartAsync(), _catalogPostgres.StartAsync());
 
-        // AddJwksAuthentication has [Required] + ValidateOnStart on
-        // Authentication:Jwks:JwksUri/Issuer/Audience; without these the
-        // host refuses to boot. Tests bypass real JWT validation via
-        // TestAuthenticationHandler below, but the keys must still exist.
-        Haworks.BuildingBlocks.Testing.Authentication.JwtTestDefaults.SetTestEnvironmentVariables();
-
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Test");
         Environment.SetEnvironmentVariable("ConnectionStrings__checkout", CheckoutConnectionString);
         Environment.SetEnvironmentVariable("ConnectionStrings__catalog", CatalogConnectionString);
         Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", "amqp://guest:guest@localhost:5672/");
         Environment.SetEnvironmentVariable("Vault__Enabled", "false");
+        // AddJwksAuthentication's [Required] + ValidateOnStart trips host
+        // build without these. Test scheme overrides real validation later.
+        JwtTestDefaults.SetTestEnvironmentVariables();
     }
 
     async Task IAsyncLifetime.DisposeAsync()
