@@ -75,9 +75,13 @@ apply_scaffold() {
     local target_rel
     target_rel=$(echo "$rel" | sed "s|{{FEATURE}}|$PascalFeature|g; s|{{feature}}|$feature|g")
 
-    # Files under tests/ go to repo_root/tests/<...>; rest go under repo_root/src/<PascalFeature>/<...>
+    # Path routing:
+    #   fly.*           → repo root (Fly.io per-app config lives there)
+    #   tests/*         → repo_root/tests/*
+    #   {{FEATURE}}.*   → repo_root/src/<PascalFeature>/*
     local target
     case "$rel" in
+      fly.*)   target="$repo_root/$target_rel" ;;
       tests/*) target="$repo_root/$target_rel" ;;
       *)       target="$repo_root/src/$PascalFeature/$target_rel" ;;
     esac
@@ -85,6 +89,76 @@ apply_scaffold() {
     mkdir -p "$(dirname "$target")"
     sed "s|{{FEATURE}}|$PascalFeature|g; s|{{feature}}|$feature|g" "$tplfile" > "$target"
   done < <(find "$tpl" -type f)
+}
+
+# Day-0 deploy wiring: inject the new service into shared deploy files so it
+# can actually run in local Aspire and ship with the next prod deploy.
+# Idempotent — won't double-add if re-run.
+#   1. Aspire Program.cs — declare DB resource + register service with DB+rabbitmq
+#   2. init-postgres.sql — CREATE DATABASE for the new service
+#   3. bootstrap.sh — add ritualworks-<feature> to INTERNAL_APPS
+apply_deploy_wiring() {
+  local repo_root=$1 PascalFeature=$2 feature=$3
+  local apphost="$repo_root/deploy/aspire/Program.cs"
+  local initsql="$repo_root/deploy/aspire/init-postgres.sql"
+  local bootstrap="$repo_root/deploy/fly/bootstrap.sh"
+
+  # 1a. Aspire AppHost — declare DB resource (var <feature>Db = postgres.AddDatabase(...))
+  # Insert after the other AddDatabase calls so all DB resources cluster together.
+  if [ -f "$apphost" ] && ! grep -q "postgres.AddDatabase(\"${feature}\")" "$apphost"; then
+    awk -v ins="var ${feature}Db = postgres.AddDatabase(\"${feature}\");" '
+      /postgres\.AddDatabase\(/ { last=NR }
+      { lines[NR]=$0 }
+      END {
+        for (i=1; i<=NR; i++) {
+          print lines[i]
+          if (i==last) print ins
+        }
+      }
+    ' "$apphost" > "$apphost.tmp" && mv "$apphost.tmp" "$apphost"
+    echo "  + declared ${feature}Db = postgres.AddDatabase(\"${feature}\")"
+  fi
+
+  # 1b. Aspire AppHost — insert service registration block (with DB + rabbitmq refs)
+  # before the bff-web anchor.
+  if [ -f "$apphost" ] && ! grep -q "Projects.${PascalFeature}_Api" "$apphost"; then
+    local marker="// --- bff-web -"
+    if grep -q "$marker" "$apphost"; then
+      local block
+      block="// --- ${feature}-svc (auto-added by wave) ----------------------------------\nvar ${feature} = AddJwksConfig(builder.AddProject<Projects.${PascalFeature}_Api>(\"${feature}-svc\")\n    .WaitFor(vault)\n    .WaitFor(${feature}Db)\n    .WithReference(${feature}Db)\n    .WaitFor(rabbitmq)\n    .WithReference(rabbitmq), identity);\n\n"
+      awk -v marker="$marker" -v block="$block" '
+        $0 ~ marker && !done { printf "%s", block; done=1 }
+        { print }
+      ' "$apphost" > "$apphost.tmp" && mv "$apphost.tmp" "$apphost"
+      echo "  + registered ${feature}-svc in deploy/aspire/Program.cs"
+    fi
+  fi
+
+  # 2. init-postgres.sql — add CREATE DATABASE so the service has a backing DB locally
+  if [ -f "$initsql" ] && ! grep -q "CREATE DATABASE ${feature}" "$initsql"; then
+    awk -v feat="${feature}" '
+      /CREATE DATABASE [a-z]+/ { last=NR }
+      { lines[NR]=$0 }
+      END {
+        for (i=1; i<=NR; i++) {
+          print lines[i]
+          if (i==last) printf "SELECT '\''CREATE DATABASE %s'\'' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '\''%s'\'')\\gexec\n", feat, feat
+        }
+      }
+    ' "$initsql" > "$initsql.tmp" && mv "$initsql.tmp" "$initsql"
+    echo "  + added CREATE DATABASE ${feature} to init-postgres.sql"
+  fi
+
+  # 3. bootstrap.sh INTERNAL_APPS — add ritualworks-<feature> if not present
+  if [ -f "$bootstrap" ] && ! grep -q "ritualworks-${feature}" "$bootstrap"; then
+    awk -v app="  ritualworks-${feature}" '
+      /^INTERNAL_APPS=\(/ { in_block=1; print; next }
+      in_block && /^\)/   { print app; print; in_block=0; next }
+      { print }
+    ' "$bootstrap" > "$bootstrap.tmp" && mv "$bootstrap.tmp" "$bootstrap"
+    chmod +x "$bootstrap"
+    echo "  + added ritualworks-${feature} to deploy/fly/bootstrap.sh INTERNAL_APPS"
+  fi
 }
 
 # Generate the DI orchestrator + per-track stubs based on the brief's TRACKS list.
@@ -497,6 +571,9 @@ DESIGN
   echo "→ generating DI orchestrator + per-track stubs from brief"
   generate_di "$wt" "$PascalFeature" "$feature" "$brief"
 
+  echo "→ wiring deploy artifacts (Aspire + bootstrap.sh + fly.toml + smoke)"
+  apply_deploy_wiring "$wt" "$PascalFeature" "$feature"
+
   echo "→ registering scaffolded projects with the solution"
   (
     cd "$wt"
@@ -532,6 +609,11 @@ DESIGN
             "src/$PascalFeature/" \
             "tests/$PascalFeature.Unit/" \
             "tests/$PascalFeature.Integration/" \
+            "tests/Smoke/${PascalFeature}SmokeTests.cs" \
+            "fly.${feature}.toml" \
+            "deploy/aspire/Program.cs" \
+            "deploy/aspire/init-postgres.sql" \
+            "deploy/fly/bootstrap.sh" \
             *.sln 2>/dev/null || true
     git commit -m "L0(${feature}): scaffold + parallel-tracks brief
 
