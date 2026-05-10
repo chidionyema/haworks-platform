@@ -146,7 +146,8 @@ Tighten the soft-warn rule to hard-fail once Audit + Search are refactored.
 
 ## Recommended sequencing
 
-1. **Now:** ship the `architecture.yml` check (this PR). Ratchet for new code.
-2. **Next:** refactor Audit's per-event extractors → reflection + JSON config. Run the check, expect Audit row to flip to ✅.
-3. **Then:** refactor Search's per-event consumers → generic `IndexableEntityChangedConsumer<T>`. Same pattern.
-4. **Later (platform-wide, separate spec):** split `Contracts` per-service, package `BuildingBlocks` as a versioned NuGet. Resolves form 4 + 5 for everyone.
+1. **Now:** ship the `architecture.yml` check (done in this PR). Ratchet for new code.
+2. **Next:** refactor Audit's per-event extractors → reflection + JSON config. Spec ready: [`../agent-briefs/audit-decoupling-spec.md`](../agent-briefs/audit-decoupling-spec.md). Run via `wave run` (modify mode). Expect Audit row to flip to ✅.
+3. **Then:** refactor Search's per-event consumers → generic `IndexableEntityChangedConsumer<T>`. Spec ready: [`../agent-briefs/search-decoupling-spec.md`](../agent-briefs/search-decoupling-spec.md). Run via `wave run` (modify mode).
+4. **Optional:** Payments `OrderId` → `PurchaseId` rename. Spec ready: [`../agent-briefs/payments-purchase-id-spec.md`](../agent-briefs/payments-purchase-id-spec.md). Pure UX/abstraction win; doesn't affect the architecture-check warnings.
+5. **Later (platform-wide, separate spec):** split `Contracts` per-service, package `BuildingBlocks` as a versioned NuGet. Resolves form 4 + 5 for everyone.
