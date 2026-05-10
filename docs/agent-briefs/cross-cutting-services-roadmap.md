@@ -9,6 +9,44 @@ This file is the index. Tier 1 services have full specs in sibling
 files; Tier 2 entries are scoped here so they're ready to expand into
 their own spec when the time comes; Tier 3 is parked.
 
+**Reusability discipline:** every cross-cutting service must pass the
+architecture check at `scripts/check-architecture.sh` (no cross-service
+project references; no domain-specific Contracts imports in cross-cutting
+services). Coupling inventory + decoupling moves per existing service in
+[`../architecture/cross-cutting-coupling-audit.md`](../architecture/cross-cutting-coupling-audit.md).
+
+---
+
+## Tier 1 — almost universal (most projects need them)
+
+| Service              | What it owns                            | Why cross-cutting                                                                                          |
+|----------------------|-----------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `identity-svc`       | Users, JWKS, sessions                   | Already in stack. Bar is high for reuse — most platforms have idiosyncratic auth.                          |
+| `audit-svc`          | Append-only event log                   | Already in stack. THE most reusable cross-cutting svc when designed event-shape-agnostic. Has coupling debt — see audit doc. |
+| `notifications-svc`  | Email/SMS/push delivery                 | Already in stack. Reusable when recipients are abstract (`recipient_id` + channel-prefs lookup) not domain-typed. |
+| `content-svc`        | Blob storage, virus scan, signed URLs   | Already in stack. Highly reusable — files are universal.                                                   |
+| `search-svc`         | Full-text search over indexed docs      | Already in stack. Reusable IF the index schema is dynamic (jsonb) not Product-specific. Has coupling debt. |
+| `payments-svc`       | Payment intents, providers, refunds     | Already in stack. Reusable when "what's being paid for" is `purchase_id` + amount, not Order.              |
+| `webhooks-svc`       | Outbound webhook delivery + retries     | Spec'd in `webhooks-service-spec.md`. Universal. **Build trigger:** first external integration partner.    |
+| `scheduler-svc`      | Cron + delayed jobs (run X at Y)        | Generic background work, not in stack yet. Build when first feature needs durable scheduling.              |
+| `feature-flags-svc`  | Feature-flag evaluation, A/B targeting  | Universal; LaunchDarkly-like, low-feature variant suffices. Build when first gradual rollout is needed.    |
+| `rate-limit-svc`     | Token-bucket rate limiting              | Cross-cutting; sometimes a sidecar (e.g. envoy) instead of a service. Build when API abuse becomes real.   |
+
+## Tier 2 — common but domain-shaped
+
+| Service              | What it owns                          | Caveat                                                                              |
+|----------------------|---------------------------------------|-------------------------------------------------------------------------------------|
+| `pricing-svc`        | Promotions, quote engine              | Spec'd in `pricing-service-spec.md`. Reusable when "what's priced" is line-item-shaped, not Product. |
+| `tax-svc`            | Tax calculation per jurisdiction      | Roadmap'd § below. Reusable across any commerce.                                    |
+| `inventory-svc`      | Multi-warehouse stock                 | Roadmap'd § below. Reusable for physical goods only.                                |
+| `shipping-svc`       | Carrier integrations                  | Roadmap'd § below. Physical goods only.                                             |
+| `comments-svc`       | Threaded comments on `entity_id`      | Universal across UGC platforms.                                                     |
+| `moderation-svc`     | Manual + ML content moderation        | Wraps an external API typically.                                                    |
+| `analytics-svc`      | Event ingestion → warehouse           | Internal-tool typically; very reusable.                                             |
+| `i18n-svc`           | Translation strings, locale routing   | Generic.                                                                            |
+| `doc-gen-svc`        | PDF / invoice / receipt generation    | Wraps a templating engine + headless browser.                                       |
+| `image-pipeline-svc` | Thumbnails, transcoding, transforms   | Wraps libvips / ffmpeg.                                                             |
+
 ---
 
 ## Current service inventory
