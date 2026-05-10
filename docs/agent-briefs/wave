@@ -54,6 +54,97 @@ brief_tracks() {
   ' "$brief"
 }
 
+# Compute PascalCase from a kebab-case feature name. "pricing" → "Pricing", "search-engine" → "SearchEngine".
+# Uses awk for portability — BSD sed (macOS) doesn't support \U in replacements.
+pascal_case() {
+  awk -F- 'BEGIN{OFS=""} {for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2); print}' <<< "$1"
+}
+
+# Apply the scaffold template to the target repo for a feature.
+# Substitutes {{FEATURE}} (PascalCase) and {{feature}} (lowercase).
+apply_scaffold() {
+  local repo_root=$1 PascalFeature=$2 feature=$3
+  local tpl="$BRIEFS_DIR/_TEMPLATE/scaffold"
+  [ -d "$tpl" ] || die "scaffold template missing at $tpl"
+
+  while IFS= read -r tplfile; do
+    local rel="${tplfile#$tpl/}"
+    case "$rel" in README.md) continue ;; esac
+
+    # Substitute placeholders in the path itself
+    local target_rel
+    target_rel=$(echo "$rel" | sed "s|{{FEATURE}}|$PascalFeature|g; s|{{feature}}|$feature|g")
+
+    # Files under tests/ go to repo_root/tests/<...>; rest go under repo_root/src/<PascalFeature>/<...>
+    local target
+    case "$rel" in
+      tests/*) target="$repo_root/$target_rel" ;;
+      *)       target="$repo_root/src/$PascalFeature/$target_rel" ;;
+    esac
+
+    mkdir -p "$(dirname "$target")"
+    sed "s|{{FEATURE}}|$PascalFeature|g; s|{{feature}}|$feature|g" "$tplfile" > "$target"
+  done < <(find "$tpl" -type f)
+}
+
+# Generate the DI orchestrator + per-track stubs based on the brief's TRACKS list.
+# The orchestrator is in DependencyInjection.cs; each track's stub is in
+# DependencyInjection.<TrackId>.cs (the file is owned by that L1 track).
+generate_di() {
+  local repo_root=$1 PascalFeature=$2 feature=$3 brief=$4
+  local app_dir="$repo_root/src/$PascalFeature/$PascalFeature.Application"
+  [ -d "$app_dir" ] || die "scaffold not yet applied: $app_dir missing"
+
+  local tracks_str
+  tracks_str=$(brief_tracks "$brief")
+  read -r -a tracks <<< "$tracks_str"
+  local n=${#tracks[@]}
+  [ "$n" -ge 1 ] || die "no tracks found in $brief"
+
+  # Orchestrator: DependencyInjection.cs
+  {
+    echo "using Microsoft.Extensions.DependencyInjection;"
+    echo ""
+    echo "namespace Haworks.${PascalFeature}.Application;"
+    echo ""
+    echo "/// <summary>"
+    echo "/// Top-level DI orchestrator. Calls per-track stubs in DependencyInjection.&lt;TrackId&gt;.cs."
+    echo "/// Written ONCE at L0 by 'wave run'; not modified by L1 tracks."
+    echo "/// </summary>"
+    echo "public static class DependencyInjection"
+    echo "{"
+    echo "    public static IServiceCollection Add${PascalFeature}Application(this IServiceCollection services) => services"
+    local i
+    for ((i = 0; i < n; i++)); do
+      local t="${tracks[$i]}"
+      if [ "$i" -eq "$((n - 1))" ]; then
+        echo "        .Add${PascalFeature}${t}();"
+      else
+        echo "        .Add${PascalFeature}${t}()"
+      fi
+    done
+    echo "}"
+  } > "$app_dir/DependencyInjection.cs"
+
+  # Per-track stubs: DependencyInjection.<TrackId>.cs
+  for t in "${tracks[@]}"; do
+    {
+      echo "using Microsoft.Extensions.DependencyInjection;"
+      echo ""
+      echo "namespace Haworks.${PascalFeature}.Application;"
+      echo ""
+      echo "/// <summary>"
+      echo "/// Track ${t} — owned by L1 track ${t}. Replace the stub body with this track's"
+      echo "/// service registrations. L0 ships the empty stub so the orchestrator compiles."
+      echo "/// </summary>"
+      echo "public static class ${PascalFeature}${t}Registration"
+      echo "{"
+      echo "    public static IServiceCollection Add${PascalFeature}${t}(this IServiceCollection services) => services;"
+      echo "}"
+    } > "$app_dir/DependencyInjection.${t}.cs"
+  done
+}
+
 # Print N agents' worth of Mode B prompt (same prompt N times — agents self-claim).
 build_prompt() {
   local feature=$1 brief=$2
@@ -232,7 +323,10 @@ cmd_run() {
     die "usage: wave run <spec-file>   |   wave run <feature> <spec-file> [--yes]"
   elif [ $# -eq 1 ]; then
     spec=$1
-    feature=$(basename "$spec" | sed -E 's/\.[^.]+$//; s/-spec$//; s/-service-spec$//; s/_spec$//')
+    # Strip extension, then -service-spec, then -spec. Order matters:
+    # "pricing-service-spec.md" → "pricing-service-spec" → "pricing"
+    # "audit-spec.md"           → "audit-spec"           → "audit"
+    feature=$(basename "$spec" | sed -E 's/\.[^.]+$//; s/-service-spec$//; s/-spec$//; s/_spec$//')
   else
     feature=$1; spec=$2
     [ "${3:-}" = "--yes" ] && yes=1
@@ -262,7 +356,11 @@ cmd_run() {
   done
   [ -n "$example" ] || die "no worked example found in $BRIEFS_DIR/*/parallel-tracks.md — add one before using wave run"
 
-  echo "→ designing wave for feature='$feature'"
+  # Compute PascalCase upfront so the design prompt can reference correct paths
+  local PascalFeature
+  PascalFeature=$(pascal_case "$feature")
+
+  echo "→ designing wave for feature='$feature' (PascalCase=$PascalFeature)"
   echo "  spec:    $spec"
   echo "  example: $example"
   echo "  output:  $brief"
@@ -286,7 +384,7 @@ YOUR OUTPUT: write exactly one file at this absolute path:
 
 REQUIREMENTS for the file (the validator will reject anything missing):
 
-A. Top of file: a fenced code block declaring all wave parameters. Example:
+A. Top of file: a fenced code block declaring all wave parameters. THE PARAMETERS MUST BE EXACTLY THESE VALUES — do NOT change them based on the working directory or any inference; copy verbatim:
    \`\`\`
    REPO=/Users/chidionyema/Documents/code/ritualworks-platform
    GH_REPO=chidionyema/ritualworks-platform
@@ -296,6 +394,7 @@ A. Top of file: a fenced code block declaring all wave parameters. Example:
    TRACKS=(T1 T2 T3 T4)
    WORKTREE_PARENT=/tmp
    \`\`\`
+   The REPO and GH_REPO above are the canonical project paths. Even if you read this prompt from a different worktree (e.g. rw-audit), use the values above verbatim.
 
 B. Three required H2 sections (verbatim headings):
    ## Universal rules
@@ -311,10 +410,21 @@ C. Then 3-5 H3 track sections (### Track T1: ..., ### Track T2: ..., etc.).
      **Done:**                       a single shell command that exits 0 only when this track is correct
 
 DECOMPOSITION RULES:
-- Each track owns a DISJOINT file scope. If two tracks need to touch the same file, that file must be part of an L0 scaffold (mention this prerequisite at the top of the brief — do NOT include it as one of the parallel tracks).
+- Each track owns a DISJOINT file scope. If two tracks need to touch the same file, that file must be part of an L0 scaffold (NOT a parallel track).
 - Reference files must EXIST in this repo. Look in: src/Notifications/, src/Catalog/, src/Audit/, src/Search/, etc.
 - Done checks must be REAL shell commands, typically: dotnet test ... --filter "FullyQualifiedName~..."
 - Tracks should each be 2-5 hours of focused work — not too small (overhead) or too large (slow feedback).
+
+CRITICAL DI CONVENTION (the wave tool will auto-generate the DI orchestrator + per-track stubs):
+- Each track owns exactly ONE DI file: \`src/${PascalFeature}/${PascalFeature}.Application/DependencyInjection.<TrackId>.cs\` where <TrackId> is the track's ID (e.g. T1, T2, etc., NOT a descriptive name).
+- DO NOT use descriptive names like DependencyInjection.Domain.cs or DependencyInjection.Resolver.cs.
+- DO NOT include the orchestrator file (\`src/${PascalFeature}/${PascalFeature}.Application/DependencyInjection.cs\`) in any track's "Files you own" — wave generates it. Add it to every track's "Files you may NOT touch" list.
+- DO NOT include the DbContext skeleton (\`src/${PascalFeature}/${PascalFeature}.Infrastructure/Persistence/${PascalFeature}DbContext.cs\`) in any track's "Files you own" — wave scaffolds it. Add to "Files you may NOT touch".
+
+L0 IS HANDLED BY THE WAVE TOOL — DO NOT DESIGN AN L0 TRACK:
+- The wave tool auto-scaffolds the 4-project skeleton (csprojs + Program.cs + DbContext + DI orchestrator + N stubs) before launching agents.
+- The brief should NOT mention L0 prerequisites or "merge L0 first" — by the time agents run, L0 is already on the base branch.
+- Tracks T1..Tn are pure L1 work (filling in feature-specific code on top of the scaffold).
 
 WRITE the file, then VALIDATE by running this command:
   bash $SELF validate $feature
@@ -347,6 +457,97 @@ DESIGN
   echo ""
   echo "✓ brief generated and validated:"
   echo "  $brief"
+  echo ""
+
+  # ── L0 scaffold: deterministic, instant. No agent waits for another agent. ──
+  # Done in a dedicated worktree so the operator's current branch is never touched.
+  have dotnet || die "dotnet CLI required for L0 scaffold build verification"
+
+  local repo_root base_branch
+  repo_root=$(brief_param "$brief" REPO)
+  base_branch=$(brief_param "$brief" BASE_BRANCH)
+  [ -d "$repo_root/.git" ] || [ -f "$repo_root/.git" ] || die "REPO from brief is not a git repo: $repo_root"
+
+  # Refuse if remote already has the base branch (would conflict with claim or overwrite history)
+  git -C "$repo_root" fetch origin main -q
+  if git -C "$repo_root" rev-parse --verify "origin/$base_branch" >/dev/null 2>&1; then
+    die "$base_branch already exists on origin. Delete it first (git push origin --delete $base_branch) or pick a different feature."
+  fi
+
+  # Isolated worktree off origin/main on the new base branch
+  local wt="${WAVE_WORKTREE_PARENT:-/tmp}/wave-l0-${feature}"
+  git -C "$repo_root" worktree remove --force "$wt" 2>/dev/null || true
+  rm -rf "$wt"
+  git -C "$repo_root" branch -D "$base_branch" 2>/dev/null || true
+  echo "→ creating L0 worktree at $wt (branch=$base_branch, base=origin/main)"
+  git -C "$repo_root" worktree add -b "$base_branch" "$wt" origin/main >/dev/null \
+    || die "git worktree add failed"
+
+  if [ -d "$wt/src/$PascalFeature" ]; then
+    die "src/$PascalFeature already exists in main — pick a different feature name"
+  fi
+
+  # Copy the brief into the worktree's docs/agent-briefs (so it lands in BASE_BRANCH)
+  mkdir -p "$wt/docs/agent-briefs/$feature"
+  cp "$brief" "$wt/docs/agent-briefs/$feature/parallel-tracks.md"
+
+  echo "→ applying scaffold template to $wt/src/$PascalFeature/ + tests/"
+  apply_scaffold "$wt" "$PascalFeature" "$feature"
+
+  echo "→ generating DI orchestrator + per-track stubs from brief"
+  generate_di "$wt" "$PascalFeature" "$feature" "$brief"
+
+  echo "→ registering scaffolded projects with the solution"
+  (
+    cd "$wt"
+    local sln
+    sln=$(find . -maxdepth 2 -name "*.sln" -type f | head -1)
+    if [ -n "$sln" ]; then
+      dotnet sln "$sln" add \
+        "src/$PascalFeature/$PascalFeature.Domain/$PascalFeature.Domain.csproj" \
+        "src/$PascalFeature/$PascalFeature.Application/$PascalFeature.Application.csproj" \
+        "src/$PascalFeature/$PascalFeature.Infrastructure/$PascalFeature.Infrastructure.csproj" \
+        "src/$PascalFeature/$PascalFeature.Api/$PascalFeature.Api.csproj" \
+        "tests/$PascalFeature.Unit/$PascalFeature.Unit.csproj" \
+        "tests/$PascalFeature.Integration/$PascalFeature.Integration.csproj" >/dev/null
+      echo "  added 6 projects to $sln"
+    fi
+  )
+
+  echo "→ verifying scaffold compiles (dotnet build)"
+  if ! (cd "$wt" && \
+        dotnet build "src/$PascalFeature/$PascalFeature.Api/$PascalFeature.Api.csproj" --nologo --verbosity quiet && \
+        dotnet build "tests/$PascalFeature.Unit/$PascalFeature.Unit.csproj" --nologo --verbosity quiet && \
+        dotnet build "tests/$PascalFeature.Integration/$PascalFeature.Integration.csproj" --nologo --verbosity quiet); then
+    die "L0 scaffold does not compile. Inspect: cd $wt && dotnet build src/$PascalFeature/$PascalFeature.Api/$PascalFeature.Api.csproj"
+  fi
+  echo "  ✓ scaffold compiles (Api + tests)"
+
+  echo "→ committing scaffold + brief to $base_branch"
+  local n_tracks
+  n_tracks=$(brief_tracks "$brief" | wc -w | tr -d ' ')
+  (
+    cd "$wt"
+    git add "docs/agent-briefs/$feature/parallel-tracks.md" \
+            "src/$PascalFeature/" \
+            "tests/$PascalFeature.Unit/" \
+            "tests/$PascalFeature.Integration/" \
+            *.sln 2>/dev/null || true
+    git commit -m "L0(${feature}): scaffold + parallel-tracks brief
+
+Generated by 'wave run'. The 4-project DDD skeleton (Domain, Application,
+Infrastructure, Api) compiles green. The DI orchestrator calls ${n_tracks}
+per-track stubs (DependencyInjection.<TrackId>.cs) — each owned by exactly
+one L1 track so they can be filled in parallel from second 1."
+    git push -u origin "$base_branch"
+  ) || die "scaffold commit/push failed; see output above"
+
+  # Cleanup the temp worktree (branch is on origin now)
+  git -C "$repo_root" worktree remove --force "$wt" 2>/dev/null || true
+  echo "  ✓ $base_branch pushed to origin"
+
+  echo ""
+  echo "✓ L0 ready. agents will fork from $base_branch."
   echo ""
 
   if [ "$yes" -eq 1 ]; then
