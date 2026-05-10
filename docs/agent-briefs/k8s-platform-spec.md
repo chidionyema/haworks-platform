@@ -324,16 +324,63 @@ Prometheus scrapes via `ServiceMonitor` CRDs (one per Helm chart). Grafana dashb
 | Vault loss | DR replica + recovery keys (already designed in vault-101 worktree). |
 | Region outage (cloud) | Cluster-per-region; DNS shifts traffic. (Multi-region active-active is a non-goal.) |
 
-## 12. Implementation plan
+## 12. Parallel decomposition — one-day delivery via `wave run`
 
-Execute by phase. Each phase has its own spec and its own wave run. The wave tool's `WAVE_MODE=modify` covers all of them (none stand up a new microservice — they add infrastructure).
+The phase ladder (P0 → P7) is the conceptual story. The **execution plan** is parallel-first: 8 disjoint-file-scope tracks running simultaneously after a 30-minute L0 setup, integration at the end. With 8 gemini agents in parallel and 3-4 hour tracks, total wall-clock ≈ 4-6 hours.
 
-After P0 (the unblocker), P1-P5 can run roughly in parallel by separate humans/agents. P6 + P7 wait for everything else.
+This is what `wave run docs/agent-briefs/k8s-platform-spec.md` produces. `WAVE_MODE=modify`. The brief should set `BASE_BRANCH=feat/k8s-platform` and `TRACKS=(T1 T2 T3 T4 T5 T6 T7 T8)`.
 
-**Reference projects to mirror:**
+### Day 1 — what fits in a working day (8 parallel tracks)
+
+| Track | Owns (disjoint) | Hours | Done check |
+|---|---|---|---|
+| **T1** Cluster bringup local + base CNI/ingress | `infra/clusters/dev-local/**`, `infra/addons/cilium/**`, `infra/addons/ingress-nginx/**`, `infra/addons/cert-manager/**`, `infra/addons/external-dns/**` | 4 | `make -C infra/clusters/dev-local up && kubectl get nodes` returns Ready; `kubectl get pods -A` all Running |
+| **T2** Stateful operators + Cluster CRs | `infra/stateful/cnpg/**`, `infra/stateful/rabbitmq/**`, `infra/stateful/redis/**`, `infra/stateful/vault/**`, `infra/stateful/postgres-clusters/*.yaml` | 4 | `kubectl get cluster.postgresql.cnpg.io -A` all healthy; `kubectl get rabbitmqcluster -A` healthy; vault unsealed |
+| **T3** Observability stack | `infra/addons/prometheus-stack/**`, `infra/addons/loki/**`, `infra/addons/tempo/**`, `infra/addons/otel-collector/**`, `infra/addons/grafana-dashboards/**` | 3 | Grafana datasources green; one ServiceMonitor scraping; OTLP endpoint accepts traces |
+| **T4** App-chart template + scaffold extension | `docs/agent-briefs/_TEMPLATE/scaffold/infra/**` (new template tree), `docs/agent-briefs/wave` (extend `apply_scaffold` to also write Helm chart per service) | 3 | a fresh `wave run` for any new feature now also produces `infra/apps/<feature>/Chart.yaml` + values + templates that pass `helm lint` |
+| **T5** Per-service Helm charts (existing 9 services) | `infra/apps/audit/**`, `infra/apps/notifications/**`, `infra/apps/payments/**`, `infra/apps/search/**`, `infra/apps/content/**`, `infra/apps/identity/**`, `infra/apps/catalog/**`, `infra/apps/orders/**`, `infra/apps/bff/**`, `infra/apps/checkout/**` | 4 | each chart `helm install`s into dev-local; `kubectl get pod -l app=<svc>` Ready; service responds at its in-cluster DNS |
+| **T6** GitOps (ArgoCD) | `infra/addons/argocd/**`, `infra/clusters/dev-local/argocd-bootstrap.yaml`, `infra/argocd-applications/*.yaml` | 3 | `argocd app list` shows all 9 apps Synced + Healthy with no manual `helm install` invocations |
+| **T7** `platform` CLI | `tools/platform` (bash CLI), `tools/platform-completions/`, `docs/runbooks/platform-cli.md` | 4 | every verb listed in § 7 works against dev-local: `platform up dev-local`, `platform deploy --all`, `platform doctor`, `platform logs <svc>`, `platform shell <svc>`, etc. |
+| **T8** Test framework + CI workflow | `infra/test/bringup-local.sh`, `infra/test/addon-smokes/**`, `infra/test/portability-acid-test.sh`, `.github/workflows/k8s-platform.yml` | 3 | bringup-local test passes from a clean machine in CI; addon smokes (cilium, cert-mgr, external-secrets, cnpg, velero) all green |
+
+**End of day 1 deliverable:** dev-local k3d cluster runs the full ritualworks platform via ArgoCD, with `platform doctor` reporting all subsystems green and the E2E suite (Phase 3c) passing against the in-cluster deploy.
+
+### Day 2+ — deferred to follow-up waves (not day-1 achievable)
+
+| Track | Why deferred | Estimated effort |
+|---|---|---|
+| **T9** Cloud cluster bringup (AWS via CAPI) | Cloud provisioning has 20-30 min iteration cycles + needs sandbox AWS account + CAPI is its own learning curve. Cannot fit day-1 alongside the other 8 tracks. | 1 day, separate wave |
+| **T10** On-prem k3s + MetalLB | Needs a real Linux host (or VM cluster) to test against. | 0.5 day, separate wave |
+| **T11** Chaos + portability acid tests (L4) | Needs a working cloud cluster to inject chaos against. Built once T9 is done. | 0.5 day |
+| **T12** Cut traffic from Fly | Per-service work; sequenced behind T9 (cloud cluster proven). | per-service, ~1 day total |
+
+**The architectural property that makes day-2 feasible:** every artifact day-1 produces (charts, manifests, addons, tests) is target-agnostic. T9 / T10 / T11 just swap Layer 1; Layers 2-3 carry over verbatim.
+
+### Disjoint-scope rules (the parallel-execution contract)
+
+- **Each track owns its file paths exclusively.** A T2 agent writing `infra/stateful/cnpg/Chart.yaml` will never collide with a T3 agent writing `infra/addons/loki/values.yaml`.
+- **The shared file is `infra/clusters/dev-local/argocd-bootstrap.yaml`** — owned by T6 (ArgoCD). All other tracks list their resources but don't touch the bootstrap manifest. T6 references them by file path.
+- **The shared bash CLI is `tools/platform`** — owned by T7. T8's tests invoke it but don't modify it.
+- **Cross-track integration is via convention (file layout) not via shared types.** No track imports another track's code.
+
+### Integration step (after all 8 tracks merge to `feat/k8s-platform`)
+
+Single integration commit on the merge branch:
+```bash
+make -C infra/clusters/dev-local up
+platform deploy --all
+platform doctor
+infra/test/bringup-local.sh
+```
+
+If all four pass, the day-1 wave is done. PR `feat/k8s-platform → main` is the rollup.
+
+### Reference projects to mirror
+
 - `kubernetes-the-hard-way` for understanding what each addon does
-- `cluster-api` book for cloud provisioning
-- `argo-cd` for GitOps patterns
-- `kube-prometheus-stack` Helm chart for observability
-- `cloudnative-pg` for Postgres
-- `vault-101` (already in this repo's worktree) for Vault setup
+- `cluster-api` book for cloud provisioning (T9 reference)
+- `argo-cd` for GitOps patterns (T6)
+- `kube-prometheus-stack` Helm chart for observability (T3)
+- `cloudnative-pg` for Postgres (T2)
+- `vault-101` (already in this repo's worktree) for Vault setup (T2)
+- existing `tools/wave` for the platform CLI shape (T7 — same bash-with-subcommands pattern)
