@@ -61,6 +61,7 @@ jobs:
       notifications: ${{ steps.filter.outputs.notifications }}
       bff: ${{ steps.filter.outputs.bff }}
       shared: ${{ steps.filter.outputs.shared }}
+      audit: ${{ steps.filter.outputs.audit }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -109,6 +110,9 @@ jobs:
               - 'src/Notifications/**'
               - 'fly.notifications.toml'
             bff:
+            audit:
+              - 'src/Audit/**'
+              - 'fly.audit.toml'
               - 'src/BffWeb/**'
               - 'fly.bffweb.toml'
 
@@ -136,6 +140,7 @@ jobs:
       C_CONTENT: ${{ needs.changes.outputs.content }}
       C_NOTIFICATIONS: ${{ needs.changes.outputs.notifications }}
       C_BFF: ${{ needs.changes.outputs.bff }}
+      C_AUDIT: ${{ needs.changes.outputs.audit }}
     steps:
       - id: set
         run: |
@@ -154,6 +159,7 @@ jobs:
           add_if meilisearch   "$C_MEILISEARCH"   "false"  # no shared triggers meili
           if [[ "${{ vars.DEPLOY_CONTENT }}" == "true" ]]; then
             add_if content "$C_CONTENT" "$C_SHARED"
+          add_if audit        "$C_AUDIT" "$C_SHARED"
           fi
 
           if [[ ${#services[@]} -eq 0 ]]; then
