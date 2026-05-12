@@ -102,6 +102,7 @@ public static class DependencyInjection
         services.AddScoped<PayPalCheckoutService>();
         services.AddScoped<PayPalSubscriptionManager>();
         services.AddScoped<PayPalRefundService>();
+        services.AddScoped<PayPalPaymentProcessor>();
         services.AddScoped<IWebhookProcessor, PayPalWebhookProcessor>();
 
         // Routing & Health
@@ -121,6 +122,7 @@ public static class DependencyInjection
         services.AddScoped<IPaymentSessionProcessor>(sp => sp.GetRequiredService<IPaymentGateway>().ActiveProvider switch
         {
             PaymentProvider.Stripe => sp.GetRequiredService<StripePaymentProcessor>(),
+            PaymentProvider.PayPal => sp.GetRequiredService<PayPalPaymentProcessor>(),
             _ => throw new NotSupportedException()
         });
 
