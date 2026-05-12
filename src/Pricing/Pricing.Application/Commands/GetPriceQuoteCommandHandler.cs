@@ -1,26 +1,26 @@
 using Haworks.BuildingBlocks.Common;
+using Haworks.Pricing.Application.Promotions;
 using MediatR;
 
 namespace Haworks.Pricing.Application.Commands;
 
 internal sealed class GetPriceQuoteCommandHandler : IRequestHandler<GetPriceQuoteCommand, Result<PriceQuoteDto>>
 {
-    // TODO(pricing-T2): Inject IPromotionResolver and IDiscountCalculator
-    
-    public Task<Result<PriceQuoteDto>> Handle(GetPriceQuoteCommand request, CancellationToken ct)
+    private readonly IPromotionResolver _resolver;
+    private readonly IDiscountCalculator _calculator;
+
+    public GetPriceQuoteCommandHandler(IPromotionResolver resolver, IDiscountCalculator calculator)
     {
-        // For now, return a stub quote with no discounts. 
-        // Actual logic will be implemented by T2 in Pricing.Application/Promotions.
-        var quoteLines = request.Lines.Select(l => new CartLineDiscountDto(
-            l.ProductId,
-            0,
-            l.UnitPrice * l.Quantity)).ToList();
+        _resolver = resolver;
+        _calculator = calculator;
+    }
+    
+    public async Task<Result<PriceQuoteDto>> Handle(GetPriceQuoteCommand request, CancellationToken ct)
+    {
+        var applicablePromotions = await _resolver.ResolveApplicablePromotionsAsync(request, ct);
+        
+        var quote = _calculator.CalculateQuote(request, applicablePromotions);
 
-        var quote = new PriceQuoteDto(
-            quoteLines,
-            0,
-            quoteLines.Sum(l => l.FinalPrice));
-
-        return Task.FromResult(Result.Success(quote));
+        return Result.Success(quote);
     }
 }

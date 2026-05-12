@@ -8,5 +8,8 @@ namespace Haworks.Pricing.Application;
 /// </summary>
 public static class PricingT2Registration
 {
-    public static IServiceCollection AddPricingT2(this IServiceCollection services) => services;
+    public static IServiceCollection AddPricingT2(this IServiceCollection services)
+    {
+        return services.AddPromotionLogic();
+    }
 }
