@@ -5,6 +5,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Location.Infrastructure/Location.Infrastructure.csproj" />
+    <ProjectReference Include="../../Contracts/Haworks.Contracts.csproj" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.67.0" />
   </ItemGroup>
 </Project>
