@@ -54,6 +54,7 @@ public static class DependencyInjection
                 mt.SetKebabCaseEndpointNameFormatter();
                 mt.AddConsumer<ProductCacheInvalidatedConsumer>();
                 mt.AddConsumer<CategoryUpdatedConsumer>();
+                mt.AddConsumer<LocationUpdatedConsumer>();
 
                 mt.UsingRabbitMq((ctx, cfg) =>
                 {
