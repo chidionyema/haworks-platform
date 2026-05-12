@@ -1,6 +1,8 @@
 using Hangfire;
 using Hangfire.PostgreSql;
+using Haworks.Webhooks.Application.Interfaces;
 using Haworks.Webhooks.Infrastructure.Persistence;
+using Haworks.Webhooks.Infrastructure.Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

@@ -6,10 +6,9 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using Hangfire;
-using Haworks.Webhooks.Infrastructure.Hangfire;
 using Microsoft.Extensions.Logging;
 
-namespace Haworks.Webhooks.Application.Deliveries;
+namespace Haworks.Webhooks.Infrastructure.Messaging;
 
 public sealed class EventFanOutConsumer(
     IWebhooksDbContext db,

@@ -1,3 +1,4 @@
+using Hangfire;
 using Haworks.BuildingBlocks.Common;
 using Haworks.Webhooks.Application.Common;
 using Haworks.Webhooks.Application.Interfaces;
@@ -42,7 +43,7 @@ public sealed record ReplayDeliveryCommand(Guid DeliveryId) : IRequest<Result<Gu
 
 internal sealed class DeliveryHandlers(
     IWebhooksDbContext db,
-    Hangfire.IBackgroundJobClient jobClient) :
+    IBackgroundJobClient jobClient) :
     IRequestHandler<GetDeliveriesQuery, Result<PagedResult<WebhookDeliveryDto>>>,
     IRequestHandler<GetDeliveryAttemptsQuery, Result<IReadOnlyList<WebhookAttemptDto>>>,
     IRequestHandler<ReplayDeliveryCommand, Result<Guid>>
@@ -86,14 +87,14 @@ internal sealed class DeliveryHandlers(
     public async Task<Result<Guid>> Handle(ReplayDeliveryCommand request, CancellationToken ct)
     {
         var original = await db.Deliveries.AsNoTracking().FirstOrDefaultAsync(d => d.Id == request.DeliveryId, ct);
-        if (original == null) return Result.Failure<Guid>(Error.NotFound);
+        if (original == null) return Result.Failure<Guid>(Error.NotFound("Webhook.DeliveryNotFound", "Webhook delivery not found."));
 
         // Replay per spec §5.4: creates a new delivery with same payload
         var replay = new WebhookDelivery(original.SubscriptionId, original.EventId, original.EventType, original.Payload);
         db.Deliveries.Add(replay);
         await db.SaveChangesAsync(ct);
 
-        jobClient.Enqueue<Infrastructure.Hangfire.IWebhookDispatcher>(x => x.DispatchAsync(replay.Id, CancellationToken.None));
+        jobClient.Enqueue<IWebhookDispatcher>(x => x.DispatchAsync(replay.Id, CancellationToken.None));
 
         return Result.Success(replay.Id);
     }

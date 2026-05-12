@@ -5,12 +5,11 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Hangfire;
-using Haworks.Webhooks.Infrastructure.Hangfire;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Haworks.Webhooks.Application.Deliveries;
+namespace Haworks.Webhooks.Infrastructure.Workers;
 
 public class CdcFanOutWorker(
     IConsumer<string, string> consumer,

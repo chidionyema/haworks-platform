@@ -1,13 +1,15 @@
 using Haworks.BuildingBlocks.Common;
 using Haworks.Webhooks.Domain;
-using Haworks.Webhooks.Infrastructure.Persistence;
+using Haworks.Webhooks.Application.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System.Net.Http.Json;
 
 namespace Haworks.Webhooks.Application.Subscriptions;
 
 internal sealed class SubscriptionHandlers(
-    WebhooksDbContext db,
+    IWebhooksDbContext db,
     IHttpClientFactory httpFactory,
     ILogger<SubscriptionHandlers> logger) :
     IRequestHandler<CreateWebhookSubscriptionCommand, Result<Guid>>,
@@ -16,16 +18,16 @@ internal sealed class SubscriptionHandlers(
     IRequestHandler<RotateWebhookSubscriptionSecretCommand, Result<string>>,
     IRequestHandler<GetWebhookSubscriptionQuery, Result<WebhookSubscriptionDto>>
 {
+    private static readonly Error SubscriptionNotFound = Error.NotFound("Webhook.SubscriptionNotFound", "Webhook subscription not found.");
+
     public async Task<Result<Guid>> Handle(CreateWebhookSubscriptionCommand request, CancellationToken ct)
     {
-        // 1. URL Validation (Spec 5.5)
         var isValid = await ValidateWebhookUrlAsync(request.Url, ct);
         if (!isValid)
         {
-            return Result.Failure<Guid>(new Error("Webhooks.InvalidUrl", "The webhook URL did not return a successful response during validation."));
+            return Result.Failure<Guid>(Error.Validation("Webhooks.InvalidUrl", "The webhook URL did not return a successful response during validation."));
         }
 
-        // 2. Secret handling
         var secret = request.Secret ?? Guid.NewGuid().ToString("N");
         var secretHash = BCrypt.Net.BCrypt.HashPassword(secret);
         var secretPreview = secret.Length > 4 ? secret[^4..] : secret;
@@ -48,7 +50,7 @@ internal sealed class SubscriptionHandlers(
     public async Task<Result<WebhookSubscriptionDto>> Handle(UpdateWebhookSubscriptionCommand request, CancellationToken ct)
     {
         var sub = await db.Subscriptions.FirstOrDefaultAsync(s => s.Id == request.Id && s.DeletedAt == null, ct);
-        if (sub == null) return Result.Failure<WebhookSubscriptionDto>(Error.NotFound);
+        if (sub == null) return Result.Failure<WebhookSubscriptionDto>(SubscriptionNotFound);
 
         sub.Update(request.Url, request.Events, request.IsActive);
         await db.SaveChangesAsync(ct);
@@ -59,7 +61,7 @@ internal sealed class SubscriptionHandlers(
     public async Task<Result> Handle(DeleteWebhookSubscriptionCommand request, CancellationToken ct)
     {
         var sub = await db.Subscriptions.FirstOrDefaultAsync(s => s.Id == request.Id && s.DeletedAt == null, ct);
-        if (sub == null) return Result.Failure(Error.NotFound);
+        if (sub == null) return Result.Failure(SubscriptionNotFound);
 
         sub.SoftDelete();
         await db.SaveChangesAsync(ct);
@@ -70,7 +72,7 @@ internal sealed class SubscriptionHandlers(
     public async Task<Result<string>> Handle(RotateWebhookSubscriptionSecretCommand request, CancellationToken ct)
     {
         var sub = await db.Subscriptions.FirstOrDefaultAsync(s => s.Id == request.Id && s.DeletedAt == null, ct);
-        if (sub == null) return Result.Failure<string>(Error.NotFound);
+        if (sub == null) return Result.Failure<string>(SubscriptionNotFound);
 
         var secret = request.Secret ?? Guid.NewGuid().ToString("N");
         var secretHash = BCrypt.Net.BCrypt.HashPassword(secret);
@@ -85,7 +87,7 @@ internal sealed class SubscriptionHandlers(
     public async Task<Result<WebhookSubscriptionDto>> Handle(GetWebhookSubscriptionQuery request, CancellationToken ct)
     {
         var sub = await db.Subscriptions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == request.Id && s.DeletedAt == null, ct);
-        if (sub == null) return Result.Failure<WebhookSubscriptionDto>(Error.NotFound);
+        if (sub == null) return Result.Failure<WebhookSubscriptionDto>(SubscriptionNotFound);
 
         return Result.Success(Map(sub));
     }
@@ -95,7 +97,6 @@ internal sealed class SubscriptionHandlers(
         try
         {
             var client = httpFactory.CreateClient("WebhookValidator");
-            // Set a short timeout for validation
             client.Timeout = TimeSpan.FromSeconds(5);
             var response = await client.PostAsJsonAsync(url, new { @event = "webhook.test", data = new { } }, ct);
             return response.IsSuccessStatusCode;

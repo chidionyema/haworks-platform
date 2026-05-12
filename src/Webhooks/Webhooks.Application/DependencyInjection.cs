@@ -1,5 +1,6 @@
+using FluentValidation;
+using Haworks.BuildingBlocks.Behaviors;
 using Microsoft.Extensions.DependencyInjection;
-using Haworks.Webhooks.Application.Subscriptions;
 
 namespace Haworks.Webhooks.Application;
 
@@ -10,7 +11,7 @@ public static class DependencyInjection
         services.AddMediatR(cfg => 
         {
             cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly);
-            cfg.AddOpenBehavior(typeof(Haworks.BuildingBlocks.Middleware.ValidationBehavior<,>));
+            cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
         });
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);

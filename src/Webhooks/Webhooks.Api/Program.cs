@@ -1,9 +1,13 @@
 using Haworks.BuildingBlocks.Authentication;
 using Haworks.BuildingBlocks.Extensions;
+using Haworks.Webhooks.Api.Controllers;
 using Haworks.Webhooks.Application;
 using Haworks.Webhooks.Infrastructure;
-using Haworks.Webhooks.Infrastructure.Persistence;
+using Haworks.Webhooks.Infrastructure.Messaging;
+using Haworks.Webhooks.Infrastructure.Workers;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Haworks.Webhooks.Infrastructure.Persistence;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);

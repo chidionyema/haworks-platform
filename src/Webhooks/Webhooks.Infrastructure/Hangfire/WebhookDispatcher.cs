@@ -1,6 +1,8 @@
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
+using Hangfire;
+using Haworks.Webhooks.Application.Interfaces;
 using Haworks.Webhooks.Domain;
 using Haworks.Webhooks.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace Haworks.Webhooks.Infrastructure.Hangfire;
 
 public sealed class WebhookDispatcher(
-    WebhooksDbContext db,
+    IWebhooksDbContext db,
     IHttpClientFactory httpFactory,
     ILogger<WebhookDispatcher> logger) : IWebhookDispatcher
 {
@@ -73,8 +75,6 @@ public sealed class WebhookDispatcher(
 
         if (!succeeded && nextAttemptAt.HasValue)
         {
-            // Re-enqueue for retry
-            // Hangfire's Delay handles the backoff
             var delay = nextAttemptAt.Value - DateTime.UtcNow;
             BackgroundJob.Schedule<IWebhookDispatcher>(x => x.DispatchAsync(delivery.Id, CancellationToken.None), delay);
         }
@@ -85,12 +85,11 @@ public sealed class WebhookDispatcher(
         var signedPayload = $"{timestamp}.{payload}";
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
         var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(signedPayload));
-        return Convert.ToBase64String(hash);
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private static DateTime? CalculateNextAttempt(int attempts)
     {
-        // 16 attempts per spec
         int[] intervals = [1, 2, 4, 8, 16, 32, 60, 120, 240, 480, 960, 1440, 1440, 1440, 1440, 1440];
         if (attempts >= intervals.Length) return null;
         
