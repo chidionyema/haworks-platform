@@ -1,0 +1,211 @@
+name: Nightly Scan
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # every night at 2 AM UTC
+  workflow_dispatch: # manual trigger from Actions tab
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  TESTCONTAINERS_RYUK_DISABLED: true
+
+jobs:
+  # ── 1. Dependency vulnerability scan ──────────────────────────────────
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Restore
+        run: dotnet restore RitualworksPlatform.sln
+
+      - name: Check for vulnerable packages
+        run: |
+          echo "## Vulnerable Packages" >> $GITHUB_STEP_SUMMARY
+          output=$(dotnet list RitualworksPlatform.sln package --vulnerable --include-transitive 2>&1)
+          echo "$output"
+          if echo "$output" | grep -q "has the following vulnerable packages"; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$output" | grep -A 100 "has the following vulnerable packages" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "::warning::Vulnerable packages detected — see job summary"
+          else
+            echo "✅ No vulnerable packages found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check for deprecated packages
+        run: |
+          echo "## Deprecated Packages" >> $GITHUB_STEP_SUMMARY
+          output=$(dotnet list RitualworksPlatform.sln package --deprecated 2>&1)
+          echo "$output"
+          if echo "$output" | grep -q "has the following deprecated packages"; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$output" | grep -A 100 "has the following deprecated packages" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "::warning::Deprecated packages detected — see job summary"
+          else
+            echo "✅ No deprecated packages found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check for outdated packages
+        run: |
+          echo "## Outdated Packages" >> $GITHUB_STEP_SUMMARY
+          dotnet list RitualworksPlatform.sln package --outdated --include-transitive 2>&1 | tee /tmp/outdated.txt
+          if grep -q ">" /tmp/outdated.txt; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -A 100 ">" /tmp/outdated.txt | head -50 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ All packages up to date" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ── 2. Architecture & quality gate ────────────────────────────────────
+  architecture:
+    name: Architecture & Analyzers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Restore
+        run: dotnet restore RitualworksPlatform.sln
+
+      - name: Build with all analyzers
+        run: dotnet build RitualworksPlatform.sln --no-restore --configuration Release /p:TreatWarningsAsErrors=true
+
+      - name: Architecture checks
+        run: bash scripts/check-architecture.sh
+
+      - name: Architecture tests
+        run: |
+          shopt -s nullglob
+          printf '%s\n' tests/*/*.Architecture/*.csproj tests/*.Architecture/*.csproj | awk -F/ '!seen[$NF]++' | while read -r proj; do
+            dotnet test "$proj" --no-build --configuration Release --logger "console;verbosity=minimal"
+          done
+
+  # ── 3. Full integration test suite ────────────────────────────────────
+  integration-full:
+    name: Full Integration Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Verify Docker
+        run: docker info
+
+      - name: Restore & build
+        run: |
+          dotnet restore RitualworksPlatform.sln
+          dotnet build RitualworksPlatform.sln --no-restore --configuration Release
+
+      - name: Run all integration tests
+        run: |
+          shopt -s nullglob
+          failed=0
+          for proj in tests/*/*.Integration/*.csproj tests/*.Integration/*.csproj; do
+            echo "::group::$(basename "$proj" .csproj)"
+            dotnet test "$proj" --no-build --configuration Release \
+              --logger "console;verbosity=normal" || failed=1
+            echo "::endgroup::"
+          done
+          exit $failed
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-integration-results
+          path: "**/TestResults/*.trx"
+          retention-days: 14
+
+  # ── 4. Secret & credential scan ───────────────────────────────────────
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 5. Container image scan ───────────────────────────────────────────
+  docker-scan:
+    name: Docker Image Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: false # Enable when Dockerfiles are production-ready
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images
+        run: |
+          for svc in identity catalog orders payments; do
+            docker build -t ritualworks/$svc:scan -f src/${svc^}/${svc^}.Api/Dockerfile .
+          done
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: ritualworks/identity:scan
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  # ── 6. Nightly summary notification ───────────────────────────────────
+  notify:
+    name: Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-audit, architecture, integration-full, secret-scan]
+    if: always()
+
+    steps:
+      - name: Build summary
+        run: |
+          echo "## 🌙 Nightly Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Audit | ${{ needs.dependency-audit.result == 'success' && '✅' || '⚠️' }} ${{ needs.dependency-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Architecture | ${{ needs.architecture.result == 'success' && '✅' || '❌' }} ${{ needs.architecture.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.integration-full.result == 'success' && '✅' || '❌' }} ${{ needs.integration-full.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Scan | ${{ needs.secret-scan.result == 'success' && '✅' || '⚠️' }} ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Run: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
