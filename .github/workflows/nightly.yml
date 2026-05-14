@@ -208,9 +208,13 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           direct_prompt: |
             You are performing a nightly deep code audit of a .NET 9 microservices platform.
-            Read CLAUDE.md for the project rules and the "Security & Edge Case Rules" section.
+            Read CLAUDE.md for the full project rules and "Security & Edge Case Rules".
 
-            Systematically scan the entire src/ directory for:
+            Your audit has TWO phases: rules-based checking AND exploratory analysis.
+
+            ═══════════════════════════════════════════════════════════════
+            PHASE 1: RULES-BASED SCAN (check CLAUDE.md rules against src/)
+            ═══════════════════════════════════════════════════════════════
 
             ## 1. Security Flaws (CRITICAL)
             - Missing [Authorize] on controllers/endpoints
@@ -244,15 +248,74 @@ jobs:
             - Missing null checks on external API responses
             - Hardcoded secrets, connection strings, or URLs
 
-            For EACH finding, output:
+            ═══════════════════════════════════════════════════════════════
+            PHASE 2: EXPLORATORY ANALYSIS (think beyond the rules)
+            ═══════════════════════════════════════════════════════════════
+
+            Go beyond the checklist. Think like an attacker, a chaos engineer,
+            and a QA engineer simultaneously.
+
+            ## 5. Data Flow Analysis
+            - Trace user input from HTTP request → controller → service → repository → DB
+              and identify any point where validation is missing or bypassed
+            - Trace event flow through MassTransit sagas: can a message arrive
+              out of order? What happens if a compensating event fires twice?
+            - Trace CDC flow: Debezium → Kafka → consumer → Elasticsearch.
+              Can a stale event overwrite a newer one? Is ordering guaranteed?
+            - Check for N+1 query patterns in EF Core (loading collections in loops)
+
+            ## 6. Failure Mode Analysis
+            - What happens when Vault is unreachable during credential rotation?
+              Do services crash or gracefully degrade?
+            - What happens when Kafka is down? Do producers buffer or lose messages?
+            - What happens when Elasticsearch is down? Does search fail open or closed?
+            - What happens when a DB migration fails halfway? Is there rollback?
+            - What happens when Redis cache is full? LRU eviction correct?
+            - What happens on clock skew between services? JWT expiry, event ordering?
+
+            ## 7. Concurrency & Race Conditions
+            - Two users buying the last item simultaneously — does stock go negative?
+            - Two concurrent refund requests for the same payment — double refund?
+            - Saga timeout fires while compensation is already in progress
+            - Debezium event replay after consumer restart — duplicate processing?
+            - EF Core entities loaded in one scope, saved in another (stale data)
+
+            ## 8. Business Logic Gaps
+            - Can a user check out with an empty cart?
+            - Can a merchant set a product price to 0.001 (below minimum charge)?
+            - Can a webhook subscription be created for an internal/private URL?
+            - Can a user subscribe to notifications for another user's events?
+            - Are currency conversions handled? What if order is USD but payment is EUR?
+            - Are pagination limits enforced? Can a client request pageSize=1000000?
+
+            ## 9. Missing Test Coverage
+            - Read tests/ and compare against src/. For each service, identify:
+              - Controllers with no integration test coverage
+              - Saga paths (compensation, timeout, retry) without test coverage
+              - Domain entity state transitions without unit tests
+              - Validators without boundary-value tests
+              - Consumer error paths without tests
+            - Suggest specific test cases that should exist but don't
+
+            ═══════════════════════════════════════════════════════════════
+            OUTPUT FORMAT
+            ═══════════════════════════════════════════════════════════════
+
+            For EACH finding:
             - **File**: exact path and line number
             - **Severity**: CRITICAL / HIGH / MEDIUM / LOW
-            - **Category**: Security / Bug / Edge Case / Quality
+            - **Category**: Security / Bug / Edge Case / Race Condition /
+                            Data Flow / Failure Mode / Business Logic /
+                            Missing Test
             - **Issue**: one-line description
-            - **Fix**: specific code change needed
+            - **Impact**: what can go wrong in production
+            - **Fix**: specific code change or test to add
 
-            Group findings by service. If no issues found in a service, say "✅ Clean".
-            Be thorough — check every controller, consumer, saga, domain entity, and validator.
+            Group findings by service. End with a "Missing Test Coverage"
+            section listing concrete test cases to write.
+
+            If no issues found in a service, say "✅ Clean".
+            Be exhaustive — this is the last line of defense before production.
           output_file: /tmp/claude-review.md
 
       - name: Create or update issue with findings
