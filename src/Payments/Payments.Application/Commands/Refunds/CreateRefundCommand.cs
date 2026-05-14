@@ -1,35 +1,48 @@
 using Haworks.Payments.Application.Interfaces;
+using Haworks.Payments.Domain.Interfaces;
 using Haworks.BuildingBlocks.Common;
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Contracts.Payments;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace Haworks.Payments.Application.Commands.Refunds;
 
 public sealed record CreateRefundCommand(
-    string TransactionId, 
-    long? AmountCents = null, 
-    string? Currency = null, 
+    Guid PaymentId, 
+    decimal Amount, 
+    string Currency, 
     string? Reason = null, 
-    string? IdempotencyKey = null) : IRequest<Result<RefundResult>>;
+    string? RequestedBy = null) : IRequest<Result<Guid>>;
 
 public sealed class CreateRefundCommandHandler(
-    IRefundService refundService) : IRequestHandler<CreateRefundCommand, Result<RefundResult>>
+    IPaymentRepository paymentRepository,
+    IDomainEventPublisher eventPublisher,
+    ILogger<CreateRefundCommandHandler> logger) : IRequestHandler<CreateRefundCommand, Result<Guid>>
 {
-    public async Task<Result<RefundResult>> Handle(CreateRefundCommand request, CancellationToken ct)
+    public async Task<Result<Guid>> Handle(CreateRefundCommand request, CancellationToken ct)
     {
-        var refundRequest = new RefundRequest
+        var payment = await paymentRepository.GetByIdAsync(request.PaymentId, ct);
+        if (payment == null)
         {
-            TransactionId = request.TransactionId,
-            AmountCents = request.AmountCents,
+            return Result.Failure<Guid>(Error.NotFound("Payment.NotFound", $"Payment {request.PaymentId} not found"));
+        }
+
+        var refundId = Guid.NewGuid();
+
+        await eventPublisher.PublishAsync(new RefundRequestedEvent
+        {
+            RefundId = refundId,
+            OrderId = payment.OrderId,
+            PaymentId = payment.Id,
+            Amount = request.Amount,
             Currency = request.Currency,
             Reason = request.Reason,
-            IdempotencyKey = request.IdempotencyKey
-        };
+            RequestedBy = request.RequestedBy ?? "Operator"
+        }, ct);
 
-        var result = await refundService.CreateRefundAsync(refundRequest, ct);
-        
-        return result.Status == RefundStatus.Failed 
-            ? Result<RefundResult>.Failure<RefundResult>(Error.Validation("Refund.Failed", result.FailureReason ?? "Refund creation failed."))
-            : Result<RefundResult>.Success(result);
+        logger.LogInformation("Refund {RefundId} requested for Payment {PaymentId}", refundId, payment.Id);
+
+        return Result.Success(refundId);
     }
 }

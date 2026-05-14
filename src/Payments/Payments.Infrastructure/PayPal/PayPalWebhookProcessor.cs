@@ -20,6 +20,7 @@ internal sealed class PayPalWebhookProcessor(
     ISubscriptionManager subscriptionManager,
     IWebhookIdempotencyGuard idempotencyGuard,
     IPayPalClientFactory clientFactory,
+    IDomainEventPublisher eventPublisher,
     IResiliencePolicyFactory resiliencePolicyFactory,
     IOptions<PaymentProviderOptions> providerOptions,
     ILogger<PayPalWebhookProcessor> logger,
@@ -203,9 +204,32 @@ internal sealed class PayPalWebhookProcessor(
 
     private async Task<WebhookProcessingResult> HandleCaptureRefundedAsync(PaymentWebhookEvent webhookEvent, CancellationToken ct)
     {
-        logger.LogInformation("PayPal Refund event received: {EventId}", webhookEvent.EventId);
-        await Task.CompletedTask;
-        return WebhookProcessingResult.Success(webhookEvent.EventType, "Refund event acknowledged");
+        var resource = (JsonElement)webhookEvent.Data!;
+        var refundId = resource.GetProperty("id").GetString()!;
+        var status = resource.GetProperty("status").GetString()!;
+        
+        if (status.Equals("COMPLETED", StringComparison.OrdinalIgnoreCase))
+        {
+            var amount = resource.GetProperty("amount").GetProperty("value").GetString()!;
+            
+            // Try to find saga ID in custom_id or invoice_id
+            string? sagaIdStr = null;
+            if (resource.TryGetProperty("custom_id", out var customId)) sagaIdStr = customId.GetString();
+            else if (resource.TryGetProperty("invoice_id", out var invoiceId)) sagaIdStr = invoiceId.GetString();
+
+            if (Guid.TryParse(sagaIdStr, out var sagaId))
+            {
+                await eventPublisher.PublishAsync(new ProviderRefundSucceededEvent
+                {
+                    RefundId = sagaId,
+                    ProviderRefundId = refundId,
+                    AmountRefunded = decimal.Parse(amount),
+                    CompletedAt = DateTime.UtcNow
+                }, ct);
+            }
+        }
+
+        return WebhookProcessingResult.Success(webhookEvent.EventType, $"Refund {refundId} processed");
     }
 
     private async Task<WebhookProcessingResult> HandleSubscriptionEventAsync(PaymentWebhookEvent webhookEvent, SubscriptionEventType eventType, CancellationToken ct)

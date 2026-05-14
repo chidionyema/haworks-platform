@@ -43,6 +43,8 @@ var locationDb      = postgres.AddDatabase("location");
 var webhooksDb      = postgres.AddDatabase("webhooks");
 var payoutsDb       = postgres.AddDatabase("payouts");
 var schedulerDb     = postgres.AddDatabase("scheduler");
+var privacyDb       = postgres.AddDatabase("privacy");
+var merchantDb      = postgres.AddDatabase("merchant");
 
 var redis = builder.AddRedis("redis")
     .WithLifetime(ContainerLifetime.Persistent)
@@ -353,6 +355,36 @@ var scheduler = AddJwksConfig(builder.AddProject<Projects.Scheduler_Api>("schedu
     .WithEnvironment("Vault__SecretIdPath", SecretIdPath("scheduler"))
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
 
+// --- privacy-svc -----------------------------------------------------------
+var privacy = AddJwksConfig(builder.AddProject<Projects.Privacy_Api>("privacy-svc")
+    .WaitFor(vault)
+    .WaitFor(privacyDb)
+    .WithReference(privacyDb)
+    .WaitFor(rabbitmq)
+    .WithReference(rabbitmq)
+    .WaitFor(identity)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
+    .WithEnvironment("Vault__Enabled",      "false")
+    .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
+    .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("privacy"))
+    .WithEnvironment("Vault__SecretIdPath", SecretIdPath("privacy"))
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
+
+// --- merchant-svc -----------------------------------------------------------
+var merchant = AddJwksConfig(builder.AddProject<Projects.Merchant_Api>("merchant-svc")
+    .WaitFor(vault)
+    .WaitFor(merchantDb)
+    .WithReference(merchantDb)
+    .WaitFor(rabbitmq)
+    .WithReference(rabbitmq)
+    .WaitFor(identity)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
+    .WithEnvironment("Vault__Enabled",      "false")
+    .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
+    .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("merchant"))
+    .WithEnvironment("Vault__SecretIdPath", SecretIdPath("merchant"))
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
+
 // --- bff-web ---------------------------------------------------------------
 var bffWeb = AddJwksConfig(builder.AddProject<Projects.BffWeb_Api>("bff-web")
     .WaitFor(vault)
@@ -379,6 +411,10 @@ var bffWeb = AddJwksConfig(builder.AddProject<Projects.BffWeb_Api>("bff-web")
     .WithReference(payouts)
     .WaitFor(scheduler)
     .WithReference(scheduler)
+    .WaitFor(privacy)
+    .WithReference(privacy)
+    .WaitFor(merchant)
+    .WithReference(merchant)
     .WithEndpoint("http",  e => e.Port = 5050)
     .WithEndpoint("https", e => e.Port = 5051)
     .WithExternalHttpEndpoints()

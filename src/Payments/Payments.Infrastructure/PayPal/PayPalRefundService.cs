@@ -48,6 +48,11 @@ internal sealed class PayPalRefundService(
             var client = await clientFactory.GetAuthenticatedClientAsync(token);
             
             var refundReq = new PayPalRefundRequest();
+            if (request.Metadata != null && request.Metadata.TryGetValue("refund_id", out var sagaId))
+            {
+                refundReq.CustomId = sagaId;
+            }
+
             if (request.AmountCents.HasValue)
             {
                 refundReq.Amount = new PayPalRefundAmount 

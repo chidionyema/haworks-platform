@@ -1,4 +1,5 @@
 using Haworks.Payments.Application.Commands.Refunds;
+using Haworks.Payments.Application.Queries.Refunds;
 using Haworks.BuildingBlocks.Extensions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -17,20 +18,27 @@ public sealed class RefundsController(IMediator mediator) : ControllerBase
         CancellationToken ct)
     {
         var command = new CreateRefundCommand(
-            body.TransactionId,
-            body.AmountCents,
+            body.PaymentId,
+            body.Amount,
             body.Currency,
             body.Reason,
-            body.IdempotencyKey);
+            body.RequestedBy);
 
         var result = await mediator.Send(command, ct);
+        return result.ToActionResult();
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetStatus(Guid id, CancellationToken ct)
+    {
+        var result = await mediator.Send(new GetRefundSagaStateQuery(id), ct);
         return result.ToActionResult();
     }
 }
 
 public sealed record CreateRefundRequest(
-    string TransactionId,
-    long? AmountCents = null,
-    string? Currency = null,
+    Guid PaymentId,
+    decimal Amount,
+    string Currency,
     string? Reason = null,
-    string? IdempotencyKey = null);
+    string? RequestedBy = null);

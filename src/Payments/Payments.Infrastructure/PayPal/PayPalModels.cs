@@ -189,6 +189,7 @@ internal sealed class PayPalRefundRequest
 {
     public PayPalRefundAmount? Amount { get; set; }
     public string? NoteToPayer { get; set; }
+    public string? CustomId { get; set; }
 }
 
 /// <summary>

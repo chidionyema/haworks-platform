@@ -17,6 +17,8 @@ SELECT 'CREATE DATABASE location' WHERE NOT EXISTS (SELECT FROM pg_database WHER
 SELECT 'CREATE DATABASE webhooks' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'webhooks')\gexec
 SELECT 'CREATE DATABASE payouts'  WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'payouts')\gexec
 SELECT 'CREATE DATABASE scheduler' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'scheduler')\gexec
+SELECT 'CREATE DATABASE privacy'   WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'privacy')\gexec
+SELECT 'CREATE DATABASE merchant'  WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'merchant')\gexec
 
 -- 2. Per-DB owner group roles (NOLOGIN — they're groups Vault users join).
 
@@ -31,6 +33,8 @@ SELECT 'CREATE ROLE location_owner NOLOGIN' WHERE NOT EXISTS (SELECT FROM pg_rol
 SELECT 'CREATE ROLE webhooks_owner NOLOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'webhooks_owner')\gexec
 SELECT 'CREATE ROLE payouts_owner  NOLOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'payouts_owner')\gexec
 SELECT 'CREATE ROLE scheduler_owner NOLOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'scheduler_owner')\gexec
+SELECT 'CREATE ROLE privacy_owner   NOLOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'privacy_owner')\gexec
+SELECT 'CREATE ROLE merchant_owner  NOLOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'merchant_owner')\gexec
 
 -- 3. Transfer database ownership + grant ALL.
 ALTER DATABASE catalog  OWNER TO catalog_owner;
@@ -54,6 +58,8 @@ GRANT ALL PRIVILEGES ON DATABASE location TO location_owner;
 GRANT ALL PRIVILEGES ON DATABASE webhooks TO webhooks_owner;
 GRANT ALL PRIVILEGES ON DATABASE payouts  TO payouts_owner;
 GRANT ALL PRIVILEGES ON DATABASE scheduler TO scheduler_owner;
+GRANT ALL PRIVILEGES ON DATABASE privacy   TO privacy_owner;
+GRANT ALL PRIVILEGES ON DATABASE merchant  TO merchant_owner;
 
 -- 4. Per-DB schema grants + default privileges so EF migrations work cleanly.
 \c catalog

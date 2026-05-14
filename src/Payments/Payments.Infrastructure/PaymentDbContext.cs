@@ -32,6 +32,7 @@ public class PaymentDbContext : DbContext
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<WebhookEvent> WebhookEvents => Set<WebhookEvent>();
+    public DbSet<RefundSagaState> RefundSagas => Set<RefundSagaState>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -118,6 +119,26 @@ public class PaymentDbContext : DbContext
             entity.Property(w => w.Error).HasMaxLength(2000);
 
             entity.HasIndex(w => new { w.Provider, w.ProviderEventId }).IsUnique().HasDatabaseName("IX_WebhookEvents_Provider_Id");
+        });
+
+        modelBuilder.Entity<RefundSagaState>(entity =>
+        {
+            entity.ToTable("RefundSagas");
+            entity.HasKey(s => s.CorrelationId);
+
+            entity.Property(s => s.OrderId).IsRequired();
+            entity.Property(s => s.PaymentId).IsRequired();
+            entity.Property(s => s.RefundId).IsRequired();
+            entity.Property(s => s.Amount).HasColumnType("numeric(18,2)").IsRequired();
+            entity.Property(s => s.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(s => s.Provider).HasMaxLength(20);
+            entity.Property(s => s.ProviderRefundId).HasMaxLength(500);
+            entity.Property(s => s.CurrentState).HasMaxLength(100);
+            entity.Property(s => s.FailureCategory).HasConversion<string>().HasMaxLength(50);
+
+            entity.HasIndex(s => s.OrderId);
+            entity.HasIndex(s => s.PaymentId);
+            entity.HasIndex(s => s.ProviderRefundId);
         });
 
         modelBuilder.AddInboxStateEntity();

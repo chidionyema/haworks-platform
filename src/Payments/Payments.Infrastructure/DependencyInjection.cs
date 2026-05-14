@@ -1,5 +1,6 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -12,11 +13,14 @@ using Haworks.BuildingBlocks.Telemetry;
 using Haworks.BuildingBlocks.Vault;
 using Haworks.Payments.Application.Consumers;
 using Haworks.Payments.Application.Interfaces;
+using Haworks.Payments.Application.Sagas;
+using Haworks.Payments.Domain;
 using Haworks.Payments.Infrastructure.Messaging;
 using Haworks.Payments.Infrastructure.Repositories;
 using Haworks.Payments.Infrastructure.Stripe;
 using Haworks.Payments.Infrastructure.PayPal;
 using Haworks.Payments.Infrastructure.Options;
+using Haworks.Payments.Infrastructure.Workers;
 using Haworks.Contracts.Payments;
 
 namespace Haworks.Payments.Infrastructure;
@@ -146,6 +150,8 @@ public static class DependencyInjection
         services.AddScoped<IIdempotencyKeyGenerator, Application.Common.IdempotencyKeyGenerator>();
         services.AddScoped<IPaymentAmountMismatchHandler, Application.Webhooks.PaymentAmountMismatchHandler>();
 
+        services.AddHostedService<RefundTimeoutWatcher>();
+
         services.AddDomainEventPublisher();
 
         if (env.IsEnvironment("Test"))
@@ -162,8 +168,16 @@ public static class DependencyInjection
                 o.UseBusOutbox();
             });
 
+            mt.AddSagaStateMachine<RefundSaga, RefundSagaState>()
+                .EntityFrameworkRepository(r =>
+                {
+                    r.ExistingDbContext<PaymentDbContext>();
+                    r.UsePostgres();
+                });
+
             mt.AddConsumer<PaymentWebhookValidatedConsumer, PaymentsConsumerDefinition<PaymentWebhookValidatedConsumer>>();
             mt.AddConsumer<PaymentSessionRequestedConsumer, PaymentsConsumerDefinition<PaymentSessionRequestedConsumer>>();
+            mt.AddConsumer<ProviderRefundInitiationRequestedConsumer, PaymentsConsumerDefinition<ProviderRefundInitiationRequestedConsumer>>();
 
             mt.UsingRabbitMq((context, cfg) =>
             {

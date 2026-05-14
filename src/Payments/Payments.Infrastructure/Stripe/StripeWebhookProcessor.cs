@@ -248,6 +248,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         // For Dashboard refunds, we want to ensure Orders etc are notified.
         foreach (var refund in charge.Refunds.Data.Where(r => r.Status == "succeeded"))
         {
+            // 1. Legacy/Dashboard event for broad consumption
             await _eventPublisher.PublishAsync(new RefundIssuedEvent
             {
                 PaymentId = payment.Id,
@@ -256,8 +257,20 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
                 AmountCents = refund.Amount,
                 Currency = charge.Currency,
                 Provider = Provider,
-                Reason = "Refunded via Dashboard"
+                Reason = "Refunded via Stripe"
             }, ct);
+
+            // 2. Saga-specific correlation event
+            if (refund.Metadata.TryGetValue("refund_id", out var sagaIdStr) && Guid.TryParse(sagaIdStr, out var sagaId))
+            {
+                await _eventPublisher.PublishAsync(new ProviderRefundSucceededEvent
+                {
+                    RefundId = sagaId,
+                    ProviderRefundId = refund.Id,
+                    AmountRefunded = refund.Amount / 100m,
+                    CompletedAt = DateTime.UtcNow
+                }, ct);
+            }
         }
 
         return WebhookProcessingResult.Success(webhookEvent.EventType, "Refund processed");
@@ -338,5 +351,6 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         public string Id { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public long Amount { get; set; }
+        public Dictionary<string, string> Metadata { get; set; } = new();
     }
 }
