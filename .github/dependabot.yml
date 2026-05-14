@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      aspire:
+        patterns: ["Aspire.*"]
+      testing:
+        patterns: ["xunit*", "FluentAssertions", "Moq", "Testcontainers*", "Microsoft.NET.Test.Sdk"]
+      ef-core:
+        patterns: ["Microsoft.EntityFrameworkCore*", "Npgsql.EntityFrameworkCore*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

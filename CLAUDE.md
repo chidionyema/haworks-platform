@@ -10,6 +10,7 @@
 # Project
 - .NET 9.0 microservices platform (Clean Architecture)
 - See `.claude/projects/*/memory/` for full architecture reference
+- See `.claude/projects/*/memory/security-rules.md` for mandatory security rules
 
 # Integration Test Rules (ENFORCED BY CI)
 - NEVER create raw Testcontainers (PostgreSqlBuilder, ContainerBuilder, etc.) in test projects

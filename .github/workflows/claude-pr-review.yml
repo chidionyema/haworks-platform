@@ -1,0 +1,49 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  review:
+    name: Claude Code Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Skip Dependabot PRs and draft PRs
+    if: github.actor != 'dependabot[bot]' && github.event.pull_request.draft == false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Review PR with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "/review"
+          review_on_open: true
+          review_on_update: true
+          review_prompt: |
+            Review this PR with two lenses: rules compliance AND exploratory analysis.
+            Read CLAUDE.md for the project rules.
+
+            ## Rules Check
+            1. **Security**: missing [Authorize], IDOR (userId from body not JWT), SSRF, injection, wrong auth middleware order
+            2. **Domain bugs**: invalid state transitions, missing idempotency, wrong financial math ($0 amounts, refund > payment)
+            3. **Edge cases**: zero/negative amounts, concurrent access, double-call behavior, validators with GreaterThanOrEqualTo(0)
+
+            ## Exploratory Analysis
+            4. **Data flow**: trace input from request to DB — any missing validation along the way?
+            5. **Failure modes**: what happens if an external dependency (DB, Kafka, Redis, Vault) is down when this code runs?
+            6. **Race conditions**: can two concurrent requests cause corruption? Missing optimistic concurrency tokens?
+            7. **Business logic**: does this change introduce any nonsensical states? Can a user abuse it?
+            8. **Test coverage**: are new code paths tested? What edge case tests are missing? Suggest specific test cases.
+
+            For each finding: file, line, severity (CRITICAL/HIGH/MEDIUM/LOW), and the specific fix.
+            Be specific — link to exact lines. Don't flag style nits or formatting.

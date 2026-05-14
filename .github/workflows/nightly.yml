@@ -1,0 +1,382 @@
+name: Nightly Scan
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # every night at 2 AM UTC
+  workflow_dispatch: # manual trigger from Actions tab
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  TESTCONTAINERS_RYUK_DISABLED: true
+
+jobs:
+  # ── 1. Dependency vulnerability scan ──────────────────────────────────
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Restore
+        run: dotnet restore RitualworksPlatform.sln
+
+      - name: Check for vulnerable packages
+        run: |
+          echo "## Vulnerable Packages" >> $GITHUB_STEP_SUMMARY
+          output=$(dotnet list RitualworksPlatform.sln package --vulnerable --include-transitive 2>&1)
+          echo "$output"
+          if echo "$output" | grep -q "has the following vulnerable packages"; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$output" | grep -A 100 "has the following vulnerable packages" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "::warning::Vulnerable packages detected — see job summary"
+          else
+            echo "✅ No vulnerable packages found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check for deprecated packages
+        run: |
+          echo "## Deprecated Packages" >> $GITHUB_STEP_SUMMARY
+          output=$(dotnet list RitualworksPlatform.sln package --deprecated 2>&1)
+          echo "$output"
+          if echo "$output" | grep -q "has the following deprecated packages"; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$output" | grep -A 100 "has the following deprecated packages" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "::warning::Deprecated packages detected — see job summary"
+          else
+            echo "✅ No deprecated packages found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check for outdated packages
+        run: |
+          echo "## Outdated Packages" >> $GITHUB_STEP_SUMMARY
+          dotnet list RitualworksPlatform.sln package --outdated --include-transitive 2>&1 | tee /tmp/outdated.txt
+          if grep -q ">" /tmp/outdated.txt; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -A 100 ">" /tmp/outdated.txt | head -50 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ All packages up to date" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ── 2. Architecture & quality gate ────────────────────────────────────
+  architecture:
+    name: Architecture & Analyzers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Restore
+        run: dotnet restore RitualworksPlatform.sln
+
+      - name: Build with all analyzers
+        run: dotnet build RitualworksPlatform.sln --no-restore --configuration Release /p:TreatWarningsAsErrors=true
+
+      - name: Architecture checks
+        run: bash scripts/check-architecture.sh
+
+      - name: Architecture tests
+        run: |
+          shopt -s nullglob
+          printf '%s\n' tests/*/*.Architecture/*.csproj tests/*.Architecture/*.csproj | awk -F/ '!seen[$NF]++' | while read -r proj; do
+            dotnet test "$proj" --no-build --configuration Release --logger "console;verbosity=minimal"
+          done
+
+  # ── 3. Full integration test suite ────────────────────────────────────
+  integration-full:
+    name: Full Integration Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Verify Docker
+        run: docker info
+
+      - name: Restore & build
+        run: |
+          dotnet restore RitualworksPlatform.sln
+          dotnet build RitualworksPlatform.sln --no-restore --configuration Release
+
+      - name: Run all integration tests
+        run: |
+          shopt -s nullglob
+          failed=0
+          for proj in tests/*/*.Integration/*.csproj tests/*.Integration/*.csproj; do
+            echo "::group::$(basename "$proj" .csproj)"
+            dotnet test "$proj" --no-build --configuration Release \
+              --logger "console;verbosity=normal" || failed=1
+            echo "::endgroup::"
+          done
+          exit $failed
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-integration-results
+          path: "**/TestResults/*.trx"
+          retention-days: 14
+
+  # ── 4. Secret & credential scan ───────────────────────────────────────
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 5. Container image scan ───────────────────────────────────────────
+  docker-scan:
+    name: Docker Image Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: false # Enable when Dockerfiles are production-ready
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images
+        run: |
+          for svc in identity catalog orders payments; do
+            docker build -t ritualworks/$svc:scan -f src/${svc^}/${svc^}.Api/Dockerfile .
+          done
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: ritualworks/identity:scan
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  # ── 6. Claude deep code review ─────────────────────────────────────────
+  claude-review:
+    name: Claude Deep Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Claude Code deep audit
+        id: review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            You are performing a nightly deep code audit of a .NET 9 microservices platform.
+            Read CLAUDE.md for the full project rules and "Security & Edge Case Rules".
+
+            Your audit has TWO phases: rules-based checking AND exploratory analysis.
+
+            ═══════════════════════════════════════════════════════════════
+            PHASE 1: RULES-BASED SCAN (check CLAUDE.md rules against src/)
+            ═══════════════════════════════════════════════════════════════
+
+            ## 1. Security Flaws (CRITICAL)
+            - Missing [Authorize] on controllers/endpoints
+            - UseAuthentication() called AFTER UseAuthorization() (wrong order)
+            - UserId/SellerId taken from request body instead of JWT claims (IDOR)
+            - Missing ownership checks on mutation endpoints
+            - [AllowAnonymous] on admin operations
+            - Unprotected Hangfire dashboards
+            - SignalR hubs without [Authorize]
+            - SSRF via unvalidated URLs (check webhook URLs, redirect URIs)
+            - SQL injection via raw SQL without parameterization
+
+            ## 2. Domain Logic Bugs
+            - State machines that allow invalid transitions (e.g. refunding a Pending payment)
+            - Missing idempotency guards (double-call same operation)
+            - Financial calculations: $0 amounts accepted, refund > payment, negative balances
+            - Factory methods that skip invariant validation
+            - GetByIdAsync used where GetByIdTrackedAsync is needed (entity won't save)
+
+            ## 3. Missed Edge Cases
+            - Validators using GreaterThanOrEqualTo(0) instead of GreaterThan(0)
+            - Date validators capturing "now" at startup instead of per-request
+            - Missing email/phone format validation on notification channels
+            - Saga compensation that doesn't release reserved resources on all failure paths
+            - Kafka consumers with AutoCommit enabled (at-most-once instead of at-least-once)
+            - Race conditions: concurrent access to same resource without optimistic concurrency
+
+            ## 4. Code Quality
+            - Dead code, unused parameters, unreachable branches
+            - Exception swallowing (empty catch blocks)
+            - Missing null checks on external API responses
+            - Hardcoded secrets, connection strings, or URLs
+
+            ═══════════════════════════════════════════════════════════════
+            PHASE 2: EXPLORATORY ANALYSIS (think beyond the rules)
+            ═══════════════════════════════════════════════════════════════
+
+            Go beyond the checklist. Think like an attacker, a chaos engineer,
+            and a QA engineer simultaneously.
+
+            ## 5. Data Flow Analysis
+            - Trace user input from HTTP request → controller → service → repository → DB
+              and identify any point where validation is missing or bypassed
+            - Trace event flow through MassTransit sagas: can a message arrive
+              out of order? What happens if a compensating event fires twice?
+            - Trace CDC flow: Debezium → Kafka → consumer → Elasticsearch.
+              Can a stale event overwrite a newer one? Is ordering guaranteed?
+            - Check for N+1 query patterns in EF Core (loading collections in loops)
+
+            ## 6. Failure Mode Analysis
+            - What happens when Vault is unreachable during credential rotation?
+              Do services crash or gracefully degrade?
+            - What happens when Kafka is down? Do producers buffer or lose messages?
+            - What happens when Elasticsearch is down? Does search fail open or closed?
+            - What happens when a DB migration fails halfway? Is there rollback?
+            - What happens when Redis cache is full? LRU eviction correct?
+            - What happens on clock skew between services? JWT expiry, event ordering?
+
+            ## 7. Concurrency & Race Conditions
+            - Two users buying the last item simultaneously — does stock go negative?
+            - Two concurrent refund requests for the same payment — double refund?
+            - Saga timeout fires while compensation is already in progress
+            - Debezium event replay after consumer restart — duplicate processing?
+            - EF Core entities loaded in one scope, saved in another (stale data)
+
+            ## 8. Business Logic Gaps
+            - Can a user check out with an empty cart?
+            - Can a merchant set a product price to 0.001 (below minimum charge)?
+            - Can a webhook subscription be created for an internal/private URL?
+            - Can a user subscribe to notifications for another user's events?
+            - Are currency conversions handled? What if order is USD but payment is EUR?
+            - Are pagination limits enforced? Can a client request pageSize=1000000?
+
+            ## 9. Missing Test Coverage
+            - Read tests/ and compare against src/. For each service, identify:
+              - Controllers with no integration test coverage
+              - Saga paths (compensation, timeout, retry) without test coverage
+              - Domain entity state transitions without unit tests
+              - Validators without boundary-value tests
+              - Consumer error paths without tests
+            - Suggest specific test cases that should exist but don't
+
+            ═══════════════════════════════════════════════════════════════
+            OUTPUT FORMAT
+            ═══════════════════════════════════════════════════════════════
+
+            For EACH finding:
+            - **File**: exact path and line number
+            - **Severity**: CRITICAL / HIGH / MEDIUM / LOW
+            - **Category**: Security / Bug / Edge Case / Race Condition /
+                            Data Flow / Failure Mode / Business Logic /
+                            Missing Test
+            - **Issue**: one-line description
+            - **Impact**: what can go wrong in production
+            - **Fix**: specific code change or test to add
+
+            Group findings by service. End with a "Missing Test Coverage"
+            section listing concrete test cases to write.
+
+            If no issues found in a service, say "✅ Clean".
+            Be exhaustive — this is the last line of defense before production.
+          output_file: /tmp/claude-review.md
+
+      - name: Create or update issue with findings
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body;
+            try {
+              body = fs.readFileSync('/tmp/claude-review.md', 'utf8');
+            } catch {
+              body = 'Claude review completed but no output file was generated. Check the workflow logs.';
+            }
+
+            const title = `🔍 Nightly Code Audit — ${new Date().toISOString().split('T')[0]}`;
+            const labels = ['nightly-audit', 'automated'];
+
+            // Close previous nightly audit issues
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'nightly-audit',
+              state: 'open',
+            });
+            for (const issue of existing.data) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+                state_reason: 'not_planned',
+              });
+            }
+
+            // Create new issue
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `## 🌙 Nightly Deep Code Audit\n\nRun: [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n---\n\n${body}`,
+              labels,
+            });
+
+  # ── 7. Nightly summary notification ───────────────────────────────────
+  notify:
+    name: Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-audit, architecture, integration-full, secret-scan, claude-review]
+    if: always()
+
+    steps:
+      - name: Build summary
+        run: |
+          echo "## 🌙 Nightly Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Audit | ${{ needs.dependency-audit.result == 'success' && '✅' || '⚠️' }} ${{ needs.dependency-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Architecture | ${{ needs.architecture.result == 'success' && '✅' || '❌' }} ${{ needs.architecture.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.integration-full.result == 'success' && '✅' || '❌' }} ${{ needs.integration-full.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Scan | ${{ needs.secret-scan.result == 'success' && '✅' || '⚠️' }} ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Claude Deep Review | ${{ needs.claude-review.result == 'success' && '✅' || '⚠️' }} ${{ needs.claude-review.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Run: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
