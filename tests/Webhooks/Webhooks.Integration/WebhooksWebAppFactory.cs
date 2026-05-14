@@ -26,6 +26,8 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
         Environment.SetEnvironmentVariable("ConnectionStrings__webhooks", ConnectionString);
         Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", RabbitMqConnectionString);
         Environment.SetEnvironmentVariable("Vault__Enabled", "false");
+        Environment.SetEnvironmentVariable("Kafka__BootstrapServers", "localhost:9092");
+        Environment.SetEnvironmentVariable("Kafka__GroupId", "webhooks-svc-cdc-test");
     }
 
     async Task IAsyncLifetime.DisposeAsync()
@@ -44,6 +46,8 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
                 ["ConnectionStrings:webhooks"] = ConnectionString,
                 ["ConnectionStrings:rabbitmq"] = RabbitMqConnectionString,
                 ["Vault:Enabled"] = "false",
+                ["Kafka:BootstrapServers"] = "localhost:9092",
+                ["Kafka:GroupId"] = "webhooks-svc-cdc-test",
             });
         });
 
