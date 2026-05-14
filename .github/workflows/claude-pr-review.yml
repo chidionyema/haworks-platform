@@ -1,0 +1,42 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  review:
+    name: Claude Code Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Skip Dependabot PRs and draft PRs
+    if: github.actor != 'dependabot[bot]' && github.event.pull_request.draft == false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Review PR with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "/review"
+          review_on_open: true
+          review_on_update: true
+          review_prompt: |
+            Review this PR against the project rules in CLAUDE.md.
+
+            Focus on:
+            1. **Security**: missing auth, IDOR, SSRF, injection, missing ownership checks
+            2. **Domain bugs**: invalid state transitions, missing idempotency, wrong financial math
+            3. **Edge cases**: zero/negative amounts, concurrent access, double-call behavior
+            4. **Test coverage**: are new code paths tested? Are edge cases from CLAUDE.md tested?
+
+            For each finding, specify the file, line, severity (CRITICAL/HIGH/MEDIUM/LOW), and the fix.
+            Be specific — link to exact lines. Don't flag style nits.

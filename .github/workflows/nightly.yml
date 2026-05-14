@@ -189,11 +189,118 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
 
-  # ── 6. Nightly summary notification ───────────────────────────────────
+  # ── 6. Claude deep code review ─────────────────────────────────────────
+  claude-review:
+    name: Claude Deep Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Claude Code deep audit
+        id: review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            You are performing a nightly deep code audit of a .NET 9 microservices platform.
+            Read CLAUDE.md for the project rules and the "Security & Edge Case Rules" section.
+
+            Systematically scan the entire src/ directory for:
+
+            ## 1. Security Flaws (CRITICAL)
+            - Missing [Authorize] on controllers/endpoints
+            - UseAuthentication() called AFTER UseAuthorization() (wrong order)
+            - UserId/SellerId taken from request body instead of JWT claims (IDOR)
+            - Missing ownership checks on mutation endpoints
+            - [AllowAnonymous] on admin operations
+            - Unprotected Hangfire dashboards
+            - SignalR hubs without [Authorize]
+            - SSRF via unvalidated URLs (check webhook URLs, redirect URIs)
+            - SQL injection via raw SQL without parameterization
+
+            ## 2. Domain Logic Bugs
+            - State machines that allow invalid transitions (e.g. refunding a Pending payment)
+            - Missing idempotency guards (double-call same operation)
+            - Financial calculations: $0 amounts accepted, refund > payment, negative balances
+            - Factory methods that skip invariant validation
+            - GetByIdAsync used where GetByIdTrackedAsync is needed (entity won't save)
+
+            ## 3. Missed Edge Cases
+            - Validators using GreaterThanOrEqualTo(0) instead of GreaterThan(0)
+            - Date validators capturing "now" at startup instead of per-request
+            - Missing email/phone format validation on notification channels
+            - Saga compensation that doesn't release reserved resources on all failure paths
+            - Kafka consumers with AutoCommit enabled (at-most-once instead of at-least-once)
+            - Race conditions: concurrent access to same resource without optimistic concurrency
+
+            ## 4. Code Quality
+            - Dead code, unused parameters, unreachable branches
+            - Exception swallowing (empty catch blocks)
+            - Missing null checks on external API responses
+            - Hardcoded secrets, connection strings, or URLs
+
+            For EACH finding, output:
+            - **File**: exact path and line number
+            - **Severity**: CRITICAL / HIGH / MEDIUM / LOW
+            - **Category**: Security / Bug / Edge Case / Quality
+            - **Issue**: one-line description
+            - **Fix**: specific code change needed
+
+            Group findings by service. If no issues found in a service, say "✅ Clean".
+            Be thorough — check every controller, consumer, saga, domain entity, and validator.
+          output_file: /tmp/claude-review.md
+
+      - name: Create or update issue with findings
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body;
+            try {
+              body = fs.readFileSync('/tmp/claude-review.md', 'utf8');
+            } catch {
+              body = 'Claude review completed but no output file was generated. Check the workflow logs.';
+            }
+
+            const title = `🔍 Nightly Code Audit — ${new Date().toISOString().split('T')[0]}`;
+            const labels = ['nightly-audit', 'automated'];
+
+            // Close previous nightly audit issues
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'nightly-audit',
+              state: 'open',
+            });
+            for (const issue of existing.data) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+                state_reason: 'not_planned',
+              });
+            }
+
+            // Create new issue
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `## 🌙 Nightly Deep Code Audit\n\nRun: [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n---\n\n${body}`,
+              labels,
+            });
+
+  # ── 7. Nightly summary notification ───────────────────────────────────
   notify:
     name: Summary
     runs-on: ubuntu-latest
-    needs: [dependency-audit, architecture, integration-full, secret-scan]
+    needs: [dependency-audit, architecture, integration-full, secret-scan, claude-review]
     if: always()
 
     steps:
@@ -207,5 +314,6 @@ jobs:
           echo "| Architecture | ${{ needs.architecture.result == 'success' && '✅' || '❌' }} ${{ needs.architecture.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Integration Tests | ${{ needs.integration-full.result == 'success' && '✅' || '❌' }} ${{ needs.integration-full.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Secret Scan | ${{ needs.secret-scan.result == 'success' && '✅' || '⚠️' }} ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Claude Deep Review | ${{ needs.claude-review.result == 'success' && '✅' || '⚠️' }} ${{ needs.claude-review.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Run: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
