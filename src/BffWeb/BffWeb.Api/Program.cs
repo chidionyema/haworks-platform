@@ -23,12 +23,15 @@ builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddApplication(builder.Configuration);
 
 // Kafka Consumer for Debezium CDC — BFF cache invalidation
-builder.AddKafkaConsumer<string, string>("kafka", consumerBuilder =>
+if (!builder.Environment.IsEnvironment("Test"))
 {
-    consumerBuilder.Config.GroupId = "bff-web-cdc";
-    consumerBuilder.Config.AutoOffsetReset = Confluent.Kafka.AutoOffsetReset.Earliest;
-});
-builder.Services.AddHostedService<Haworks.BffWeb.Application.Consumers.BffCdcCacheInvalidator>();
+    builder.AddKafkaConsumer<string, string>("kafka", consumerBuilder =>
+    {
+        consumerBuilder.Config.GroupId = "bff-web-cdc";
+        consumerBuilder.Config.AutoOffsetReset = Confluent.Kafka.AutoOffsetReset.Earliest;
+    });
+    builder.Services.AddHostedService<Haworks.BffWeb.Application.Consumers.BffCdcCacheInvalidator>();
+}
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

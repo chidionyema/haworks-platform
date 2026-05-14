@@ -16,12 +16,15 @@ builder.AddServiceDefaults();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 
 // Kafka Consumer for Debezium CDC — search index updates
-builder.AddKafkaConsumer<string, string>("kafka", consumerBuilder =>
+if (!builder.Environment.IsEnvironment("Test"))
 {
-    consumerBuilder.Config.GroupId = "search-svc-cdc";
-    consumerBuilder.Config.AutoOffsetReset = Confluent.Kafka.AutoOffsetReset.Earliest;
-});
-builder.Services.AddCdcSearchIndexing();
+    builder.AddKafkaConsumer<string, string>("kafka", consumerBuilder =>
+    {
+        consumerBuilder.Config.GroupId = "search-svc-cdc";
+        consumerBuilder.Config.AutoOffsetReset = Confluent.Kafka.AutoOffsetReset.Earliest;
+    });
+    builder.Services.AddCdcSearchIndexing();
+}
 
 builder.Services.AddPlatformAuthentication(builder.Configuration);
 
