@@ -7,6 +7,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
 namespace Haworks.Identity.Api.Controllers;
@@ -48,6 +49,7 @@ public sealed class ExternalAuthenticationController : ControllerBase
     }
 
     [HttpGet("challenge/{provider}")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Challenge(string provider, [FromQuery] string? redirectUrl, CancellationToken ct)
     {
         var providers = await _signInManager.GetExternalAuthenticationSchemesAsync();
@@ -166,7 +168,7 @@ public sealed class ExternalAuthenticationController : ControllerBase
         if (!Uri.TryCreate(url, UriKind.RelativeOrAbsolute, out var uri))
             return false;
         if (!uri.IsAbsoluteUri)
-            return true;
+            return url.StartsWith('/') && !url.Contains("..", StringComparison.Ordinal);
 
         var currentHost = HttpContext.Request.Host.Host;
         return _securityOptions.AllowedRedirectHosts.Contains(uri.Host, StringComparer.OrdinalIgnoreCase)

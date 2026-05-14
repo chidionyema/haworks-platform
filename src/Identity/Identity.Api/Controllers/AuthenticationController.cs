@@ -24,6 +24,7 @@ public class AuthenticationController : ControllerBase
         _antiforgery = antiforgery;
     }
 
+    // API-only: Bearer tokens are not auto-sent by browsers, so CSRF protection is not required. See OWASP CSRF guidance for token-based auth.
     [HttpGet("csrf-token")]
     [IgnoreAntiforgeryToken]
     public IActionResult GetAntiforgeryToken()
