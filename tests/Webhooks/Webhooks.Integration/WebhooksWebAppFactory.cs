@@ -6,6 +6,7 @@ using Xunit;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 using Haworks.Webhooks.Infrastructure.Persistence;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Moq.Protected;
@@ -35,7 +36,16 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
         _ = Services;
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<WebhooksDbContext>();
-        await db.Database.EnsureCreatedAsync();
+        await db.Database.OpenConnectionAsync();
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS webhooks;");
+            await db.Database.EnsureCreatedAsync();
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
     }
 
     async Task IAsyncLifetime.DisposeAsync()
@@ -61,6 +71,14 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
 
         builder.ConfigureServices(services =>
         {
+            // Suppress PendingModelChangesWarning so EnsureCreatedAsync works
+            services.AddDbContext<WebhooksDbContext>((sp, options) =>
+            {
+                var connStr = sp.GetRequiredService<IConfiguration>().GetConnectionString("webhooks");
+                options.UseNpgsql(connStr);
+                options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+            });
+
             services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
 
             // Mock HttpClient for WebhookValidator
