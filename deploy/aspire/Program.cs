@@ -30,7 +30,8 @@ var postgres = builder.AddPostgres("postgres")
     .WithLifetime(ContainerLifetime.Persistent)
     .WithDataVolume("ritualworks-platform-postgres-data")
     .WithBindMount("./init-postgres.sql", "/docker-entrypoint-initdb.d/init.sql")
-    .WithPgAdmin();
+    .WithPgAdmin()
+    .WithArgs("-c", "wal_level=logical", "-c", "max_replication_slots=10", "-c", "max_wal_senders=10");
 
 var identityDb = postgres.AddDatabase("identity");
 var catalogDb  = postgres.AddDatabase("catalog");
@@ -46,6 +47,7 @@ var payoutsDb       = postgres.AddDatabase("payouts");
 var schedulerDb     = postgres.AddDatabase("scheduler");
 var privacyDb       = postgres.AddDatabase("privacy");
 var merchantDb      = postgres.AddDatabase("merchant");
+var cdcDb           = postgres.AddDatabase("cdc");
 
 var redis = builder.AddRedis("redis")
     .WithLifetime(ContainerLifetime.Persistent)
@@ -400,6 +402,21 @@ var merchant = AddJwksConfig(builder.AddProject<Projects.Merchant_Api>("merchant
     .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
     .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("merchant"))
     .WithEnvironment("Vault__SecretIdPath", SecretIdPath("merchant"))
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
+
+// --- cdc-svc -----------------------------------------------------------
+var cdc = AddJwksConfig(builder.AddProject<Projects.Cdc_Api>("cdc-svc")
+    .WaitFor(vault)
+    .WaitFor(cdcDb)
+    .WithReference(cdcDb)
+    .WaitFor(rabbitmq)
+    .WithReference(rabbitmq)
+    .WaitFor(identity)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
+    .WithEnvironment("Vault__Enabled",      "false")
+    .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
+    .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("cdc"))
+    .WithEnvironment("Vault__SecretIdPath", SecretIdPath("cdc"))
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
 
 // --- bff-web ---------------------------------------------------------------
