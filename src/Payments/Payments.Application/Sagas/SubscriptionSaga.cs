@@ -1,9 +1,13 @@
 using MassTransit;
 using Haworks.Payments.Domain;
+using Haworks.Contracts;
 using Haworks.Contracts.Payments;
 using Microsoft.Extensions.Logging;
 
 namespace Haworks.Payments.Application.Sagas;
+
+public sealed record SubscriptionRenewalScheduled(Guid SubscriptionId);
+public sealed record SubscriptionDunningScheduled(Guid SubscriptionId);
 
 public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaState>
 {
@@ -13,7 +17,6 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
 
         Schedule(() => RenewalTimeoutSchedule, instance => instance.RenewalTimeoutTokenId, s =>
         {
-            s.Delay = TimeSpan.FromMinutes(1); // For demo, real would be much longer
             s.Received = r => r.CorrelateById(ctx => ctx.Message.SubscriptionId);
         });
 
@@ -23,6 +26,7 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
         });
 
         Event(() => SubscriptionStarted, e => e.CorrelateBy((state, ctx) => state.ProviderSubscriptionId == ctx.Message.SubscriptionId));
+        Event(() => SubscriptionRenewed, e => e.CorrelateBy((state, ctx) => state.ProviderSubscriptionId == ctx.Message.SubscriptionId));
         Event(() => RenewalRequested, e => e.CorrelateById(ctx => ctx.Message.SubscriptionId));
         Event(() => RenewalFailed, e => e.CorrelateById(ctx => ctx.Message.SubscriptionId));
         Event(() => PaymentRecovered, e => e.CorrelateById(ctx => ctx.Message.SubscriptionId));
@@ -43,69 +47,90 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                     logger.LogInformation("Subscription Saga started for {SubscriptionId}, Period End: {PeriodEnd}", 
                         msg.SubscriptionId, msg.CurrentPeriodEnd);
                 })
-                .Schedule(RenewalTimeoutSchedule, ctx => ctx.Init<SubscriptionRenewalRequestedEvent>(new SubscriptionRenewalRequestedEvent
-                {
-                    SubscriptionId = ctx.Saga.CorrelationId,
-                    ProviderSubscriptionId = ctx.Saga.ProviderSubscriptionId
-                }), ctx => ctx.Saga.PeriodEnd - DateTime.UtcNow - TimeSpan.FromDays(1)) // Schedule 1 day before end
+                .Schedule(RenewalTimeoutSchedule, ctx => new SubscriptionRenewalScheduled(ctx.Saga.CorrelationId), 
+                    ctx => ctx.Saga.PeriodEnd - DateTime.UtcNow - TimeSpan.FromDays(1))
                 .TransitionTo(Active));
 
         During(Active,
             When(RenewalRequested)
                 .Then(ctx => logger.LogInformation("Renewal requested for {SubscriptionId}", ctx.Saga.ProviderSubscriptionId))
                 .TransitionTo(Renewing),
+            When(RenewalTimeoutSchedule.Received)
+                .Then(ctx => logger.LogInformation("Renewal scheduled time reached for {SubscriptionId}", ctx.Saga.ProviderSubscriptionId))
+                .PublishAsync(ctx => ctx.Init<SubscriptionRenewalRequestedEvent>(new SubscriptionRenewalRequestedEvent
+                {
+                    SubscriptionId = ctx.Saga.CorrelationId,
+                    ProviderSubscriptionId = ctx.Saga.ProviderSubscriptionId
+                }))
+                .TransitionTo(Renewing),
+            When(RenewalFailed) // Handle out-of-sync failures
+                .Then(ctx => 
+                {
+                    ctx.Saga.RetryCount++;
+                    logger.LogWarning("Unexpected renewal failure in Active state for {SubscriptionId}. Attempt {RetryCount}", 
+                        ctx.Saga.ProviderSubscriptionId, ctx.Saga.RetryCount);
+                })
+                .PublishAsync(ctx => ctx.Init<SubscriptionGracePeriodStartedEvent>(new SubscriptionGracePeriodStartedEvent
+                {
+                    SubscriptionId = ctx.Saga.CorrelationId,
+                    ExpiresAt = DateTime.UtcNow.AddDays(7)
+                }))
+                .TransitionTo(GracePeriod)
+                .Schedule(DunningRetrySchedule, ctx => new SubscriptionDunningScheduled(ctx.Saga.CorrelationId), 
+                    ctx => TimeSpan.FromDays(2)),
             When(SubscriptionCancelled)
                 .Then(ctx => logger.LogInformation("Subscription {SubscriptionId} cancelled by user", ctx.Saga.ProviderSubscriptionId))
                 .TransitionTo(Canceled)
                 .Finalize());
 
         During(Renewing,
-            When(SubscriptionStarted) // Actually RenewalSucceeded would be better, but we reuse SubscriptionStarted or a specific event
+            When(SubscriptionRenewed)
                 .Then(ctx =>
                 {
-                    ctx.Saga.PeriodEnd = ctx.Message.CurrentPeriodEnd;
+                    ctx.Saga.PeriodEnd = ctx.Message.NewPeriodEnd;
                     ctx.Saga.RetryCount = 0;
                     logger.LogInformation("Subscription {SubscriptionId} successfully renewed until {PeriodEnd}", 
                         ctx.Saga.ProviderSubscriptionId, ctx.Saga.PeriodEnd);
                 })
                 .Unschedule(RenewalTimeoutSchedule)
-                .Schedule(RenewalTimeoutSchedule, ctx => ctx.Init<SubscriptionRenewalRequestedEvent>(new SubscriptionRenewalRequestedEvent
-                {
-                    SubscriptionId = ctx.Saga.CorrelationId,
-                    ProviderSubscriptionId = ctx.Saga.ProviderSubscriptionId
-                }), ctx => ctx.Saga.PeriodEnd - DateTime.UtcNow - TimeSpan.FromDays(1))
+                .Schedule(RenewalTimeoutSchedule, ctx => new SubscriptionRenewalScheduled(ctx.Saga.CorrelationId), 
+                    ctx => ctx.Saga.PeriodEnd - DateTime.UtcNow - TimeSpan.FromDays(1))
                 .TransitionTo(Active),
             When(RenewalFailed)
                 .Then(ctx =>
                 {
                     ctx.Saga.RetryCount++;
-                    logger.LogWarning("Renewal failed for {SubscriptionId}. Attempt {RetryCount}", 
+                    logger.LogWarning("Renewal failed for {SubscriptionId}. Entering Grace Period / Dunning. Attempt {RetryCount}", 
                         ctx.Saga.ProviderSubscriptionId, ctx.Saga.RetryCount);
                 })
-                .If(ctx => ctx.Saga.RetryCount <= 3,
-                    binder => binder
-                        .TransitionTo(Dunning)
-                        .Schedule(DunningRetrySchedule, ctx => ctx.Init<SubscriptionRenewalRequestedEvent>(new SubscriptionRenewalRequestedEvent
-                        {
-                            SubscriptionId = ctx.Saga.CorrelationId,
-                            ProviderSubscriptionId = ctx.Saga.ProviderSubscriptionId
-                        }), ctx => TimeSpan.FromDays(ctx.Saga.RetryCount * 2))) // 2, 4, 6 days
-                .If(ctx => ctx.Saga.RetryCount > 3,
-                    binder => binder
-                        .Then(ctx => logger.LogError("Dunning exhausted for {SubscriptionId}. Cancelling.", ctx.Saga.ProviderSubscriptionId))
-                        .TransitionTo(Canceled)
-                        .Finalize()));
+                .PublishAsync(ctx => ctx.Init<SubscriptionGracePeriodStartedEvent>(new SubscriptionGracePeriodStartedEvent
+                {
+                    SubscriptionId = ctx.Saga.CorrelationId,
+                    ExpiresAt = DateTime.UtcNow.AddDays(7)
+                }))
+                .TransitionTo(GracePeriod)
+                .Schedule(DunningRetrySchedule, ctx => new SubscriptionDunningScheduled(ctx.Saga.CorrelationId), 
+                    ctx => TimeSpan.FromDays(2)));
 
-        During(Dunning,
-            When(PaymentRecovered)
+        During(GracePeriod,
+            When(SubscriptionRenewed)
                 .Then(ctx =>
                 {
+                    ctx.Saga.PeriodEnd = ctx.Message.NewPeriodEnd;
                     ctx.Saga.RetryCount = 0;
-                    logger.LogInformation("Payment recovered for {SubscriptionId}", ctx.Saga.ProviderSubscriptionId);
+                    logger.LogInformation("Subscription {SubscriptionId} recovered in Grace Period. New Period End: {PeriodEnd}", 
+                        ctx.Saga.ProviderSubscriptionId, ctx.Saga.PeriodEnd);
                 })
                 .Unschedule(DunningRetrySchedule)
                 .TransitionTo(Active),
-            When(RenewalFailed) // From scheduled retry
+            When(DunningRetrySchedule.Received)
+                .Then(ctx => logger.LogInformation("Dunning retry triggered for {SubscriptionId}", ctx.Saga.ProviderSubscriptionId))
+                .PublishAsync(ctx => ctx.Init<SubscriptionRenewalRequestedEvent>(new SubscriptionRenewalRequestedEvent
+                {
+                    SubscriptionId = ctx.Saga.CorrelationId,
+                    ProviderSubscriptionId = ctx.Saga.ProviderSubscriptionId
+                })),
+            When(RenewalFailed)
                 .Then(ctx =>
                 {
                     ctx.Saga.RetryCount++;
@@ -114,13 +139,11 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                 })
                 .If(ctx => ctx.Saga.RetryCount <= 3,
                     binder => binder
-                        .Schedule(DunningRetrySchedule, ctx => ctx.Init<SubscriptionRenewalRequestedEvent>(new SubscriptionRenewalRequestedEvent
-                        {
-                            SubscriptionId = ctx.Saga.CorrelationId,
-                            ProviderSubscriptionId = ctx.Saga.ProviderSubscriptionId
-                        }), ctx => TimeSpan.FromDays(ctx.Saga.RetryCount * 2)))
+                        .Schedule(DunningRetrySchedule, ctx => new SubscriptionDunningScheduled(ctx.Saga.CorrelationId), 
+                            ctx => TimeSpan.FromDays(2)))
                 .If(ctx => ctx.Saga.RetryCount > 3,
                     binder => binder
+                        .Then(ctx => logger.LogError("Dunning exhausted for {SubscriptionId}. Terminating access.", ctx.Saga.ProviderSubscriptionId))
                         .TransitionTo(Canceled)
                         .Finalize()));
 
@@ -129,15 +152,16 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
 
     public State Active { get; private set; } = null!;
     public State Renewing { get; private set; } = null!;
-    public State Dunning { get; private set; } = null!;
+    public State GracePeriod { get; private set; } = null!;
     public State Canceled { get; private set; } = null!;
 
     public Event<SubscriptionStartedEvent> SubscriptionStarted { get; private set; } = null!;
+    public Event<SubscriptionRenewedEvent> SubscriptionRenewed { get; private set; } = null!;
     public Event<SubscriptionRenewalRequestedEvent> RenewalRequested { get; private set; } = null!;
     public Event<SubscriptionRenewalFailedEvent> RenewalFailed { get; private set; } = null!;
     public Event<SubscriptionPaymentRecoveredEvent> PaymentRecovered { get; private set; } = null!;
     public Event<SubscriptionCancelledEvent> SubscriptionCancelled { get; private set; } = null!;
 
-    public Schedule<SubscriptionSagaState, SubscriptionRenewalRequestedEvent> RenewalTimeoutSchedule { get; private set; } = null!;
-    public Schedule<SubscriptionSagaState, SubscriptionRenewalRequestedEvent> DunningRetrySchedule { get; private set; } = null!;
+    public Schedule<SubscriptionSagaState, SubscriptionRenewalScheduled> RenewalTimeoutSchedule { get; private set; } = null!;
+    public Schedule<SubscriptionSagaState, SubscriptionDunningScheduled> DunningRetrySchedule { get; private set; } = null!;
 }

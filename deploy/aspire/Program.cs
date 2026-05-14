@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.Elasticsearch;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -58,9 +59,8 @@ var pactBroker = builder.AddContainer("pact-broker", "pactfoundation/pact-broker
     .WaitFor(pactDb)
     .WithEnvironment(ctx =>
     {
-        var pactDbEndpoint = pactDb.Resource.PrimaryEndpoint;
-        ctx.EnvironmentVariables["PACT_BROKER_DATABASE_HOST"]     = pactDbEndpoint.ContainerHost;
-        ctx.EnvironmentVariables["PACT_BROKER_DATABASE_PORT"]     = pactDbEndpoint.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        ctx.EnvironmentVariables["PACT_BROKER_DATABASE_HOST"]     = "pact-db";
+        ctx.EnvironmentVariables["PACT_BROKER_DATABASE_PORT"]     = "5432";
         ctx.EnvironmentVariables["PACT_BROKER_DATABASE_NAME"]     = "postgres";
         ctx.EnvironmentVariables["PACT_BROKER_DATABASE_USERNAME"] = "postgres";
         // Pass the parameter directly to avoid obsolete .Value call.
@@ -85,8 +85,7 @@ var clamav = builder.AddContainer("clamav", "clamav/clamav", "latest")
 
 var elasticsearch = builder.AddElasticsearch("elasticsearch")
     .WithLifetime(ContainerLifetime.Persistent)
-    .WithDataVolume("ritualworks-platform-elasticsearch-data")
-    .WithHttpEndpoint(targetPort: 9200, name: "http");
+    .WithDataVolume("ritualworks-platform-elasticsearch-data");
 
 // Tempo needs a config file to start — without /etc/tempo.yaml it exits
 // with "failed to create store: unknown backend """. Reuse the same
@@ -147,9 +146,11 @@ var identity = builder.AddProject<Projects.Identity_Api>("identity-svc")
 // (JwksOptions has [Required] + ValidateOnStart). The URI is interpolated
 // from identity-svc's runtime endpoint via a callback so it picks up
 // whatever port Aspire's reverse-proxy assigns.
-static IResourceBuilder<T> AddJwksConfig<T>(
+static IResourceBuilder<T> AddJwksConfig<T, U>(
     IResourceBuilder<T> svc,
-    IResourceBuilder<ProjectResource> identitySvc) where T : IResourceWithEnvironment
+    IResourceBuilder<U> identitySvc) 
+    where T : IResourceWithEnvironment 
+    where U : IResourceWithEndpoints
     => svc.WithEnvironment(ctx =>
     {
         var url = identitySvc.GetEndpoint("http").Url;
@@ -250,6 +251,66 @@ var content = AddJwksConfig(builder.AddProject<Projects.Content_Api>("content-sv
     .WithEnvironment("Storage__ForcePathStyle", "true")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
 
+// --- webhooks-svc ----------------------------------------------------------
+var webhooks = AddJwksConfig(builder.AddProject<Projects.Webhooks_Api>("webhooks-svc")
+    .WaitFor(vault)
+    .WithReference(rabbitmq)
+    .WaitFor(identity)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
+    .WithEnvironment("Vault__Enabled",      "false")
+    .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
+    .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("webhooks"))
+    .WithEnvironment("Vault__SecretIdPath", SecretIdPath("webhooks"))
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
+
+// --- payouts-svc -----------------------------------------------------------
+var payouts = AddJwksConfig(builder.AddProject<Projects.Payouts_Api>("payouts-svc")
+    .WaitFor(vault)
+    .WithReference(rabbitmq)
+    .WaitFor(identity)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
+    .WithEnvironment("Vault__Enabled",      "false")
+    .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
+    .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("payouts"))
+    .WithEnvironment("Vault__SecretIdPath", SecretIdPath("payouts"))
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
+
+// --- scheduler-svc -----------------------------------------------------------
+var scheduler = AddJwksConfig(builder.AddProject<Projects.Scheduler_Api>("scheduler-svc")
+    .WaitFor(vault)
+    .WithReference(rabbitmq)
+    .WaitFor(identity)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
+    .WithEnvironment("Vault__Enabled",      "false")
+    .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
+    .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("scheduler"))
+    .WithEnvironment("Vault__SecretIdPath", SecretIdPath("scheduler"))
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
+
+// --- privacy-svc -----------------------------------------------------------
+var privacy = AddJwksConfig(builder.AddProject<Projects.Privacy_Api>("privacy-svc")
+    .WaitFor(vault)
+    .WithReference(rabbitmq)
+    .WaitFor(identity)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
+    .WithEnvironment("Vault__Enabled",      "false")
+    .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
+    .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("privacy"))
+    .WithEnvironment("Vault__SecretIdPath", SecretIdPath("privacy"))
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
+
+// --- merchant-svc -----------------------------------------------------------
+var merchant = AddJwksConfig(builder.AddProject<Projects.Merchant_Api>("merchant-svc")
+    .WaitFor(vault)
+    .WithReference(rabbitmq)
+    .WaitFor(identity)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
+    .WithEnvironment("Vault__Enabled",      "false")
+    .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
+    .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("merchant"))
+    .WithEnvironment("Vault__SecretIdPath", SecretIdPath("merchant"))
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
+
 // --- search-svc ------------------------------------------------------------
 // Read-side projection of catalog. No DB, no Vault — just Elasticsearch and
 // HTTP back to catalog-svc for category lookups.
@@ -334,6 +395,16 @@ var bffWeb = AddJwksConfig(builder.AddProject<Projects.BffWeb_Api>("bff-web")
     .WithReference(content)
     .WaitFor(search)
     .WithReference(search)
+    .WaitFor(webhooks)
+    .WithReference(webhooks)
+    .WaitFor(payouts)
+    .WithReference(payouts)
+    .WaitFor(scheduler)
+    .WithReference(scheduler)
+    .WaitFor(privacy)
+    .WithReference(privacy)
+    .WaitFor(merchant)
+    .WithReference(merchant)
     .WaitFor(notifications)
     .WithReference(notifications)
     .WaitFor(location)

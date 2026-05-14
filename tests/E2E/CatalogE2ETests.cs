@@ -93,17 +93,15 @@ public class CatalogE2ETests : IAsyncLifetime
         var reserveData = await reserveResponse.JsonAsync();
         var reservationId = reserveData?.GetProperty("id").GetGuid();
 
-        // 3. Step 2: Register & Login (to get JWT for Confirm)
+        // 3. Step 2: Register (to get Auth Cookie for Confirm)
         var username = $"res_user_{Guid.NewGuid():N}";
         var email = $"{username}@example.com";
-        await _apiContext.PostAsync("/api/Authentication/register", new()
+        var registerResponse = await _apiContext.PostAsync("/api/Authentication/register", new()
         {
             DataObject = new { username, email, password = "Password123!" }
         });
+        registerResponse.Status.Should().Be(201);
         
-        // Re-authenticate context with the new user
-        _apiContext = await _fixture.CreateApiContextAsync(username, "Password123!");
-
         // 4. Step 3: Confirm Reservation
         var confirmResponse = await _apiContext.PostAsync($"/api/checkout/reservations/{reservationId}/confirm", new()
         {
