@@ -43,7 +43,6 @@
     <ProjectReference Include="..\..\src\Scheduler\Scheduler.Api\Scheduler.Api.csproj" />
     <ProjectReference Include="..\..\src\Privacy\Privacy.Api\Privacy.Api.csproj" />
     <ProjectReference Include="..\..\src\Merchant\Merchant.Api\Merchant.Api.csproj" />
-    <ProjectReference Include="../../src/Cdc/Cdc.Api/Cdc.Api.csproj" />
   </ItemGroup>
 
 </Project>
