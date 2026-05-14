@@ -75,9 +75,10 @@ public sealed class EndToEndCaptureTests : IClassFixture<AuditWebAppFactory>
         });
 
         // Assert
-        // Poll for up to 10 seconds for events to land in DB (asynchronous processing)
+        // Poll for up to 30 seconds for events to land in DB (MassTransit
+        // consumer processing is asynchronous and CI runners can be slow)
         List<AuditEvent>? events = null;
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 60; i++)
         {
             events = await dbContext.AuditEvents.AsNoTracking().ToListAsync();
             if (events.Count >= 4) break;

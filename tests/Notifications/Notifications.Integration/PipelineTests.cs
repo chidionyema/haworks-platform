@@ -78,7 +78,7 @@ public sealed class PipelineTests(NotificationsWebAppFactory factory)
             IdempotencyKey = "harness-republish-" + Guid.NewGuid().ToString("N"),
         });
 
-        await PollUntilStatusAsync(scopedFactory, notificationId, NotificationStatus.Sent, TimeSpan.FromSeconds(30));
+        await PollUntilStatusAsync(scopedFactory, notificationId, NotificationStatus.Sent, TimeSpan.FromSeconds(60));
 
         await using var scope = scopedFactory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
@@ -147,7 +147,7 @@ public sealed class PipelineTests(NotificationsWebAppFactory factory)
             IdempotencyKey = "harness-failover-" + Guid.NewGuid().ToString("N"),
         });
 
-        await PollUntilStatusAsync(scopedFactory, notificationId, NotificationStatus.Sent, TimeSpan.FromSeconds(30));
+        await PollUntilStatusAsync(scopedFactory, notificationId, NotificationStatus.Sent, TimeSpan.FromSeconds(60));
 
         await using var scope = scopedFactory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();

@@ -113,10 +113,11 @@ public class Payment : AuditableEntity
         LastModifiedDate = DateTime.UtcNow;
     }
 
-    /// <summary>Marks the payment as cancelled (user abandoned checkout).</summary>
-    /// <summary>Marks the payment as refunded.</summary>
+    /// <summary>Marks the payment as refunded. Only Completed payments can be refunded.</summary>
     public void MarkRefunded()
     {
+        if (Status != PaymentStatus.Completed)
+            throw new InvalidOperationException($"Cannot refund a payment in {Status} status. Only Completed payments can be refunded.");
         Status = PaymentStatus.Refunded;
         LastModifiedDate = DateTime.UtcNow;
     }

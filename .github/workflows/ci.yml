@@ -117,6 +117,8 @@ jobs:
             path: tests/Payouts.Integration
           - suite: Scheduler
             path: tests/Scheduler.Integration
+          - suite: Location
+            path: tests/Location/Location.Integration
 
     steps:
       - uses: actions/checkout@v4

@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 using Haworks.BuildingBlocks.Testing.Authentication;
@@ -35,8 +33,7 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<WebhooksDbContext>();
         await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS webhooks;");
-        var creator = (RelationalDatabaseCreator)((IInfrastructure<IServiceProvider>)db.Database).Instance.GetRequiredService<IDatabaseCreator>();
-        await creator.CreateTablesAsync();
+        await db.Database.EnsureCreatedAsync();
     }
 
     async Task IAsyncLifetime.DisposeAsync()

@@ -197,6 +197,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
             GroupId = $"test-cdc-{Guid.NewGuid():N}",
             AutoOffsetReset = AutoOffsetReset.Earliest,
             EnableAutoCommit = false,
+            AllowAutoCreateTopics = true,
         };
         using var consumer = new ConsumerBuilder<string, string>(consumerConfig).Build();
         // Subscribe to same topics the worker would

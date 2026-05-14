@@ -19,6 +19,8 @@ public class SchedulerWebAppFactory : WebApplicationFactory<Program>, IAsyncLife
     {
         ConnString = await SharedTestPostgres.CreateDatabaseAsync("scheduler");
 
+        JwtTestDefaults.SetTestEnvironmentVariables();
+
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Test");
         Environment.SetEnvironmentVariable("ConnectionStrings__scheduler", ConnString);
         Environment.SetEnvironmentVariable("RabbitMq__Host", "localhost");
@@ -35,6 +37,10 @@ public class SchedulerWebAppFactory : WebApplicationFactory<Program>, IAsyncLife
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:scheduler"] = ConnString,
+                ["Authentication:Jwks:JwksUri"] = "http://test-identity.invalid/.well-known/jwks.json",
+                ["Authentication:Jwks:Issuer"] = JwtTestDefaults.Issuer,
+                ["Authentication:Jwks:Audience"] = JwtTestDefaults.Audience,
+                ["Authentication:Jwks:AutomaticRefresh"] = "false",
             });
         });
 
