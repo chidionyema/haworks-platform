@@ -148,6 +148,20 @@ public sealed class AuthFlowsTests : IAsyncLifetime
             "JWT kid header must point at the public key served by JWKS");
     }
 
+    [Fact]
+    public async Task Register_with_password_missing_special_char_returns_400()
+    {
+        var (email, username) = NewUser();
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/Authentication/register",
+            new { email, username, password = "Abcdefg1" });
+
+        ((int)response.StatusCode).Should().BeGreaterThanOrEqualTo(400);
+        ((int)response.StatusCode).Should().BeLessThan(500,
+            "missing special character should be a client error, not a server error");
+    }
+
     private static (string email, string username) NewUser()
     {
         var ticks = DateTime.UtcNow.Ticks;

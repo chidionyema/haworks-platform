@@ -167,6 +167,23 @@ public sealed class RoundedOutAuthFlowsTests : IAsyncLifetime
             "redirect must use PKCE");
     }
 
+    [Fact]
+    public async Task Challenge_with_path_traversal_redirect_is_rejected()
+    {
+        // redirectUrl contains ".." path traversal — should be rejected and
+        // the controller should fall back to the default callback URL.
+        var response = await _client.GetAsync(
+            "/api/external-authentication/challenge/Google?redirectUrl=/../../../etc/passwd");
+
+        // The controller does NOT return 400 for bad redirect — it falls back
+        // to the default callback URL and issues a normal 302 challenge.
+        // We verify the redirect did NOT end up pointing at the traversal path.
+        response.StatusCode.Should().Be(HttpStatusCode.Found);
+        var location = response.Headers.Location!.ToString();
+        location.Should().NotContain("..",
+            "path traversal sequences must not appear in the redirect");
+    }
+
     private static (string email, string username) NewUser()
     {
         var ticks = DateTime.UtcNow.Ticks;
