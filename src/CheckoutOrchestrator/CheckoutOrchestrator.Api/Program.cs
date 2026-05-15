@@ -36,7 +36,7 @@ builder.Services.AddHealthChecks()
 builder.Logging.AddFilter("Microsoft.AspNetCore.Authentication", Microsoft.Extensions.Logging.LogLevel.Debug);
 builder.Logging.AddFilter("Microsoft.AspNetCore.Authentication.JwtBearer", Microsoft.Extensions.Logging.LogLevel.Debug);
 
-var app = builder.Build();
+builder.Logging.AddFilter("Microsoft.AspNetCore.Authentication", (global::Microsoft.Extensions.Logging.LogLevel)1);var app = builder.Build();
 
 if (!app.Environment.IsEnvironment("Test"))
 {
