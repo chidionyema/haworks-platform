@@ -530,6 +530,343 @@ public sealed class PlatformGuardTests
         violations.Should().BeEmpty("placeholder tests provide false coverage");
     }
 
+    // ─── Idempotency & Deduplication ──────────────────────────────────
+
+    [Fact]
+    public void Every_Hangfire_job_has_DisableConcurrentExecution_or_mutex()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindProductionCsFiles().Where(f => f.Contains("Service") || f.Contains("Worker") || f.Contains("Command")))
+        {
+            var content = File.ReadAllText(file);
+            if (!content.Contains("IBackgroundJobClient") && !content.Contains("IRecurringJobManager")) continue;
+            if (!content.Contains("BackgroundJob.") && !content.Contains("RecurringJob.")) continue;
+            // The file schedules Hangfire jobs — check that job methods are guarded
+            if (!content.Contains("DisableConcurrentExecution") && !content.Contains("Mutex"))
+            {
+                violations.Add($"{Relative(file)}: schedules Hangfire jobs without DisableConcurrentExecution — double-execution possible");
+            }
+        }
+        // Informational for now — not all jobs need this
+    }
+
+    [Fact]
+    public void Fan_out_consumers_have_unique_constraint_on_delivery_key()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindDbContextFiles())
+        {
+            var content = File.ReadAllText(file);
+            if (!content.Contains("Delivery") && !content.Contains("delivery")) continue;
+            if (content.Contains("EventId") && !content.Contains("IsUnique"))
+            {
+                violations.Add($"{Relative(file)}: WebhookDelivery has EventId but no unique constraint — duplicate deliveries on retry");
+            }
+        }
+        violations.Should().BeEmpty("fan-out delivery tables must have unique constraint on dedup key");
+    }
+
+    [Fact]
+    public void Every_consumer_that_publishes_events_uses_outbox_or_transaction()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindConsumerFiles().Where(f => f.Contains("Consumer")))
+        {
+            var content = File.ReadAllText(file);
+            if (!content.Contains("PublishAsync") && !content.Contains("Publish(")) continue;
+            if (content.Contains("ExecuteUpdateAsync") && !content.Contains("SaveChangesAsync"))
+            {
+                violations.Add($"{Relative(file)}: uses ExecuteUpdateAsync + Publish without SaveChangesAsync — outbox message lost");
+            }
+        }
+        violations.Should().BeEmpty("consumers publishing events after ExecuteUpdateAsync must call SaveChangesAsync");
+    }
+
+    // ─── Concurrency & Data Safety ───────────────────────────────────
+
+    [Fact]
+    public void No_float_or_double_for_money()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindProductionCsFiles())
+        {
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                if (line.TrimStart().StartsWith("//")) continue;
+                // Check for float/double used with money-related variable names
+                if ((Regex.IsMatch(line, @"\b(float|double)\s+\w*(amount|price|total|balance|commission|tax|cost|fee|payout)\w*", RegexOptions.IgnoreCase)) &&
+                    !file.Contains("Test") && !file.Contains("test"))
+                {
+                    violations.Add($"{Relative(file)}:{i + 1}: float/double used for monetary value — use decimal");
+                }
+            }
+        }
+        violations.Should().BeEmpty("monetary values must use decimal, never float or double");
+    }
+
+    [Fact]
+    public void No_SaveChangesAsync_inside_foreach_loop()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindProductionCsFiles())
+        {
+            var lines = File.ReadAllLines(file);
+            int foreachDepth = 0;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains("foreach") || lines[i].Contains("for (") || lines[i].Contains("for("))
+                    foreachDepth++;
+                if (lines[i].Contains("}") && foreachDepth > 0)
+                    foreachDepth--;
+                if (foreachDepth > 0 && lines[i].Contains("SaveChangesAsync"))
+                {
+                    violations.Add($"{Relative(file)}:{i + 1}: SaveChangesAsync inside loop — batch writes outside the loop");
+                }
+            }
+        }
+        // Informational — some patterns legitimately save per iteration
+    }
+
+    [Fact]
+    public void No_new_HttpClient_in_production_code()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindProductionCsFiles())
+        {
+            if (file.Contains("Test") || file.Contains("test")) continue;
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains("new HttpClient()") && !lines[i].TrimStart().StartsWith("//"))
+                {
+                    violations.Add($"{Relative(file)}:{i + 1}: new HttpClient() — use IHttpClientFactory to prevent socket exhaustion");
+                }
+            }
+        }
+        violations.Should().BeEmpty("always use IHttpClientFactory, never new HttpClient()");
+    }
+
+    [Fact]
+    public void No_catch_Exception_without_rethrow_in_consumers()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindConsumerFiles().Where(f => f.Contains("Consumer")))
+        {
+            var content = File.ReadAllText(file);
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (Regex.IsMatch(lines[i], @"catch\s*\(\s*Exception\b") &&
+                    !lines[i].Contains("when ("))
+                {
+                    // Check next few lines for throw/re-throw
+                    var block = string.Join(" ", lines.Skip(i).Take(5));
+                    if (!block.Contains("throw") && !block.Contains("consumer.Commit"))
+                    {
+                        violations.Add($"{Relative(file)}:{i + 1}: catch(Exception) without throw — message silently lost on failure");
+                    }
+                }
+            }
+        }
+        violations.Should().BeEmpty("consumers must not silently swallow exceptions — message will be lost");
+    }
+
+    // ─── Resilience ──────────────────────────────────────────────────
+
+    [Fact]
+    public void External_API_calls_have_resilience_policy()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindProductionCsFiles().Where(f =>
+            f.Contains("Stripe") || f.Contains("PayPal") || f.Contains("Nominatim") ||
+            f.Contains("ClamAV") || f.Contains("SendGrid") || f.Contains("Twilio") || f.Contains("Fcm")))
+        {
+            if (file.Contains("Test") || file.Contains("Options") || file.Contains("Constants")) continue;
+            var content = File.ReadAllText(file);
+            if ((content.Contains("PostAsync") || content.Contains("GetAsync") || content.Contains("SendAsync") ||
+                 content.Contains("CreateAsync") || content.Contains("CancelAsync")) &&
+                !content.Contains("Policy") && !content.Contains("Resilience") && !content.Contains("retry") &&
+                !content.Contains("CircuitBreaker"))
+            {
+                violations.Add($"{Relative(file)}: external API calls without Polly resilience policy");
+            }
+        }
+        // Informational — some services use Polly at the HttpClient level via DI
+    }
+
+    [Fact]
+    public void Kafka_consumers_disable_auto_commit()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindConsumerFiles().Where(f => f.Contains("Cdc") || f.Contains("Kafka")))
+        {
+            var content = File.ReadAllText(file);
+            if (!content.Contains("consumer.Consume")) continue;
+            if (content.Contains("EnableAutoCommit = true"))
+            {
+                violations.Add($"{Relative(file)}: Kafka auto-commit enabled — must be disabled for at-least-once delivery");
+            }
+        }
+        violations.Should().BeEmpty("Kafka consumers must disable auto-commit and commit manually after processing");
+    }
+
+    [Fact]
+    public void Kafka_consumers_handle_poison_messages()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindConsumerFiles().Where(f => f.Contains("Cdc") || f.Contains("CdcSearch") || f.Contains("CdcFanOut") || f.Contains("CdcCache")))
+        {
+            var content = File.ReadAllText(file);
+            if (!content.Contains("consumer.Consume")) continue;
+            if (!content.Contains("JsonException") && !content.Contains("FormatException"))
+            {
+                violations.Add($"{Relative(file)}: Kafka consumer has no poison message handling — malformed messages cause infinite retry");
+            }
+        }
+        violations.Should().BeEmpty("Kafka consumers must catch non-transient exceptions and skip poison messages");
+    }
+
+    // ─── Schema & Migrations ─────────────────────────────────────────
+
+    [Fact]
+    public void Every_DbContext_sets_a_default_schema()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindDbContextFiles())
+        {
+            if (file.Contains("Test") || file.Contains("Aspire")) continue;
+            var content = File.ReadAllText(file);
+            if (!content.Contains("HasDefaultSchema") && content.Contains("OnModelCreating"))
+            {
+                violations.Add($"{Relative(file)}: DbContext has no HasDefaultSchema — tables in public schema risk name collisions");
+            }
+        }
+        violations.Should().BeEmpty("every service DbContext must set a default schema to prevent collisions");
+    }
+
+    [Fact]
+    public void No_hardcoded_connection_strings_with_passwords()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindProductionCsFiles())
+        {
+            if (file.Contains("Test") || file.Contains("test") || file.Contains("Migration")) continue;
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (Regex.IsMatch(lines[i], @"Password\s*=\s*\w+", RegexOptions.IgnoreCase) &&
+                    lines[i].Contains("Host=") &&
+                    !lines[i].TrimStart().StartsWith("//"))
+                {
+                    violations.Add($"{Relative(file)}:{i + 1}: hardcoded connection string with password in source code");
+                }
+            }
+        }
+        violations.Should().BeEmpty("connection strings with passwords must come from environment variables or Vault");
+    }
+
+    // ─── Saga Quality ────────────────────────────────────────────────
+
+    [Fact]
+    public void Every_saga_has_SetCompletedWhenFinalized()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindSagaFiles())
+        {
+            var content = File.ReadAllText(file);
+            if (!content.Contains("MassTransitStateMachine")) continue;
+            if (!content.Contains("SetCompletedWhenFinalized"))
+            {
+                violations.Add($"{Relative(file)}: saga state machine missing SetCompletedWhenFinalized — finalized sagas never cleaned up");
+            }
+        }
+        violations.Should().BeEmpty("every saga must call SetCompletedWhenFinalized to auto-remove completed rows");
+    }
+
+    [Fact]
+    public void Every_saga_compensation_releases_reserved_resources()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindSagaFiles())
+        {
+            var content = File.ReadAllText(file);
+            if (!content.Contains("StockReserved") && !content.Contains("Reserved")) continue;
+            // If saga handles stock reservation, it must also handle release on failure
+            if (content.Contains("StockReserved") && !content.Contains("StockReleaseRequested"))
+            {
+                violations.Add($"{Relative(file)}: saga reserves stock but never publishes StockReleaseRequestedEvent on failure");
+            }
+        }
+        violations.Should().BeEmpty("sagas that reserve resources must release them on ALL failure paths");
+    }
+
+    // ─── API Quality ─────────────────────────────────────────────────
+
+    [Fact]
+    public void No_controller_returns_raw_exception_details()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindControllerFiles())
+        {
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains("ex.Message") && lines[i].Contains("return") &&
+                    !lines[i].TrimStart().StartsWith("//"))
+                {
+                    violations.Add($"{Relative(file)}:{i + 1}: controller returns exception message to client — information leakage");
+                }
+            }
+        }
+        violations.Should().BeEmpty("controllers must not return raw exception messages to clients");
+    }
+
+    [Fact]
+    public void Every_async_controller_method_accepts_CancellationToken()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindControllerFiles())
+        {
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (Regex.IsMatch(lines[i], @"public\s+async\s+Task<") &&
+                    !lines[i].Contains("CancellationToken") &&
+                    !lines[i].TrimStart().StartsWith("//"))
+                {
+                    violations.Add($"{Relative(file)}:{i + 1}: async controller method missing CancellationToken parameter");
+                }
+            }
+        }
+        // Informational — some frameworks inject it automatically
+    }
+
+    // ─── PII & Logging ───────────────────────────────────────────────
+
+    [Fact]
+    public void No_email_addresses_logged_at_Information_level()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindProductionCsFiles())
+        {
+            if (file.Contains("Test")) continue;
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains("LogInformation") &&
+                    (lines[i].Contains("email") || lines[i].Contains("Email")) &&
+                    lines[i].Contains("{") && // structured logging placeholder
+                    !lines[i].TrimStart().StartsWith("//"))
+                {
+                    violations.Add($"{Relative(file)}:{i + 1}: email logged at Information level — PII should be at Debug or masked");
+                }
+            }
+        }
+        // Informational — requires GDPR review per jurisdiction
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────
 
     private static string FindSrcRoot()

@@ -1,6 +1,7 @@
 using MassTransit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,7 +55,7 @@ public sealed class PrivacyWebAppFactory : WebApplicationFactory<Program>, IAsyn
             });
         });
 
-        builder.ConfigureServices(services =>
+        builder.ConfigureTestServices(services =>
         {
             // Remove production ErasureStalledWatcher — not needed in test harness
             var watcherDescriptor = services.FirstOrDefault(
