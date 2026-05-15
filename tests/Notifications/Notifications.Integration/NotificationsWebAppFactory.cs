@@ -90,8 +90,8 @@ public class NotificationsWebAppFactory : WebApplicationFactory<Program>, IAsync
                 ["Notifications:Providers:Twilio:AccountSid"] = "AC-test",
                 ["Notifications:Providers:Twilio:AuthToken"] = "test-auth-token",
                 ["Notifications:Providers:Twilio:FromNumber"] = "+15005550006",
+                ["Notifications:Providers:Fcm:Enabled"] = "false",
                 ["Notifications:Providers:Fcm:ProjectId"] = "test-project",
-                ["Notifications:Providers:Fcm:ServiceAccountJson"] = "{}",
             });
         });
 
