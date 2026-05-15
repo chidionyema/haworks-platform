@@ -96,7 +96,7 @@ jobs:
     name: Integration / ${{ matrix.suite }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: build-and-fast-tests
+    needs: [build-and-fast-tests]
     strategy:
       fail-fast: false
       matrix:
