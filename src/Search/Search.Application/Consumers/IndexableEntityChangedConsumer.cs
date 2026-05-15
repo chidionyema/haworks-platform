@@ -125,13 +125,44 @@ public sealed class CdcSearchIndexWorker(
         if (envelope.After == null) return;
 
         var after = envelope.After.Value;
-        var categoryId = after.GetProperty("id").GetString();
+        var categoryIdStr = after.GetProperty("id").GetString();
         var newName = after.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+
+        if (string.IsNullOrEmpty(categoryIdStr) || !Guid.TryParse(categoryIdStr, out var categoryId))
+        {
+            logger.LogWarning("CDC: Category change skipped — invalid categoryId '{Raw}'", categoryIdStr);
+            return;
+        }
 
         logger.LogInformation("CDC: Category {CategoryId} renamed to {NewName}. Re-denormalizing...",
             categoryId, newName);
 
-        await Task.CompletedTask;
+        const int batchSize = 1000;
+        var totalUpdated = 0;
+        var page = 1;
+
+        while (true)
+        {
+            var hits = await index.SearchAsync(new Models.SearchQuery
+            {
+                Query = "",
+                CategoryFilter = categoryId,
+                Page = page,
+                PageSize = batchSize,
+            }, ct).ConfigureAwait(false);
+
+            if (hits.Hits.Count == 0) break;
+
+            var renamed = hits.Hits.Select(h => h with { CategoryName = newName }).ToList();
+            await index.UpsertAsync(renamed, ct).ConfigureAwait(false);
+            totalUpdated += renamed.Count;
+
+            if (hits.Hits.Count < batchSize) break;
+            page++;
+        }
+
+        logger.LogInformation("CDC: Re-denormalised categoryName for {Count} products in category {CategoryId}",
+            totalUpdated, categoryId);
     }
 
     private static string MapOp(string op) => op switch

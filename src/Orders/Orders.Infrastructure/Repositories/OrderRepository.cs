@@ -32,6 +32,17 @@ internal sealed class OrderRepository(OrderDbContext db) : IOrderRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<Order>> ListByUserTrackedAsync(string userId, int skip, int take, CancellationToken ct = default)
+    {
+        return await db.Orders
+            .Include(o => o.Items)
+            .Where(o => o.UserId == userId)
+            .OrderByDescending(o => o.CreatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(ct);
+    }
+
     public Task<int> CountByUserAsync(string userId, CancellationToken ct = default) =>
         db.Orders.AsNoTracking().CountAsync(o => o.UserId == userId, ct);
 

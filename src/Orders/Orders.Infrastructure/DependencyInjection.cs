@@ -81,6 +81,7 @@ public static class DependencyInjection
             mt.AddConsumer<CheckoutSessionExpiredConsumer, OrdersConsumerDefinition<CheckoutSessionExpiredConsumer>>();
             mt.AddConsumer<RefundCompletedConsumer, OrdersConsumerDefinition<RefundCompletedConsumer>>();
             mt.AddConsumer<RefundCancelledConsumer, OrdersConsumerDefinition<RefundCancelledConsumer>>();
+            mt.AddConsumer<PrivacyErasureRequestedConsumer, OrdersConsumerDefinition<PrivacyErasureRequestedConsumer>>();
 
             mt.UsingRabbitMq((context, cfg) =>
             {

@@ -30,4 +30,7 @@ public sealed record PaymentCompletedEvent : DomainEvent
 
     /// <summary>The provider's transaction reference.</summary>
     public string? TransactionReference { get; init; }
+
+    /// <summary>The seller who should be credited for this payment (used by Payouts).</summary>
+    public Guid SellerId { get; init; }
 }

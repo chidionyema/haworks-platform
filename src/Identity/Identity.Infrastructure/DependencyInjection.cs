@@ -233,6 +233,7 @@ public static class DependencyInjection
             services.AddMassTransit(mt =>
             {
                 mt.SetKebabCaseEndpointNameFormatter();
+                mt.AddConsumer<Haworks.Identity.Application.Consumers.PrivacyErasureRequestedConsumer>();
                 mt.UsingRabbitMq((context, cfg) =>
                 {
                     var rabbitConn = configuration.GetConnectionString("rabbitmq")
