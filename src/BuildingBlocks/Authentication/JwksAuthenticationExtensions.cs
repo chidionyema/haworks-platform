@@ -62,14 +62,14 @@ public static class JwksAuthenticationExtensions
         });
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme);
-
-        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .PostConfigure<IServiceProvider>((bearer, sp) =>
+            .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, bearer =>
             {
-                var jwks = sp.GetRequiredService<IOptions<JwksOptions>>().Value;
-                var manager = sp.GetRequiredService<IConfigurationManager<OpenIdConnectConfiguration>>();
-                var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+                // Resolve dependencies via a temporary provider.
+                // This runs once during auth scheme initialization.
+                using var tempSp = services.BuildServiceProvider();
+                var jwks = tempSp.GetRequiredService<IOptions<JwksOptions>>().Value;
+                var manager = tempSp.GetRequiredService<IConfigurationManager<OpenIdConnectConfiguration>>();
+                var loggerFactory = tempSp.GetRequiredService<ILoggerFactory>();
                 var logger = loggerFactory.CreateLogger("Haworks.BuildingBlocks.Authentication.Jwks");
 
                 bearer.MapInboundClaims = false;
