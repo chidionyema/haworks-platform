@@ -31,6 +31,8 @@ public sealed class PrivacyStateMachineTests : IClassFixture<PrivacyWebAppFactor
         harness.TestTimeout = TimeSpan.FromSeconds(30);
         harness.TestInactivityTimeout = TimeSpan.FromSeconds(10);
         await harness.Start();
+        // Allow saga endpoint warmup — first message delivery can be delayed
+        await Task.Delay(2000);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -341,9 +343,8 @@ public sealed class PrivacyStateMachineTests : IClassFixture<PrivacyWebAppFactor
 
     private async Task PublishAsync<T>(T evt) where T : class
     {
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var publisher = scope.ServiceProvider.GetRequiredService<MassTransit.IPublishEndpoint>();
-        await publisher.Publish(evt);
+        var bus = _factory.Services.GetRequiredService<MassTransit.IBus>();
+        await bus.Publish(evt);
     }
 
     private string? SagaStateOrNull(Guid requestId)

@@ -6,12 +6,15 @@ using Haworks.Notifications.Application.Webhooks;
 using System.Security.Cryptography;
 using System.Text;
 using Amazon.SimpleNotificationService.Util;
+using Microsoft.AspNetCore.Authorization;
 using Twilio.Security;
 
 namespace Haworks.Notifications.Api.Controllers;
 
+// Webhook endpoints are called by email/SMS providers (SES, SendGrid, Twilio) — signature validation replaces auth
 [ApiController]
 [Route("api/notifications/webhooks")]
+[AllowAnonymous]
 public sealed class WebhooksController(
     IPublishEndpoint publishEndpoint,
     IOptions<WebhookOptions> options,

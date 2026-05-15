@@ -33,7 +33,7 @@ internal sealed class StartCheckoutCommandHandler(
         activity?.SetTag("saga.id", sagaId);
         activity?.SetTag("order.id", orderId);
         activity?.SetTag("customer.id", request.UserId);
-        activity?.SetTag("checkout.total_amount_cents", (long)(request.TotalAmount * 100m));
+        activity?.SetTag("checkout.total_amount_cents", (long)Math.Round(request.TotalAmount * 100m, 0, MidpointRounding.AwayFromZero));
         activity?.SetTag("checkout.item_count", request.Items.Count);
 
         await publishEndpoint.Publish(new CheckoutInitiatedEvent

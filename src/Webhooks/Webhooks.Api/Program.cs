@@ -49,6 +49,8 @@ builder.Services.AddPlatformAuthentication(builder.Configuration);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHealthChecks()
+    .AddDbHealthCheck<Haworks.Webhooks.Infrastructure.Persistence.WebhooksDbContext>();
 
 var app = builder.Build();
 

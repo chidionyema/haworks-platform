@@ -63,12 +63,6 @@ public sealed class PrivacyWebAppFactory : WebApplicationFactory<Program>, IAsyn
 
             services.AddMassTransitTestHarness(mt =>
             {
-                mt.AddEntityFrameworkOutbox<PrivacyDbContext>(o =>
-                {
-                    o.UsePostgres();
-                    o.UseBusOutbox();
-                });
-
                 mt.AddSagaStateMachine<PrivacyRequestStateMachine, PrivacyRequestState>()
                     .EntityFrameworkRepository(r =>
                     {

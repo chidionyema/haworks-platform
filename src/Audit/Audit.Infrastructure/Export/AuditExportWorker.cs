@@ -62,6 +62,7 @@ public class AuditExportWorker : BackgroundService
                 var strandedJobIds = await db.AuditExportJobs
                     .Where(j => j.Status == AuditExportStatus.Queued)
                     .Select(j => j.Id)
+                    .Take(100)
                     .ToListAsync(ct);
                     
                 foreach (var id in strandedJobIds)

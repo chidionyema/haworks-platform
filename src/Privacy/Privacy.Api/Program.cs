@@ -26,6 +26,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHealthChecks().AddDbHealthCheck<Haworks.Privacy.Infrastructure.Persistence.PrivacyDbContext>();
 
 var app = builder.Build();
 
