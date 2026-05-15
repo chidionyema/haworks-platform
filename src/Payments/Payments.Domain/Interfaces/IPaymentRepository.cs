@@ -11,6 +11,7 @@ public interface IPaymentRepository
     Task<Payment?> GetByProviderSessionTrackedAsync(PaymentProvider provider, string providerSessionId, CancellationToken ct = default);
     Task<Payment?> GetByOrderIdTrackedAsync(Guid orderId, CancellationToken ct = default);
     Task<Payment?> GetByProviderTransactionIdAsync(string providerTransactionId, CancellationToken ct = default);
+    Task<IReadOnlyList<Payment>> ListByUserAsync(string userId, CancellationToken ct = default);
     Task AddAsync(Payment payment, CancellationToken ct = default);
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 

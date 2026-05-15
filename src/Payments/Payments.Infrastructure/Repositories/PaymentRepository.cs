@@ -25,6 +25,9 @@ internal sealed class PaymentRepository(PaymentDbContext db) : IPaymentRepositor
     public Task<Payment?> GetByProviderTransactionIdAsync(string providerTransactionId, CancellationToken ct = default) =>
         db.Payments.FirstOrDefaultAsync(p => p.ProviderTransactionId == providerTransactionId, ct);
 
+    public async Task<IReadOnlyList<Payment>> ListByUserAsync(string userId, CancellationToken ct = default) =>
+        await db.Payments.Where(p => p.UserId == userId).ToListAsync(ct);
+
     public async Task AddAsync(Payment payment, CancellationToken ct = default) =>
         await db.Payments.AddAsync(payment, ct);
 

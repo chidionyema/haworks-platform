@@ -127,6 +127,17 @@ public class Order : AuditableEntity
         return true;
     }
 
+    /// <summary>
+    /// Anonymises PII fields for GDPR erasure. Idempotent — safe to call
+    /// multiple times on the same order.
+    /// </summary>
+    public void AnonymiseForPrivacy()
+    {
+        UserId = "ERASED";
+        CustomerEmail = "deleted@privacy.invalid";
+        LastModifiedDate = DateTime.UtcNow;
+    }
+
     /// <summary>Reverts to Paid status. Usually after a failed or cancelled refund.</summary>
     public bool RevertToPaid()
     {
