@@ -1,7 +1,6 @@
 using MassTransit;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.Payments.Domain;
-using Haworks.Payments.Infrastructure.Persistence;
 
 namespace Haworks.Payments.Infrastructure.Messaging;
 
