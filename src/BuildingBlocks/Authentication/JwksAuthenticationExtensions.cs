@@ -65,7 +65,7 @@ public static class JwksAuthenticationExtensions
             .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme);
 
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IServiceProvider>((bearer, sp) =>
+            .PostConfigure<IServiceProvider>((bearer, sp) =>
             {
                 var jwks = sp.GetRequiredService<IOptions<JwksOptions>>().Value;
                 var manager = sp.GetRequiredService<IConfigurationManager<OpenIdConnectConfiguration>>();
