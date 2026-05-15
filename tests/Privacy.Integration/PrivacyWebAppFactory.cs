@@ -57,13 +57,16 @@ public sealed class PrivacyWebAppFactory : WebApplicationFactory<Program>, IAsyn
 
         builder.ConfigureTestServices(services =>
         {
-            // Remove production ErasureStalledWatcher — not needed in test harness
-            var watcherDescriptor = services.FirstOrDefault(
-                d => d.ImplementationType == typeof(Haworks.Privacy.Infrastructure.Workers.ErasureStalledWatcher));
-            if (watcherDescriptor is not null) services.Remove(watcherDescriptor);
-
+            // AddEntityFrameworkOutbox is required because the saga uses PublishAsync
+            // within its state transitions. Without the outbox, the publish faults.
+            // Note: UseBusOutbox is NOT used here to avoid intercepting test helper publishes.
             services.AddMassTransitTestHarness(mt =>
             {
+                mt.AddEntityFrameworkOutbox<PrivacyDbContext>(o =>
+                {
+                    o.UsePostgres();
+                });
+
                 mt.AddSagaStateMachine<PrivacyRequestStateMachine, PrivacyRequestState>()
                     .EntityFrameworkRepository(r =>
                     {
@@ -83,6 +86,7 @@ public sealed class PrivacyWebAppFactory : WebApplicationFactory<Program>, IAsyn
         await db.Database.OpenConnectionAsync();
         try
         {
+            await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS privacy;");
             await db.Database.EnsureCreatedAsync();
         }
         finally

@@ -35,12 +35,12 @@ public class PrivacyRequestStateMachine : MassTransitStateMachine<PrivacyRequest
                     _logger.LogInformation("Privacy erasure request initiated for user {UserId}, request {RequestId}",
                         context.Message.UserId, context.Message.RequestId);
                 })
-                .PublishAsync(context => context.Init<PrivacyErasureRequested>(new
+                .PublishAsync(context => context.Init<PrivacyErasureRequested>(new PrivacyErasureRequested
                 {
-                    context.Message.RequestId,
-                    context.Message.UserId
+                    RequestId = context.Message.RequestId,
+                    UserId = context.Message.UserId
                 }))
-                .Schedule(ErasureTimeoutSchedule, ctx => new PrivacyErasureTimedOut(ctx.Saga.CorrelationId),
+                .Schedule(ErasureTimeoutSchedule, ctx => new PrivacyErasureTimedOut { RequestId = ctx.Saga.CorrelationId },
                     _ => TimeSpan.FromDays(7))
                 .TransitionTo(Processing)
         );

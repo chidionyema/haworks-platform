@@ -28,12 +28,12 @@ public static class DependencyInjection
 
         services.AddScoped<IPrivacyDbContext>(provider => provider.GetRequiredService<PrivacyDbContext>());
 
-        services.AddHostedService<ErasureStalledWatcher>();
-
         if (env.IsEnvironment("Test"))
         {
             return services;
         }
+
+        services.AddHostedService<ErasureStalledWatcher>();
 
         services.AddMassTransit(x =>
         {

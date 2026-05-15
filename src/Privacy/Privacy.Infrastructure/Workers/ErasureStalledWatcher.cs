@@ -101,7 +101,7 @@ public sealed class ErasureStalledWatcher : BackgroundService
             try
             {
                 await publishEndpoint.Publish(
-                    new PrivacyErasureRequested(saga.CorrelationId, saga.UserId),
+                    new PrivacyErasureRequested { RequestId = saga.CorrelationId, UserId = saga.UserId },
                     ct);
             }
             catch (Exception ex)

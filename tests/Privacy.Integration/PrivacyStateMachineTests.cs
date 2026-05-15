@@ -15,7 +15,8 @@ namespace Haworks.Privacy.Integration;
 /// Saga state is persisted to real Testcontainers Postgres so the EF saga
 /// repository's xmin concurrency and MT outbox semantics are exercised.
 /// </summary>
-public sealed class PrivacyStateMachineTests : IClassFixture<PrivacyWebAppFactory>, IAsyncLifetime
+[Collection("Privacy Integration")]
+public sealed class PrivacyStateMachineTests : IAsyncLifetime
 {
     private readonly PrivacyWebAppFactory _factory;
 
@@ -31,8 +32,6 @@ public sealed class PrivacyStateMachineTests : IClassFixture<PrivacyWebAppFactor
         harness.TestTimeout = TimeSpan.FromSeconds(30);
         harness.TestInactivityTimeout = TimeSpan.FromSeconds(10);
         await harness.Start();
-        // Allow saga endpoint warmup — first message delivery can be delayed
-        await Task.Delay(2000);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -131,7 +130,7 @@ public sealed class PrivacyStateMachineTests : IClassFixture<PrivacyWebAppFactor
         var (requestId, userId) = await PublishInitiateAsync();
         await PollUntilAsync(() => SagaStateOrNull(requestId) == "Processing", TimeSpan.FromSeconds(15));
 
-        await PublishAsync(new PrivacyErasureFailed(requestId, userId, "orders-svc", "DB connection lost"));
+        await PublishAsync(new PrivacyErasureFailed { RequestId = requestId, UserId = userId, ServiceName = "orders-svc", ErrorMessage = "DB connection lost" });
 
         await PollUntilAsync(() => SagaStateOrNull(requestId) == "Failed", TimeSpan.FromSeconds(15));
 
@@ -150,7 +149,7 @@ public sealed class PrivacyStateMachineTests : IClassFixture<PrivacyWebAppFactor
         await PollUntilAsync(() => SagaStateOrNull(requestId) == "Processing", TimeSpan.FromSeconds(15));
 
         // Simulate the timeout event directly (in production this fires after 7 days).
-        await PublishAsync(new PrivacyErasureTimedOut(requestId));
+        await PublishAsync(new PrivacyErasureTimedOut { RequestId = requestId });
 
         await PollUntilAsync(() => SagaStateOrNull(requestId) == "Stalled", TimeSpan.FromSeconds(15));
 
@@ -172,7 +171,7 @@ public sealed class PrivacyStateMachineTests : IClassFixture<PrivacyWebAppFactor
         await PublishErasureCompletedAsync(requestId, userId, "identity-svc");
         await Task.Delay(1000); // let the completion process
 
-        await PublishAsync(new PrivacyErasureTimedOut(requestId));
+        await PublishAsync(new PrivacyErasureTimedOut { RequestId = requestId });
         await PollUntilAsync(() => SagaStateOrNull(requestId) == "Stalled", TimeSpan.FromSeconds(15));
 
         var saga = await ReadSagaAsync(requestId);
@@ -234,7 +233,7 @@ public sealed class PrivacyStateMachineTests : IClassFixture<PrivacyWebAppFactor
         }, TimeSpan.FromSeconds(15));
 
         // Publish failure after completion — saga is finalized, event is discarded.
-        await PublishAsync(new PrivacyErasureFailed(requestId, userId, "orders-svc", "late failure"));
+        await PublishAsync(new PrivacyErasureFailed { RequestId = requestId, UserId = userId, ServiceName = "orders-svc", ErrorMessage = "late failure" });
         await Task.Delay(1000);
 
         var saga = await ReadSagaAsync(requestId);
@@ -253,7 +252,7 @@ public sealed class PrivacyStateMachineTests : IClassFixture<PrivacyWebAppFactor
         var (requestId, userId) = await PublishInitiateAsync();
         await PollUntilAsync(() => SagaStateOrNull(requestId) == "Processing", TimeSpan.FromSeconds(15));
 
-        await PublishAsync(new PrivacyErasureFailed(requestId, userId, "identity-svc", "crash"));
+        await PublishAsync(new PrivacyErasureFailed { RequestId = requestId, UserId = userId, ServiceName = "identity-svc", ErrorMessage = "crash" });
         await PollUntilAsync(() => SagaStateOrNull(requestId) == "Failed", TimeSpan.FromSeconds(15));
 
         // Publish completion after failure — should be discarded.
@@ -334,12 +333,12 @@ public sealed class PrivacyStateMachineTests : IClassFixture<PrivacyWebAppFactor
     {
         var requestId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        await PublishAsync(new InitiatePrivacyRequestMessage(requestId, userId));
+        await PublishAsync(new InitiatePrivacyRequestMessage { RequestId = requestId, UserId = userId });
         return (requestId, userId);
     }
 
     private Task PublishErasureCompletedAsync(Guid requestId, Guid userId, string serviceName)
-        => PublishAsync(new PrivacyErasureCompleted(requestId, userId, serviceName));
+        => PublishAsync(new PrivacyErasureCompleted { RequestId = requestId, UserId = userId, ServiceName = serviceName });
 
     private async Task PublishAsync<T>(T evt) where T : class
     {
