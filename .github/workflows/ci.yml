@@ -42,21 +42,45 @@ jobs:
               - 'src/BuildingBlocks.Testing/**'
               - 'src/Contracts/**'
               - '.github/workflows/**'
-            Audit:        ['src/Audit/**', 'tests/Audit/**']
-            BffWeb:       ['src/BffWeb/**', 'tests/BffWeb/**']
-            Catalog:      ['src/Catalog/**', 'tests/Catalog/**']
-            CheckoutOrchestrator: ['src/CheckoutOrchestrator/**', 'tests/CheckoutOrchestrator/**']
-            Content:      ['src/Content/**', 'tests/Content/**']
-            Identity:     ['src/Identity/**', 'tests/Identity/**']
-            Notifications: ['src/Notifications/**', 'tests/Notifications/**']
-            Orders:       ['src/Orders/**', 'tests/Orders/**']
-            Payments:     ['src/Payments/**', 'tests/Payments/**']
-            Payouts:      ['src/Payouts/**', 'tests/Payouts*/**']
-            Scheduler:    ['src/Scheduler/**', 'tests/Scheduler*/**']
-            Search:       ['src/Search/**', 'tests/Search/**']
-            Webhooks:     ['src/Webhooks/**', 'tests/Webhooks/**']
-          # Output a JSON array of changed service names
-          list-files: none
+            Audit:
+              - 'src/Audit/**'
+              - 'tests/Audit/**'
+            BffWeb:
+              - 'src/BffWeb/**'
+              - 'tests/BffWeb/**'
+            Catalog:
+              - 'src/Catalog/**'
+              - 'tests/Catalog/**'
+            CheckoutOrchestrator:
+              - 'src/CheckoutOrchestrator/**'
+              - 'tests/CheckoutOrchestrator/**'
+            Content:
+              - 'src/Content/**'
+              - 'tests/Content/**'
+            Identity:
+              - 'src/Identity/**'
+              - 'tests/Identity/**'
+            Notifications:
+              - 'src/Notifications/**'
+              - 'tests/Notifications/**'
+            Orders:
+              - 'src/Orders/**'
+              - 'tests/Orders/**'
+            Payments:
+              - 'src/Payments/**'
+              - 'tests/Payments/**'
+            Payouts:
+              - 'src/Payouts/**'
+              - 'tests/Payouts*/**'
+            Scheduler:
+              - 'src/Scheduler/**'
+              - 'tests/Scheduler*/**'
+            Search:
+              - 'src/Search/**'
+              - 'tests/Search/**'
+            Webhooks:
+              - 'src/Webhooks/**'
+              - 'tests/Webhooks/**'
       - id: collect
         run: |
           services='[]'
