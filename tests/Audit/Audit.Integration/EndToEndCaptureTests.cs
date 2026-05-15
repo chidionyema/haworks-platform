@@ -1,3 +1,4 @@
+using Haworks.Audit.Application.Capture;
 using FluentAssertions;
 using Haworks.Audit.Domain;using Haworks.Audit.Infrastructure.Persistence;
 using Haworks.Contracts.Catalog;
@@ -76,6 +77,11 @@ public sealed class EndToEndCaptureTests : IClassFixture<AuditWebAppFactory>
             PreviousVersion = "1",
             Timestamp = DateTime.UtcNow
         });
+
+        // Give consumers time to process, then flush the batched writer
+        await Task.Delay(3000);
+        var writer = _factory.Services.GetRequiredService<IAuditWriter>();
+        await writer.FlushAsync(CancellationToken.None);
 
         // Assert — poll with fresh DbContext scopes (EF caches results within a scope)
         List<AuditEvent>? events = null;
