@@ -129,6 +129,16 @@ public class Payment : AuditableEntity
         LastModifiedDate = DateTime.UtcNow;
     }
 
+    /// <summary>
+    /// Anonymises PII fields for GDPR erasure. Idempotent — safe to call
+    /// multiple times on the same payment.
+    /// </summary>
+    public void AnonymiseForPrivacy()
+    {
+        UserId = "ERASED";
+        LastModifiedDate = DateTime.UtcNow;
+    }
+
     public void MarkCancelled()
     {
         Status = PaymentStatus.Cancelled;

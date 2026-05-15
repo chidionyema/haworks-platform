@@ -53,6 +53,14 @@ public class Subscription : AuditableEntity
     public void ClearCancellation() => CanceledAt = null;
     public void SetExpiresAt(DateTime expiresAt) => ExpiresAt = expiresAt;
     public bool IsActive => Status == SubscriptionStatus.Active && DateTime.UtcNow < ExpiresAt;
+
+    /// <summary>
+    /// Anonymises PII fields for GDPR erasure.
+    /// </summary>
+    public void AnonymiseForPrivacy()
+    {
+        UserId = "ERASED";
+    }
 }
 
 public class SubscriptionPlan : AuditableEntity
