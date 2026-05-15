@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using MediatR;
 using Haworks.Notifications.Application.Commands;
 using Haworks.Notifications.Application.Queries;
@@ -10,6 +11,7 @@ namespace Haworks.Notifications.Api.Controllers;
 [ApiController]
 [Route("api/notifications")]
 [Authorize]
+[EnableRateLimiting("api")]
 public sealed class NotificationsController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;

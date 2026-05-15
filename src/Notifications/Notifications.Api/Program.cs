@@ -43,6 +43,18 @@ builder.Services.AddPostgresIdempotency<NotificationsDbContext>();
 
 builder.Services.AddPlatformAuthentication(builder.Configuration);
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("api", context =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: "api",
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -75,6 +87,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseIdempotency();
