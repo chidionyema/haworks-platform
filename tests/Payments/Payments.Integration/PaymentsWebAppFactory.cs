@@ -56,15 +56,11 @@ public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
     {
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
-        await db.Database.OpenConnectionAsync();
-        try
+        var created = await db.Database.EnsureCreatedAsync();
+        if (!created)
         {
-            await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS payments;");
+            await db.Database.EnsureDeletedAsync();
             await db.Database.EnsureCreatedAsync();
-        }
-        finally
-        {
-            await db.Database.CloseConnectionAsync();
         }
     }
 
