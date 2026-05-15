@@ -21,79 +21,6 @@ env:
   TESTCONTAINERS_RYUK_DISABLED: true
 
 jobs:
-  # ─── Change detection ──────────────────────────────────────────────
-  # Determines which services have changed files so integration tests
-  # can be skipped for unaffected services. Shared code (BuildingBlocks,
-  # Contracts) triggers ALL integration tests.
-  changes:
-    name: Detect changes
-    runs-on: ubuntu-latest
-    outputs:
-      shared: ${{ steps.filter.outputs.shared }}
-      Audit: ${{ steps.filter.outputs.Audit }}
-      BffWeb: ${{ steps.filter.outputs.BffWeb }}
-      Catalog: ${{ steps.filter.outputs.Catalog }}
-      CheckoutOrchestrator: ${{ steps.filter.outputs.CheckoutOrchestrator }}
-      Content: ${{ steps.filter.outputs.Content }}
-      Identity: ${{ steps.filter.outputs.Identity }}
-      Notifications: ${{ steps.filter.outputs.Notifications }}
-      Orders: ${{ steps.filter.outputs.Orders }}
-      Payments: ${{ steps.filter.outputs.Payments }}
-      Payouts: ${{ steps.filter.outputs.Payouts }}
-      Scheduler: ${{ steps.filter.outputs.Scheduler }}
-      Search: ${{ steps.filter.outputs.Search }}
-      Webhooks: ${{ steps.filter.outputs.Webhooks }}
-    steps:
-      - uses: actions/checkout@v6
-      - id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            shared:
-              - 'src/BuildingBlocks/**'
-              - 'src/BuildingBlocks.Testing/**'
-              - 'src/Contracts/**'
-              - '.github/workflows/**'
-            Audit:
-              - 'src/Audit/**'
-              - 'tests/Audit/**'
-            BffWeb:
-              - 'src/BffWeb/**'
-              - 'tests/BffWeb/**'
-            Catalog:
-              - 'src/Catalog/**'
-              - 'tests/Catalog/**'
-            CheckoutOrchestrator:
-              - 'src/CheckoutOrchestrator/**'
-              - 'tests/CheckoutOrchestrator/**'
-            Content:
-              - 'src/Content/**'
-              - 'tests/Content/**'
-            Identity:
-              - 'src/Identity/**'
-              - 'tests/Identity/**'
-            Notifications:
-              - 'src/Notifications/**'
-              - 'tests/Notifications/**'
-            Orders:
-              - 'src/Orders/**'
-              - 'tests/Orders/**'
-            Payments:
-              - 'src/Payments/**'
-              - 'tests/Payments/**'
-            Payouts:
-              - 'src/Payouts/**'
-              - 'tests/Payouts*/**'
-            Scheduler:
-              - 'src/Scheduler/**'
-              - 'tests/Scheduler*/**'
-            Search:
-              - 'src/Search/**'
-              - 'tests/Search/**'
-            Webhooks:
-              - 'src/Webhooks/**'
-              - 'tests/Webhooks/**'
-
   # Fast path — builds the solution and runs everything that doesn't need
   # Docker. Fails the PR in <2 minutes if the build, unit, architecture,
   # or Pact tests are broken.
@@ -169,11 +96,7 @@ jobs:
     name: Integration / ${{ matrix.suite }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [build-and-fast-tests, changes]
-    # Skip integration test if neither the service nor shared code changed
-    if: >-
-      needs.changes.outputs.shared == 'true' ||
-      needs.changes.outputs[matrix.suite] == 'true'
+    needs: [build-and-fast-tests]
     strategy:
       fail-fast: false
       matrix:
