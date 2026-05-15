@@ -4,10 +4,12 @@ using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Startup;
 using Haworks.CheckoutOrchestrator.Infrastructure;
+using Haworks.BuildingBlocks.Vault;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddVaultSidecarSecrets();
 
 builder.AddServiceDefaults();
 
@@ -33,7 +35,7 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 builder.Services.AddHealthChecks()
     .AddDbHealthCheck<Haworks.CheckoutOrchestrator.Infrastructure.CheckoutDbContext>();
 
-
+var app = builder.Build();
 
 if (!app.Environment.IsEnvironment("Test"))
 {
@@ -56,6 +58,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 // Idempotency middleware — opt-in via X-Idempotency-Key. Server-side
 // scoped by UserId; checkout's POST /api/checkouts is the highest-value
