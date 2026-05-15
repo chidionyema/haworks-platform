@@ -19,7 +19,7 @@ builder.Host.UseSerilog((context, loggerConfiguration) => loggerConfiguration
 
 // Add layers
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 
 builder.Services.AddJwksAuthentication(builder.Configuration);
 builder.Services.AddHttpContextAccessor();

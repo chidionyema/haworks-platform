@@ -19,7 +19,7 @@ public static class DependencyInjection
         services.AddDbContext<PayoutsDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IPayoutsDbContext>(provider => provider.GetRequiredService<PayoutsDbContext>());
         services.AddScoped<IPayoutGateway, StripePayoutGateway>();
-        if (!env.IsEnvironment("Test"))
+        if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Test")
         {
             services.AddMassTransit(x => {
                 x.AddConsumer<PaymentCompletedConsumer>();

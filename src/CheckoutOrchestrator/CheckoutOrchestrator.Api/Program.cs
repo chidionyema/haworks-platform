@@ -29,7 +29,7 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 });
 
 builder.Services.AddHealthChecks()
-    .AddDbHealthCheck<Haworks.CheckoutOrchestrator.Infrastructure.Persistence.CheckoutDbContext>();
+    .AddDbHealthCheck<Haworks.CheckoutOrchestrator.Infrastructure.CheckoutDbContext>();
 
 var app = builder.Build();
 
