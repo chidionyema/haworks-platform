@@ -9,6 +9,7 @@ using Xunit;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 using Microsoft.Extensions.DependencyInjection;
+using Haworks.Audit.Application.Capture;
 using Haworks.Audit.Application.Extraction;
 using Haworks.Audit.Application.Redaction;
 using Haworks.Audit.Infrastructure.Persistence;
@@ -67,9 +68,14 @@ public class AuditWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
             });
         });
 
-        // Add stubs for L1.A if they are not registered yet
+        // Ensure IAuditWriter is always registered: the production path uses a
+        // runtime assembly scan which can miss Audit.Infrastructure if it hasn't
+        // been JIT-loaded yet when AddAuditCapture() runs.  Registering it
+        // explicitly here guarantees the consumer can be resolved in tests.
+        // Also register stub extractors/redactor so tests don't need Vault etc.
         builder.ConfigureTestServices(services =>
         {
+            services.AddSingleton<IAuditWriter, AuditWriter>();
             services.AddSingleton(typeof(IAuditExtractor<>), typeof(TestStubExtractor<>));
             services.AddSingleton<ISecretRedactor, TestStubRedactor>();
         });
