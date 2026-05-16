@@ -40,11 +40,12 @@ public static class DependencyInjection
         // CatalogProductsApiClient and wraps each call — matching the
         // Stripe/PayPal pattern — so AddPolicyHandler isn't needed here.
         services.AddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
-        services.AddHttpClient<ICatalogProductsApi, CatalogProductsApiClient>(c =>
+        services.AddHttpClient<ICatalogProductsApi, CatalogProductsApiClient>((sp, c) =>
         {
             c.BaseAddress = new Uri(configuration["Catalog:BaseAddress"]
                 ?? "http://ritualworks-catalog.flycast:8080");
-            c.Timeout = TimeSpan.FromSeconds(5);
+            var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
+            c.Timeout = TimeSpan.FromSeconds(t.SearchCatalogSeconds);
         });
 
         // MassTransit + RabbitMQ. Skipped under Test — SearchWebAppFactory

@@ -1226,7 +1226,10 @@ public sealed class PlatformGuardTests
             .Where(f => !f.Contains("obj") && !f.Contains("bin")))
         {
             var content = File.ReadAllText(file);
-            if (!content.Contains("EnsureCreatedAsync")) continue;
+            // Only flag actual code usage, not comments mentioning EnsureCreatedAsync
+            var codeLines = content.Split('\n')
+                .Where(l => !l.TrimStart().StartsWith("//") && !l.TrimStart().StartsWith("*"));
+            if (!codeLines.Any(l => l.Contains("EnsureCreatedAsync"))) continue;
             // Find which schema the service uses
             var serviceName = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(file)) ?? "");
             // Check if the corresponding DbContext uses HasDefaultSchema
@@ -1305,6 +1308,63 @@ public sealed class PlatformGuardTests
         violations.Should().BeEmpty("all Privacy events must extend DomainEvent for MassTransit compatibility");
     }
 
+    [Fact]
+    public void Media_events_extend_DomainEvent()
+    {
+        var contractsDir = Path.Combine(SrcRoot, "Contracts", "Media");
+        if (!Directory.Exists(contractsDir)) return;
+        var violations = new List<string>();
+        foreach (var file in Directory.GetFiles(contractsDir, "*.cs")
+            .Where(f => !f.Contains("obj")))
+        {
+            var lines = File.ReadAllLines(file);
+            foreach (var line in lines)
+            {
+                // Match records ending in Event, Message, or Notification (actual MassTransit events)
+                // Skip value objects like MediaVariant
+                var m = Regex.Match(line, @"public\s+(sealed\s+)?record\s+(\w+)");
+                if (!m.Success) continue;
+                var name = m.Groups[2].Value;
+                if (!name.EndsWith("Event") && !name.EndsWith("Message") && !name.EndsWith("Notification"))
+                    continue;
+                if (!line.Contains(": DomainEvent") && !line.Contains(":DomainEvent"))
+                {
+                    violations.Add($"{Relative(file)}: {name} doesn't extend DomainEvent — MassTransit Init<T> will fault");
+                }
+            }
+        }
+        violations.Should().BeEmpty("all Media events must extend DomainEvent for MassTransit compatibility");
+    }
+
+    [Fact]
+    public void Media_state_transitions_are_guarded()
+    {
+        var mediaFilePath = Path.Combine(SrcRoot, "Media", "Media.Api", "Domain", "MediaFile.cs");
+        if (!File.Exists(mediaFilePath)) return;
+        var content = File.ReadAllText(mediaFilePath);
+        var violations = new List<string>();
+
+        // Each MarkAs* method must contain a Status != check (guard)
+        var methods = Regex.Matches(content, @"public\s+void\s+(MarkAs\w+)\s*\(\)");
+        foreach (Match m in methods)
+        {
+            var methodName = m.Groups[1].Value;
+            // Find method body — look for the throw check
+            if (!content.Contains($"{methodName}()") || !content.Contains("throw new InvalidOperationException"))
+                continue;
+
+            // Check that the method body contains a Status != guard
+            var methodStart = content.IndexOf($"public void {methodName}()");
+            var methodEnd = content.IndexOf('}', content.IndexOf('{', methodStart)) + 1;
+            var methodBody = content[methodStart..methodEnd];
+            if (!methodBody.Contains("Status !="))
+            {
+                violations.Add($"MediaFile.{methodName} has no state transition guard (missing Status != check)");
+            }
+        }
+        violations.Should().BeEmpty("all MediaFile state transitions must enforce valid source states");
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────
 
     private static string FindSrcRoot()
@@ -1354,4 +1414,68 @@ public sealed class PlatformGuardTests
     private static IEnumerable<string> FindProductionCsFiles() =>
         Directory.GetFiles(SrcRoot, "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.Contains("obj") && !f.Contains("bin") && !f.Contains("/Test") && !f.Contains(".Testing"));
+
+    // ─── Timeout & Resilience Guards ──────────────────────────────────
+
+    [Fact]
+    public void No_raw_HttpClient_without_timeout_in_production_code()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindProductionCsFiles())
+        {
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (!lines[i].Contains("new HttpClient()") && !lines[i].Contains("new HttpClient("))
+                    continue;
+                // Check next 5 lines for Timeout assignment
+                bool hasTimeout = false;
+                for (int j = i; j < Math.Min(i + 6, lines.Length); j++)
+                {
+                    if (lines[j].Contains(".Timeout") || lines[j].Contains("Timeout ="))
+                    {
+                        hasTimeout = true;
+                        break;
+                    }
+                }
+                if (!hasTimeout)
+                    violations.Add($"{Relative(file)}:{i + 1}: new HttpClient() without Timeout assignment");
+            }
+        }
+        violations.Should().BeEmpty(
+            "every raw HttpClient must have an explicit Timeout to prevent indefinite hangs");
+    }
+
+    [Fact]
+    public void No_SemaphoreSlim_WaitAsync_without_timeout_in_production_code()
+    {
+        var violations = new List<string>();
+        foreach (var file in FindProductionCsFiles())
+        {
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+                // Match: .WaitAsync() or .WaitAsync(ct) or .WaitAsync(cancellationToken)
+                // but NOT .WaitAsync(TimeSpan...) or .WaitAsync(timeout,...)
+                if (line.Contains(".WaitAsync(") &&
+                    !line.Contains("TimeSpan") &&
+                    !line.Contains("FromSeconds") &&
+                    !line.Contains("FromMinutes") &&
+                    !line.Contains("imeout", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Only flag SemaphoreSlim patterns (not Task.WaitAsync etc.)
+                    if (line.Contains("_gate.") || line.Contains("_lock.") ||
+                        line.Contains("_clientGate.") || line.Contains("_unwrapGate.") ||
+                        line.Contains("_clientLock.") || line.Contains("_tokenLock.") ||
+                        line.Contains("@lock."))
+                    {
+                        violations.Add($"{Relative(file)}:{i + 1}: SemaphoreSlim.WaitAsync without TimeSpan timeout");
+                    }
+                }
+            }
+        }
+        violations.Should().BeEmpty(
+            "every SemaphoreSlim.WaitAsync must include a TimeSpan timeout to prevent indefinite hangs");
+    }
 }

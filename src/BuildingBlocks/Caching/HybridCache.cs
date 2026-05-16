@@ -2,9 +2,11 @@ using System.Collections.Concurrent;
 using System.Net.Sockets;
 using System.Text.Json;
 using Haworks.BuildingBlocks.Caching;
+using Haworks.BuildingBlocks.Resilience;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Haworks.BuildingBlocks.Caching;
 
@@ -13,6 +15,7 @@ public sealed class HybridCache : IHybridCache, IDisposable
     private readonly IMemoryCache _l1Cache;
     private readonly IDistributedCache _l2Cache;
     private readonly ILogger<HybridCache> _logger;
+    private readonly TimeSpan _lockTimeout;
 
     // LESSON 1: STRIPED LOCKING
     // We use a fixed number of semaphores (Stripes). Hashing the cache key to a stripe
@@ -24,13 +27,18 @@ public sealed class HybridCache : IHybridCache, IDisposable
     private readonly ConcurrentDictionary<string, byte> _l1Keys = new();
     private const int L1KeysMaxSize = 10_000;
     private static readonly TimeSpan DefaultL1Duration = TimeSpan.FromMinutes(1);
-    private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(30);
 
-    public HybridCache(IMemoryCache l1Cache, IDistributedCache l2Cache, ILogger<HybridCache> logger)
+    public HybridCache(
+        IMemoryCache l1Cache,
+        IDistributedCache l2Cache,
+        ILogger<HybridCache> logger,
+        IOptions<HttpClientTimeoutOptions>? timeoutOptions = null)
     {
         _l1Cache = l1Cache;
         _l2Cache = l2Cache;
         _logger = logger;
+        _lockTimeout = TimeSpan.FromSeconds(
+            timeoutOptions?.Value.HybridCacheLockSeconds ?? 30);
 
         _lockPool = new SemaphoreSlim[LockStripes];
         for (int i = 0; i < LockStripes; i++)
@@ -69,7 +77,7 @@ public sealed class HybridCache : IHybridCache, IDisposable
 
         // 3. Lock & Factory (Stampede Protection)
         var @lock = GetStripe(key);
-        bool lockAcquired = await @lock.WaitAsync(LockTimeout, ct);
+        bool lockAcquired = await @lock.WaitAsync(_lockTimeout, ct);
         if (!lockAcquired)
         {
             _logger.LogWarning("Cache lock timeout for {Key}, returning default", key);

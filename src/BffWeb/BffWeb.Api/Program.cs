@@ -158,15 +158,11 @@ foreach (var name in new[]
 })
 {
     var serviceName = name; // capture for handlers
-    builder.Services.AddHttpClient(name, client =>
+    builder.Services.AddHttpClient(name, (sp, client) =>
     {
         client.BaseAddress = new Uri($"https+http://{name}");
-        // Tight timeout so container chaos surfaces fast in the topology
-        // map's auto-prober. Default of 100s used to make a paused
-        // postgres / rabbitmq look like an indefinite hang from the
-        // visitor's perspective. 4s is enough for normal demo round-trips
-        // while still failing fast under chaos.
-        client.Timeout = TimeSpan.FromSeconds(4);
+        var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
+        client.Timeout = TimeSpan.FromSeconds(t.BffBackendSeconds);
     })
     // Chaos fault injection runs FIRST: while "paused" via the topology
     // map, the request short-circuits to a synthetic 503 before any
@@ -198,10 +194,11 @@ foreach (var name in new[]
 // outer Polly circuit can count them. AddStandardResilienceHandler()
 // here a second time replaces the global registration with a no-op
 // configuration just for this client.
-builder.Services.AddHttpClient(BackendClients.CatalogDemo, client =>
+builder.Services.AddHttpClient(BackendClients.CatalogDemo, (sp, client) =>
 {
     client.BaseAddress = new Uri($"https+http://{BackendClients.Catalog}");
-    client.Timeout = TimeSpan.FromSeconds(3);
+    var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
+    client.Timeout = TimeSpan.FromSeconds(t.BffCatalogDemoSeconds);
 })
 .AddHttpMessageHandler(sp => new ChaosFaultInjectionHandler(
     sp.GetService<ChaosManager>(),

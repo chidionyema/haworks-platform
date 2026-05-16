@@ -29,7 +29,8 @@ public sealed class BffServiceTokenProvider : IServiceTokenProvider
         if (_cachedToken != null && DateTime.UtcNow < _tokenExpiry.AddMinutes(-1))
             return _cachedToken;
 
-        await _lock.WaitAsync(ct);
+        if (!await _lock.WaitAsync(TimeSpan.FromSeconds(15), ct))
+            throw new TimeoutException("Service token provider lock timed out after 15s");
         try
         {
             if (_cachedToken != null && DateTime.UtcNow < _tokenExpiry.AddMinutes(-1))

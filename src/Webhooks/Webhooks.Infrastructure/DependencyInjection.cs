@@ -54,13 +54,21 @@ public static class DependencyInjection
             {
                 AllowAutoRedirect = false,
             })
-            .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(10));
+            .ConfigureHttpClient((sp, c) =>
+            {
+                var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
+                c.Timeout = TimeSpan.FromSeconds(t.WebhooksDispatchSeconds);
+            });
         services.AddHttpClient("WebhookDispatcher")
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
                 AllowAutoRedirect = false,
             })
-            .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(10));
+            .ConfigureHttpClient((sp, c) =>
+            {
+                var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
+                c.Timeout = TimeSpan.FromSeconds(t.WebhooksDispatchSeconds);
+            });
 
         return services;
     }

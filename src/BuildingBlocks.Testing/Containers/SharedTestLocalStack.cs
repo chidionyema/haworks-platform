@@ -17,7 +17,8 @@ public static class SharedTestS3
     {
         if (_container is { State: TestcontainersStates.Running })
             return $"http://{_container.Hostname}:{_mappedPort}";
-        await _gate.WaitAsync();
+        if (!await _gate.WaitAsync(TimeSpan.FromMinutes(5)))
+            throw new TimeoutException("SharedTestLocalStack container gate timed out after 5 minutes");
         try
         {
             if (_container is null)

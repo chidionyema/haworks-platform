@@ -35,6 +35,10 @@ public static class ServiceDefaults
     /// </remarks>
     public static IHostApplicationBuilder AddServiceDefaults(this IHostApplicationBuilder builder)
     {
+        // Centralized timeout configuration — every service gets this.
+        builder.Services.AddOptions<Resilience.HttpClientTimeoutOptions>()
+            .Bind(builder.Configuration.GetSection(Resilience.HttpClientTimeoutOptions.SectionName));
+
         builder.ConfigureOpenTelemetry();
 
         builder.AddDefaultHealthChecks();

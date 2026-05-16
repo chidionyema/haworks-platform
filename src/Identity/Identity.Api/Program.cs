@@ -75,7 +75,8 @@ if (builder.Configuration.GetValue("Vault:Enabled", false))
         var address = sp.GetRequiredService<IConfiguration>()["Vault:Address"]
             ?? throw new InvalidOperationException("Vault:Address is required for the vault probe client");
         c.BaseAddress = new Uri(address);
-        c.Timeout = TimeSpan.FromSeconds(2);
+        var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
+        c.Timeout = TimeSpan.FromSeconds(t.IdentityVaultProbeSeconds);
     });
     builder.Services.AddSingleton(sp =>
     {

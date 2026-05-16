@@ -31,9 +31,9 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
     private static readonly TimeSpan TokenExpiryBuffer = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// HTTP client timeout for PayPal API calls.
+    /// HTTP client timeout for PayPal API calls — driven by HttpClientTimeoutOptions.
     /// </summary>
-    private static readonly TimeSpan HttpClientTimeout = TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _httpClientTimeout;
 
     private static readonly JsonSerializerOptions TokenOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -43,11 +43,13 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
         IOptions<PaymentProviderOptions> providerOptions,
         IHttpClientFactory httpClientFactory,
         IResiliencePolicyFactory resiliencePolicyFactory,
-        ILogger<PayPalClientFactory> logger)
+        ILogger<PayPalClientFactory> logger,
+        IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>? timeoutOptions = null)
     {
         _options = providerOptions?.Value?.PayPal ?? throw new ArgumentNullException(nameof(providerOptions));
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpClientTimeout = TimeSpan.FromSeconds(timeoutOptions?.Value.PayPalApiSeconds ?? 30);
 
         _resiliencePolicy = resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
     }
@@ -62,7 +64,8 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
         }
 
         // Slow path: acquire lock and refresh token
-        await _tokenLock.WaitAsync(ct);
+        if (!await _tokenLock.WaitAsync(TimeSpan.FromSeconds(30), ct))
+            throw new TimeoutException("PayPal token lock timed out after 30s");
         try
         {
             // Double-check after acquiring lock (another thread may have refreshed)
@@ -102,7 +105,7 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
     {
         var client = _httpClientFactory.CreateClient("PayPal");
         client.BaseAddress = new Uri(_options.BaseUrl);
-        client.Timeout = HttpClientTimeout;
+        client.Timeout = _httpClientTimeout;
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", accessToken);
         client.DefaultRequestHeaders.Accept.Add(
@@ -117,7 +120,7 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
 
         var client = _httpClientFactory.CreateClient("PayPal");
         client.BaseAddress = new Uri(_options.BaseUrl);
-        client.Timeout = HttpClientTimeout;
+        client.Timeout = _httpClientTimeout;
 
         // PayPal OAuth2 uses Basic auth with client credentials
         var authValue = Convert.ToBase64String(

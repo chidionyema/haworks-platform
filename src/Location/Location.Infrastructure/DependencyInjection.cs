@@ -60,10 +60,12 @@ public static class DependencyInjection
         // Geospatial services
         services.AddSingleton<IGeohashService, GeohashService>();
         
-        services.AddHttpClient<IGeocodingService, NominatimGeocodingService>(c =>
+        services.AddHttpClient<IGeocodingService, NominatimGeocodingService>((sp, c) =>
         {
             c.BaseAddress = new Uri("https://nominatim.openstreetmap.org/");
             c.DefaultRequestHeaders.Add("User-Agent", "RitualworksPlatform/1.0");
+            var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
+            c.Timeout = TimeSpan.FromSeconds(t.LocationNominatimSeconds);
         });
 
         if (env.IsEnvironment("Test"))
