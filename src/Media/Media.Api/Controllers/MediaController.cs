@@ -46,8 +46,7 @@ public class MediaController(IMediator mediator) : ControllerBase
     [HttpPost("{id}/complete-multipart")]
     public async Task<IActionResult> CompleteMultipartUpload(Guid id, [FromBody] CompleteMultipartRequest body)
     {
-        var parts = body.Parts.Select(p => new PartETagDto(p.PartNumber, p.ETag)).ToList();
-        var result = await mediator.Send(new CompleteMultipartUploadCommand(id, parts));
+        var result = await mediator.Send(new CompleteMultipartUploadCommand(id, body.Parts));
         return result.ToActionResult();
     }
 
@@ -65,11 +64,17 @@ public class MediaController(IMediator mediator) : ControllerBase
     /// Returns media file metadata as a DTO — never the raw entity.
     /// </summary>
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetMedia(Guid id, [FromServices] MediaDbContext context)
+    public async Task<IActionResult> GetMedia(
+        Guid id,
+        [FromServices] MediaDbContext context,
+        [FromServices] Haworks.BuildingBlocks.CurrentUser.ICurrentUserService currentUser)
     {
+        var ownerId = currentUser.UserId;
+        if (string.IsNullOrEmpty(ownerId)) return Unauthorized();
+
         var file = await context.MediaFiles
             .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Id == id);
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == ownerId);
 
         if (file == null) return NotFound();
 
@@ -83,7 +88,30 @@ public class MediaController(IMediator mediator) : ControllerBase
 
         return Ok(response);
     }
+
+    /// <summary>
+    /// Lists the caller's media files with pagination and optional filtering.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> ListMedia(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? status = null,
+        [FromQuery] string? mimeTypePrefix = null)
+    {
+        var result = await mediator.Send(new ListMediaQuery(page, pageSize, status, mimeTypePrefix));
+        return result.ToActionResult();
+    }
+
+    /// <summary>
+    /// Returns a presigned GET URL for downloading the original or a processed variant.
+    /// </summary>
+    [HttpGet("{id}/url")]
+    public async Task<IActionResult> GetMediaUrl(Guid id, [FromQuery] string? variant = null)
+    {
+        var result = await mediator.Send(new GetMediaUrlQuery(id, variant));
+        return result.ToActionResult();
+    }
 }
 
-public sealed record CompleteMultipartRequest(IReadOnlyList<PartETagRequest> Parts);
-public sealed record PartETagRequest(int PartNumber, string ETag);
+public sealed record CompleteMultipartRequest(IReadOnlyList<PartETagDto> Parts);

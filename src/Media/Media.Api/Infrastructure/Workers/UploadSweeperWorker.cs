@@ -35,32 +35,34 @@ public sealed class UploadSweeperWorker(
         var s3 = scope.ServiceProvider.GetRequiredService<IS3Service>();
 
         var cutoff = DateTime.UtcNow.AddHours(-_opts.PendingUploadTtlHours);
+
+        // Sweep stale Pending uploads (abandoned) AND Rejected files (malware)
         var stale = await context.MediaFiles
-            .Where(f => f.Status == MediaStatus.Pending && f.CreatedAt < cutoff)
+            .Where(f => (f.Status == MediaStatus.Pending || f.Status == MediaStatus.Rejected) && f.CreatedAt < cutoff)
             .Take(100)
             .ToListAsync(ct);
 
         if (stale.Count == 0) return;
 
-        logger.LogInformation("Sweeping {Count} stale pending uploads older than {Cutoff}", stale.Count, cutoff);
+        logger.LogInformation("Sweeping {Count} stale/rejected files older than {Cutoff}", stale.Count, cutoff);
 
         foreach (var file in stale)
         {
             try
             {
-                if (file.UploadKind == UploadKind.Multipart && !string.IsNullOrEmpty(file.S3UploadId))
+                if (file.UploadKind == UploadKind.Multipart && !string.IsNullOrEmpty(file.S3UploadId)
+                    && file.Status == MediaStatus.Pending)
                 {
                     await s3.AbortMultipartUploadAsync(file.Id.ToString(), file.S3UploadId, ct);
                 }
 
                 context.MediaFiles.Remove(file);
+                await context.SaveChangesAsync(ct);
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to sweep stale upload {MediaId}", file.Id);
+                logger.LogWarning(ex, "Failed to sweep file {MediaId}", file.Id);
             }
         }
-
-        await context.SaveChangesAsync(ct);
     }
 }

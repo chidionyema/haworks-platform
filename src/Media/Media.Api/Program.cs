@@ -1,9 +1,12 @@
 using Amazon.S3;
 using Haworks.BuildingBlocks.Behaviors;
 using Haworks.BuildingBlocks.Extensions;
+using Haworks.BuildingBlocks.Messaging;
+using MassTransit;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Startup;
 using Haworks.Media.Api.Infrastructure;
+using Haworks.Media.Api.Infrastructure.Processing;
 using Haworks.Media.Api.Infrastructure.Workers;
 using Haworks.Media.Api.Options;
 using Microsoft.EntityFrameworkCore;
@@ -32,7 +35,9 @@ builder.Services.AddDbContext<MediaDbContext>(options =>
 
 // ── Health checks ──
 builder.Services.AddHealthChecks()
-    .AddDbHealthCheck<MediaDbContext>();
+    .AddDbHealthCheck<MediaDbContext>()
+    .AddCheck<Haworks.Media.Api.Infrastructure.Health.ClamAvHealthCheck>("clamav")
+    .AddCheck<Haworks.Media.Api.Infrastructure.Health.S3HealthCheck>("s3");
 
 // ── Upload options ──
 builder.Services.AddOptions<UploadOptions>()
@@ -51,8 +56,6 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
     var opts = sp.GetRequiredService<IOptions<MediaStorageOptions>>().Value;
     if (!opts.Enabled)
     {
-        // Return a no-op client; S3Service.GeneratePreSignedUrl guards the Enabled flag
-        // so GetPreSignedURL is never actually called when disabled.
         return new AmazonS3Client(
             "disabled", "disabled",
             new AmazonS3Config { ServiceURL = "http://localhost:9999", ForcePathStyle = true });
@@ -67,6 +70,11 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
     };
     if (!string.IsNullOrEmpty(opts.ServiceUrl))
         cfg.ServiceURL = opts.ServiceUrl;
+
+    // If AccessKey is empty, use IAM role credentials (ECS task role, EC2 instance profile, IRSA).
+    // This is the preferred path in production — no static credentials stored in config.
+    if (string.IsNullOrEmpty(opts.AccessKey))
+        return new AmazonS3Client(cfg);
 
     return new AmazonS3Client(opts.AccessKey, opts.SecretKey, cfg);
 });
@@ -88,6 +96,18 @@ builder.Services.AddMediatR(cfg =>
 });
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+
+// ── Media processing pipeline ──
+builder.Services.AddOptions<TranscodeOptions>()
+    .Bind(builder.Configuration.GetSection(TranscodeOptions.SectionName));
+builder.Services.AddOptions<ImageOptions>()
+    .Bind(builder.Configuration.GetSection(ImageOptions.SectionName));
+
+builder.Services.AddSingleton<FfmpegService>();
+builder.Services.AddScoped<IMediaProcessor, ImageProcessor>();
+builder.Services.AddScoped<IMediaProcessor, VideoProcessor>();
+builder.Services.AddScoped<IMediaProcessor, AudioProcessor>();
+builder.Services.AddScoped<MediaProcessingOrchestrator>();
 
 // ── S3 event notifications (SQS consumer) ──
 builder.Services.AddOptions<S3NotificationOptions>()
@@ -115,6 +135,39 @@ if (!builder.Environment.IsEnvironment("Test"))
         builder.Services.AddHostedService<S3EventConsumer>();
     }
 }
+
+// ── MassTransit + outbox (event publishing) ──
+if (!builder.Environment.IsEnvironment("Test"))
+{
+    builder.Services.AddMassTransit(mt =>
+    {
+        mt.SetKebabCaseEndpointNameFormatter();
+        mt.AddDelayedMessageScheduler();
+        mt.AddConsumer<Haworks.BuildingBlocks.Messaging.GlobalFaultConsumer>();
+        mt.AddConsumer<Haworks.Media.Api.Infrastructure.Workers.ProcessMediaConsumer>();
+        mt.AddConsumer<Haworks.Media.Api.Infrastructure.Workers.ProcessMediaFaultConsumer>();
+        mt.AddConsumer<Haworks.Media.Api.Infrastructure.Workers.MediaUploadCompletedConsumer>();
+
+        mt.AddEntityFrameworkOutbox<MediaDbContext>(o =>
+        {
+            o.UsePostgres();
+            o.UseBusOutbox();
+            o.QueryDelay = TimeSpan.FromMilliseconds(100);
+            o.DuplicateDetectionWindow = TimeSpan.FromMinutes(30);
+        });
+
+        mt.UsingRabbitMq((context, cfg) =>
+        {
+            var rabbitConn = builder.Configuration.GetConnectionString("rabbitmq")
+                ?? throw new InvalidOperationException("ConnectionStrings:rabbitmq is missing.");
+            cfg.Host(new Uri(rabbitConn));
+            cfg.UseDelayedMessageScheduler();
+            cfg.ConfigureStandardRabbitMq(context);
+        });
+    });
+}
+
+builder.Services.AddDomainEventPublisher();
 
 // ── Startup task runner (EF migrations with retry) ──
 builder.Services.AddStartupTaskRunner();

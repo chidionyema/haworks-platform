@@ -12,6 +12,9 @@ public interface IS3Service
     string GeneratePartPresignedUrl(string key, string uploadId, int partNumber);
     Task CompleteMultipartUploadAsync(string key, string uploadId, IList<PartETag> parts, CancellationToken ct);
     Task AbortMultipartUploadAsync(string key, string uploadId, CancellationToken ct);
+    Task UploadAsync(string key, string mimeType, Stream content, CancellationToken ct);
+    string GeneratePresignedGetUrl(string key);
+    Task<string> DownloadToFileAsync(string key, string destinationPath, CancellationToken ct);
 }
 
 /// <summary>
@@ -56,6 +59,19 @@ public class S3Service : IS3Service
             || _opts.ServiceUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
             ? Protocol.HTTPS
             : Protocol.HTTP;
+    }
+
+    public async Task<string> DownloadToFileAsync(string key, string destinationPath, CancellationToken ct)
+    {
+        var response = await _s3.GetObjectAsync(new GetObjectRequest
+        {
+            BucketName = _opts.BucketName,
+            Key = key,
+        }, ct);
+
+        await using var fs = File.Create(destinationPath);
+        await response.ResponseStream.CopyToAsync(fs, ct);
+        return destinationPath;
     }
 
     public async Task<Stream> DownloadAsync(string key, CancellationToken ct)
@@ -107,18 +123,20 @@ public class S3Service : IS3Service
 
     public string GeneratePartPresignedUrl(string key, string uploadId, int partNumber)
     {
-        if (!_opts.Enabled) return $"https://s3-disabled.local/{_opts.BucketName}/{key}?partNumber={partNumber}";
+        if (!_opts.Enabled) return $"https://s3-disabled.local/{_opts.BucketName}/{key}?partNumber={partNumber}&uploadId={uploadId}";
 
+        // S3 multipart part presigning requires UploadId and PartNumber as query parameters.
+        // GetPreSignedUrlRequest supports this via the overload that includes upload metadata.
         var req = new GetPreSignedUrlRequest
         {
             BucketName = _opts.BucketName,
             Key = key,
             Verb = HttpVerb.PUT,
+            UploadId = uploadId,
+            PartNumber = partNumber,
             Expires = DateTime.UtcNow.AddMinutes(_opts.PresignedUrlExpiryMinutes),
             Protocol = _presignProtocol,
         };
-        req.Headers["uploadId"] = uploadId;
-        req.Headers["partNumber"] = partNumber.ToString();
         return _s3.GetPreSignedURL(req);
     }
 
@@ -145,5 +163,33 @@ public class S3Service : IS3Service
             Key = key,
             UploadId = uploadId,
         }, ct);
+    }
+
+    public async Task UploadAsync(string key, string mimeType, Stream content, CancellationToken ct)
+    {
+        if (!_opts.Enabled) return;
+
+        await _s3.PutObjectAsync(new PutObjectRequest
+        {
+            BucketName = _opts.BucketName,
+            Key = key,
+            ContentType = mimeType,
+            InputStream = content,
+        }, ct);
+    }
+
+    public string GeneratePresignedGetUrl(string key)
+    {
+        if (!_opts.Enabled)
+            return $"https://s3-disabled.local/{_opts.BucketName}/{key}";
+
+        return _s3.GetPreSignedURL(new GetPreSignedUrlRequest
+        {
+            BucketName = _opts.BucketName,
+            Key = key,
+            Verb = HttpVerb.GET,
+            Expires = DateTime.UtcNow.AddMinutes(_opts.PresignedUrlExpiryMinutes),
+            Protocol = _presignProtocol,
+        });
     }
 }
