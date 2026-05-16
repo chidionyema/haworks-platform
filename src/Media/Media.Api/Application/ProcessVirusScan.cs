@@ -81,6 +81,11 @@ public class ProcessVirusScanHandler : IRequestHandler<ProcessVirusScanCommand, 
             await _context.SaveChangesAsync(cancellationToken);
             await tx.CommitAsync(cancellationToken);
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        {
+            // Another caller (S3 event or duplicate request) already scanning — idempotent
+            return Unit.Value;
+        }
         catch
         {
             await tx.RollbackAsync(cancellationToken);
