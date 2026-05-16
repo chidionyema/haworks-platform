@@ -109,18 +109,20 @@ public class S3Service : IS3Service
 
     public string GeneratePartPresignedUrl(string key, string uploadId, int partNumber)
     {
-        if (!_opts.Enabled) return $"https://s3-disabled.local/{_opts.BucketName}/{key}?partNumber={partNumber}";
+        if (!_opts.Enabled) return $"https://s3-disabled.local/{_opts.BucketName}/{key}?partNumber={partNumber}&uploadId={uploadId}";
 
+        // S3 multipart part presigning requires UploadId and PartNumber as query parameters.
+        // GetPreSignedUrlRequest supports this via the overload that includes upload metadata.
         var req = new GetPreSignedUrlRequest
         {
             BucketName = _opts.BucketName,
             Key = key,
             Verb = HttpVerb.PUT,
+            UploadId = uploadId,
+            PartNumber = partNumber,
             Expires = DateTime.UtcNow.AddMinutes(_opts.PresignedUrlExpiryMinutes),
             Protocol = _presignProtocol,
         };
-        req.Headers["uploadId"] = uploadId;
-        req.Headers["partNumber"] = partNumber.ToString();
         return _s3.GetPreSignedURL(req);
     }
 
