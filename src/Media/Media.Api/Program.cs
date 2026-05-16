@@ -89,10 +89,31 @@ builder.Services.AddMediatR(cfg =>
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
+// ── S3 event notifications (SQS consumer) ──
+builder.Services.AddOptions<S3NotificationOptions>()
+    .Bind(builder.Configuration.GetSection(S3NotificationOptions.SectionName));
+
 // ── Background workers ──
 if (!builder.Environment.IsEnvironment("Test"))
 {
     builder.Services.AddHostedService<UploadSweeperWorker>();
+
+    var s3NotifyOpts = builder.Configuration
+        .GetSection(S3NotificationOptions.SectionName)
+        .Get<S3NotificationOptions>();
+
+    if (s3NotifyOpts?.Enabled == true)
+    {
+        builder.Services.AddSingleton<Amazon.SQS.IAmazonSQS>(sp =>
+        {
+            var cfg = new Amazon.SQS.AmazonSQSConfig { RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(s3NotifyOpts.Region) };
+            var storageOpts = sp.GetRequiredService<IOptions<MediaStorageOptions>>().Value;
+            if (!string.IsNullOrEmpty(storageOpts.ServiceUrl) && storageOpts.ServiceUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                cfg.ServiceURL = storageOpts.ServiceUrl; // LocalStack
+            return new Amazon.SQS.AmazonSQSClient(storageOpts.AccessKey, storageOpts.SecretKey, cfg);
+        });
+        builder.Services.AddHostedService<S3EventConsumer>();
+    }
 }
 
 // ── Startup task runner (EF migrations with retry) ──
