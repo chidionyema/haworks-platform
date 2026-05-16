@@ -26,13 +26,33 @@ public static class DependencyInjection
             cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
         });
 
-        services.AddScoped<ICdnService, MockCdnService>();
+        if (env.IsDevelopment() || env.IsEnvironment("Test"))
+        {
+            services.AddScoped<ICdnService, MockCdnService>();
+        }
 
-        if (!env.IsEnvironment("Test"))
+        if (env.IsEnvironment("Test"))
+        {
+            // In Test, register a no-op MassTransit bus so IPublishEndpoint resolves without RabbitMQ.
+            services.AddMassTransit(mt =>
+            {
+                mt.UsingInMemory((context, cfg) => cfg.ConfigureEndpoints(context));
+            });
+        }
+        else
         {
             services.AddMassTransit(mt =>
             {
                 mt.SetKebabCaseEndpointNameFormatter();
+
+                mt.AddEntityFrameworkOutbox<LocalizationDbContext>(o =>
+                {
+                    o.UsePostgres();
+                    o.UseBusOutbox();
+                    o.QueryDelay = TimeSpan.FromSeconds(1);
+                    o.DuplicateDetectionWindow = TimeSpan.FromMinutes(30);
+                });
+
                 mt.UsingRabbitMq((context, cfg) =>
                 {
                     var rabbitConn = configuration.GetConnectionString("rabbitmq") ?? throw new InvalidOperationException("RabbitMq:Username is required");

@@ -1,6 +1,6 @@
 namespace Haworks.Contracts.Search;
 
-public sealed record ProductMatchedSavedSearchEvent
+public sealed record ProductMatchedSavedSearchEvent : DomainEvent
 {
     public required string SavedSearchId { get; init; }
     public required string UserId { get; init; }

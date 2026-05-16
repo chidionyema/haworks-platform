@@ -1133,7 +1133,8 @@ public class DemoController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> RateLimitBurst(
         [FromBody] BurstRequest request,
-        [FromHeader(Name = "X-Demo-Session")] Guid? demoSession)
+        [FromHeader(Name = "X-Demo-Session")] Guid? demoSession,
+        CancellationToken ct = default)
     {
         var sessionId = demoSession is { } id && id != Guid.Empty ? id : Guid.NewGuid();
         var limiter = _stateStore.GetOrCreateLimiter(sessionId, 5, 60);
@@ -1143,7 +1144,7 @@ public class DemoController : ControllerBase
 
         for (var i = 0; i < request.Count; i++)
         {
-            using var lease = await limiter.AcquireAsync(1);
+            using var lease = await limiter.AcquireAsync(1, ct);
             var permits = limiter.GetStatistics();
             var remaining = (int)(permits?.CurrentAvailablePermits ?? 0);
             int? retryAfter = lease.TryGetMetadata(MetadataName.RetryAfter, out var meta)
@@ -1151,7 +1152,7 @@ public class DemoController : ControllerBase
                 : null;
 
             await _notifier.NotifyRateLimitAsync(new RateLimitEvent(
-                sessionId, lease.IsAcquired, remaining, retryAfter, DateTime.UtcNow));
+                sessionId, lease.IsAcquired, remaining, retryAfter, DateTime.UtcNow), ct);
 
             if (lease.IsAcquired) allowedCount++;
 
@@ -1165,7 +1166,7 @@ public class DemoController : ControllerBase
 
             if (request.DelayMs > 0 && i < request.Count - 1)
             {
-                await Task.Delay(request.DelayMs);
+                await Task.Delay(request.DelayMs, ct);
             }
         }
 

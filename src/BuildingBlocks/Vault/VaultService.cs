@@ -139,7 +139,8 @@ public class VaultService : IVaultService
         // Serialize first-time init under _clientGate to prevent concurrent
         // GetDatabaseCredentialsAsync/GetKvSecretAsync calls (which now
         // self-initialize) from racing two AppRole logins.
-        await _clientGate.WaitAsync(ct).ConfigureAwait(false);
+        if (!await _clientGate.WaitAsync(TimeSpan.FromSeconds(60), ct).ConfigureAwait(false))
+            throw new TimeoutException("Vault client gate timed out after 60s");
         try
         {
             if (_initialized) return;
@@ -178,7 +179,8 @@ public class VaultService : IVaultService
         if (_client is not null && DateTime.UtcNow + s_clientRefreshHeadroom < _clientExpiresAtUtc)
             return _client;
 
-        await _clientGate.WaitAsync(ct).ConfigureAwait(false);
+        if (!await _clientGate.WaitAsync(TimeSpan.FromSeconds(60), ct).ConfigureAwait(false))
+            throw new TimeoutException("Vault client gate timed out after 60s");
         try
         {
             if (_client is not null && DateTime.UtcNow + s_clientRefreshHeadroom < _clientExpiresAtUtc)

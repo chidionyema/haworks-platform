@@ -19,7 +19,8 @@ public static class SharedTestPostgres
     {
         if (_container is { State: DotNet.Testcontainers.Containers.TestcontainersStates.Running })
             return _container;
-        await _gate.WaitAsync();
+        if (!await _gate.WaitAsync(TimeSpan.FromMinutes(5)))
+            throw new TimeoutException("SharedTestPostgres container gate timed out after 5 minutes");
         try
         {
             if (_container is null)

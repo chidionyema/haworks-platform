@@ -43,7 +43,9 @@ public sealed class VaultAppRoleAuthenticator : IVaultAppRoleAuthenticator
 
         // At bootstrap (before DI is built), IHttpClientFactory is unavailable.
         var factoryClient = _httpClientFactory?.CreateClient(nameof(VaultAppRoleAuthenticator));
-        using var fallbackClient = factoryClient == null ? new HttpClient() : null;
+        using var fallbackClient = factoryClient == null
+            ? new HttpClient { Timeout = TimeSpan.FromSeconds(30) }
+            : null;
         var http = factoryClient ?? fallbackClient!;
         {
             http.BaseAddress ??= new Uri(vaultAddress);

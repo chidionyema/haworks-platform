@@ -69,8 +69,12 @@ public static class JwksAuthenticationExtensions
                 var issuer = jwksSection["Issuer"] ?? throw new InvalidOperationException("JwksOptions:Issuer required");
                 var audience = jwksSection["Audience"] ?? throw new InvalidOperationException("JwksOptions:Audience required");
 
-                // Fetch JWKS keys at startup
-                using var httpClient = new HttpClient();
+                // Fetch JWKS keys at startup. Timeout prevents indefinite
+                // hang if the identity service is unreachable during boot.
+                var jwksTimeoutSec = int.TryParse(
+                    configuration.GetSection("HttpClientTimeouts")["JwksStartupSeconds"],
+                    out var parsed) ? parsed : 10;
+                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(jwksTimeoutSec) };
                 var jwksJson = httpClient.GetStringAsync(jwksUri).GetAwaiter().GetResult();
                 var jwks = new JsonWebKeySet(jwksJson);
 

@@ -36,7 +36,8 @@ public sealed class StripeClientFactory : IStripeClientFactory
             return _cachedClient;
         }
 
-        await _clientLock.WaitAsync(ct);
+        if (!await _clientLock.WaitAsync(TimeSpan.FromSeconds(10), ct))
+            throw new TimeoutException("Stripe client lock timed out after 10s");
         try
         {
             // Double-check after acquiring lock

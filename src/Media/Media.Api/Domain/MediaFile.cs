@@ -8,6 +8,12 @@ public enum MediaStatus
     Rejected
 }
 
+public enum UploadKind
+{
+    SinglePart,
+    Multipart
+}
+
 public class MediaFile
 {
     public Guid Id { get; private set; }
@@ -16,11 +22,15 @@ public class MediaFile
     public long Size { get; private set; }
     public string MimeType { get; private set; } = null!;
     public MediaStatus Status { get; private set; }
+    public string OwnerId { get; private set; } = null!;
     public DateTime CreatedAt { get; private set; }
+    public UploadKind UploadKind { get; private set; }
+    public string? S3UploadId { get; private set; }
+    public int PartCount { get; private set; }
 
     private MediaFile() { }
 
-    public static MediaFile Create(string fileName, string hash, long size, string mimeType)
+    public static MediaFile Create(string fileName, string hash, long size, string mimeType, string ownerId)
     {
         return new MediaFile
         {
@@ -30,11 +40,39 @@ public class MediaFile
             Size = size,
             MimeType = mimeType,
             Status = MediaStatus.Pending,
-            CreatedAt = DateTime.UtcNow
+            OwnerId = ownerId,
+            CreatedAt = DateTime.UtcNow,
+            UploadKind = UploadKind.SinglePart,
         };
     }
 
-    public void MarkAsQuarantined() => Status = MediaStatus.Quarantined;
-    public void MarkAsActive() => Status = MediaStatus.Active;
-    public void MarkAsRejected() => Status = MediaStatus.Rejected;
+    public void InitiateMultipart(string s3UploadId, int partCount)
+    {
+        if (Status != MediaStatus.Pending)
+            throw new InvalidOperationException($"Cannot initiate multipart from {Status}.");
+        S3UploadId = s3UploadId ?? throw new ArgumentNullException(nameof(s3UploadId));
+        PartCount = partCount > 0 ? partCount : throw new ArgumentOutOfRangeException(nameof(partCount));
+        UploadKind = UploadKind.Multipart;
+    }
+
+    public void MarkAsQuarantined()
+    {
+        if (Status != MediaStatus.Pending)
+            throw new InvalidOperationException($"Cannot quarantine from {Status}; only Pending files can be quarantined.");
+        Status = MediaStatus.Quarantined;
+    }
+
+    public void MarkAsActive()
+    {
+        if (Status != MediaStatus.Quarantined)
+            throw new InvalidOperationException($"Cannot activate from {Status}; only Quarantined (scanned) files can be activated.");
+        Status = MediaStatus.Active;
+    }
+
+    public void MarkAsRejected()
+    {
+        if (Status != MediaStatus.Quarantined)
+            throw new InvalidOperationException($"Cannot reject from {Status}; only Quarantined (scanned) files can be rejected.");
+        Status = MediaStatus.Rejected;
+    }
 }

@@ -49,8 +49,26 @@ public static class DependencyInjection
 
         services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
         
-        services.AddHttpClient("WebhookValidator");
-        services.AddHttpClient("WebhookDispatcher");
+        services.AddHttpClient("WebhookValidator")
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+            })
+            .ConfigureHttpClient((sp, c) =>
+            {
+                var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
+                c.Timeout = TimeSpan.FromSeconds(t.WebhooksDispatchSeconds);
+            });
+        services.AddHttpClient("WebhookDispatcher")
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+            })
+            .ConfigureHttpClient((sp, c) =>
+            {
+                var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
+                c.Timeout = TimeSpan.FromSeconds(t.WebhooksDispatchSeconds);
+            });
 
         return services;
     }

@@ -15,10 +15,20 @@ public class MediaDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.FileName).IsRequired().HasMaxLength(255);
             entity.Property(e => e.Hash).IsRequired().HasMaxLength(64);
-            // Staff-level hardening: Unique index prevents race conditions in SHA-256 deduplication
-            entity.HasIndex(e => e.Hash).IsUnique();
+            // Unique index scoped per owner — different users may upload the same file
+            entity.HasIndex(e => new { e.Hash, e.OwnerId }).IsUnique();
             entity.Property(e => e.MimeType).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.UploadKind).HasConversion<string>().HasDefaultValue(UploadKind.SinglePart);
+            entity.Property(e => e.S3UploadId).HasMaxLength(256);
+            entity.Property(e => e.PartCount).HasDefaultValue(0);
+            entity.Property(e => e.OwnerId).IsRequired().HasMaxLength(128);
+            entity.HasIndex(e => e.OwnerId);
+
+            entity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
         });
     }
 }

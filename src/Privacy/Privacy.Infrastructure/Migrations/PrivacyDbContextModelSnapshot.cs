@@ -39,6 +39,9 @@ namespace Haworks.Privacy.Infrastructure.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<Guid?>("ErasureTimeoutTokenId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("IdentityCompleted")
                         .HasColumnType("boolean");
 

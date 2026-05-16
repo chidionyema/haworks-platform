@@ -19,7 +19,8 @@ public static class SharedTestElasticsearch
     {
         if (_container is { State: TestcontainersStates.Running })
             return;
-        await _gate.WaitAsync();
+        if (!await _gate.WaitAsync(TimeSpan.FromMinutes(5)))
+            throw new TimeoutException("SharedTestElasticsearch container gate timed out after 5 minutes");
         try
         {
             if (_container is null)

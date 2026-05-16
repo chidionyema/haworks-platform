@@ -21,7 +21,8 @@ public class CredentialStore : ICredentialStore
         Func<CancellationToken, Task<(string Username, SecureString Password, TimeSpan leaseDuration)>> refreshFunc,
         CancellationToken ct)
     {
-        await _lock.WaitAsync(ct);
+        if (!await _lock.WaitAsync(TimeSpan.FromSeconds(30), ct))
+            throw new TimeoutException("CredentialStore lock timed out after 30s");
         try
         {
             var (username, password, leaseDuration) = await refreshFunc(ct);
