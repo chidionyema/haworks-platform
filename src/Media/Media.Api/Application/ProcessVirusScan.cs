@@ -70,6 +70,21 @@ public class ProcessVirusScanHandler : IRequestHandler<ProcessVirusScanCommand, 
             await _context.SaveChangesAsync(cancellationToken);
 
             await using var stream = await _s3.DownloadAsync(mediaFile.Id.ToString(), cancellationToken);
+
+            // Verify server-side hash matches client-declared hash
+            stream.Position = 0;
+            var actualHash = Convert.ToHexStringLower(
+                await System.Security.Cryptography.SHA256.HashDataAsync(stream, cancellationToken));
+            if (!string.Equals(actualHash, mediaFile.Hash, StringComparison.OrdinalIgnoreCase))
+            {
+                mediaFile.MarkAsRejected();
+                await _context.SaveChangesAsync(cancellationToken);
+                await tx.CommitAsync(cancellationToken);
+                return Result.Failure<MediatR.Unit>(new Error("Media.HashMismatch",
+                    "Server-side hash does not match declared hash."));
+            }
+
+            stream.Position = 0;
             var isClean = await _virusScanner.ScanAsync(stream, cancellationToken);
 
             if (isClean)
