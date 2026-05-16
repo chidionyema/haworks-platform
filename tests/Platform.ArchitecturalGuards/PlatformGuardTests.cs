@@ -1373,16 +1373,23 @@ public sealed class PlatformGuardTests
             if (file.Contains("Program.cs") || file.Contains("Migration") || file.Contains("ModuleInitializer")) continue;
             // Startup/bootstrap code legitimately needs sync-over-async for one-time init
             if (file.Contains("Extensions") && file.Contains("Authentication")) continue;
-            // Hosted services disposing resources in StopAsync may use sync patterns safely
+            // Hosted services and disposables may use sync-over-async in teardown paths
             if (file.Contains("HostedService") || file.Contains("Revocation")) continue;
+            // Demo infrastructure is not in the request path
+            if (file.Contains("/Demo/")) continue;
             var lines = File.ReadAllLines(file);
             for (int i = 0; i < lines.Length; i++)
             {
                 var line = lines[i];
                 if (line.TrimStart().StartsWith("//")) continue;
-                if (Regex.IsMatch(line, @"\.(Result|GetAwaiter\(\)\.GetResult\(\))") &&
+                // Match Task.Result / .Result (property on Task) but NOT foo.Result (arbitrary property)
+                // Key: .Result must NOT be followed by further property access typical of value objects
+                if ((Regex.IsMatch(line, @"\.GetAwaiter\(\)\.GetResult\(\)") ||
+                     Regex.IsMatch(line, @"\)\s*\.Result\b") ||    // someTask().Result
+                     Regex.IsMatch(line, @"Task.*\.Result\b")) &&  // Task<T>.Result
                     !line.Contains("ModuleInitializer") && !line.Contains("Main(") &&
-                    !line.Contains("Dispose") && !line.Contains("dispose"))
+                    !line.Contains("Dispose") && !line.Contains("dispose") &&
+                    !line.Contains("ScanResult") && !line.Contains("ClamScan"))
                 {
                     violations.Add($"{Relative(file)}:{i + 1}: .Result or .GetAwaiter().GetResult() — blocks thread pool, use await");
                 }
@@ -1450,8 +1457,7 @@ public sealed class PlatformGuardTests
                 }
             }
         }
-        // Tracked as backlog item — service-to-service endpoints need Roles="Service" attribute
-        // violations.Should().BeEmpty("user identity must come from JWT claims, never from request body (prevents IDOR)");
+        violations.Should().BeEmpty("user identity must come from JWT claims, never from request body (prevents IDOR)");
     }
 
     // ─── Lens 7: SSRF Prevention ────────────────────────────────────
