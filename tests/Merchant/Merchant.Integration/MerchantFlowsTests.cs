@@ -79,7 +79,7 @@ public sealed class MerchantFlowsTests : IAsyncLifetime
         await _client.PostAsJsonAsync("/api/merchants", command);
 
         // Assert
-        (await harness.Published.Any<MerchantCreatedEvent>(x => x.Context.Message.Slug == slug)).Should().BeTrue();
+        (await harness.Published.Any<MerchantCreatedEvent>(x => string.Equals(x.Context.Message.Slug, slug, StringComparison.Ordinal))).Should().BeTrue();
     }
 
     private record CreateResult(Guid MerchantId);
