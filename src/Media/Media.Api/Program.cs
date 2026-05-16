@@ -56,8 +56,6 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
     var opts = sp.GetRequiredService<IOptions<MediaStorageOptions>>().Value;
     if (!opts.Enabled)
     {
-        // Return a no-op client; S3Service.GeneratePreSignedUrl guards the Enabled flag
-        // so GetPreSignedURL is never actually called when disabled.
         return new AmazonS3Client(
             "disabled", "disabled",
             new AmazonS3Config { ServiceURL = "http://localhost:9999", ForcePathStyle = true });
@@ -72,6 +70,11 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
     };
     if (!string.IsNullOrEmpty(opts.ServiceUrl))
         cfg.ServiceURL = opts.ServiceUrl;
+
+    // If AccessKey is empty, use IAM role credentials (ECS task role, EC2 instance profile, IRSA).
+    // This is the preferred path in production — no static credentials stored in config.
+    if (string.IsNullOrEmpty(opts.AccessKey))
+        return new AmazonS3Client(cfg);
 
     return new AmazonS3Client(opts.AccessKey, opts.SecretKey, cfg);
 });
