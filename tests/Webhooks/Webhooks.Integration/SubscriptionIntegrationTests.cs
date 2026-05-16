@@ -10,7 +10,7 @@ namespace Haworks.Webhooks.Integration;
 public class SubscriptionIntegrationTests(WebhooksWebAppFactory factory) : IClassFixture<WebhooksWebAppFactory>, IAsyncLifetime
 {
     private readonly HttpClient _client = factory.CreateClient();
-    private static readonly Guid TestPartnerId = Guid.NewGuid();
+    private const string TestPartnerId = "test-partner-123";
 
     public Task InitializeAsync() => factory.ResetDatabaseAsync();
 
