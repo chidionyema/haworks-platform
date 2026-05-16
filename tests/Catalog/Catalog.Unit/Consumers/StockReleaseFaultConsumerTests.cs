@@ -96,7 +96,7 @@ public sealed class StockReleaseFaultConsumerTests
     }
 
     [Fact]
-    public async Task Handles_no_exceptions_gracefully()
+    public Task Handles_no_exceptions_gracefully()
     {
         // Defensive: if MT ever publishes a Fault<T> with an empty
         // Exceptions array (shouldn't happen, but contract defines it
@@ -121,7 +121,7 @@ public sealed class StockReleaseFaultConsumerTests
 
         var act = async () => await sut.Consume(ctxMock.Object);
 
-        await act.Should().NotThrowAsync();
+        return act.Should().NotThrowAsync();
     }
 
     /// <summary>

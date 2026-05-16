@@ -14,12 +14,10 @@ namespace Haworks.BffWeb.Api.Controllers;
 public sealed class SearchController : ControllerBase
 {
     private readonly IHttpClientFactory _httpFactory;
-    private readonly ILogger<SearchController> _logger;
 
     public SearchController(IHttpClientFactory httpFactory, ILogger<SearchController> logger)
     {
         _httpFactory = httpFactory;
-        _logger = logger;
     }
 
     [HttpGet]

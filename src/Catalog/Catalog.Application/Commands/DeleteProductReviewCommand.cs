@@ -1,7 +1,6 @@
 using Haworks.BuildingBlocks.Common;
 using Haworks.Catalog.Domain.Interfaces;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace Haworks.Catalog.Application.Commands;
 
@@ -15,14 +14,11 @@ public sealed record DeleteProductReviewCommand(
 internal sealed class DeleteProductReviewCommandHandler : IRequestHandler<DeleteProductReviewCommand, Result>
 {
     private readonly IProductReviewRepository _repository;
-    private readonly ILogger<DeleteProductReviewCommandHandler> _logger;
 
     public DeleteProductReviewCommandHandler(
-        IProductReviewRepository repository,
-        ILogger<DeleteProductReviewCommandHandler> logger)
+        IProductReviewRepository repository)
     {
         _repository = repository;
-        _logger = logger;
     }
 
     public async Task<Result> Handle(DeleteProductReviewCommand request, CancellationToken cancellationToken)

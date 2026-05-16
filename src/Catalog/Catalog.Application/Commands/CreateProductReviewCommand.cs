@@ -4,7 +4,6 @@ using Haworks.Catalog.Application.Helpers;
 using Haworks.Catalog.Domain;
 using Haworks.Catalog.Domain.Interfaces;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace Haworks.Catalog.Application.Commands;
 
@@ -23,16 +22,13 @@ internal sealed class CreateProductReviewCommandHandler
 {
     private readonly IProductRepository _productRepository;
     private readonly IProductReviewRepository _reviewRepository;
-    private readonly ILogger<CreateProductReviewCommandHandler> _logger;
 
     public CreateProductReviewCommandHandler(
         IProductRepository productRepository,
-        IProductReviewRepository reviewRepository,
-        ILogger<CreateProductReviewCommandHandler> logger)
+        IProductReviewRepository reviewRepository)
     {
         _productRepository = productRepository;
         _reviewRepository = reviewRepository;
-        _logger = logger;
     }
 
     public async Task<Result<ProductReviewDto>> Handle(

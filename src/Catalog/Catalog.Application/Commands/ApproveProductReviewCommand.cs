@@ -1,7 +1,6 @@
 using Haworks.BuildingBlocks.Common;
 using Haworks.Catalog.Domain.Interfaces;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace Haworks.Catalog.Application.Commands;
 
@@ -13,14 +12,11 @@ public sealed record ApproveProductReviewCommand(
 internal sealed class ApproveProductReviewCommandHandler : IRequestHandler<ApproveProductReviewCommand, Result>
 {
     private readonly IProductReviewRepository _repository;
-    private readonly ILogger<ApproveProductReviewCommandHandler> _logger;
 
     public ApproveProductReviewCommandHandler(
-        IProductReviewRepository repository,
-        ILogger<ApproveProductReviewCommandHandler> logger)
+        IProductReviewRepository repository)
     {
         _repository = repository;
-        _logger = logger;
     }
 
     public async Task<Result> Handle(ApproveProductReviewCommand request, CancellationToken cancellationToken)
