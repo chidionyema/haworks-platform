@@ -10,14 +10,10 @@ public sealed class FfmpegService(IOptions<TranscodeOptions> opts, ILogger<Ffmpe
 {
     private readonly TranscodeOptions _opts = opts.Value;
 
-    /// <summary>
-    /// Probes a media file and returns its metadata (width, height, duration, codec, etc.).
-    /// Returns null if ffprobe fails (corrupt/unsupported file).
-    /// </summary>
     public async Task<ProbeResult?> ProbeAsync(string inputPath, CancellationToken ct)
     {
-        var args = $"-v quiet -print_format json -show_streams -show_format \"{inputPath}\"";
-        var (exitCode, stdout, _) = await RunAsync(_opts.FfprobePath, args, TimeSpan.FromSeconds(30), ct);
+        var argList = new[] { "-v", "quiet", "-print_format", "json", "-show_streams", "-show_format", inputPath };
+        var (exitCode, stdout, _) = await RunAsync(_opts.FfprobePath, argList, TimeSpan.FromSeconds(30), ct);
 
         if (exitCode != 0) return null;
 
@@ -66,10 +62,6 @@ public sealed class FfmpegService(IOptions<TranscodeOptions> opts, ILogger<Ffmpe
         }
     }
 
-    /// <summary>
-    /// Transcodes a video to HLS with the specified quality tier.
-    /// Returns the path to the generated .m3u8 playlist.
-    /// </summary>
     public async Task<string> TranscodeToHlsAsync(
         string inputPath, string outputDir, QualityTier tier, CancellationToken ct)
     {
@@ -77,17 +69,20 @@ public sealed class FfmpegService(IOptions<TranscodeOptions> opts, ILogger<Ffmpe
         var playlistPath = Path.Combine(outputDir, $"{tier.Name}.m3u8");
         var segmentPattern = Path.Combine(outputDir, $"{tier.Name}_%03d.ts");
 
-        var args = string.Create(CultureInfo.InvariantCulture,
-            $"-i \"{inputPath}\" " +
-            $"-vf scale=-2:{tier.Height} " +
-            $"-c:v libx264 -preset medium -b:v {tier.VideoBitrateKbps}k " +
-            $"-c:a aac -b:a 128k " +
-            $"-hls_time {_opts.HlsSegmentSeconds} -hls_list_size 0 " +
-            $"-hls_segment_filename \"{segmentPattern}\" " +
-            $"-f hls \"{playlistPath}\"");
+        var argList = new[]
+        {
+            "-i", inputPath,
+            "-vf", $"scale=-2:{tier.Height}",
+            "-c:v", "libx264", "-preset", "medium", "-b:v", $"{tier.VideoBitrateKbps}k",
+            "-c:a", "aac", "-b:a", "128k",
+            "-hls_time", _opts.HlsSegmentSeconds.ToString(CultureInfo.InvariantCulture),
+            "-hls_list_size", "0",
+            "-hls_segment_filename", segmentPattern,
+            "-f", "hls", playlistPath,
+        };
 
         var timeout = TimeSpan.FromMinutes(_opts.TimeoutMinutes);
-        var (exitCode, _, stderr) = await RunAsync(_opts.FfmpegPath, args, timeout, ct);
+        var (exitCode, _, stderr) = await RunAsync(_opts.FfmpegPath, argList, timeout, ct);
 
         if (exitCode != 0)
             throw new InvalidOperationException($"FFmpeg transcode failed (exit {exitCode}): {stderr[..Math.Min(500, stderr.Length)]}");
@@ -95,15 +90,18 @@ public sealed class FfmpegService(IOptions<TranscodeOptions> opts, ILogger<Ffmpe
         return playlistPath;
     }
 
-    /// <summary>
-    /// Normalizes audio to EBU R128 loudness standard (-16 LUFS).
-    /// Returns the path to the normalized output file.
-    /// </summary>
     public async Task<string> NormalizeAudioAsync(string inputPath, string outputPath, CancellationToken ct)
     {
-        var args = $"-i \"{inputPath}\" -af loudnorm=I=-16:LRA=11:TP=-1.5 -c:a aac -b:a 128k \"{outputPath}\"";
+        var argList = new[]
+        {
+            "-i", inputPath,
+            "-af", "loudnorm=I=-16:LRA=11:TP=-1.5",
+            "-c:a", "aac", "-b:a", "128k",
+            outputPath,
+        };
+
         var timeout = TimeSpan.FromMinutes(_opts.TimeoutMinutes);
-        var (exitCode, _, stderr) = await RunAsync(_opts.FfmpegPath, args, timeout, ct);
+        var (exitCode, _, stderr) = await RunAsync(_opts.FfmpegPath, argList, timeout, ct);
 
         if (exitCode != 0)
             throw new InvalidOperationException($"FFmpeg audio normalization failed (exit {exitCode}): {stderr[..Math.Min(500, stderr.Length)]}");
@@ -112,30 +110,31 @@ public sealed class FfmpegService(IOptions<TranscodeOptions> opts, ILogger<Ffmpe
     }
 
     private async Task<(int ExitCode, string Stdout, string Stderr)> RunAsync(
-        string exe, string args, TimeSpan timeout, CancellationToken ct)
+        string exe, string[] argList, TimeSpan timeout, CancellationToken ct)
     {
-        logger.LogDebug("Running: {Exe} {Args}", exe, args);
+        logger.LogDebug("Running: {Exe} with {ArgCount} args", exe, argList.Length);
 
-        using var process = new Process
+        var psi = new ProcessStartInfo
         {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = exe,
-                Arguments = args,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            }
+            FileName = exe,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
         };
 
-        process.Start();
+        // ArgumentList prevents command injection — each arg is passed individually
+        foreach (var arg in argList)
+            psi.ArgumentList.Add(arg);
 
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
-        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+        using var process = new Process { StartInfo = psi };
+        process.Start();
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(timeout);
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+        var stderrTask = process.StandardError.ReadToEndAsync(cts.Token);
 
         try
         {
