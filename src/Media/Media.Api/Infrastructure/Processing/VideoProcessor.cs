@@ -100,9 +100,7 @@ public sealed class VideoProcessor(
 
     private async Task DownloadToFileAsync(string s3Key, string filePath, CancellationToken ct)
     {
-        await using var stream = await s3.DownloadAsync(s3Key, ct);
-        await using var fs = File.Create(filePath);
-        await stream.CopyToAsync(fs, ct);
+        await s3.DownloadToFileAsync(s3Key, filePath, ct);
     }
 
     private async Task UploadFileAsync(string filePath, string s3Key, string mimeType, CancellationToken ct)
