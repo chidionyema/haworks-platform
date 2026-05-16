@@ -12,6 +12,7 @@ public interface IS3Service
     string GeneratePartPresignedUrl(string key, string uploadId, int partNumber);
     Task CompleteMultipartUploadAsync(string key, string uploadId, IList<PartETag> parts, CancellationToken ct);
     Task AbortMultipartUploadAsync(string key, string uploadId, CancellationToken ct);
+    Task UploadAsync(string key, string mimeType, Stream content, CancellationToken ct);
 }
 
 /// <summary>
@@ -144,6 +145,19 @@ public class S3Service : IS3Service
             BucketName = _opts.BucketName,
             Key = key,
             UploadId = uploadId,
+        }, ct);
+    }
+
+    public async Task UploadAsync(string key, string mimeType, Stream content, CancellationToken ct)
+    {
+        if (!_opts.Enabled) return;
+
+        await _s3.PutObjectAsync(new PutObjectRequest
+        {
+            BucketName = _opts.BucketName,
+            Key = key,
+            ContentType = mimeType,
+            InputStream = content,
         }, ct);
     }
 }

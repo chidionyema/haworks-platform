@@ -4,6 +4,7 @@ using Haworks.BuildingBlocks.Extensions;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Startup;
 using Haworks.Media.Api.Infrastructure;
+using Haworks.Media.Api.Infrastructure.Processing;
 using Haworks.Media.Api.Infrastructure.Workers;
 using Haworks.Media.Api.Options;
 using Microsoft.EntityFrameworkCore;
@@ -88,6 +89,18 @@ builder.Services.AddMediatR(cfg =>
 });
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+
+// ── Media processing pipeline ──
+builder.Services.AddOptions<TranscodeOptions>()
+    .Bind(builder.Configuration.GetSection(TranscodeOptions.SectionName));
+builder.Services.AddOptions<ImageOptions>()
+    .Bind(builder.Configuration.GetSection(ImageOptions.SectionName));
+
+builder.Services.AddSingleton<FfmpegService>();
+builder.Services.AddScoped<IMediaProcessor, ImageProcessor>();
+builder.Services.AddScoped<IMediaProcessor, VideoProcessor>();
+builder.Services.AddScoped<IMediaProcessor, AudioProcessor>();
+builder.Services.AddScoped<MediaProcessingOrchestrator>();
 
 // ── S3 event notifications (SQS consumer) ──
 builder.Services.AddOptions<S3NotificationOptions>()
