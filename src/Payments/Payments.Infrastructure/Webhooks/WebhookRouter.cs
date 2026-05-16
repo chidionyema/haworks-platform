@@ -41,7 +41,7 @@ internal sealed class WebhookRouter(
         }
     }
 
-    private PaymentProvider DetermineProvider(string header, IHeaderDictionary headers)
+    private static PaymentProvider DetermineProvider(string header, IHeaderDictionary headers)
     {
         if (header.Equals("stripe", StringComparison.OrdinalIgnoreCase)) return PaymentProvider.Stripe;
         if (header.Equals("paypal", StringComparison.OrdinalIgnoreCase)) return PaymentProvider.PayPal;

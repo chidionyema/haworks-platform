@@ -131,7 +131,7 @@ internal sealed class SendNotificationCommandHandler(
         return Result.Success(notification.Id);
     }
 
-    private Notification CreateNotification(SendNotificationCommand request, string idempotencyKey)
+    private static Notification CreateNotification(SendNotificationCommand request, string idempotencyKey)
     {
         return Notification.Create(
             request.Recipient,

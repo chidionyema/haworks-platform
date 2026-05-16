@@ -61,7 +61,8 @@ public sealed class CdcSearchIndexWorker(
         var envelope = JsonSerializer.Deserialize<DebeziumEnvelope>(result.Message.Value);
         if (envelope == null) return;
 
-        var table = result.Topic.Split('.').Last();
+        var topicParts = result.Topic.Split('.');
+        var table = topicParts[topicParts.Length - 1];
         var changeType = MapOp(envelope.Op);
 
         using var scope = serviceProvider.CreateScope();

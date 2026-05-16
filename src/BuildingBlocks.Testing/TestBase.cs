@@ -36,9 +36,17 @@ public abstract class TestBase : IDisposable
         });
     }
 
-    public virtual void Dispose()
+    public void Dispose()
     {
-        MockRepository.VerifyAll();
+        Dispose(true);
         GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            MockRepository.VerifyAll();
+        }
     }
 }

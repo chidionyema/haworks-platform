@@ -43,7 +43,7 @@ public sealed class ScribanTemplateRenderer : ITemplateRenderer
     /// Thrown when a required variable declared by the template is missing from
     /// <paramref name="data"/>. The exception message contains the missing key name.
     /// </exception>
-    public RenderedNotification Render(NotificationTemplate template, IDictionary<string, object?> data)
+    public static RenderedNotification Render(NotificationTemplate template, IDictionary<string, object?> data)
     {
         ArgumentNullException.ThrowIfNull(template);
         ArgumentNullException.ThrowIfNull(data);

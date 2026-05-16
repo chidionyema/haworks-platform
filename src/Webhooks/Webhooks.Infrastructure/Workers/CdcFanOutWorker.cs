@@ -126,7 +126,7 @@ public class CdcFanOutWorker(
         }
     }
 
-    private string MapOp(string op) => op switch
+    private static string MapOp(string op) => op switch
     {
         "c" => "created",
         "u" => "updated",

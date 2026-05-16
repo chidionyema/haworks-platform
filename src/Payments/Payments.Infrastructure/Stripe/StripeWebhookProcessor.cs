@@ -19,7 +19,6 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
 {
     private readonly IPaymentSessionProcessor _paymentProcessor;
     private readonly ISubscriptionManager _subscriptionManager;
-    private readonly IRefundService _refundService;
     private readonly IWebhookIdempotencyGuard _idempotencyGuard;
     private readonly IPaymentRepository _paymentRepository;
     private readonly IDomainEventPublisher _eventPublisher;
@@ -36,7 +35,6 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
     public StripeWebhookProcessor(
         IPaymentSessionProcessor paymentProcessor,
         ISubscriptionManager subscriptionManager,
-        IRefundService refundService,
         IWebhookIdempotencyGuard idempotencyGuard,
         IPaymentRepository paymentRepository,
         IDomainEventPublisher eventPublisher,

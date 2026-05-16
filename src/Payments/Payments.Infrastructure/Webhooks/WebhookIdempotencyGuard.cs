@@ -15,18 +15,15 @@ internal sealed class WebhookIdempotencyGuard : IWebhookIdempotencyGuard
 {
     private readonly IPaymentRepository _repository;
     private readonly IDistributedCache _cache;
-    private readonly ILogger<WebhookIdempotencyGuard> _logger;
 
     private const string CacheKeyPrefix = "webhook:";
 
     public WebhookIdempotencyGuard(
         IPaymentRepository repository,
-        IDistributedCache cache,
-        ILogger<WebhookIdempotencyGuard> logger)
+        IDistributedCache cache)
     {
         _repository = repository;
         _cache = cache;
-        _logger = logger;
     }
 
     public async Task<bool> IsAlreadyProcessedAsync(
