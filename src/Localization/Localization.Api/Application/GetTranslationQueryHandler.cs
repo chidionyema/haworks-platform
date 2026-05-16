@@ -1,19 +1,20 @@
 using Haworks.BuildingBlocks.Common;
+using Haworks.Contracts.Localization;
 using Haworks.Localization.Api.Domain;
-using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Haworks.Localization.Api.Infrastructure;
 using MassTransit;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Haworks.Localization.Api.Application;
 
 public class GetTranslationQueryHandler : IRequestHandler<GetTranslationQuery, Result<string>>
 {
     private readonly LocalizationDbContext _dbContext;
-    private readonly IPublishEndpoint _publishEndpoint;
+    private readonly IPublishEndpoint? _publishEndpoint;
     private const string DefaultLocale = "en-US";
 
-    public GetTranslationQueryHandler(LocalizationDbContext dbContext, IPublishEndpoint publishEndpoint)
+    public GetTranslationQueryHandler(LocalizationDbContext dbContext, IPublishEndpoint? publishEndpoint = null)
     {
         _dbContext = dbContext;
         _publishEndpoint = publishEndpoint;
@@ -26,7 +27,7 @@ public class GetTranslationQueryHandler : IRequestHandler<GetTranslationQuery, R
 
         if (translation == null)
         {
-            await PublishMissingEvent(request.Key, request.Locale);
+            await PublishMissingEvent(request.Key, request.Locale, cancellationToken);
             return Result.Failure<string>(Error.NotFound("Translation.NotFound", $"Translation for key '{request.Key}' not found."));
         }
 
@@ -39,7 +40,7 @@ public class GetTranslationQueryHandler : IRequestHandler<GetTranslationQuery, R
             }
         }
 
-        await PublishMissingEvent(request.Key, request.Locale);
+        await PublishMissingEvent(request.Key, request.Locale, cancellationToken);
         return Result.Failure<string>(Error.NotFound("Translation.ValueNotFound", $"Translation for key '{request.Key}' and locale '{request.Locale}' (and fallbacks) not found."));
     }
 
@@ -58,10 +59,12 @@ public class GetTranslationQueryHandler : IRequestHandler<GetTranslationQuery, R
         }
     }
 
-    private async Task PublishMissingEvent(string key, string locale)
+    private async Task PublishMissingEvent(string key, string locale, CancellationToken cancellationToken)
     {
-        await _publishEndpoint.Publish(new TranslationMissingEvent(key, locale));
+        if (_publishEndpoint is null) return;
+
+        await _publishEndpoint.Publish(
+            new TranslationMissingEvent { Key = key, Locale = locale },
+            cancellationToken);
     }
 }
-
-public record TranslationMissingEvent(string Key, string Locale);

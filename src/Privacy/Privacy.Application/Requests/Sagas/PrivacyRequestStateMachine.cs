@@ -89,8 +89,16 @@ public class PrivacyRequestStateMachine : MassTransitStateMachine<PrivacyRequest
                     _logger.LogError("Privacy erasure failed for service {ServiceName}, request {RequestId}: {Error}",
                         context.Message.ServiceName, context.Message.RequestId, context.Message.ErrorMessage);
                     EmitSpan(context.Saga.CorrelationId, context.Saga.UserId, "erasure_failed");
+                    PrivacyActivities.ErasureFailed.Add(1);
                 })
                 .Unschedule(ErasureTimeoutSchedule)
+                .PublishAsync(context => context.Init<PrivacyErasureFailedNotification>(new PrivacyErasureFailedNotification
+                {
+                    RequestId = context.Message.RequestId,
+                    UserId = context.Message.UserId,
+                    ServiceName = context.Message.ServiceName,
+                    ErrorMessage = context.Message.ErrorMessage
+                }))
                 .TransitionTo(Failed),
 
             // PR-02: handle timeout

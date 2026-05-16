@@ -35,10 +35,12 @@ public class InitiatePrivacyRequestCommandHandler : IRequestHandler<InitiatePriv
         var privacyRequest = PrivacyRequest.Create(request.UserId, request.Type);
         
         _context.PrivacyRequests.Add(privacyRequest);
-        
-        await _publishEndpoint.Publish(new InitiatePrivacyRequestMessage { RequestId = privacyRequest.Id, UserId = request.UserId }, cancellationToken);
-        
+
+        // SaveChanges first so the record is durable before the message is
+        // dispatched; the outbox pattern then guarantees at-least-once delivery.
         await _context.SaveChangesAsync(cancellationToken);
+
+        await _publishEndpoint.Publish(new InitiatePrivacyRequestMessage { RequestId = privacyRequest.Id, UserId = request.UserId }, cancellationToken);
 
         return privacyRequest.Id;
     }

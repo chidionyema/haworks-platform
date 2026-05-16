@@ -6,7 +6,7 @@ using Haworks.BuildingBlocks.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// builder.AddServiceDefaults(); // Assuming this is available in BuildingBlocks
+builder.AddServiceDefaults();
 
 builder.Services.AddLocalizationService(builder.Configuration, builder.Environment);
 
@@ -29,7 +29,7 @@ if (!app.Environment.IsEnvironment("Test"))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<LocalizationDbContext>();
-    await db.Database.EnsureCreatedAsync(); // Simplified for now
+    await db.Database.MigrateAsync();
 }
 
 if (app.Environment.IsDevelopment())
