@@ -96,7 +96,7 @@ public class SearchE2ETests : IAsyncLifetime
             var searchResult = await searchResponse.JsonAsync();
             var hits = searchResult?.GetProperty("hits").EnumerateArray();
             
-            if (hits?.Any(h => h.GetProperty("name").GetString() == productName) == true)
+            if (hits?.Any(h => string.Equals(h.GetProperty("name").GetString(), productName, StringComparison.Ordinal)) == true)
             {
                 found = true;
                 _output.WriteLine($"Product found in search index after {i + 1} seconds.");

@@ -65,10 +65,10 @@ public sealed class RefundEmailConsumer(
         ));
     }
 
-    public async Task Consume(ConsumeContext<RefundStalledEvent> context)
+    public Task Consume(ConsumeContext<RefundStalledEvent> context)
     {
         // This usually goes to Ops, not the customer
         logger.LogWarning("Refund {RefundId} is stalled! Notify Ops.", context.Message.RefundId);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 }

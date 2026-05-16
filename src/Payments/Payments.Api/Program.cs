@@ -130,7 +130,7 @@ if (app.Environment.IsDevelopment())
 // would defeat streaming responses elsewhere.
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/webhooks"))
+    if (context.Request.Path.StartsWithSegments("/webhooks", StringComparison.OrdinalIgnoreCase))
     {
         context.Request.EnableBuffering();
     }

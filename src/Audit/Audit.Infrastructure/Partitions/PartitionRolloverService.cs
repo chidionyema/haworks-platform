@@ -55,8 +55,8 @@ public class PartitionRolloverService : BackgroundService
     private async Task CreatePartitionForMonthAsync(AuditDbContext db, int year, int month, CancellationToken ct)
     {
         var partitionName = $"audit_events_{year}_{month:D2}";
-        var fromDate = new DateTime(year, month, 1).ToString("yyyy-MM-dd");
-        var toDate = new DateTime(year, month, 1).AddMonths(1).ToString("yyyy-MM-dd");
+        var fromDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc).ToString("yyyy-MM-dd");
+        var toDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1).ToString("yyyy-MM-dd");
 
         var sql = $@"
             CREATE TABLE IF NOT EXISTS audit.{partitionName} PARTITION OF audit.audit_events

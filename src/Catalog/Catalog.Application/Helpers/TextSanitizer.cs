@@ -5,10 +5,10 @@ namespace Haworks.Catalog.Application.Helpers;
 
 public static partial class TextSanitizer
 {
-    [GeneratedRegex("<[^>]*>", RegexOptions.Compiled)]
+    [GeneratedRegex("<[^>]*>", RegexOptions.NonBacktracking)]
     private static partial Regex HtmlTagPattern();
 
-    [GeneratedRegex(@"\s{2,}", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\s{2,}", RegexOptions.NonBacktracking)]
     private static partial Regex MultipleWhitespacePattern();
 
     public static string SanitizePlainText(string? input)

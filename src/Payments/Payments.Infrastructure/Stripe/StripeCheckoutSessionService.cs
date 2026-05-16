@@ -81,7 +81,7 @@ internal sealed class StripeCheckoutSessionService : ICheckoutSessionService
             return new CheckoutSession
             {
                 SessionId = session.Id,
-                Status = session.Status == "complete" ? SessionStatus.Complete : SessionStatus.Open,
+                Status = string.Equals(session.Status, "complete", StringComparison.Ordinal) ? SessionStatus.Complete : SessionStatus.Open,
                 TransactionId = session.PaymentIntentId,
                 AmountTotal = session.AmountTotal ?? 0,
                 Currency = session.Currency,

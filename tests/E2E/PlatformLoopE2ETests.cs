@@ -73,7 +73,7 @@ public class PlatformLoopE2ETests(E2EEnvironmentFixture fixture, ITestOutputHelp
 
             var hits = results.Value.GetProperty("hits").EnumerateArray();
             
-            if (hits.Any(h => h.GetProperty("name").GetString() == productName))
+            if (hits.Any(h => string.Equals(h.GetProperty("name").GetString(), productName, StringComparison.Ordinal)))
             {
                 found = true;
                 output.WriteLine($"Success: Product found in Elasticsearch after {i+1}s");
@@ -133,7 +133,7 @@ public class PlatformLoopE2ETests(E2EEnvironmentFixture fixture, ITestOutputHelp
 
             var items = auditPage.Value.GetProperty("items").EnumerateArray();
             
-            if (items.Any(e => e.GetProperty("eventType").GetString() == "UserRegistered"))
+            if (items.Any(e => string.Equals(e.GetProperty("eventType").GetString(), "UserRegistered", StringComparison.Ordinal)))
             {
                 captured = true;
                 output.WriteLine($"Success: UserRegistration event captured in Audit DB after {i+1}s");

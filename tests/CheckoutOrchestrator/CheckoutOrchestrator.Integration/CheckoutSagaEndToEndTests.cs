@@ -50,7 +50,7 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             IdempotencyKey = "key-" + Guid.NewGuid()
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Initiated", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // 2. Simulate StockReserved from Catalog context
         await PublishAsync(new StockReservedEvent
@@ -66,7 +66,7 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
         });
 
         // 3. Assert state transition to StockReservedState (which represents "StockHeld" in monolith)
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "StockReservedState", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var sagaState = await ReadSagaAsync(sagaId);
         sagaState!.CurrentState.Should().Be("StockReservedState");
@@ -90,7 +90,7 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             IdempotencyKey = "key-" + Guid.NewGuid()
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Initiated", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Simulate StockReservationFailed
         await PublishAsync(new StockReservationFailedEvent
@@ -101,7 +101,7 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             FailedItems = new[] { new FailedReservationItem { ProductId = Guid.NewGuid(), ProductName = "Test", RequestedQuantity = 1, AvailableQuantity = 0 } }
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Abandoned", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Abandoned", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var sagaState = await ReadSagaAsync(sagaId);
         sagaState!.CurrentState.Should().Be("Abandoned");

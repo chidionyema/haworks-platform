@@ -100,8 +100,9 @@ public sealed class PaymentWebhookValidatedConsumer(
     private static bool IsUniqueViolation(DbUpdateException ex)
     {
         var inner = ex.InnerException;
-        return inner?.GetType().Name == "PostgresException"
-            && (inner.GetType().GetProperty("SqlState")?.GetValue(inner) as string) == "23505";
+        return inner is not null
+            && string.Equals(inner.GetType().Name, "PostgresException", StringComparison.Ordinal)
+            && string.Equals(inner.GetType().GetProperty("SqlState")?.GetValue(inner) as string, "23505", StringComparison.Ordinal);
     }
 
     private static PaymentProvider? ParseProvider(string provider) => provider switch

@@ -2,7 +2,6 @@ using Haworks.BuildingBlocks.Common;
 using Haworks.Catalog.Application.DTOs;
 using Haworks.Catalog.Domain.Interfaces;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace Haworks.Catalog.Application.Queries;
 
@@ -17,14 +16,11 @@ internal sealed class GetProductReviewQueryHandler
     : IRequestHandler<GetProductReviewQuery, Result<ProductReviewDto>>
 {
     private readonly IProductReviewRepository _repository;
-    private readonly ILogger<GetProductReviewQueryHandler> _logger;
 
     public GetProductReviewQueryHandler(
-        IProductReviewRepository repository,
-        ILogger<GetProductReviewQueryHandler> logger)
+        IProductReviewRepository repository)
     {
         _repository = repository;
-        _logger = logger;
     }
 
     public async Task<Result<ProductReviewDto>> Handle(
@@ -43,7 +39,7 @@ internal sealed class GetProductReviewQueryHandler
         }
 
         // Only show approved reviews to non-admins unless it's their own review
-        if (!review.IsApproved && !request.IsAdmin && review.UserId != request.UserId)
+        if (!review.IsApproved && !request.IsAdmin && !string.Equals(review.UserId, request.UserId, StringComparison.Ordinal))
         {
             return Result.Failure<ProductReviewDto>(new Error("Reviews.NotFound", "Review not found"));
         }

@@ -16,7 +16,7 @@ public class CreateSubscriptionCheckoutHandlerTests
 
     public CreateSubscriptionCheckoutHandlerTests()
     {
-        _handler = new CreateSubscriptionCheckoutCommandHandler(_serviceMock.Object);
+        _handler = new CreateSubscriptionCheckoutCommandHandler(_serviceMock.Object, Microsoft.Extensions.Options.Options.Create(new Haworks.BuildingBlocks.Common.BrandOptions()));
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class CreateSubscriptionCheckoutHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ServiceThrows_Throws()
+    public Task Handle_ServiceThrows_Throws()
     {
         // Arrange
         var command = new CreateSubscriptionCheckoutCommand("user-1", "price-1", 10.0m, null);
@@ -59,7 +59,7 @@ public class CreateSubscriptionCheckoutHandlerTests
             .ThrowsAsync(new Exception("Stripe Error"));
 
         // Act & Assert
-        await Assert.ThrowsAsync<Exception>(() => _handler.Handle(command, default));
+        return Assert.ThrowsAsync<Exception>(() => _handler.Handle(command, default));
     }
 
     [Theory]

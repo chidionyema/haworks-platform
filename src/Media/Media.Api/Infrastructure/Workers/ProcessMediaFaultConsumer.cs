@@ -12,7 +12,7 @@ public sealed class ProcessMediaFaultConsumer(
     IPublishEndpoint publisher,
     ILogger<ProcessMediaFaultConsumer> logger) : IConsumer<Fault<ProcessMediaCommand>>
 {
-    public async Task Consume(ConsumeContext<Fault<ProcessMediaCommand>> context)
+    public Task Consume(ConsumeContext<Fault<ProcessMediaCommand>> context)
     {
         var cmd = context.Message.Message;
         var reason = context.Message.Exceptions?.FirstOrDefault()?.Message
@@ -20,7 +20,7 @@ public sealed class ProcessMediaFaultConsumer(
 
         logger.LogError("Media processing permanently failed for {MediaId}: {Reason}", cmd.MediaId, reason);
 
-        await publisher.Publish(new MediaProcessingFailedEvent
+        return publisher.Publish(new MediaProcessingFailedEvent
         {
             MediaId = cmd.MediaId,
             OwnerId = cmd.OwnerId,

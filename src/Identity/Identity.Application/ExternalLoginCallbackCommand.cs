@@ -247,7 +247,7 @@ internal sealed class ExternalLoginCallbackCommandHandler
 
         // Remove any characters not in the allowed set
         var pattern = $"[^{Regex.Escape(_options.AllowedUserNameCharacters)}]";
-        var sanitized = Regex.Replace(rawUserName, pattern, "");
+        var sanitized = Regex.Replace(rawUserName, pattern, "", RegexOptions.NonBacktracking);
 
         // Ensure we have at least something
         if (string.IsNullOrWhiteSpace(sanitized))
@@ -294,8 +294,8 @@ internal sealed class ExternalLoginCallbackCommandHandler
         CancellationToken cancellationToken)
     {
         var errors = createResult.Errors.ToList();
-        var hasDuplicateEmail = errors.Any(e => e.Code == "DuplicateEmail");
-        var hasDuplicateUserName = errors.Any(e => e.Code == "DuplicateUserName");
+        var hasDuplicateEmail = errors.Any(e => string.Equals(e.Code, "DuplicateEmail", StringComparison.Ordinal));
+        var hasDuplicateUserName = errors.Any(e => string.Equals(e.Code, "DuplicateUserName", StringComparison.Ordinal));
 
         _logger.LogWarning(
             "User creation failed. DuplicateEmail: {DuplicateEmail}, DuplicateUserName: {DuplicateUserName}, Errors: {Errors}",

@@ -240,13 +240,13 @@ public class PreferenceTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public async Task IsAllowedAsync_BlankUserId_Throws(string? userId)
+    public Task IsAllowedAsync_BlankUserId_Throws(string? userId)
     {
         var sut = BuildSut();
 
         var act = () => sut.IsAllowedAsync(userId!, NotificationChannel.Email, Category, CancellationToken.None);
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        return act.Should().ThrowAsync<ArgumentException>();
     }
 
     private sealed class FixedClock : TimeProvider

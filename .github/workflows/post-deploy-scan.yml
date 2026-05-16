@@ -2,15 +2,17 @@ name: Post-Deploy Exploratory Scan
 
 on:
   workflow_run:
-    workflows: [Deploy]
+    workflows: [Deploy, CI]
     types: [completed]
     branches: [main]
   workflow_dispatch:
     inputs:
       target_url:
-        description: "Base URL to scan (e.g. https://haworks-bffweb.fly.dev)"
-        required: true
+        description: "Base URL to scan (default: haworks-bffweb.fly.dev)"
+        required: false
         type: string
+  schedule:
+    - cron: "0 6 * * 1-5"  # Weekday mornings — catch overnight regressions
 
 concurrency:
   group: post-deploy-scan

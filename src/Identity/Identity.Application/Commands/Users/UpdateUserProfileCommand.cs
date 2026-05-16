@@ -2,7 +2,6 @@ using Haworks.BuildingBlocks.Common;
 using Haworks.Identity.Domain;
 using Haworks.Identity.Domain.Interfaces;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
 
 namespace Haworks.Identity.Application.Commands.Users;
 
@@ -22,14 +21,11 @@ public sealed record UpdateUserProfileCommand(
 
 internal sealed class UpdateUserProfileCommandHandler : IRequestHandler<UpdateUserProfileCommand, Result>
 {
-    private readonly UserManager<User> _userManager;
     private readonly IUserProfileRepository _userProfileRepository;
 
     public UpdateUserProfileCommandHandler(
-        UserManager<User> userManager,
         IUserProfileRepository userProfileRepository)
     {
-        _userManager = userManager;
         _userProfileRepository = userProfileRepository;
     }
 

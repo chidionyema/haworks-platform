@@ -119,16 +119,16 @@ public class PrivacyRequestStateMachine : MassTransitStateMachine<PrivacyRequest
         // the same event arrives via two paths or after the saga has moved on.
         DuringAny(
             When(ErasureCompleted)
-                .If(ctx => ctx.Saga.CurrentState == nameof(Completed)
-                        || ctx.Saga.CurrentState == nameof(Failed)
-                        || ctx.Saga.CurrentState == nameof(Stalled),
+                .If(ctx => string.Equals(ctx.Saga.CurrentState, nameof(Completed), StringComparison.Ordinal)
+                        || string.Equals(ctx.Saga.CurrentState, nameof(Failed), StringComparison.Ordinal)
+                        || string.Equals(ctx.Saga.CurrentState, nameof(Stalled), StringComparison.Ordinal),
                     binder => binder.Then(ctx =>
                         _logger.LogInformation(
                             "Ignoring late ErasureCompleted for request {RequestId} in state {State}",
                             ctx.Saga.CorrelationId, ctx.Saga.CurrentState))),
             When(ErasureFailed)
-                .If(ctx => ctx.Saga.CurrentState == nameof(Completed)
-                        || ctx.Saga.CurrentState == nameof(Failed),
+                .If(ctx => string.Equals(ctx.Saga.CurrentState, nameof(Completed), StringComparison.Ordinal)
+                        || string.Equals(ctx.Saga.CurrentState, nameof(Failed), StringComparison.Ordinal),
                     binder => binder.Then(ctx =>
                         _logger.LogInformation(
                             "Ignoring late ErasureFailed for request {RequestId} in state {State}",

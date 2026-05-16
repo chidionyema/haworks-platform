@@ -1,10 +1,12 @@
 namespace Haworks.Catalog.Api.Models;
 
-public sealed record CreateProductReviewRequest(
-    string Title,
-    string Content,
-    int Rating,
-    string? AuthorName);
+public sealed record CreateProductReviewRequest
+{
+    public required string Title { get; init; }
+    public required string Content { get; init; }
+    public required int Rating { get; init; }
+    public string? AuthorName { get; init; }
+}
 
 public sealed record ProductReviewResponse(
     Guid Id,

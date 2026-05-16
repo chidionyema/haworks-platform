@@ -191,7 +191,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CDC_category_update_is_handled_without_error()
+    public Task CDC_category_update_is_handled_without_error()
     {
         var categoryId = Guid.NewGuid();
         var envelope = MakeEnvelope("u", new
@@ -201,7 +201,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
         });
 
         // Should not throw
-        await ProduceAndConsumeAsync("db.catalog.public.categories", envelope);
+        return ProduceAndConsumeAsync("db.catalog.public.categories", envelope);
     }
 
     /// <summary>
@@ -257,7 +257,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
             consumer.Commit(result);
 
             // Stop once we've processed our message
-            if (result.Message.Key == messageKey)
+            if (string.Equals(result.Message.Key, messageKey, StringComparison.Ordinal))
                 break;
         }
     }
@@ -266,7 +266,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
         Haworks.Contracts.Cdc.DebeziumEnvelope envelope, ISearchIndex index, CancellationToken ct)
     {
         var op = envelope.Op;
-        if (op == "d")
+        if (string.Equals(op, "d", StringComparison.Ordinal))
         {
             var beforeRaw = envelope.Before?.GetProperty("id").GetString();
             if (beforeRaw != null && Guid.TryParse(beforeRaw, out var parsedId))

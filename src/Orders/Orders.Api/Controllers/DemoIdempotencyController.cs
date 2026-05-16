@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Data;
 using Haworks.Orders.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
@@ -225,5 +226,5 @@ public sealed class DemoIdempotencyController(
         cmd.Parameters.Add(p);
     }
 
-    public sealed record RaceRequest(string Key, int Count, int? TtlSeconds);
+    public sealed record RaceRequest(string Key, [property: System.Text.Json.Serialization.JsonRequired] int Count, int? TtlSeconds);
 }

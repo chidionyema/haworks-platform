@@ -22,20 +22,20 @@ public class ContentContextRepository : IContentRepository
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<ContentEntity?> GetContentByIdAsync(Guid id, CancellationToken ct = default)
+    public Task<ContentEntity?> GetContentByIdAsync(Guid id, CancellationToken ct = default)
     {
         _logger.LogInformation("Fetching content {ContentId}", id);
-        return await _context.Contents
+        return _context.Contents
             .AsNoTracking()
             .Include(c => c.Metadata)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
     }
 
-    public async Task<ContentEntity?> GetContentByIdTrackedAsync(Guid id, CancellationToken ct = default)
+    public Task<ContentEntity?> GetContentByIdTrackedAsync(Guid id, CancellationToken ct = default)
     {
         // Tracked variant for state transitions: handlers mutate Status,
         // ETag, Sha256Checksum etc. and rely on EF to detect the change.
-        return await _context.Contents
+        return _context.Contents
             .Include(c => c.Metadata)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
     }
@@ -96,7 +96,7 @@ public class ContentContextRepository : IContentRepository
         _logger.LogInformation("Content added {ContentId}", content.Id);
     }
 
-    public async Task AddContentsAsync(IEnumerable<ContentEntity> contents, CancellationToken ct = default)
+    public Task AddContentsAsync(IEnumerable<ContentEntity> contents, CancellationToken ct = default)
     {
         if (contents == null || !contents.Any())
         {
@@ -105,7 +105,7 @@ public class ContentContextRepository : IContentRepository
         }
 
         _logger.LogInformation("Adding {Count} contents", contents.Count());
-        await _context.Contents.AddRangeAsync(contents, ct);
+        return _context.Contents.AddRangeAsync(contents, ct);
         // Note: SaveChanges should be called separately or as part of unit of work
     }
 
@@ -160,10 +160,10 @@ public class ContentContextRepository : IContentRepository
         _logger.LogInformation("Content removed {ContentId}", content.Id);
     }
 
-    public async Task SaveChangesAsync(CancellationToken ct = default)
+    public Task SaveChangesAsync(CancellationToken ct = default)
     {
         _logger.LogInformation("Saving content changes");
-        await _context.SaveChangesAsync(ct);
+        return _context.SaveChangesAsync(ct);
     }
 
     #region Content Metadata Methods

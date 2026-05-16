@@ -42,4 +42,47 @@
     </NoWarn>
   </PropertyGroup>
 
+  <!--
+    ═══════════════════════════════════════════════════════════════════════
+    PROACTIVE ARCHITECTURE GUARDING (per https://medium.com/@bnayae/proactive-architecture-guarding-b71c4a77a0ec)
+
+    Three layers of enforcement:
+    1. Roslyn Analyzers — run IN THE IDE as you type (red squiggles) + fail CI build
+    2. SonarAnalyzer — advanced patterns (security, reliability, maintainability)
+    3. AsyncFixer — catches async/await anti-patterns
+
+    TreatWarningsAsErrors + EnforceCodeStyleInBuild means these are NOT advisory —
+    they BLOCK the build if violated. The developer sees the error immediately in
+    their IDE and cannot commit without fixing it.
+    ═══════════════════════════════════════════════════════════════════════
+  -->
+  <ItemGroup>
+    <!-- Sonar C# analyzer — 600+ rules for bugs, vulnerabilities, code smells.
+         Runs at compile time in IDE + CI. No SonarQube server required. -->
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.4.0.108396">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+
+    <!-- AsyncFixer — catches common async/await misuses:
+         - Unnecessary async/await (performance)
+         - Fire-and-forget calls without await
+         - Async void methods
+         - Blocking on async (sync-over-async) -->
+    <PackageReference Include="AsyncFixer" Version="1.6.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+
+    <!-- Meziantou — 200+ rules for .NET best practices:
+         - MA0004: Use Task.ConfigureAwait
+         - MA0006: Use String.Equals with StringComparison
+         - MA0011: IFormatProvider missing
+         - MA0051: Method too long (complexity guard) -->
+    <PackageReference Include="Meziantou.Analyzer" Version="2.0.182">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
 </Project>

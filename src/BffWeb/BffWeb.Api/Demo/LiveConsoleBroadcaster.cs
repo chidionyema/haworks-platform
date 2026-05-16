@@ -27,7 +27,7 @@ public sealed class LiveConsoleBroadcaster
 
     private readonly LiveConsoleEvent?[] _ring = new LiveConsoleEvent?[BufferSize];
     private long _writeIndex;
-    private readonly object _readLock = new();
+    private readonly Lock _readLock = new();
 
     private readonly IHubContext<LiveConsoleHub> _hub;
     private readonly ILogger<LiveConsoleBroadcaster> _logger;

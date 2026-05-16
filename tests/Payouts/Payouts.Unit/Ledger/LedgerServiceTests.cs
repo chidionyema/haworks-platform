@@ -9,7 +9,7 @@ using Xunit;
 
 namespace Haworks.Payouts.Unit.Ledger;
 
-public class LedgerServiceTests : IDisposable
+public sealed class LedgerServiceTests : IDisposable
 {
     private readonly PayoutsDbContext _context;
     private readonly LedgerService _service;
@@ -61,10 +61,10 @@ public class LedgerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreditSellerAsync_with_zero_amount_throws()
+    public Task CreditSellerAsync_with_zero_amount_throws()
     {
         var act = () => _service.CreditSellerAsync(Guid.NewGuid(), 0m, "USD", Guid.NewGuid(), "test");
-        await act.Should().ThrowAsync<ArgumentException>();
+        return act.Should().ThrowAsync<ArgumentException>();
     }
 
     [Fact]

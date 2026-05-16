@@ -34,10 +34,11 @@ public sealed class WebhooksController(
     ILogger<WebhooksController> logger) : ControllerBase
 {
     [HttpPost("stripe")]
-    public async Task<IActionResult> Stripe(CancellationToken ct)
+    public async Task<IActionResult> Stripe(
+        [FromHeader(Name = "Stripe-Signature")] string? signature,
+        CancellationToken ct)
     {
         Request.EnableBuffering();
-        var signature = Request.Headers["Stripe-Signature"].ToString();
         if (string.IsNullOrEmpty(signature))
         {
             return BadRequest(new { error = "Missing Stripe-Signature header" });
@@ -80,32 +81,26 @@ public sealed class WebhooksController(
     }
 
     [HttpPost("paypal")]
-    public async Task<IActionResult> PayPal(CancellationToken ct)
+    public async Task<IActionResult> PayPal(
+        [FromHeader(Name = "PAYPAL-TRANSMISSION-ID")] string? transmissionId,
+        [FromHeader(Name = "PAYPAL-TRANSMISSION-TIME")] string? transmissionTime,
+        [FromHeader(Name = "PAYPAL-TRANSMISSION-SIG")] string? transmissionSig,
+        [FromHeader(Name = "PAYPAL-CERT-URL")] string? certUrl,
+        [FromHeader(Name = "PAYPAL-AUTH-ALGO")] string? authAlgo,
+        CancellationToken ct)
     {
         Request.EnableBuffering();
-        // PayPal sends multiple signature headers; bundle them into one
-        // JSON blob for the consumer to re-validate against PayPal's
-        // verify-signature API. Inline validation is intentionally NOT
-        // done here — PayPal's verification requires an out-of-band HTTP
-        // call to PayPal API (with its own auth token), which would
-        // double the webhook latency. Instead we accept the request,
-        // store the validated-event row in the outbox, and the consumer
-        // verifies against PayPal API on its own time.
-        //
-        // (Stripe HMAC verification IS done inline because it's local-only.)
         var signatureHeaders = JsonSerializer.Serialize(new
         {
-            transmissionId   = Request.Headers["PAYPAL-TRANSMISSION-ID"].ToString(),
-            transmissionTime = Request.Headers["PAYPAL-TRANSMISSION-TIME"].ToString(),
-            transmissionSig  = Request.Headers["PAYPAL-TRANSMISSION-SIG"].ToString(),
-            certUrl          = Request.Headers["PAYPAL-CERT-URL"].ToString(),
-            authAlgo         = Request.Headers["PAYPAL-AUTH-ALGO"].ToString(),
-            webhookId        = options.Value.PayPal.WebhookId,
+            transmissionId,
+            transmissionTime,
+            transmissionSig,
+            certUrl,
+            authAlgo,
+            webhookId = options.Value.PayPal.WebhookId,
         });
 
-        // Reject obviously-broken requests up front (no auth-algo header at
-        // all means the request didn't come from PayPal).
-        if (string.IsNullOrEmpty(Request.Headers["PAYPAL-AUTH-ALGO"]))
+        if (string.IsNullOrEmpty(authAlgo))
         {
             return BadRequest(new { error = "Missing PAYPAL-AUTH-ALGO header" });
         }

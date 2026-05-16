@@ -9,7 +9,7 @@ namespace Haworks.Catalog.Infrastructure;
 /// types from other contexts (User, Order, Content) — UserId on
 /// ProductReview is an opaque string FK to identity-svc.
 /// </summary>
-public class CatalogDbContext : DbContext
+public sealed class CatalogDbContext : DbContext
 {
     private readonly IHostEnvironment _environment;
     private readonly ILoggerFactory _loggerFactory;
@@ -25,8 +25,6 @@ public class CatalogDbContext : DbContext
         _environment = environment;
         _loggerFactory = loggerFactory;
         _currentUserService = currentUserService;
-
-        ChangeTracker.LazyLoadingEnabled = false;
     }
 
     public DbSet<Category> Categories => Set<Category>();
@@ -39,6 +37,8 @@ public class CatalogDbContext : DbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);
+
+        ChangeTracker.LazyLoadingEnabled = false;
 
         optionsBuilder.UseLoggerFactory(_loggerFactory);
 
@@ -204,10 +204,10 @@ public class CatalogDbContext : DbContext
         modelBuilder.AddOutboxMessageEntity();
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         StampAuditFields();
-        return await base.SaveChangesAsync(cancellationToken);
+        return base.SaveChangesAsync(cancellationToken);
     }
 
     private void StampAuditFields()

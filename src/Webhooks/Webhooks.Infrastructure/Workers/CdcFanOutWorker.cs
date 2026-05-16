@@ -79,7 +79,8 @@ public class CdcFanOutWorker(
         using var scope = serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IWebhooksDbContext>();
 
-        var entityType = result.Topic.Split('.').Last();
+        var topicParts = result.Topic.Split('.');
+        var entityType = topicParts[topicParts.Length - 1];
         var externalEventName = $"{entityType}.{MapOp(message.Op)}";
 
         // 1. Resolve subscriptions
@@ -126,7 +127,7 @@ public class CdcFanOutWorker(
         }
     }
 
-    private string MapOp(string op) => op switch
+    private static string MapOp(string op) => op switch
     {
         "c" => "created",
         "u" => "updated",

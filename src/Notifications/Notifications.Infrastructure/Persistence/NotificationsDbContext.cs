@@ -25,8 +25,6 @@ public class NotificationsDbContext : DbContext
         _environment = environment;
         _loggerFactory = loggerFactory;
         _currentUserService = currentUserService;
-
-        ChangeTracker.LazyLoadingEnabled = false;
     }
 
     public DbSet<Notification> Notifications => Set<Notification>();
@@ -38,6 +36,7 @@ public class NotificationsDbContext : DbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);
+        ChangeTracker.LazyLoadingEnabled = false;
         optionsBuilder.UseLoggerFactory(_loggerFactory);
         if (_environment.IsDevelopment()) optionsBuilder.EnableSensitiveDataLogging();
     }
@@ -101,12 +100,20 @@ public class NotificationsDbContext : DbContext
             entity.ToTable("SuppressionList");
             entity.HasKey(s => new { s.RecipientHash, s.Channel });
             entity.Property(s => s.Reason).HasMaxLength(500);
+            entity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
         });
 
         modelBuilder.Entity<RateLimitBucket>(entity =>
         {
             entity.ToTable("RateLimitBuckets");
             entity.HasKey(b => new { b.BucketKey, b.WindowStart });
+            entity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
         });
 
         modelBuilder.AddInboxStateEntity();
@@ -114,10 +121,10 @@ public class NotificationsDbContext : DbContext
         modelBuilder.AddOutboxMessageEntity();
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         StampAuditFields();
-        return await base.SaveChangesAsync(cancellationToken);
+        return base.SaveChangesAsync(cancellationToken);
     }
 
     private void StampAuditFields()

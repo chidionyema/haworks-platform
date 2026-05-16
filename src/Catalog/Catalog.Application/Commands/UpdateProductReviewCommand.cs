@@ -3,7 +3,6 @@ using Haworks.Catalog.Application.DTOs;
 using Haworks.Catalog.Application.Helpers;
 using Haworks.Catalog.Domain.Interfaces;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace Haworks.Catalog.Application.Commands;
 
@@ -21,14 +20,11 @@ internal sealed class UpdateProductReviewCommandHandler
     : IRequestHandler<UpdateProductReviewCommand, Result<ProductReviewDto>>
 {
     private readonly IProductReviewRepository _repository;
-    private readonly ILogger<UpdateProductReviewCommandHandler> _logger;
 
     public UpdateProductReviewCommandHandler(
-        IProductReviewRepository repository,
-        ILogger<UpdateProductReviewCommandHandler> logger)
+        IProductReviewRepository repository)
     {
         _repository = repository;
-        _logger = logger;
     }
 
     public async Task<Result<ProductReviewDto>> Handle(
@@ -47,7 +43,7 @@ internal sealed class UpdateProductReviewCommandHandler
         }
 
         // Security check
-        if (review.UserId != request.UserId && !request.IsAdmin)
+        if (!string.Equals(review.UserId, request.UserId, StringComparison.Ordinal) && !request.IsAdmin)
         {
             return Result.Failure<ProductReviewDto>(new Error("Reviews.Forbidden", "Not authorized to update this review"));
         }

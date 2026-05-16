@@ -272,7 +272,7 @@ public sealed class PlatformGuardTests
     {
         // Find HybridCache by pattern, not hardcoded path
         var cacheFiles = FindProductionCsFiles()
-            .Where(f => Path.GetFileName(f) == "HybridCache.cs");
+            .Where(f => string.Equals(Path.GetFileName(f), "HybridCache.cs", StringComparison.Ordinal));
         foreach (var file in cacheFiles)
         {
             var content = File.ReadAllText(file);
@@ -286,7 +286,7 @@ public sealed class PlatformGuardTests
     public void JWKS_requires_HTTPS_in_non_development()
     {
         var jwksFiles = FindProductionCsFiles()
-            .Where(f => Path.GetFileName(f) == "JwksAuthenticationExtensions.cs");
+            .Where(f => string.Equals(Path.GetFileName(f), "JwksAuthenticationExtensions.cs", StringComparison.Ordinal));
         foreach (var file in jwksFiles)
         {
             var content = File.ReadAllText(file);
@@ -440,7 +440,7 @@ public sealed class PlatformGuardTests
     public void CurrentUserService_checks_JWT_before_header()
     {
         foreach (var file in FindProductionCsFiles()
-            .Where(f => Path.GetFileName(f) == "CurrentUserService.cs"))
+            .Where(f => string.Equals(Path.GetFileName(f), "CurrentUserService.cs", StringComparison.Ordinal)))
         {
             var content = File.ReadAllText(file);
             var claimIdx = content.IndexOf("FindFirst", StringComparison.Ordinal);
@@ -959,7 +959,7 @@ public sealed class PlatformGuardTests
 
             // Find the corresponding DbContext file
             var contextFile = FindDbContextFiles()
-                .FirstOrDefault(f => Path.GetFileNameWithoutExtension(f) == contextName);
+                .FirstOrDefault(f => string.Equals(Path.GetFileNameWithoutExtension(f), contextName, StringComparison.Ordinal));
             if (contextFile == null) continue;
 
             var contextContent = File.ReadAllText(contextFile);
@@ -1811,7 +1811,7 @@ public sealed class PlatformGuardTests
         foreach (var dir in Directory.GetDirectories(SrcRoot))
         {
             var dirName = Path.GetFileName(dir);
-            if (dirName.StartsWith(".") || dirName == "obj" || dirName == "bin") continue;
+            if (dirName.StartsWith(".") || string.Equals(dirName, "obj", StringComparison.Ordinal) || string.Equals(dirName, "bin", StringComparison.Ordinal)) continue;
             if (!File.Exists(Path.Combine(dir, "README.md")))
             {
                 violations.Add($"src/{dirName}: missing README.md");
@@ -2410,8 +2410,8 @@ public sealed class PlatformGuardTests
             foreach (Match m in Regex.Matches(content, @"<ProjectReference\s+Include=""[^""]*?/(\w+)/\w+\.csproj"""))
             {
                 var referenced = m.Groups[1].Value;
-                if (referenced == ownerService || referenced == "BuildingBlocks" ||
-                    referenced == "BuildingBlocks.Testing" || referenced == "Contracts")
+                if (string.Equals(referenced, ownerService, StringComparison.Ordinal) || string.Equals(referenced, "BuildingBlocks", StringComparison.Ordinal) ||
+string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) || string.Equals(referenced, "Contracts", StringComparison.Ordinal))
                     continue;
                 violations.Add($"{Relative(csproj)}: references {referenced} — services must communicate via Contracts/messaging, not direct references");
             }

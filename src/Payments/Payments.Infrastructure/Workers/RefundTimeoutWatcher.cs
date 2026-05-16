@@ -64,7 +64,7 @@ public sealed class RefundTimeoutWatcher : BackgroundService
                 s.CreatedAt < deadline)
             .OrderBy(s => s.CreatedAt)
             .Take(MaxPublishesPerTick)
-            .Select(s => new { s.CorrelationId })
+            .Select(s => s.CorrelationId)
             .ToListAsync(ct);
 
         if (stuck.Count == 0) return;
@@ -73,14 +73,14 @@ public sealed class RefundTimeoutWatcher : BackgroundService
             "RefundTimeoutWatcher: publishing RefundTimedOut for {Count} stuck saga(s)",
             stuck.Count);
 
-        foreach (var saga in stuck)
+        foreach (var correlationId in stuck)
         {
             try
             {
                 await publishEndpoint.Publish(
                     new RefundTimedOutEvent
                     {
-                        RefundId = saga.CorrelationId
+                        RefundId = correlationId
                     },
                     ct);
             }
@@ -88,7 +88,7 @@ public sealed class RefundTimeoutWatcher : BackgroundService
             {
                 _logger.LogWarning(ex,
                     "RefundTimeoutWatcher: failed to publish for saga {SagaId}; will retry next tick",
-                    saga.CorrelationId);
+                    correlationId);
             }
         }
     }

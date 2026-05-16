@@ -207,7 +207,7 @@ public class AuthenticationController : ControllerBase
     {
         var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
         var expectedSecret = config["ServiceAuth:SharedSecret"];
-        if (string.IsNullOrEmpty(expectedSecret) || serviceSecret != expectedSecret)
+        if (string.IsNullOrEmpty(expectedSecret) || !string.Equals(serviceSecret, expectedSecret, StringComparison.Ordinal))
             return Unauthorized(new { error = "Invalid service secret" });
 
         var result = await _mediator.Send(

@@ -47,7 +47,7 @@ internal sealed class ConfirmReservationCommandHandler(
                 $"Reservation {request.ReservationId} not found."));
         }
 
-        if (reservation.UserId != request.UserId)
+        if (!string.Equals(reservation.UserId, request.UserId, StringComparison.Ordinal))
         {
             logger.LogWarning(
                 "Reservation {ReservationId} ownership mismatch: expected={OwnerId} actual={CallerId}",

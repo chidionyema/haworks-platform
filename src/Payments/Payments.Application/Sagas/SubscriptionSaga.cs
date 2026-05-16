@@ -177,7 +177,7 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
         // SS-07: Handle cancellation in any state (not just Active)
         DuringAny(
             When(SubscriptionCancelled)
-                .If(ctx => ctx.Saga.CurrentState != Canceled.Name,
+                .If(ctx => !string.Equals(ctx.Saga.CurrentState, Canceled.Name, StringComparison.Ordinal),
                     binder => binder
                         .Then(ctx =>
                         {
@@ -190,19 +190,19 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                         .Finalize()),
             // SS-08: Guards for out-of-sequence events — no-op when saga is in a terminal or incompatible state
             When(SubscriptionRenewed)
-                .If(ctx => ctx.Saga.CurrentState == Canceled.Name,
+                .If(ctx => string.Equals(ctx.Saga.CurrentState, Canceled.Name, StringComparison.Ordinal),
                     binder => binder
                         .Then(ctx => logger.LogWarning(
                             "Ignoring late SubscriptionRenewed for canceled {SubscriptionId}",
                             ctx.Saga.ProviderSubscriptionId))),
             When(RenewalFailed)
-                .If(ctx => ctx.Saga.CurrentState == Canceled.Name,
+                .If(ctx => string.Equals(ctx.Saga.CurrentState, Canceled.Name, StringComparison.Ordinal),
                     binder => binder
                         .Then(ctx => logger.LogWarning(
                             "Ignoring late RenewalFailed for canceled {SubscriptionId}",
                             ctx.Saga.ProviderSubscriptionId))),
             When(PaymentRecovered)
-                .If(ctx => ctx.Saga.CurrentState == Active.Name || ctx.Saga.CurrentState == Canceled.Name,
+                .If(ctx => string.Equals(ctx.Saga.CurrentState, Active.Name, StringComparison.Ordinal) || string.Equals(ctx.Saga.CurrentState, Canceled.Name, StringComparison.Ordinal),
                     binder => binder
                         .Then(ctx => logger.LogWarning(
                             "Ignoring late PaymentRecovered for {SubscriptionId} in state {State}",

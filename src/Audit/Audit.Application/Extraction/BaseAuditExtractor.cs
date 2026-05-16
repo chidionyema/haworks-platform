@@ -23,7 +23,7 @@ public abstract class BaseAuditExtractor<T> : IAuditExtractor<T> where T : class
         };
 
         return new AuditRow(
-            OccurredAt: evt.OccurredAt,
+            OccurredAt: new DateTimeOffset(evt.OccurredAt, TimeSpan.Zero),
             EventType: typeof(T).Name,
             EntityType: entityType,
             EntityId: entityId,

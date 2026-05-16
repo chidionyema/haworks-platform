@@ -28,9 +28,9 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         _client = factory.CreateClient();
     }
 
-    public async Task InitializeAsync()
+    public Task InitializeAsync()
     {
-        await _factory.EnsureSchemaAsync();
+        return _factory.EnsureSchemaAsync();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;

@@ -9,7 +9,7 @@ public sealed class NotificationWebhookValidatedConsumer(
     ILogger<NotificationWebhookValidatedConsumer> logger
 ) : IConsumer<NotificationWebhookValidatedEvent>
 {
-    public async Task Consume(ConsumeContext<NotificationWebhookValidatedEvent> context)
+    public Task Consume(ConsumeContext<NotificationWebhookValidatedEvent> context)
     {
         var evt = context.Message;
         
@@ -28,6 +28,6 @@ public sealed class NotificationWebhookValidatedConsumer(
             evt.EventType,
             evt.RawPayload);
 
-        await mediator.Send(command, context.CancellationToken);
+        return mediator.Send(command, context.CancellationToken);
     }
 }

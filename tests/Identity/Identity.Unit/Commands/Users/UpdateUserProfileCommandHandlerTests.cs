@@ -12,20 +12,14 @@ namespace Haworks.Identity.UnitTests.Commands.Users;
 
 public class UpdateUserProfileCommandHandlerTests : TestBase
 {
-    private readonly Mock<UserManager<User>> _userManagerMock;
     private readonly Mock<IUserProfileRepository> _userProfileRepositoryMock;
     private readonly UpdateUserProfileCommandHandler _handler;
 
     public UpdateUserProfileCommandHandlerTests(ITestOutputHelper output) : base(output)
     {
-        var storeMock = new Mock<IUserStore<User>>();
-        _userManagerMock = new Mock<UserManager<User>>(
-            storeMock.Object, null!, null!, null!, null!, null!, null!, null!, null!);
-
         _userProfileRepositoryMock = new Mock<IUserProfileRepository>();
 
         _handler = new UpdateUserProfileCommandHandler(
-            _userManagerMock.Object,
             _userProfileRepositoryMock.Object);
     }
 
@@ -57,10 +51,6 @@ public class UpdateUserProfileCommandHandlerTests : TestBase
         var userId = Guid.NewGuid().ToString();
         var user = new User { Id = userId, UserName = "testuser" };
         var existingProfile = UserProfile.Create(userId);
-
-        _userManagerMock
-            .Setup(x => x.FindByIdAsync(userId))
-            .ReturnsAsync(user);
 
         _userProfileRepositoryMock
             .Setup(x => x.GetByUserIdAsync(userId, It.IsAny<CancellationToken>()))

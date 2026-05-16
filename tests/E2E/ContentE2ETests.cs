@@ -264,16 +264,15 @@ public sealed class ContentE2ETests
     private static string ExtractUserId(string jwt)
     {
         var token = new JwtSecurityTokenHandler().ReadJwtToken(jwt);
-        return token.Claims.FirstOrDefault(c =>
-                c.Type == ClaimTypes.NameIdentifier ||
-                c.Type == "nameid" ||
-                c.Type == "sub")?.Value ?? string.Empty;
+        return token.Claims.FirstOrDefault(c => string.Equals(c.Type, ClaimTypes.NameIdentifier, StringComparison.Ordinal) ||
+string.Equals(c.Type, "nameid", StringComparison.Ordinal) ||
+string.Equals(c.Type, "sub", StringComparison.Ordinal))?.Value ?? string.Empty;
     }
 
     private static string RewriteLocalStackHost(string url)
         => url.Replace(LocalStackInternal, LocalStackHost, StringComparison.Ordinal);
 
-    private async Task<UploadStatusDto> PollUntilTerminalAsync(
+    private static async Task<UploadStatusDto> PollUntilTerminalAsync(
         HttpClient http, Guid contentId, string token, string userId)
     {
         var deadline = DateTime.UtcNow + ValidationBudget;

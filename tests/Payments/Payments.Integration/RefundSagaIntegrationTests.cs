@@ -61,13 +61,14 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
         db.Payments.Add(payment);
         await db.SaveChangesAsync();
 
-        var request = new CreateRefundRequest(
-            PaymentId: payment.Id,
-            Amount: 50.00m,
-            Currency: "USD",
-            Reason: "Test refund",
-            RequestedBy: "TestRunner"
-        );
+        var request = new CreateRefundRequest
+        {
+            PaymentId = payment.Id,
+            Amount = 50.00m,
+            Currency = "USD",
+            Reason = "Test refund",
+            RequestedBy = "TestRunner"
+        };
 
         // Act: Call API
         var response = await _client.PostAsJsonAsync("/api/refunds", request);
@@ -100,7 +101,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     public async Task HappyPath_ProviderConfirms_ReachesRefunded()
     {
         var (refundId, orderId, paymentId) = await PublishRefundRequestedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "Requested", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "Requested", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         harness.Published.Select<ProviderRefundInitiationRequestedEvent>()
@@ -113,7 +114,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
             RefundId = refundId,
             ProviderRefundId = "re_provider_001",
         });
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "AwaitingProviderConfirmation", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "AwaitingProviderConfirmation", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var awaitingState = await ReadSagaAsync(refundId);
         awaitingState.Should().NotBeNull();
@@ -151,7 +152,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     public async Task ProviderFails_InRequested_TransitionsToRequiresReview()
     {
         var (refundId, orderId, _) = await PublishRefundRequestedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "Requested", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "Requested", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         await PublishAsync(new ProviderRefundFailedEvent
         {
@@ -159,7 +160,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
             ErrorCode = "provider_error",
             ErrorMessage = "Insufficient funds on provider account",
         });
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "RequiresReview", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "RequiresReview", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var sagaState = await ReadSagaAsync(refundId);
         sagaState.Should().NotBeNull();
@@ -182,7 +183,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     public async Task ProviderFails_InAwaitingConfirmation_TransitionsToRequiresReview()
     {
         var (refundId, orderId, _) = await PublishRefundRequestedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "Requested", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "Requested", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Move to AwaitingProviderConfirmation
         await PublishAsync(new ProviderRefundInitiatedEvent
@@ -190,7 +191,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
             RefundId = refundId,
             ProviderRefundId = "re_provider_002",
         });
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "AwaitingProviderConfirmation", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "AwaitingProviderConfirmation", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Provider fails late
         await PublishAsync(new ProviderRefundFailedEvent
@@ -199,7 +200,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
             ErrorCode = "charge_already_refunded",
             ErrorMessage = "Charge has already been refunded",
         });
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "RequiresReview", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "RequiresReview", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var sagaState = await ReadSagaAsync(refundId);
         sagaState.Should().NotBeNull();
@@ -221,7 +222,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     public async Task Timeout_TransitionsToRequiresReview()
     {
         var (refundId, _, _) = await PublishRefundRequestedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "Requested", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "Requested", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Move to AwaitingProviderConfirmation
         await PublishAsync(new ProviderRefundInitiatedEvent
@@ -229,14 +230,14 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
             RefundId = refundId,
             ProviderRefundId = "re_provider_003",
         });
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "AwaitingProviderConfirmation", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "AwaitingProviderConfirmation", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Simulate the scheduled timeout firing by publishing the event directly
         await PublishAsync(new RefundTimedOutEvent
         {
             RefundId = refundId,
         });
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "RequiresReview", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "RequiresReview", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var sagaState = await ReadSagaAsync(refundId);
         sagaState.Should().NotBeNull();
@@ -258,7 +259,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     public async Task OperatorCancel_FromRequested_FinalizesToCancelled()
     {
         var (refundId, orderId, _) = await PublishRefundRequestedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "Requested", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "Requested", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         await PublishAsync(new RefundCancelledByOperatorEvent
         {
@@ -291,7 +292,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     public async Task OperatorCancel_FromAwaitingConfirmation_PublishesProviderCancellation()
     {
         var (refundId, orderId, _) = await PublishRefundRequestedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "Requested", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "Requested", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Move to AwaitingProviderConfirmation
         await PublishAsync(new ProviderRefundInitiatedEvent
@@ -299,7 +300,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
             RefundId = refundId,
             ProviderRefundId = "re_provider_004",
         });
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "AwaitingProviderConfirmation", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "AwaitingProviderConfirmation", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Operator cancels
         await PublishAsync(new RefundCancelledByOperatorEvent
@@ -333,14 +334,14 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     public async Task DuplicateProviderConfirm_AfterRefunded_IsDiscarded()
     {
         var (refundId, _, _) = await PublishRefundRequestedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "Requested", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "Requested", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         await PublishAsync(new ProviderRefundInitiatedEvent
         {
             RefundId = refundId,
             ProviderRefundId = "re_provider_005",
         });
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "AwaitingProviderConfirmation", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "AwaitingProviderConfirmation", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // First success -> Refunded
         await PublishAsync(new ProviderRefundSucceededEvent
@@ -392,7 +393,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     public async Task StatePersists_AcrossRestart()
     {
         var (refundId, orderId, _) = await PublishRefundRequestedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "Requested", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "Requested", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Move to AwaitingProviderConfirmation
         await PublishAsync(new ProviderRefundInitiatedEvent
@@ -400,7 +401,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
             RefundId = refundId,
             ProviderRefundId = "re_provider_006",
         });
-        await PollUntilAsync(() => SagaStateOrNull(refundId) == "AwaitingProviderConfirmation", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(refundId), "AwaitingProviderConfirmation", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Stop harness — simulates pod restart
         var harness = _factory.Services.GetRequiredService<ITestHarness>();

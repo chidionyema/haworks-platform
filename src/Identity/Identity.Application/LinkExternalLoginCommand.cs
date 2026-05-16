@@ -50,7 +50,7 @@ internal sealed class LinkExternalLoginCommandHandler
             }
 
             var existingLogins = await _userManager.GetLoginsAsync(userForCheck);
-            if (existingLogins.Any(l => l.LoginProvider == request.LoginInfo.LoginProvider))
+            if (existingLogins.Any(l => string.Equals(l.LoginProvider, request.LoginInfo.LoginProvider, StringComparison.Ordinal)))
             {
                 return Result.Failure<LinkExternalLoginResult>(
                     Error.Conflict("Auth.AlreadyLinked", $"External login with {request.Provider} is already linked."));

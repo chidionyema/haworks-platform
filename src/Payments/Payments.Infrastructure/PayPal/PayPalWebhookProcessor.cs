@@ -126,12 +126,12 @@ internal sealed class PayPalWebhookProcessor(
         }
     }
 
-    private async Task<bool> ValidateSignatureWithPayPalAsync(
+    private Task<bool> ValidateSignatureWithPayPalAsync(
         string payload,
         PayPalSignatureHeaders headers,
         CancellationToken ct)
     {
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
         {
             try
             {
@@ -249,7 +249,7 @@ internal sealed class PayPalWebhookProcessor(
 
         if (resource.TryGetProperty("billing_info", out var billingInfo) && billingInfo.TryGetProperty("next_billing_time", out var nextTime))
         {
-            subEvent = subEvent with { CurrentPeriodEnd = DateTime.Parse(nextTime.GetString()!) };
+            subEvent = subEvent with { CurrentPeriodEnd = DateTime.Parse(nextTime.GetString()!, System.Globalization.CultureInfo.InvariantCulture) };
         }
 
         await subscriptionManager.HandleSubscriptionEventAsync(subEvent, ct);

@@ -410,7 +410,7 @@ internal sealed class ContainerStrategy : IChaosStrategy
         var prefix = _namePrefix;
         var names = stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(n => n.Trim())
-            .Where(n => Regex.IsMatch(n, $"^{Regex.Escape(prefix)}[a-z0-9]+$"))
+            .Where(n => Regex.IsMatch(n, $"^{Regex.Escape(prefix)}[a-z0-9]+$", RegexOptions.NonBacktracking))
             .Where(n => string.IsNullOrEmpty(_excludeContains)
                         || !n.Contains(_excludeContains, StringComparison.OrdinalIgnoreCase))
             .ToList();

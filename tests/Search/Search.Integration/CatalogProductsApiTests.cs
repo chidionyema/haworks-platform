@@ -84,7 +84,7 @@ public sealed class CatalogProductsApiTests : IDisposable
     }
 
     [Fact]
-    public async Task GetProductAsync_throws_after_retry_when_catalog_5xx()
+    public Task GetProductAsync_throws_after_retry_when_catalog_5xx()
     {
         var id = Guid.NewGuid();
         _wiremock
@@ -95,7 +95,7 @@ public sealed class CatalogProductsApiTests : IDisposable
 
         // The combined ForExternalApi policy retries before surfacing the
         // failure — we only assert the eventual exception, not the count.
-        await act.Should().ThrowAsync<HttpRequestException>();
+        return act.Should().ThrowAsync<HttpRequestException>();
     }
 
     [Fact]

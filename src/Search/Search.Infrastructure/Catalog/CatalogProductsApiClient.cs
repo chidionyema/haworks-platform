@@ -21,7 +21,6 @@ internal sealed class CatalogProductsApiClient : ICatalogProductsApi
 {
     private readonly HttpClient _http;
     private readonly IAsyncPolicy _policy;
-    private readonly ILogger<CatalogProductsApiClient> _logger;
 
     public CatalogProductsApiClient(
         HttpClient http,
@@ -31,23 +30,22 @@ internal sealed class CatalogProductsApiClient : ICatalogProductsApi
         _http = http;
         _policy = resiliencePolicyFactory.CreateCombinedPolicy(
             ResilienceOptions.ForExternalApi("catalog"));
-        _logger = logger;
     }
 
-    public async Task<CatalogProductDto> GetProductAsync(Guid id, CancellationToken ct = default)
+    public Task<CatalogProductDto> GetProductAsync(Guid id, CancellationToken ct = default)
     {
-        return await _policy.ExecuteAsync(async innerCt =>
+        return _policy.ExecuteAsync(async innerCt =>
         {
             using var resp = await _http.GetAsync($"/api/products/{id}", innerCt).ConfigureAwait(false);
             resp.EnsureSuccessStatusCode();
             var dto = await resp.Content.ReadFromJsonAsync<CatalogProductDto>(cancellationToken: innerCt).ConfigureAwait(false);
             return dto ?? throw new HttpRequestException($"Catalog returned null body for product {id}");
-        }, ct).ConfigureAwait(false);
+        }, ct);
     }
 
-    public async Task<CatalogProductPage> ListProductsAsync(int skip, int take, Guid? categoryId, CancellationToken ct = default)
+    public Task<CatalogProductPage> ListProductsAsync(int skip, int take, Guid? categoryId, CancellationToken ct = default)
     {
-        return await _policy.ExecuteAsync(async innerCt =>
+        return _policy.ExecuteAsync(async innerCt =>
         {
             var query = $"/api/products?skip={skip}&take={take}";
             if (categoryId is { } cat) query += $"&categoryId={cat}";
@@ -56,6 +54,6 @@ internal sealed class CatalogProductsApiClient : ICatalogProductsApi
             resp.EnsureSuccessStatusCode();
             var page = await resp.Content.ReadFromJsonAsync<CatalogProductPage>(cancellationToken: innerCt).ConfigureAwait(false);
             return page ?? throw new HttpRequestException("Catalog returned null body for product list");
-        }, ct).ConfigureAwait(false);
+        }, ct);
     }
 }

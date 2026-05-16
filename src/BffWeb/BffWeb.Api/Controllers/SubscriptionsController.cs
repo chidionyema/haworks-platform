@@ -13,35 +13,37 @@ namespace Haworks.BffWeb.Api.Controllers;
 public sealed class SubscriptionsController : ControllerBase
 {
     private readonly IHttpClientFactory _httpFactory;
-    private readonly ILogger<SubscriptionsController> _logger;
 
     public SubscriptionsController(IHttpClientFactory httpFactory, ILogger<SubscriptionsController> logger)
     {
         _httpFactory = httpFactory;
-        _logger = logger;
     }
 
     [HttpGet("status")]
-    public async Task<IActionResult> GetStatus(CancellationToken ct)
+    public Task<IActionResult> GetStatus(
+        [FromHeader(Name = "Authorization")] string? authorization,
+        CancellationToken ct)
     {
-        return await ForwardAsync(HttpMethod.Get, "/api/subscriptions/status", null, ct);
+        return ForwardAsync(HttpMethod.Get, "/api/subscriptions/status", null, authorization, ct);
     }
 
     [HttpPost("create-checkout-session")]
-    public async Task<IActionResult> CreateCheckoutSession(CancellationToken ct)
+    public async Task<IActionResult> CreateCheckoutSession(
+        [FromHeader(Name = "Authorization")] string? authorization,
+        CancellationToken ct)
     {
         // For POST, we read the body and forward it.
         Request.EnableBuffering();
         using var streamContent = new StreamContent(Request.Body);
-        return await ForwardAsync(HttpMethod.Post, "/api/subscriptions/create-checkout-session", streamContent, ct);
+        return await ForwardAsync(HttpMethod.Post, "/api/subscriptions/create-checkout-session", streamContent, authorization, ct);
     }
 
-    private async Task<IActionResult> ForwardAsync(HttpMethod method, string path, HttpContent? content, CancellationToken ct)
+    private async Task<IActionResult> ForwardAsync(HttpMethod method, string path, HttpContent? content, string? authorization, CancellationToken ct)
     {
         var http = _httpFactory.CreateClient(BackendClients.Payments);
-        
+
         using var request = new HttpRequestMessage(method, path);
-        
+
         if (content != null)
         {
             request.Content = content;
@@ -52,9 +54,9 @@ public sealed class SubscriptionsController : ControllerBase
         }
 
         // Preserve Authorization header
-        if (Request.Headers.TryGetValue("Authorization", out var authHeader))
+        if (authorization is not null)
         {
-            request.Headers.TryAddWithoutValidation("Authorization", authHeader.ToArray());
+            request.Headers.TryAddWithoutValidation("Authorization", authorization);
         }
 
         using var response = await http.SendAsync(request, ct);

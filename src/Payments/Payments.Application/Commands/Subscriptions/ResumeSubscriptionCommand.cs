@@ -21,7 +21,7 @@ public sealed class ResumeSubscriptionCommandHandler(
         if (subscription is null)
             return Result<bool>.Failure<bool>(Error.NotFound("Subscription.NotFound", "Subscription not found or cannot be resumed."));
 
-        if (subscription.UserId != request.UserId)
+        if (!string.Equals(subscription.UserId, request.UserId, StringComparison.Ordinal))
             return Result<bool>.Failure<bool>(Error.Forbidden("Subscription.Forbidden", "You do not own this subscription."));
 
         var success = await subscriptionManager.ResumeAsync(request.SubscriptionId, ct);

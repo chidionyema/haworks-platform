@@ -28,14 +28,14 @@ public sealed class ElasticsearchIndexTests : IAsyncLifetime
         _factory = factory;
     }
 
-    public async Task InitializeAsync()
+    public Task InitializeAsync()
     {
         _scope = _factory.Services.CreateScope();
         _index = _scope.ServiceProvider.GetRequiredService<ISearchIndex>();
         _client = _scope.ServiceProvider.GetRequiredService<ElasticsearchClient>();
         _options = _scope.ServiceProvider.GetRequiredService<IOptions<ElasticsearchOptions>>().Value;
 
-        await _index.EnsureSettingsAsync();
+        return _index.EnsureSettingsAsync();
     }
 
     public Task DisposeAsync()

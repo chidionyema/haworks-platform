@@ -29,8 +29,6 @@ public class LocationDbContext : DbContext, ILocationDbContext
         _environment = environment;
         _loggerFactory = loggerFactory;
         _currentUserService = currentUserService;
-
-        ChangeTracker.LazyLoadingEnabled = false;
     }
 
     public DbSet<Address> Addresses => Set<Address>();
@@ -40,6 +38,7 @@ public class LocationDbContext : DbContext, ILocationDbContext
         base.OnConfiguring(optionsBuilder);
 
         optionsBuilder.UseLoggerFactory(_loggerFactory);
+        ChangeTracker.LazyLoadingEnabled = false;
 
         if (_environment.IsDevelopment())
         {
@@ -87,10 +86,10 @@ public class LocationDbContext : DbContext, ILocationDbContext
         modelBuilder.AddOutboxMessageEntity();
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         StampAuditFields();
-        return await base.SaveChangesAsync(cancellationToken);
+        return base.SaveChangesAsync(cancellationToken);
     }
 
     private void StampAuditFields()

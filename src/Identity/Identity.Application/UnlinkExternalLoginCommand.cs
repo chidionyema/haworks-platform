@@ -37,7 +37,7 @@ internal sealed class UnlinkExternalLoginCommandHandler : IRequestHandler<Unlink
         }
 
         var logins = await _userManager.GetLoginsAsync(user);
-        var loginToRemove = logins.FirstOrDefault(l => l.LoginProvider == request.Provider);
+        var loginToRemove = logins.FirstOrDefault(l => string.Equals(l.LoginProvider, request.Provider, StringComparison.Ordinal));
         if (loginToRemove == null)
         {
             return Result.Failure(Error.Auth.LoginNotFound);

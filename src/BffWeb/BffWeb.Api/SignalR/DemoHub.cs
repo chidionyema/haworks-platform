@@ -48,13 +48,13 @@ public class DemoHub : Hub
         }
     }
 
-    public override async Task OnDisconnectedAsync(Exception? exception)
+    public override Task OnDisconnectedAsync(Exception? exception)
     {
         _logger.LogDebug(
             "Client {ConnectionId} disconnected from DemoHub. Reason: {Exception}",
             Context.ConnectionId, exception?.Message ?? "normal");
 
-        await base.OnDisconnectedAsync(exception);
+        return base.OnDisconnectedAsync(exception);
     }
 
     private static string GetGroupName(Guid sessionId) => $"demo-{sessionId}";

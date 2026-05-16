@@ -43,7 +43,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
     {
         var (sagaId, orderId) = await PublishCheckoutInitiatedAsync();
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Initiated", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var sagaState = await ReadSagaAsync(sagaId);
         sagaState.Should().NotBeNull();
@@ -62,7 +62,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
     public async Task Happy_path_transitions_through_all_states_and_finalizes_in_Completed()
     {
         var (sagaId, orderId) = await PublishCheckoutInitiatedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Initiated", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Publish StockReserved -> saga should publish PaymentSessionRequested
         // and transition to StockReservedState.
@@ -84,7 +84,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
             }},
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "StockReservedState", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         var paymentReq = harness.Published.Select<PaymentSessionRequestedEvent>()
@@ -99,7 +99,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
             SessionId = "sess_test", CheckoutUrl = "https://stripe.test/sess_test",
             Provider = "Stripe", Amount = 25.50m, Currency = "USD",
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "ReadyForPayment", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "ReadyForPayment", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Publish PaymentCompleted -> saga finalizes in Completed.
         await PublishAsync(new PaymentCompletedEvent
@@ -108,7 +108,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
             Amount = 25.50m, Currency = "USD", Provider = "Stripe",
             TransactionReference = "pi_test",
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Completed" || SagaStateOrNull(sagaId) == "Final",
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Completed", StringComparison.Ordinal) || string.Equals(SagaStateOrNull(sagaId), "Final", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
 
         // SetCompletedWhenFinalized() removes the saga state row once the
@@ -129,7 +129,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
     public async Task StockReservationFailed_aborts_saga_to_Abandoned_with_no_StockReleaseRequested()
     {
         var (sagaId, orderId) = await PublishCheckoutInitiatedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Initiated", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         await PublishAsync(new StockReservationFailedEvent
         {
@@ -142,7 +142,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
             Reason = "Insufficient stock",
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Abandoned", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Abandoned", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var sagaState = await ReadSagaAsync(sagaId);
         sagaState!.FailureReason.Should().Contain("StockReservationFailed");
@@ -158,7 +158,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
     public async Task PaymentSessionFailed_after_StockReserved_compensates_via_StockReleaseRequested_then_Abandoned()
     {
         var (sagaId, orderId) = await PublishCheckoutInitiatedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Initiated", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         await PublishAsync(new StockReservedEvent
         {
@@ -173,7 +173,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
                 ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
             }},
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "StockReservedState", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Stripe rejects the session AFTER stock was reserved -> compensation.
         await PublishAsync(new PaymentSessionFailedEvent
@@ -182,7 +182,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
             ErrorCode = "card_declined", ErrorMessage = "Stripe rejected card",
             AttemptNumber = 1, IsFinalAttempt = true,
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Abandoned", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Abandoned", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var sagaState = await ReadSagaAsync(sagaId);
         sagaState!.FailureReason.Should().Contain("PaymentSessionFailed");
@@ -198,7 +198,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
     public async Task PaymentAmountMismatch_after_ReadyForPayment_transitions_to_RequiresReview()
     {
         var (sagaId, orderId) = await PublishCheckoutInitiatedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Initiated", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         await PublishAsync(new StockReservedEvent
         {
@@ -213,7 +213,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
                 ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
             }},
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "StockReservedState", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var paymentId = Guid.NewGuid();
         await PublishAsync(new PaymentSessionCreatedEvent
@@ -222,7 +222,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
             SessionId = "sess_x", CheckoutUrl = "https://stripe.test/sess_x",
             Provider = "Stripe", Amount = 25.50m, Currency = "USD",
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "ReadyForPayment", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "ReadyForPayment", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Stripe captures more than authorized -> RequiresReview branch.
         await PublishAsync(new PaymentAmountMismatchEvent
@@ -231,7 +231,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
             Provider = "Stripe", ActualPaid = 75m, ExpectedTotal = 25.50m,
             Difference = 49.50m, Reason = "captured 75; expected 25.50",
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "RequiresReview", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "RequiresReview", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var sagaState = await ReadSagaAsync(sagaId);
         sagaState!.FailureReason.Should().Contain("PaymentAmountMismatch");
@@ -252,7 +252,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
     {
         // Drive the saga halfway through the happy path.
         var (sagaId, orderId) = await PublishCheckoutInitiatedAsync();
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Initiated", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         await PublishAsync(new StockReservedEvent
         {
@@ -267,7 +267,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
                 ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
             }},
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "StockReservedState", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Stop the harness — simulates the orchestrator pod going away.
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
@@ -288,7 +288,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
             SessionId = "sess_resume", CheckoutUrl = "https://stripe.test/sess_resume",
             Provider = "Stripe", Amount = 25.50m, Currency = "USD",
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "ReadyForPayment", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "ReadyForPayment", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var resumed = await ReadSagaAsync(sagaId);
         resumed!.CurrentState.Should().Be("ReadyForPayment");

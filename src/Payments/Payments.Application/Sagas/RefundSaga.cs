@@ -152,17 +152,17 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
         // silently no-op rather than throwing.
         DuringAny(
             When(ProviderRefundSucceeded)
-                .If(ctx => ctx.Saga.CurrentState == Refunded.Name
-                        || ctx.Saga.CurrentState == Cancelled.Name
-                        || ctx.Saga.CurrentState == RequiresReview.Name,
+                .If(ctx => string.Equals(ctx.Saga.CurrentState, Refunded.Name, StringComparison.Ordinal)
+                        || string.Equals(ctx.Saga.CurrentState, Cancelled.Name, StringComparison.Ordinal)
+                        || string.Equals(ctx.Saga.CurrentState, RequiresReview.Name, StringComparison.Ordinal),
                     x => x),
             When(ProviderRefundFailed)
-                .If(ctx => ctx.Saga.CurrentState == RequiresReview.Name
-                        || ctx.Saga.CurrentState == Cancelled.Name
-                        || ctx.Saga.CurrentState == Refunded.Name,
+                .If(ctx => string.Equals(ctx.Saga.CurrentState, RequiresReview.Name, StringComparison.Ordinal)
+                        || string.Equals(ctx.Saga.CurrentState, Cancelled.Name, StringComparison.Ordinal)
+                        || string.Equals(ctx.Saga.CurrentState, Refunded.Name, StringComparison.Ordinal),
                     x => x),
             When(RefundCancelledByOperator)
-                .IfElse(ctx => ctx.Saga.CurrentState == Cancelled.Name,
+                .IfElse(ctx => string.Equals(ctx.Saga.CurrentState, Cancelled.Name, StringComparison.Ordinal),
                     noOp => noOp,
                     active => active
                         .Then(ctx =>
@@ -172,7 +172,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                             EmitCompensateSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "refund_cancelled_by_operator");
                         })
                         .Unschedule(RefundTimeoutSchedule)
-                        .If(ctx => ctx.Saga.CurrentState == AwaitingProviderConfirmation.Name,
+                        .If(ctx => string.Equals(ctx.Saga.CurrentState, AwaitingProviderConfirmation.Name, StringComparison.Ordinal),
                             x => x.PublishAsync(ctx => ctx.Init<ProviderRefundCancellationRequestedEvent>(new ProviderRefundCancellationRequestedEvent
                             {
                                 RefundId = ctx.Saga.CorrelationId,

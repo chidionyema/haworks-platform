@@ -81,7 +81,7 @@ public sealed class WebhookDispatcher(
         }
     }
 
-    private string SignPayload(string payload, long timestamp, string secret)
+    private static string SignPayload(string payload, long timestamp, string secret)
     {
         var signedPayload = $"{timestamp}.{payload}";
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));

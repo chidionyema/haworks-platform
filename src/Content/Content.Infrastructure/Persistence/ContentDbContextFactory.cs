@@ -25,8 +25,7 @@ public sealed class ContentDbContextFactory : IDesignTimeDbContextFactory<Conten
             optionsBuilder.Options,
             new DesignTimeHostEnvironment(),
             loggerFactory,
-            new DesignTimeCurrentUserService(),
-            loggerFactory.CreateLogger<ContentDbContext>());
+            new DesignTimeCurrentUserService());
     }
 
     private sealed class DesignTimeHostEnvironment : Microsoft.Extensions.Hosting.IHostEnvironment

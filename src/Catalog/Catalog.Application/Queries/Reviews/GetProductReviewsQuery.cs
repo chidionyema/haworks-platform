@@ -2,7 +2,6 @@ using Haworks.BuildingBlocks.Common;
 using Haworks.Catalog.Application.DTOs;
 using Haworks.Catalog.Domain.Interfaces;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace Haworks.Catalog.Application.Queries;
 
@@ -17,16 +16,13 @@ internal sealed class GetProductReviewsQueryHandler
 {
     private readonly IProductRepository _productRepository;
     private readonly IProductReviewRepository _reviewRepository;
-    private readonly ILogger<GetProductReviewsQueryHandler> _logger;
 
     public GetProductReviewsQueryHandler(
         IProductRepository productRepository,
-        IProductReviewRepository reviewRepository,
-        ILogger<GetProductReviewsQueryHandler> logger)
+        IProductReviewRepository reviewRepository)
     {
         _productRepository = productRepository;
         _reviewRepository = reviewRepository;
-        _logger = logger;
     }
 
     public async Task<Result<IReadOnlyList<ProductReviewDto>>> Handle(

@@ -52,7 +52,6 @@ public class StripeWebhookProcessorTests
         _processor = new StripeWebhookProcessor(
             _paymentProcessorMock.Object,
             _subscriptionManagerMock.Object,
-            _refundServiceMock.Object,
             _idempotencyGuardMock.Object,
             _paymentRepositoryMock.Object,
             _eventPublisherMock.Object,

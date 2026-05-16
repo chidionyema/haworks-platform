@@ -20,7 +20,7 @@ public class EventPublisherJob
     }
 
     private static readonly Regex SafeNamePattern =
-        new(@"^[a-zA-Z0-9._:\-]{1,255}$", RegexOptions.Compiled);
+        new(@"^[a-zA-Z0-9._:\-]{1,255}$", RegexOptions.Compiled | RegexOptions.NonBacktracking);
 
     public async Task PublishAsync(string targetExchange, string routingKey, string payload)
     {

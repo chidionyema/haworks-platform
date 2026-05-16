@@ -59,9 +59,9 @@ public class ScheduleEventCommandHandler : IRequestHandler<ScheduleEventCommand>
         _scheduler = scheduler;
     }
 
-    public async Task Handle(ScheduleEventCommand request, CancellationToken cancellationToken)
+    public Task Handle(ScheduleEventCommand request, CancellationToken cancellationToken)
     {
-        await _scheduler.ScheduleEventAsync(
+        return _scheduler.ScheduleEventAsync(
             request.ScheduledTime,
             request.TargetExchange,
             request.RoutingKey,

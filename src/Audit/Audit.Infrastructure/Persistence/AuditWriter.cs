@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Channels;
 using Haworks.Audit.Application.Capture;
@@ -32,15 +33,15 @@ public sealed class AuditWriter : IAuditWriter, IAsyncDisposable
         _workerTask = Task.Run(ProcessBatchAsync);
     }
 
-    public async ValueTask WriteAsync(AuditRow row, CancellationToken ct)
+    public ValueTask WriteAsync(AuditRow row, CancellationToken ct)
     {
-        await _channel.Writer.WriteAsync(new PendingRow(row, 0), ct);
+        return _channel.Writer.WriteAsync(new PendingRow(row, 0), ct);
     }
 
-    public async Task FlushAsync(CancellationToken ct)
+    public Task FlushAsync(CancellationToken ct)
     {
         _channel.Writer.TryComplete();
-        await _workerTask;
+        return _workerTask;
     }
 
     private async Task ProcessBatchAsync()
@@ -64,7 +65,7 @@ public sealed class AuditWriter : IAuditWriter, IAsyncDisposable
                 await Task.Delay(200, _cts.Token);
             }
         }
-        catch (OperationCanceledException) when (_cts.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (_cts.IsCancellationRequested) { /* graceful shutdown */ }
         catch (Exception ex)
         {
             _logger.LogError(ex, "AuditWriter worker failed");
@@ -120,9 +121,8 @@ public sealed class AuditWriter : IAuditWriter, IAsyncDisposable
 
             try
             {
-                foreach (var pending in deduped)
+                foreach (var row in deduped.Select(pending => pending.Row))
                 {
-                    var row = pending.Row;
                     await writer.StartRowAsync();
                     await writer.WriteAsync(Guid.NewGuid(), NpgsqlTypes.NpgsqlDbType.Uuid);
                     await writer.WriteAsync(row.OccurredAt, NpgsqlTypes.NpgsqlDbType.TimestampTz);
@@ -141,7 +141,7 @@ public sealed class AuditWriter : IAuditWriter, IAsyncDisposable
             }
             catch
             {
-                try { await writer.CloseAsync(); } catch { }
+                try { await writer.CloseAsync(); } catch (Exception) { /* close failure is non-fatal during error handling */ }
                 throw;
             }
         }
@@ -179,12 +179,12 @@ public sealed class AuditWriter : IAuditWriter, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _channel.Writer.TryComplete();
-        _cts.Cancel();
+        await _cts.CancelAsync();
         try
         {
             await _workerTask;
         }
-        catch { }
+        catch (Exception) { /* worker task cancellation is non-fatal during dispose */ }
         _cts.Dispose();
     }
 }

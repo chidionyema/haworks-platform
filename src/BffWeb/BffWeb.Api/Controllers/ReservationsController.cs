@@ -19,22 +19,23 @@ namespace Haworks.BffWeb.Api.Controllers;
 public sealed class ReservationsController : ControllerBase
 {
     private readonly IHttpClientFactory _httpFactory;
-    private readonly ILogger<ReservationsController> _logger;
 
     public ReservationsController(IHttpClientFactory httpFactory, ILogger<ReservationsController> logger)
     {
         _httpFactory = httpFactory;
-        _logger = logger;
     }
 
     /// <summary>Anonymous-allowed: ADR-004 supports guest pre-order holds.</summary>
     [HttpPost]
     [AllowAnonymous]
-    public async Task<IActionResult> Create(CancellationToken ct)
+    public async Task<IActionResult> Create(
+        [FromHeader(Name = "Authorization")] string? authorization,
+        [FromHeader(Name = "X-Idempotency-Key")] string? idempotencyKey,
+        CancellationToken ct)
     {
         Request.EnableBuffering();
         using var streamContent = new StreamContent(Request.Body);
-        return await ForwardAsync(HttpMethod.Post, "/api/checkout/reservations", streamContent, ct);
+        return await ForwardAsync(HttpMethod.Post, "/api/checkout/reservations", streamContent, authorization, idempotencyKey, ct);
     }
 
     /// <summary>
@@ -45,7 +46,11 @@ public sealed class ReservationsController : ControllerBase
     /// </summary>
     [HttpPost("{reservationId:guid}/confirm")]
     [Authorize]
-    public async Task<IActionResult> Confirm(Guid reservationId, CancellationToken ct)
+    public async Task<IActionResult> Confirm(
+        Guid reservationId,
+        [FromHeader(Name = "Authorization")] string? authorization,
+        [FromHeader(Name = "X-Idempotency-Key")] string? idempotencyKey,
+        CancellationToken ct)
     {
         Request.EnableBuffering();
         using var streamContent = new StreamContent(Request.Body);
@@ -53,6 +58,8 @@ public sealed class ReservationsController : ControllerBase
             HttpMethod.Post,
             $"/api/checkout/reservations/{reservationId}/confirm",
             streamContent,
+            authorization,
+            idempotencyKey,
             ct);
     }
 
@@ -60,6 +67,8 @@ public sealed class ReservationsController : ControllerBase
         HttpMethod method,
         string path,
         HttpContent? content,
+        string? authorization,
+        string? idempotencyKey,
         CancellationToken ct)
     {
         var http = _httpFactory.CreateClient(BackendClients.Catalog);
@@ -78,16 +87,16 @@ public sealed class ReservationsController : ControllerBase
         // Preserve Authorization (the JWT bearer) for the downstream
         // [Authorize] confirm endpoint and for defence-in-depth checks at
         // catalog-svc.
-        if (Request.Headers.TryGetValue("Authorization", out var authHeader))
+        if (authorization is not null)
         {
-            request.Headers.TryAddWithoutValidation("Authorization", authHeader.ToArray());
+            request.Headers.TryAddWithoutValidation("Authorization", authorization);
         }
 
         // Forward the X-Idempotency-Key so the catalog-svc IdempotencyMiddleware
         // can dedupe replays at the backend (the BFF is stateless on this).
-        if (Request.Headers.TryGetValue("X-Idempotency-Key", out var idemKey))
+        if (idempotencyKey is not null)
         {
-            request.Headers.TryAddWithoutValidation("X-Idempotency-Key", idemKey.ToArray());
+            request.Headers.TryAddWithoutValidation("X-Idempotency-Key", idempotencyKey);
         }
 
         using var response = await http.SendAsync(request, ct);

@@ -129,12 +129,12 @@ public sealed class WebhookIdempotencyTests : IAsyncLifetime
         webhookRows.Should().Be(1, "Only one winner should exist in the WebhookEvents table after a race.");
     }
 
-    private async Task<HttpResponseMessage> PostStripeAsync(string payload, string signature)
+    private Task<HttpResponseMessage> PostStripeAsync(string payload, string signature)
     {
         var content = new StringContent(payload, Encoding.UTF8, "application/json");
         var req = new HttpRequestMessage(HttpMethod.Post, "/webhooks/stripe") { Content = content };
         req.Headers.Add("Stripe-Signature", signature);
-        return await _client.SendAsync(req);
+        return _client.SendAsync(req);
     }
 
     private async Task<Payment> SeedPendingPaymentAsync(string sessionId, decimal amount)

@@ -102,7 +102,7 @@ public sealed class SagaCompensationChaosTests : IClassFixture<SagaCompensationF
             IdempotencyKey = "chaos-key",
             IsGuest = false,
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Initiated", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Step 2: drive the saga to StockReservedState — this is the
         // critical bit because StockReleaseRequested needs the reserved
@@ -122,7 +122,7 @@ public sealed class SagaCompensationChaosTests : IClassFixture<SagaCompensationF
                 Quantity = reservedQuantity, UnitPrice = 10m,
             }},
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "StockReservedState", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Step 3: CHAOS — payment session creation fails. The saga MUST
         // publish StockReleaseRequested with the snapshotted items.
@@ -134,7 +134,7 @@ public sealed class SagaCompensationChaosTests : IClassFixture<SagaCompensationF
         });
 
         // Wait for the saga to reach Abandoned.
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Abandoned", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Abandoned", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Wait for the StockReleaseRequested -> catalog consumer ->
         // StockReleased chain to complete. Polling for the consumer's

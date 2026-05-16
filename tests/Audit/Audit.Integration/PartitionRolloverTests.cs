@@ -45,8 +45,8 @@ public class PartitionRolloverTests : IClassFixture<AuditWebAppFactory>
         // Act - Manually run the partition creation logic to verify the SQL syntax
         var now = DateTimeOffset.UtcNow;
         var partitionName = $"audit_events_{now.Year}_{now.Month:D2}";
-        var fromDate = new DateTime(now.Year, now.Month, 1).ToString("yyyy-MM-dd");
-        var toDate = new DateTime(now.Year, now.Month, 1).AddMonths(1).ToString("yyyy-MM-dd");
+        var fromDate = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).ToString("yyyy-MM-dd");
+        var toDate = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1).ToString("yyyy-MM-dd");
 
 #pragma warning disable EF1002
         await db.Database.ExecuteSqlRawAsync($@"

@@ -11,5 +11,5 @@ public class GetPayoutsBySellerQueryHandler : IRequestHandler<GetPayoutsBySeller
 {
     private readonly IPayoutsDbContext _context;
     public GetPayoutsBySellerQueryHandler(IPayoutsDbContext context) { _context = context; }
-    public async Task<List<Payout>> Handle(GetPayoutsBySellerQuery request, CancellationToken cancellationToken) => await _context.Payouts.Where(p => p.SellerId == request.SellerId).OrderByDescending(p => p.CreatedAt).ToListAsync(cancellationToken);
+    public Task<List<Payout>> Handle(GetPayoutsBySellerQuery request, CancellationToken cancellationToken) => _context.Payouts.Where(p => p.SellerId == request.SellerId).OrderByDescending(p => p.CreatedAt).ToListAsync(cancellationToken);
 }

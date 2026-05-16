@@ -32,14 +32,14 @@ public sealed class FfmpegService(IOptions<TranscodeOptions> opts, ILogger<Ffmpe
                 foreach (var stream in streams.EnumerateArray())
                 {
                     var codecType = stream.GetProperty("codec_type").GetString();
-                    if (codecType == "video" && !hasVideo)
+                    if (string.Equals(codecType, "video", StringComparison.Ordinal) && !hasVideo)
                     {
                         hasVideo = true;
                         width = stream.GetProperty("width").GetInt32();
                         height = stream.GetProperty("height").GetInt32();
                         videoCodec = stream.GetProperty("codec_name").GetString();
                     }
-                    else if (codecType == "audio" && !hasAudio)
+                    else if (string.Equals(codecType, "audio", StringComparison.Ordinal) && !hasAudio)
                     {
                         hasAudio = true;
                         audioCodec = stream.GetProperty("codec_name").GetString();

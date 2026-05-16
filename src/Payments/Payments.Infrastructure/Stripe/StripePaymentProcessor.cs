@@ -148,7 +148,7 @@ internal sealed class StripePaymentProcessor(
         }
 
         // Validate ownership
-        if (payment.UserId != userId)
+        if (!string.Equals(payment.UserId, userId, StringComparison.Ordinal))
         {
             logger.LogWarning("User {UserId} unauthorized for session", userId);
             return false;
@@ -162,15 +162,15 @@ internal sealed class StripePaymentProcessor(
                 var client = await stripeClientFactory.GetClientAsync(token).ConfigureAwait(false);
                 var session = await new SessionService(client).GetAsync(sessionId, cancellationToken: token).ConfigureAwait(false);
 
-                if (session.Status != StripeConstants.SessionStatuses.Complete ||
-                    session.PaymentStatus != StripeConstants.PaymentStatuses.Paid)
+                if (!string.Equals(session.Status, StripeConstants.SessionStatuses.Complete, StringComparison.Ordinal) ||
+!string.Equals(session.PaymentStatus, StripeConstants.PaymentStatuses.Paid, StringComparison.Ordinal))
                 {
                     logger.LogWarning("Session {SessionId} not complete", sessionId);
                     return false;
                 }
 
                 if (session.Metadata?.TryGetValue("orderId", out var orderId) == true &&
-                    orderId != payment.OrderId.ToString())
+!string.Equals(orderId, payment.OrderId.ToString(), StringComparison.Ordinal))
                 {
                     logger.LogWarning("OrderId mismatch for session {SessionId}", sessionId);
                     return false;
@@ -229,18 +229,18 @@ internal sealed class StripePaymentProcessor(
         }
     }
 
-    private async Task HandleAmountMismatchAsync(
+    private Task HandleAmountMismatchAsync(
         Payment payment,
         decimal actual,
         decimal expected,
         CancellationToken ct)
     {
-        await amountMismatchHandler.HandleMismatchAsync(
+        return amountMismatchHandler.HandleMismatchAsync(
             payment,
             actual,
             expected,
             PaymentProvider.Stripe,
-            ct).ConfigureAwait(false);
+            ct);
     }
 
     private static bool ValidateSessionEventMetadata(PaymentSessionEvent sessionEvent, Payment payment)
@@ -255,7 +255,7 @@ internal sealed class StripePaymentProcessor(
             return false;
         }
 
-        return sessionOrderId == payment.OrderId.ToString();
+        return string.Equals(sessionOrderId, payment.OrderId.ToString(), StringComparison.Ordinal);
     }
 
     private void TrackPaymentCompleted(Guid orderId, Payment payment, PaymentSessionEvent sessionEvent)

@@ -25,8 +25,6 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
         _environment = environment;
         _loggerFactory = loggerFactory;
         _currentUserService = currentUserService;
-
-        ChangeTracker.LazyLoadingEnabled = false;
     }
 
     public DbSet<Payment> Payments => Set<Payment>();
@@ -40,6 +38,7 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
     {
         base.OnConfiguring(optionsBuilder);
         optionsBuilder.UseLoggerFactory(_loggerFactory);
+        ChangeTracker.LazyLoadingEnabled = false;
         if (_environment.IsDevelopment()) optionsBuilder.EnableSensitiveDataLogging();
     }
 
@@ -166,10 +165,10 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
         modelBuilder.AddOutboxMessageEntity();
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         OnBeforeSaving();
-        return await base.SaveChangesAsync(cancellationToken);
+        return base.SaveChangesAsync(cancellationToken);
     }
 
     private void OnBeforeSaving()

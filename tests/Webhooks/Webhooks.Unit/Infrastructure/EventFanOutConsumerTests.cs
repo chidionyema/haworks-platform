@@ -65,6 +65,6 @@ public class EventFanOutConsumerTests
         var delivery = await _db.Deliveries.FirstOrDefaultAsync();
         Assert.NotNull(delivery);
         Assert.Equal("order.created", delivery.EventType);
-        Assert.Contains(orderId.ToString(), delivery.Payload);
+        Assert.Contains(orderId.ToString(), delivery.Payload, StringComparison.Ordinal);
     }
 }

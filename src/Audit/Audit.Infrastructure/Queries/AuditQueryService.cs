@@ -54,16 +54,16 @@ public class AuditQueryService : IAuditQueryService
         return new AuditPageResult(items, nextCursor);
     }
 
-    public async Task<AuditEvent?> GetByIdAsync(Guid id, DateTimeOffset occurredAt, CancellationToken ct)
+    public Task<AuditEvent?> GetByIdAsync(Guid id, DateTimeOffset occurredAt, CancellationToken ct)
     {
-        return await _db.AuditEvents.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id && e.OccurredAt == occurredAt, ct);
+        return _db.AuditEvents.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id && e.OccurredAt == occurredAt, ct);
     }
 
     private static (DateTimeOffset, Guid) DecodeCursor(string cursor)
     {
         var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(cursor));
         var parts = decoded.Split('|');
-        return (DateTimeOffset.Parse(parts[0]), Guid.Parse(parts[1]));
+        return (DateTimeOffset.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture), Guid.Parse(parts[1]));
     }
 
     private static string EncodeCursor(DateTimeOffset occurredAt, Guid id)

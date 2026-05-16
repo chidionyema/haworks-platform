@@ -6,12 +6,14 @@ using System.Text;
 
 namespace Haworks.Audit.Application.Redaction;
 
-public sealed class SecretRedactor : ISecretRedactor
+public sealed partial class SecretRedactor : ISecretRedactor
 {
-    private static readonly string[] DenyListSuffixes = 
+    private static readonly string[] DenyListSuffixes =
         { "token", "password", "secret", "key", "credential", "apikey", "authorization" };
 
-    private static readonly Regex CreditCardRegex = new Regex(@"\b(?:\d[ -]*?){13,19}\b", RegexOptions.Compiled);
+    [GeneratedRegex(@"\b(?:\d[ -]*?){13,19}\b", RegexOptions.NonBacktracking)]
+    private static partial Regex CreditCardRegexGenerated();
+    private static readonly Regex CreditCardRegex = CreditCardRegexGenerated();
     private static readonly string[] CvvFields = { "cvv", "cvc", "securityCode" };
 
     public JsonElement Redact(JsonElement input)
@@ -73,17 +75,10 @@ public sealed class SecretRedactor : ISecretRedactor
         }
     }
 
-    private bool IsDenyListed(string key)
-    {
-        foreach (var suffix in DenyListSuffixes)
-        {
-            if (key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-        return false;
-    }
+    private static bool IsDenyListed(string key) =>
+        DenyListSuffixes.Any(suffix => key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
 
-    private string RedactString(string input)
+    private static string RedactString(string input)
     {
         return CreditCardRegex.Replace(input, m => 
         {
@@ -96,7 +91,7 @@ public sealed class SecretRedactor : ISecretRedactor
         });
     }
 
-    private bool IsValidLuhn(string digits)
+    private static bool IsValidLuhn(string digits)
     {
         if (digits.Length < 13) return false;
         int sum = 0;
@@ -115,7 +110,7 @@ public sealed class SecretRedactor : ISecretRedactor
         return (sum % 10 == 0);
     }
 
-    private string HashSha256(string input)
+    private static string HashSha256(string input)
     {
         var bytes = Encoding.UTF8.GetBytes(input);
         var hash = SHA256.HashData(bytes);

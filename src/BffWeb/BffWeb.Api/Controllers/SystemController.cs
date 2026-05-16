@@ -27,16 +27,13 @@ public class SystemController : ControllerBase
 {
     private readonly IDemoActivityCounters _activityCounters;
     private readonly IDependencyHealthProbe _healthProbe;
-    private readonly ILogger<SystemController> _logger;
 
     public SystemController(
         IDemoActivityCounters activityCounters,
-        IDependencyHealthProbe healthProbe,
-        ILogger<SystemController> logger)
+        IDependencyHealthProbe healthProbe)
     {
         _activityCounters = activityCounters;
         _healthProbe = healthProbe;
-        _logger = logger;
     }
 
     [HttpGet("health/snapshot")]

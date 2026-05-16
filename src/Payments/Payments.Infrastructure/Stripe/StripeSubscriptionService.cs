@@ -14,11 +14,11 @@ internal sealed class StripeSubscriptionService(
 {
     private readonly IAsyncPolicy _resiliencePolicy = resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.Stripe);
 
-    public async Task<CheckoutSessionResult> CreateSubscriptionSessionAsync(
+    public Task<CheckoutSessionResult> CreateSubscriptionSessionAsync(
         CreateSubscriptionSessionRequest request,
         CancellationToken ct = default)
     {
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
         {
             var client = await clientFactory.GetClientAsync(token);
             var service = new SessionService(client);

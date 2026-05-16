@@ -19,7 +19,7 @@ public class LocationWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
 
     public async Task InitializeAsync()
     {
-        ConnectionString = await SharedTestPostGIS.CreateDatabaseAsync("location");
+        ConnectionString = await SharedTestPostGis.CreateDatabaseAsync("location");
 
         JwtTestDefaults.SetTestEnvironmentVariables();
 

@@ -69,7 +69,7 @@ public sealed class IndexerTests : IAsyncLifetime
             using var scope = _factory.Services.CreateScope();
             var index = scope.ServiceProvider.GetRequiredService<ISearchIndex>();
             var doc = await index.GetAsync(productId.ToString("N"));
-            return doc?.Name == "Wireless Headphones";
+            return string.Equals(doc?.Name, "Wireless Headphones", StringComparison.Ordinal);
         }, TimeSpan.FromSeconds(20));
 
         using var verifyScope = _factory.Services.CreateScope();
@@ -181,9 +181,9 @@ public sealed class IndexerTests : IAsyncLifetime
             var d1 = await index.GetAsync(p1.ToString("N"));
             var d2 = await index.GetAsync(p2.ToString("N"));
             var d3 = await index.GetAsync(p3.ToString("N"));
-            return d1?.CategoryName == "NewCat"
-                && d2?.CategoryName == "NewCat"
-                && d3?.CategoryName == "NewCat";
+            return string.Equals(d1?.CategoryName, "NewCat"
+, StringComparison.Ordinal) && string.Equals(d2?.CategoryName, "NewCat"
+, StringComparison.Ordinal) && string.Equals(d3?.CategoryName, "NewCat", StringComparison.Ordinal);
         }, TimeSpan.FromSeconds(20));
     }
 

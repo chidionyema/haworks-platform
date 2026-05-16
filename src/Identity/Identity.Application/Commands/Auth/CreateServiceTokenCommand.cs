@@ -17,14 +17,11 @@ internal sealed class CreateServiceTokenCommandHandler
     private const int ExpiryMinutes = 30;
 
     private readonly IJwtTokenService _jwtTokenService;
-    private readonly ILogger<CreateServiceTokenCommandHandler> _logger;
 
     public CreateServiceTokenCommandHandler(
-        IJwtTokenService jwtTokenService,
-        ILogger<CreateServiceTokenCommandHandler> logger)
+        IJwtTokenService jwtTokenService)
     {
         _jwtTokenService = jwtTokenService;
-        _logger = logger;
     }
 
     public async Task<Result<string>> Handle(CreateServiceTokenCommand request, CancellationToken cancellationToken)

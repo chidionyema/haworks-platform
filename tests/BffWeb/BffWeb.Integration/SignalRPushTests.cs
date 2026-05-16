@@ -28,13 +28,13 @@ public sealed class SignalRPushTests : IClassFixture<BffWebFactory>, IAsyncLifet
         _factory = factory;
     }
 
-    public async Task InitializeAsync()
+    public Task InitializeAsync()
     {
         // Spin up the harness so the consumer endpoint is wired before
         // tests start publishing events.
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         harness.TestTimeout = TimeSpan.FromSeconds(30);
-        await harness.Start();
+        return harness.Start();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -171,7 +171,7 @@ public sealed class SignalRPushTests : IClassFixture<BffWebFactory>, IAsyncLifet
         {
             throw new TimeoutException($"Did not complete within {timeout.TotalSeconds}s");
         }
-        cts.Cancel();
+        await cts.CancelAsync();
         return await task;
     }
 

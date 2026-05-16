@@ -164,5 +164,8 @@ public sealed class DemoConcurrencyController(
         return snap?.Version;
     }
 
-    public sealed record InventoryUpdate(int Quantity);
+    public sealed record InventoryUpdate
+    {
+        public required int Quantity { get; init; }
+    }
 }

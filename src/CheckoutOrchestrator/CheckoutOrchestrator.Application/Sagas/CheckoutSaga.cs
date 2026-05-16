@@ -245,9 +245,9 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
         // than throwing. MT's inbox dedupes most replays; this catches
         // the rare case where the same event arrives via two paths.
         DuringAny(
-            When(StockReserved).If(ctx => ctx.Saga.CurrentState != Initiated.Name, ctx => ctx),
-            When(PaymentCompleted).If(ctx => ctx.Saga.CurrentState != ReadyForPayment.Name, ctx => ctx),
-            When(PaymentSessionFailed).If(ctx => ctx.Saga.CurrentState == Abandoned.Name, ctx => ctx));
+            When(StockReserved).If(ctx => !string.Equals(ctx.Saga.CurrentState, Initiated.Name, StringComparison.Ordinal), ctx => ctx),
+            When(PaymentCompleted).If(ctx => !string.Equals(ctx.Saga.CurrentState, ReadyForPayment.Name, StringComparison.Ordinal), ctx => ctx),
+            When(PaymentSessionFailed).If(ctx => string.Equals(ctx.Saga.CurrentState, Abandoned.Name, StringComparison.Ordinal), ctx => ctx));
 
         SetCompletedWhenFinalized();
     }
