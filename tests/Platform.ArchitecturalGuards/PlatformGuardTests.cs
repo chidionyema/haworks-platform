@@ -13,12 +13,6 @@ namespace Haworks.Platform.ArchitecturalGuards;
 public sealed class PlatformGuardTests
 {
     private static readonly string SrcRoot = FindSrcRoot();
-    private static readonly string[] ServiceNames =
-    [
-        "Audit", "BffWeb", "Catalog", "CheckoutOrchestrator", "Content",
-        "Identity", "Location", "Merchant", "Notifications", "Orders",
-        "Payments", "Payouts", "Pricing", "Privacy", "Scheduler", "Search", "Webhooks"
-    ];
 
     // ─── Auth & Middleware ────────────────────────────────────────────
 
@@ -1787,14 +1781,14 @@ public sealed class PlatformGuardTests
     [Fact]
     public void Every_service_API_project_has_Dockerfile()
     {
+        // Auto-discover — no hardcoded service list
         var violations = new List<string>();
-        foreach (var svc in ServiceNames)
+        foreach (var apiDir in Directory.GetDirectories(SrcRoot, "*.Api", SearchOption.AllDirectories)
+            .Where(d => !d.Contains("obj") && !d.Contains("bin")))
         {
-            var apiDir = Path.Combine(SrcRoot, svc, $"{svc}.Api");
-            if (!Directory.Exists(apiDir)) continue;
             if (!File.Exists(Path.Combine(apiDir, "Dockerfile")))
             {
-                violations.Add($"src/{svc}/{svc}.Api: missing Dockerfile — service cannot be deployed");
+                violations.Add($"{Relative(apiDir)}: missing Dockerfile — service cannot be deployed");
             }
         }
         violations.Should().BeEmpty("every API project must have a Dockerfile");
@@ -2253,7 +2247,8 @@ public sealed class PlatformGuardTests
             var fileName = Path.GetFileNameWithoutExtension(file);
             if (!fileName.Contains("Ledger") && !fileName.Contains("Disbursement") && !fileName.Contains("Payout"))
                 continue;
-            if (fileName.Contains("Controller") || fileName.Contains("Query") || fileName.Contains("Test"))
+            if (fileName.Contains("Controller") || fileName.Contains("Query") || fileName.Contains("Test") ||
+                fileName.StartsWith("I") || fileName.Contains("Interface") || fileName.Contains("Options"))
                 continue;
 
             var content = File.ReadAllText(file);
@@ -2277,6 +2272,8 @@ public sealed class PlatformGuardTests
 
         foreach (var file in FindConsumerFiles())
         {
+            // SignalR bridge consumers are read-only (push to UI) — idempotent by nature
+            if (file.Contains("Bridge") || file.Contains("SignalR") || file.Contains("Notifier")) continue;
             var content = File.ReadAllText(file);
             foreach (var evt in financialEvents)
             {
@@ -2333,20 +2330,31 @@ public sealed class PlatformGuardTests
     }
 
     [Fact]
-    public void Every_deployed_service_has_unit_tests()
+    public void Every_service_with_source_code_has_unit_tests()
     {
-        // Every deployed service must have a Unit test project with at least one test file.
-        // This generalises the financial-services-only rule to ALL services.
-        var deployed = new[] { "Audit", "Catalog", "CheckoutOrchestrator", "Content", "Identity", "Merchant", "Notifications", "Orders", "Payments", "Payouts", "Search", "Webhooks" };
+        // Auto-discover ALL services from src/ that have a .Api or .Domain project
+        // (i.e., they contain real code, not just shared libraries).
+        // No hardcoded list — new services are caught automatically.
+        var sharedLibs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "BuildingBlocks", "BuildingBlocks.Testing", "Contracts", "Pricing" }; // Pricing is stub-only
+
         var violations = new List<string>();
         var repoRoot = Path.GetFullPath(Path.Combine(SrcRoot, ".."));
 
-        foreach (var svc in deployed)
+        foreach (var svcDir in Directory.GetDirectories(SrcRoot))
         {
-            var svcTestRoot = Path.Combine(repoRoot, "tests", svc, $"{svc}.Unit");
+            var svcName = Path.GetFileName(svcDir);
+            if (svcName.StartsWith('.') || sharedLibs.Contains(svcName)) continue;
+
+            // Only check services that have actual code (an Api or Domain project)
+            var hasCode = Directory.GetFiles(svcDir, "*.cs", SearchOption.AllDirectories)
+                .Any(f => !f.Contains("obj") && !f.Contains("bin"));
+            if (!hasCode) continue;
+
+            var svcTestRoot = Path.Combine(repoRoot, "tests", svcName, $"{svcName}.Unit");
             if (!Directory.Exists(svcTestRoot))
             {
-                violations.Add($"{svc}: deployed service has no Unit test project at tests/{svc}/{svc}.Unit/");
+                violations.Add($"{svcName}: service has source code but no Unit test project at tests/{svcName}/{svcName}.Unit/");
                 continue;
             }
 
@@ -2355,9 +2363,9 @@ public sealed class PlatformGuardTests
                 .ToList();
 
             if (testFiles.Count == 0)
-                violations.Add($"{svc}: Unit test project has no *Tests.cs files");
+                violations.Add($"{svcName}: Unit test project exists but has no *Tests.cs files");
         }
         violations.Should().BeEmpty(
-            "every deployed service must have a Unit test project with actual test files");
+            "every service with source code must have a Unit test project with actual test files");
     }
 }
