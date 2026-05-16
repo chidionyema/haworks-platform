@@ -307,7 +307,7 @@ public sealed class PrivacyStateMachineTests : IAsyncLifetime
         // settling time for negative assertion — late completion must not move Failed saga
         try
         {
-            await PollUntilAsync(() => SagaStateOrNull(requestId) != "Failed", TimeSpan.FromSeconds(2));
+            await PollUntilAsync(() => !string.Equals(SagaStateOrNull(requestId), "Failed", StringComparison.Ordinal), TimeSpan.FromSeconds(2));
         }
         catch (TimeoutException) { /* expected — completion after failure was correctly discarded */ }
 

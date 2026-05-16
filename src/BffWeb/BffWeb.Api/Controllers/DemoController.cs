@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.ComponentModel.DataAnnotations;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.RateLimiting;
@@ -120,12 +121,12 @@ public class DemoController : ControllerBase
             {
                 ProductId = demoProductId,
                 ProductName = "Demo Widget",
-                Quantity = request.ScenarioType == "stockRace" ? 3 : 1,
+                Quantity = string.Equals(request.ScenarioType, "stockRace", StringComparison.Ordinal) ? 3 : 1,
                 UnitPrice = 39.99m,
             },
         };
 
-        if (request.ScenarioType == "stockRace")
+        if (string.Equals(request.ScenarioType, "stockRace", StringComparison.Ordinal))
         {
             // Two carts, one product, real saga concurrency. Both POSTs go
             // to the orchestrator in parallel; the catalog stock reservation
@@ -196,7 +197,7 @@ public class DemoController : ControllerBase
                 orderId = orderIdEl,
                 status = currentState ?? "Unknown",
                 isComplete = currentState is "Completed" or "RequiresReview",
-                isFailed = currentState == "Abandoned",
+                isFailed = string.Equals(currentState, "Abandoned", StringComparison.Ordinal),
                 failureReason,
                 paymentCheckoutUrl = paymentUrl,
             });
@@ -511,7 +512,7 @@ public class DemoController : ControllerBase
         {
             if (request.FailureMode)
             {
-                using var resp = await client.PostAsJsonAsync("/demo/chaos/trigger", new ChaosRequest("circuit-breaker-demo", 60), ct);
+                using var resp = await client.PostAsJsonAsync("/demo/chaos/trigger", new ChaosRequest { Scenario = "circuit-breaker-demo", DurationSeconds = 60 }, ct);
                 resp.EnsureSuccessStatusCode();
             }
             else
@@ -896,7 +897,7 @@ public class DemoController : ControllerBase
                 description = current.TryGetProperty("description", out var d) ? d.GetString() ?? string.Empty : string.Empty,
                 unitPrice = request.Price ?? current.GetProperty("unitPrice").GetDecimal(),
                 categoryId = current.GetProperty("categoryId").GetGuid(),
-                isListed = current.TryGetProperty("isListed", out var l) ? l.GetBoolean() : true,
+                isListed = !current.TryGetProperty("isListed", out var l) || l.GetBoolean(),
                 correlationId = sessionId,
             };
 
@@ -970,7 +971,7 @@ public class DemoController : ControllerBase
     private static CachedProductDto BuildCachedProductResponse(JsonElement body, Guid? sessionId)
     {
         var source = body.GetProperty("source").GetString() ?? "database";
-        var isHit = source == "L1" || source == "L2";
+        var isHit = string.Equals(source, "L1", StringComparison.Ordinal) || string.Equals(source, "L2", StringComparison.Ordinal);
         JsonElement productElement = body.GetProperty("product");
         return new CachedProductDto(
             sessionId ?? Guid.NewGuid(),
@@ -1230,22 +1231,89 @@ public class DemoController : ControllerBase
 
 // DTOs — wire shapes pinned by the frontend's TypeScript types
 // (portfolio-site/src/lib/api/demo-client.ts).
-public record ChaosRequest(string Scenario, int DurationSeconds);
-public record SagaStartRequest(string ScenarioType, int SimulatedDelayMs);
-public record EventTriggerRequest(string EventType, object Payload);
-public record RelayPauseRequest(bool Paused);
-public record IdempotencyRaceRequest(string Key, int Count, int? TtlSeconds);
-public record RaceOutcome(int RequestIndex, bool IsWinner, Guid OrderId, long LatencyMs);
-// `BypassBreaker` exists for the side-by-side "no-breaker baseline lane"
-// the frontend's CircuitBreakerDemo renders. When true, the request goes
-// directly through HttpClient without the static AsyncCircuitBreakerPolicy,
-// so the caller can observe the timeout cliff a circuit-less system would
-// experience. Default false preserves the original demo flow.
-public record CircuitRequest(Guid? SessionId, bool ShouldFail, bool BypassBreaker = false);
-public record ToggleFailureRequest(Guid SessionId, bool FailureMode);
-public record ResetRequest(Guid SessionId);
-public record StampedeRequest(int ConcurrentRequests, string CacheKey, string ProtectionMode, int SimulatedDbLatencyMs);
-public record InventoryUpdate(int Quantity);
-public record RateLimitConfig(Guid? SessionId, int PermitLimit, int WindowSeconds);
-public record SessionRequest(Guid? SessionId);
-public record BurstRequest(int Count, int DelayMs);
+public record ChaosRequest
+{
+    public required string Scenario { get; init; }
+    public required int DurationSeconds { get; init; }
+}
+
+public record SagaStartRequest
+{
+    public required string ScenarioType { get; init; }
+    public required int SimulatedDelayMs { get; init; }
+}
+
+public record EventTriggerRequest
+{
+    public required string EventType { get; init; }
+    public required object Payload { get; init; }
+}
+
+public record RelayPauseRequest
+{
+    public required bool Paused { get; init; }
+}
+
+public record IdempotencyRaceRequest
+{
+    public required string Key { get; init; }
+    public required int Count { get; init; }
+    public int? TtlSeconds { get; init; }
+}
+
+public record RaceOutcome
+{
+    public required int RequestIndex { get; init; }
+    public required bool IsWinner { get; init; }
+    public required Guid OrderId { get; init; }
+    public required long LatencyMs { get; init; }
+}
+
+public record CircuitRequest
+{
+    public Guid? SessionId { get; init; }
+    public required bool ShouldFail { get; init; }
+    public required bool BypassBreaker { get; init; }
+}
+
+public record ToggleFailureRequest
+{
+    public required Guid SessionId { get; init; }
+    public required bool FailureMode { get; init; }
+}
+
+public record ResetRequest
+{
+    public required Guid SessionId { get; init; }
+}
+
+public record StampedeRequest
+{
+    public required int ConcurrentRequests { get; init; }
+    public required string CacheKey { get; init; }
+    public required string ProtectionMode { get; init; }
+    public required int SimulatedDbLatencyMs { get; init; }
+}
+
+public record InventoryUpdate
+{
+    public required int Quantity { get; init; }
+}
+
+public record RateLimitConfig
+{
+    public Guid? SessionId { get; init; }
+    public required int PermitLimit { get; init; }
+    public required int WindowSeconds { get; init; }
+}
+
+public record SessionRequest
+{
+    public Guid? SessionId { get; init; }
+}
+
+public record BurstRequest
+{
+    public required int Count { get; init; }
+    public required int DelayMs { get; init; }
+}

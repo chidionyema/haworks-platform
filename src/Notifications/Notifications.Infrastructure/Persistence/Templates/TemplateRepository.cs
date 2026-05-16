@@ -59,11 +59,11 @@ internal sealed class TemplateRepository : ITemplateRepository
         await _dbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
-    public async Task UpdateAsync(NotificationTemplate template)
+    public Task UpdateAsync(NotificationTemplate template)
     {
         ArgumentNullException.ThrowIfNull(template);
 
         _dbContext.NotificationTemplates.Update(template);
-        await _dbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+        return _dbContext.SaveChangesAsync(CancellationToken.None);
     }
 }

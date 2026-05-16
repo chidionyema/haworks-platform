@@ -81,7 +81,7 @@ public sealed class CdcSearchIndexWorker(
     private async Task HandleProductChangeAsync(
         DebeziumEnvelope envelope, string changeType, ISearchIndex index, CancellationToken ct)
     {
-        if (changeType == "deleted")
+        if (string.Equals(changeType, "deleted", StringComparison.Ordinal))
         {
             var beforeRaw = envelope.Before?.GetProperty("id").GetString();
             var before = beforeRaw != null && Guid.TryParse(beforeRaw, out var parsedId)
@@ -122,7 +122,7 @@ public sealed class CdcSearchIndexWorker(
     private async Task HandleCategoryChangeAsync(
         DebeziumEnvelope envelope, string changeType, ISearchIndex index, CancellationToken ct)
     {
-        if (changeType != "updated") return;
+        if (!string.Equals(changeType, "updated", StringComparison.Ordinal)) return;
         if (envelope.After == null) return;
 
         var after = envelope.After.Value;

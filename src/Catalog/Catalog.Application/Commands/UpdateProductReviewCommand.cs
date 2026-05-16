@@ -43,7 +43,7 @@ internal sealed class UpdateProductReviewCommandHandler
         }
 
         // Security check
-        if (review.UserId != request.UserId && !request.IsAdmin)
+        if (!string.Equals(review.UserId, request.UserId, StringComparison.Ordinal) && !request.IsAdmin)
         {
             return Result.Failure<ProductReviewDto>(new Error("Reviews.Forbidden", "Not authorized to update this review"));
         }

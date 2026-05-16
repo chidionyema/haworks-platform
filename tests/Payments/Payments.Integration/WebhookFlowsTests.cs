@@ -88,7 +88,7 @@ public sealed class WebhookFlowsTests : IAsyncLifetime
         (await harness.Published.Any<PaymentWebhookValidatedEvent>()).Should().BeTrue();
 
         var ctx = harness.Published.Select<PaymentWebhookValidatedEvent>()
-            .FirstOrDefault(p => p.Context.Message.ProviderEventId == eventId);
+            .FirstOrDefault(p => string.Equals(p.Context.Message.ProviderEventId, eventId, StringComparison.Ordinal));
         ctx.Should().NotBeNull();
         ctx!.Context.Message.Provider.Should().Be("Stripe");
         ctx.Context.Message.EventType.Should().Be("checkout.session.completed");
@@ -120,7 +120,7 @@ public sealed class WebhookFlowsTests : IAsyncLifetime
         // assertions — a thrown Consume() shows up here, not as a missing publish.
         var consumerHarness = harness.GetConsumerHarness<Haworks.Payments.Application.Consumers.PaymentWebhookValidatedConsumer>();
         var faults = consumerHarness.Consumed.Select<PaymentWebhookValidatedEvent>()
-            .Where(c => c.Exception is not null && c.Context.Message.ProviderEventId == eventId).ToList();
+            .Where(c => c.Exception is not null && string.Equals(c.Context.Message.ProviderEventId, eventId, StringComparison.Ordinal)).ToList();
         faults.Should().BeEmpty(string.Join(" | ",
             faults.Select(f => $"{f.Exception?.GetType().Name}: {f.Exception?.Message}")));
 
@@ -269,12 +269,12 @@ public sealed class WebhookFlowsTests : IAsyncLifetime
         }
     }
 
-    private async Task<HttpResponseMessage> PostStripeAsync(string payload, string signature)
+    private Task<HttpResponseMessage> PostStripeAsync(string payload, string signature)
     {
         var content = new StringContent(payload, Encoding.UTF8, "application/json");
         var req = new HttpRequestMessage(HttpMethod.Post, "/webhooks/stripe") { Content = content };
         req.Headers.Add("Stripe-Signature", signature);
-        return await _client.SendAsync(req);
+        return _client.SendAsync(req);
     }
 
     private async Task<Payment> SeedPendingPaymentAsync(string sessionId, decimal amount)

@@ -13,7 +13,7 @@ public class LocationUpdatedConsumer(
     ILocationSearchIndex locationIndex,
     ILogger<LocationUpdatedConsumer> logger) : IConsumer<LocationUpdated>
 {
-    public async Task Consume(ConsumeContext<LocationUpdated> context)
+    public Task Consume(ConsumeContext<LocationUpdated> context)
     {
         var msg = context.Message;
         logger.LogInformation("Processing LocationUpdated event for {LocationId}", msg.LocationId);
@@ -26,6 +26,6 @@ public class LocationUpdatedConsumer(
             Metadata = msg.Metadata is Dictionary<string, string> d ? d : new Dictionary<string, string>(msg.Metadata ?? new Dictionary<string, string>())
         };
 
-        await locationIndex.UpsertAsync(doc, context.CancellationToken);
+        return locationIndex.UpsertAsync(doc, context.CancellationToken);
     }
 }

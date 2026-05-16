@@ -8,7 +8,7 @@ public record MediaUrlResponse(string Url, DateTime ExpiresAt);
 
 public partial class GetMediaUrlValidator : AbstractValidator<GetMediaUrlQuery>
 {
-    [GeneratedRegex(@"^[a-zA-Z0-9_\-/\.]{1,100}$")]
+    [GeneratedRegex(@"^[a-zA-Z0-9_\-/\.]{1,100}$", RegexOptions.NonBacktracking)]
     private static partial Regex SafeVariantPattern();
 
     public GetMediaUrlValidator()

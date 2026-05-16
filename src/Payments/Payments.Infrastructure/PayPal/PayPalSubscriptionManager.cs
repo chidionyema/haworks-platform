@@ -80,9 +80,9 @@ internal sealed class PayPalSubscriptionManager(
     }
 
     /// <inheritdoc />
-    public async Task<bool> CancelAsync(string subscriptionId, bool immediate = false, CancellationToken ct = default)
+    public Task<bool> CancelAsync(string subscriptionId, bool immediate = false, CancellationToken ct = default)
     {
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
         {
             var client = await clientFactory.GetAuthenticatedClientAsync(token);
             
@@ -114,9 +114,9 @@ internal sealed class PayPalSubscriptionManager(
     }
 
     /// <inheritdoc />
-    public async Task<bool> ResumeAsync(string subscriptionId, CancellationToken ct = default)
+    public Task<bool> ResumeAsync(string subscriptionId, CancellationToken ct = default)
     {
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
         {
             var client = await clientFactory.GetAuthenticatedClientAsync(token);
             

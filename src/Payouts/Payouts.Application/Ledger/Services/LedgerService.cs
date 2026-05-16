@@ -155,9 +155,9 @@ public class LedgerService : ILedgerService
         }
     }
 
-    public async Task<bool> HasCreditForReferenceAsync(Guid referenceId, CancellationToken ct = default)
+    public Task<bool> HasCreditForReferenceAsync(Guid referenceId, CancellationToken ct = default)
     {
-        return await _context.LedgerEntries.AnyAsync(e => e.ReferenceId == referenceId.ToString(), ct);
+        return _context.LedgerEntries.AnyAsync(e => e.ReferenceId == referenceId.ToString(), ct);
     }
 
     public async Task<decimal> GetBalanceAsync(Guid sellerId, AccountType type, string currency, CancellationToken ct = default)

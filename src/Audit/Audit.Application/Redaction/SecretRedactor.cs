@@ -78,7 +78,7 @@ public sealed partial class SecretRedactor : ISecretRedactor
     private static bool IsDenyListed(string key) =>
         DenyListSuffixes.Any(suffix => key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
 
-    private string RedactString(string input)
+    private static string RedactString(string input)
     {
         return CreditCardRegex.Replace(input, m => 
         {

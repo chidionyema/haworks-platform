@@ -56,9 +56,9 @@ public sealed class StripeSubscriptionManager(
     }
 
     /// <inheritdoc />
-    public async Task<bool> CancelAsync(string subscriptionId, bool immediate = false, CancellationToken ct = default)
+    public Task<bool> CancelAsync(string subscriptionId, bool immediate = false, CancellationToken ct = default)
     {
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
         {
             try
             {
@@ -89,7 +89,7 @@ public sealed class StripeSubscriptionManager(
 
                 return true;
             }
-            catch (StripeException ex) when (ex.StripeError?.Code == "resource_missing")
+            catch (StripeException ex) when (string.Equals(ex.StripeError?.Code, "resource_missing", StringComparison.Ordinal))
             {
                 logger.LogWarning("Stripe subscription {SubscriptionId} not found for cancellation", subscriptionId);
                 return false;
@@ -98,9 +98,9 @@ public sealed class StripeSubscriptionManager(
     }
 
     /// <inheritdoc />
-    public async Task<bool> ResumeAsync(string subscriptionId, CancellationToken ct = default)
+    public Task<bool> ResumeAsync(string subscriptionId, CancellationToken ct = default)
     {
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
         {
             try
             {
@@ -120,7 +120,7 @@ public sealed class StripeSubscriptionManager(
 
                 return true;
             }
-            catch (StripeException ex) when (ex.StripeError?.Code == "resource_missing")
+            catch (StripeException ex) when (string.Equals(ex.StripeError?.Code, "resource_missing", StringComparison.Ordinal))
             {
                 logger.LogWarning("Stripe subscription {SubscriptionId} not found for resume", subscriptionId);
                 return false;

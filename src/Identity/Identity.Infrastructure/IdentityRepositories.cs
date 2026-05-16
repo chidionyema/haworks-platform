@@ -10,14 +10,12 @@ namespace Haworks.Identity.Infrastructure;
 public class IdentityUserRepository : IUserRepository
 {
     private readonly AppIdentityDbContext _context;
-    private readonly ILogger<IdentityUserRepository> _logger;
 
     public IdentityUserRepository(
         AppIdentityDbContext context,
         ILogger<IdentityUserRepository> logger)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<User?> GetUserByIdAsync(string userId, CancellationToken ct = default)
@@ -30,9 +28,9 @@ public class IdentityUserRepository : IUserRepository
             .FirstOrDefaultAsync(u => u.Id == userId, ct);
     }
 
-    public async Task SaveChangesAsync(CancellationToken ct = default)
+    public Task SaveChangesAsync(CancellationToken ct = default)
     {
-        await _context.SaveChangesAsync(ct);
+        return _context.SaveChangesAsync(ct);
     }
 }
 
@@ -42,14 +40,12 @@ public class IdentityUserRepository : IUserRepository
 public class IdentityUserProfileRepository : IUserProfileRepository
 {
     private readonly AppIdentityDbContext _context;
-    private readonly ILogger<IdentityUserProfileRepository> _logger;
 
     public IdentityUserProfileRepository(
         AppIdentityDbContext context,
         ILogger<IdentityUserProfileRepository> logger)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<UserProfile?> GetByUserIdAsync(string userId, CancellationToken ct = default)
@@ -86,9 +82,9 @@ public class IdentityUserProfileRepository : IUserProfileRepository
         await _context.SaveChangesAsync(ct);
     }
 
-    public async Task SaveChangesAsync(CancellationToken ct = default)
+    public Task SaveChangesAsync(CancellationToken ct = default)
     {
-        await _context.SaveChangesAsync(ct);
+        return _context.SaveChangesAsync(ct);
     }
 }
 
@@ -98,14 +94,12 @@ public class IdentityUserProfileRepository : IUserProfileRepository
 public class IdentityRefreshTokenRepository : IRefreshTokenRepository
 {
     private readonly AppIdentityDbContext _context;
-    private readonly ILogger<IdentityRefreshTokenRepository> _logger;
 
     public IdentityRefreshTokenRepository(
         AppIdentityDbContext context,
         ILogger<IdentityRefreshTokenRepository> logger)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<RefreshToken?> GetByTokenAndUserIdAsync(string token, string userId, CancellationToken ct = default)
@@ -131,12 +125,12 @@ public class IdentityRefreshTokenRepository : IRefreshTokenRepository
         await _context.SaveChangesAsync(ct);
     }
 
-    public async Task RemoveAsync(RefreshToken refreshToken, CancellationToken ct = default)
+    public Task RemoveAsync(RefreshToken refreshToken, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(refreshToken);
 
         _context.RefreshTokens.Remove(refreshToken);
-        await _context.SaveChangesAsync(ct);
+        return _context.SaveChangesAsync(ct);
     }
 
     public async Task RemoveAllForUserAsync(string userId, CancellationToken ct = default)
@@ -153,8 +147,8 @@ public class IdentityRefreshTokenRepository : IRefreshTokenRepository
         return await _context.Database.BeginTransactionAsync(ct);
     }
 
-    public async Task SaveChangesAsync(CancellationToken ct = default)
+    public Task SaveChangesAsync(CancellationToken ct = default)
     {
-        await _context.SaveChangesAsync(ct);
+        return _context.SaveChangesAsync(ct);
     }
 }

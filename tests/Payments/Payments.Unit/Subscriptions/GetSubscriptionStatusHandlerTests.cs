@@ -73,7 +73,7 @@ public class GetSubscriptionStatusHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ManagerThrows_Throws()
+    public Task Handle_ManagerThrows_Throws()
     {
         // Arrange
         var query = new GetSubscriptionStatusQuery("user-123");
@@ -81,7 +81,7 @@ public class GetSubscriptionStatusHandlerTests
             .ThrowsAsync(new Exception("DB Error"));
 
         // Act & Assert
-        await Assert.ThrowsAsync<Exception>(() => _handler.Handle(query, default));
+        return Assert.ThrowsAsync<Exception>(() => _handler.Handle(query, default));
     }
 
     [Fact]

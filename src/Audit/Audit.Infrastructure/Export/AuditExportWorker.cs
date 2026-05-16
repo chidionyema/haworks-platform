@@ -103,7 +103,7 @@ public class AuditExportWorker : BackgroundService
             var request = JsonSerializer.Deserialize<AuditExportRequest>(job.RequestJson.RootElement.GetRawText());
             if (request == null) throw new InvalidOperationException("Invalid request JSON");
 
-            var tempFile = Path.GetTempFileName();
+            var tempFile = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
             try
             {
                 await using (var writer = new StreamWriter(tempFile))

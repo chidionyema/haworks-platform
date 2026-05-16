@@ -1,10 +1,11 @@
+using System.ComponentModel.DataAnnotations;
 using Haworks.BuildingBlocks.CurrentUser;
 using Haworks.Media.Api.Options;
 using Microsoft.Extensions.Options;
 
 namespace Haworks.Media.Api.Application;
 
-public record InitiateUploadCommand(string FileName, string Hash, long Size, string MimeType) : IRequest<Result<UploadResponse>>;
+public record InitiateUploadCommand(string FileName, string Hash, [property: System.Text.Json.Serialization.JsonRequired] long Size, string MimeType) : IRequest<Result<UploadResponse>>;
 
 public record UploadResponse(
     Guid Id,

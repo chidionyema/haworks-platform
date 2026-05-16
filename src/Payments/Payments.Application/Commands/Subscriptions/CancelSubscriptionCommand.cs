@@ -22,7 +22,7 @@ public sealed class CancelSubscriptionCommandHandler(
         if (subscription is null)
             return Result<bool>.Failure<bool>(Error.NotFound("Subscription.NotFound", "Subscription not found or cannot be cancelled."));
 
-        if (subscription.UserId != request.UserId)
+        if (!string.Equals(subscription.UserId, request.UserId, StringComparison.Ordinal))
             return Result<bool>.Failure<bool>(Error.Forbidden("Subscription.Forbidden", "You do not own this subscription."));
 
         var success = await subscriptionManager.CancelAsync(request.SubscriptionId, request.Immediate, ct);

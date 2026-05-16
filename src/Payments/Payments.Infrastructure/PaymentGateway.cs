@@ -84,7 +84,7 @@ internal sealed class PaymentGateway(
             await Checkout.GetSessionAsync("cs_health_check", ct);
             return true;
         }
-        catch (StripeException ex) when (ex.StripeError?.Code == "resource_missing")
+        catch (StripeException ex) when (string.Equals(ex.StripeError?.Code, "resource_missing", StringComparison.Ordinal))
         {
             // Expected for non-existent session, confirms API is reachable
             return true;

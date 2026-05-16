@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Security.Claims;
@@ -92,14 +93,18 @@ public sealed class CheckoutController(
     }
 }
 
-public sealed record CheckoutRequest(
-    string CustomerEmail,
-    decimal TotalAmount,
-    string? IdempotencyKey,
-    IReadOnlyList<CheckoutLineItem> Items);
+public sealed record CheckoutRequest
+{
+    public required string CustomerEmail { get; init; }
+    public required decimal TotalAmount { get; init; }
+    public string? IdempotencyKey { get; init; }
+    public required IReadOnlyList<CheckoutLineItem> Items { get; init; }
+}
 
-public sealed record CheckoutLineItem(
-    Guid ProductId,
-    string ProductName,
-    int Quantity,
-    decimal UnitPrice);
+public sealed record CheckoutLineItem
+{
+    public required Guid ProductId { get; init; }
+    public required string ProductName { get; init; }
+    public required int Quantity { get; init; }
+    public required decimal UnitPrice { get; init; }
+}

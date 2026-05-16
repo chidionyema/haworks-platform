@@ -55,7 +55,7 @@ public class UpdateNotificationStatusFromWebhookHandlerTests
         _repositoryMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    private Notification CreateSentNotification()
+    private static Notification CreateSentNotification()
     {
         var notification = (Notification)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Notification));
         SetPrivate(notification, "Status", NotificationStatus.Sent);

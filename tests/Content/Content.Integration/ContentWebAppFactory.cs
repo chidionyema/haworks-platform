@@ -52,7 +52,7 @@ public sealed class ContentWebAppFactory : WebApplicationFactory<Program>, IAsyn
     public string LocalstackUrl => _localstackUrl;
 
     /// <summary>Bucket name used by the fixture; matches Storage:BucketName.</summary>
-    public string Bucket => BucketName;
+    public static string Bucket => BucketName;
 
     public async Task InitializeAsync()
     {

@@ -22,7 +22,7 @@ public sealed class AuthTests : IAsyncLifetime
         _factory = factory;
     }
 
-    public async Task InitializeAsync() => await _factory.EnsureSchemaAsync();
+    public Task InitializeAsync() => _factory.EnsureSchemaAsync();
     public Task DisposeAsync() => Task.CompletedTask;
 
     private HttpClient CreateUnauthenticatedClient() =>

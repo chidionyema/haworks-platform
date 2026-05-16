@@ -44,7 +44,6 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
     {
         _paymentProcessor = paymentProcessor ?? throw new ArgumentNullException(nameof(paymentProcessor));
         _subscriptionManager = subscriptionManager ?? throw new ArgumentNullException(nameof(subscriptionManager));
-        _refundService = refundService ?? throw new ArgumentNullException(nameof(refundService));
         _idempotencyGuard = idempotencyGuard ?? throw new ArgumentNullException(nameof(idempotencyGuard));
         _paymentRepository = paymentRepository ?? throw new ArgumentNullException(nameof(paymentRepository));
         _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
@@ -142,7 +141,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         var session = ParseDataObject<StripeSessionDto>(webhookEvent.RawPayload);
         if (session == null) return WebhookProcessingResult.Failed("Failed to parse Session data");
 
-        if (session.Mode == "subscription")
+        if (string.Equals(session.Mode, "subscription", StringComparison.Ordinal))
         {
             var subEvent = new SubscriptionEvent
             {
@@ -244,7 +243,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
 
         // We check if it's already processed or if we need to emit a system-wide event.
         // For Dashboard refunds, we want to ensure Orders etc are notified.
-        foreach (var refund in charge.Refunds.Data.Where(r => r.Status == "succeeded"))
+        foreach (var refund in charge.Refunds.Data.Where(r => string.Equals(r.Status, "succeeded", StringComparison.Ordinal)))
         {
             // 1. Legacy/Dashboard event for broad consumption
             await _eventPublisher.PublishAsync(new RefundIssuedEvent

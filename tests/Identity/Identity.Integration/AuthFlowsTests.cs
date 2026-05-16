@@ -26,10 +26,10 @@ public sealed class AuthFlowsTests : IAsyncLifetime
         _client = _factory.CreateClient();
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
         _client?.Dispose();
-        await ((IAsyncLifetime)_factory).DisposeAsync();
+        return ((IAsyncLifetime)_factory).DisposeAsync();
     }
 
     [Fact]

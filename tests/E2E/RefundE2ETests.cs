@@ -84,7 +84,7 @@ public class RefundE2ETests(E2EEnvironmentFixture fixture)
             if (statusResp.Ok)
             {
                 var status = await statusResp.JsonAsync();
-                if (status?.GetProperty("status").GetString() == "Refunded")
+                if (string.Equals(status?.GetProperty("status").GetString(), "Refunded", StringComparison.Ordinal))
                 {
                     completed = true;
                     break;

@@ -153,7 +153,7 @@ public sealed class SubscriptionEndpointTests : IAsyncLifetime
     public async Task CreateCheckoutSession_returns_200_with_session_id()
     {
         // Arrange
-        var request = new CreateSubscriptionCheckoutRequest("price-1", 20.0m, "/success");
+        var request = new CreateSubscriptionCheckoutRequest { PriceId = "price-1", Amount = 20.0m, RedirectPath = "/success" };
         _serviceMock.Setup(x => x.CreateSubscriptionSessionAsync(It.IsAny<CreateSubscriptionSessionRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CheckoutSessionResult
             {
@@ -178,7 +178,7 @@ public sealed class SubscriptionEndpointTests : IAsyncLifetime
     public async Task CreateCheckoutSession_returns_400_when_amount_invalid()
     {
         // Arrange
-        var request = new CreateSubscriptionCheckoutRequest("price-1", -5.0m, "/success");
+        var request = new CreateSubscriptionCheckoutRequest { PriceId = "price-1", Amount = -5.0m, RedirectPath = "/success" };
         var client = CreateClient();
 
         // Act

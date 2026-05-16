@@ -73,7 +73,7 @@ public static class SharedTestPostgres
     {
         var builder = new NpgsqlConnectionStringBuilder(connectionString);
         var dbName = builder.Database;
-        if (string.IsNullOrEmpty(dbName) || dbName == "template") return;
+        if (string.IsNullOrEmpty(dbName) || string.Equals(dbName, "template", StringComparison.Ordinal)) return;
 
         var container = await GetAsync();
         var adminConn = container.GetConnectionString();

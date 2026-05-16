@@ -63,7 +63,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseHangfireDashboard("/hangfire", new DashboardOptions
     {
-        Authorization = new[] { new HangfireLocalRequestFilter() }
+        Authorization = new[] { new Haworks.Scheduler.Api.HangfireLocalRequestFilter() }
     });
 }
 
@@ -71,20 +71,23 @@ app.Run();
 
 public partial class Program { }
 
-/// <summary>
-/// Hangfire dashboard authorization filter that restricts access to authenticated users
-/// or, in development, to local requests only.
-/// </summary>
-internal sealed class HangfireLocalRequestFilter : IDashboardAuthorizationFilter
+namespace Haworks.Scheduler.Api
 {
-    public bool Authorize(DashboardContext context)
+    /// <summary>
+    /// Hangfire dashboard authorization filter that restricts access to authenticated users
+    /// or, in development, to local requests only.
+    /// </summary>
+    internal sealed class HangfireLocalRequestFilter : IDashboardAuthorizationFilter
     {
-        var httpContext = context.GetHttpContext();
-        // Allow local loopback in development; require authentication otherwise.
-        var connection = httpContext.Connection;
-        bool isLocal = connection.RemoteIpAddress != null
-            && (connection.RemoteIpAddress.Equals(connection.LocalIpAddress)
-                || System.Net.IPAddress.IsLoopback(connection.RemoteIpAddress));
-        return isLocal && httpContext.User.IsInRole("admin");
+        public bool Authorize(DashboardContext context)
+        {
+            var httpContext = context.GetHttpContext();
+            // Allow local loopback in development; require authentication otherwise.
+            var connection = httpContext.Connection;
+            bool isLocal = connection.RemoteIpAddress != null
+                && (connection.RemoteIpAddress.Equals(connection.LocalIpAddress)
+                    || System.Net.IPAddress.IsLoopback(connection.RemoteIpAddress));
+            return isLocal && httpContext.User.IsInRole("admin");
+        }
     }
 }

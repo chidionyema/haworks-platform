@@ -56,7 +56,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
             CurrentPeriodEnd = periodEnd ?? DateTime.UtcNow.AddDays(30)
         });
 
-        await PollUntilAsync(() => SagaStateByProviderIdOrNull(providerSubId) == "Active",
+        await PollUntilAsync(() => string.Equals(SagaStateByProviderIdOrNull(providerSubId), "Active", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
 
         var saga = await ReadSagaByProviderIdAsync(providerSubId);
@@ -71,7 +71,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
             ProviderSubscriptionId = "ignored"
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Renewing",
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Renewing", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
     }
 
@@ -86,7 +86,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
             ErrorMessage = "Card expired"
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "GracePeriod",
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "GracePeriod", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
     }
 
@@ -185,7 +185,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
             ErrorMessage = "Your card has expired"
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "GracePeriod",
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "GracePeriod", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
 
         var saga = await ReadSagaAsync(sagaId);
@@ -213,7 +213,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         // TimeSpan.Zero delays deterministically).
         await PublishAsync(new SubscriptionRenewalScheduled(sagaId));
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Renewing",
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Renewing", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
 
         var saga = await ReadSagaAsync(sagaId);
@@ -246,7 +246,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
             NewPeriodEnd = newPeriodEnd
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Active",
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Active", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
 
         var saga = await ReadSagaAsync(sagaId);
@@ -272,7 +272,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
             ErrorMessage = "Not enough balance"
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "GracePeriod",
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "GracePeriod", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
 
         var saga = await ReadSagaAsync(sagaId);
@@ -330,7 +330,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
             ErrorCode = "Declined",
             ErrorMessage = "Attempt 1"
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "GracePeriod",
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "GracePeriod", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
 
         // Failures 2, 3, 4 in GracePeriod — retryCount goes to 2, 3, 4.
@@ -352,7 +352,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         await PollUntilAsync(() =>
         {
             var state = SagaStateOrNull(sagaId);
-            return state == "Canceled" || state is null; // null = finalized + removed
+            return string.Equals(state, "Canceled", StringComparison.Ordinal) || state is null; // null = finalized + removed
         }, TimeSpan.FromSeconds(15));
 
         // If the row still exists it must be Canceled; if it's gone, finalization completed.
@@ -380,7 +380,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
             RecoveredAt = DateTime.UtcNow
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Active",
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Active", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
 
         var saga = await ReadSagaAsync(sagaId);
@@ -409,7 +409,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
             NewPeriodEnd = newPeriodEnd
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Active",
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Active", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
 
         var saga = await ReadSagaAsync(sagaId);
@@ -433,7 +433,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         await PollUntilAsync(() =>
         {
             var state = SagaStateOrNull(sagaId);
-            return state == "Canceled" || state is null;
+            return string.Equals(state, "Canceled", StringComparison.Ordinal) || state is null;
         }, TimeSpan.FromSeconds(15));
 
         var saga = await ReadSagaAsync(sagaId);
@@ -458,7 +458,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         await PollUntilAsync(() =>
         {
             var state = SagaStateOrNull(sagaId);
-            return state == "Canceled" || state is null;
+            return string.Equals(state, "Canceled", StringComparison.Ordinal) || state is null;
         }, TimeSpan.FromSeconds(15));
 
         var saga = await ReadSagaAsync(sagaId);
@@ -483,7 +483,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         await PollUntilAsync(() =>
         {
             var state = SagaStateOrNull(sagaId);
-            return state == "Canceled" || state is null;
+            return string.Equals(state, "Canceled", StringComparison.Ordinal) || state is null;
         }, TimeSpan.FromSeconds(15));
 
         // If finalized and row removed, the second cancel has no saga to
@@ -503,7 +503,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
             {
                 var s = ReadSagaAsync(sagaId).GetAwaiter().GetResult();
                 // A second cancel should never move state away from Canceled/null
-                return s is not null && s.CurrentState != "Canceled";
+                return s is not null && !string.Equals(s.CurrentState, "Canceled", StringComparison.Ordinal);
             }, TimeSpan.FromSeconds(2));
             // If we get here the state unexpectedly changed — the assertion below will catch it
         }
@@ -537,7 +537,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         await PollUntilAsync(() =>
         {
             var state = SagaStateOrNull(sagaId);
-            return state == "Canceled" || state is null;
+            return string.Equals(state, "Canceled", StringComparison.Ordinal) || state is null;
         }, TimeSpan.FromSeconds(15));
 
         // Publish a late renewal event — should not resurrect the saga.
@@ -554,7 +554,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         // Settling time for negative assertion — we expect the state NOT to change to Active.
         try
         {
-            await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Active", TimeSpan.FromSeconds(2));
+            await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Active", StringComparison.Ordinal), TimeSpan.FromSeconds(2));
             // Getting here means the saga was wrongly resurrected — the assertion below catches it
         }
         catch (TimeoutException) { /* expected — late renewal was correctly discarded */ }
@@ -602,7 +602,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
             NewPeriodEnd = newPeriodEnd
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Active",
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Active", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
 
         var resumed = await ReadSagaAsync(sagaId);

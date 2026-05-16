@@ -25,7 +25,7 @@ public static class AuditCaptureRegistration
         // reflection.  The force-load above makes this reliable.
         var writerImplType = AppDomain.CurrentDomain.GetAssemblies()
             .SelectMany(a => a.GetTypes())
-            .FirstOrDefault(t => t.Name == "AuditWriter" && typeof(IAuditWriter).IsAssignableFrom(t));
+            .FirstOrDefault(t => string.Equals(t.Name, "AuditWriter", StringComparison.Ordinal) && typeof(IAuditWriter).IsAssignableFrom(t));
 
         if (writerImplType != null)
         {

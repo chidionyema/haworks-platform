@@ -34,10 +34,10 @@ public sealed class RoundedOutAuthFlowsTests : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
         _client?.Dispose();
-        await ((IAsyncLifetime)_factory).DisposeAsync();
+        return ((IAsyncLifetime)_factory).DisposeAsync();
     }
 
     [Fact]

@@ -48,11 +48,11 @@ public class SellersController(IMediator mediator) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(url)) return false;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
-        if (uri.Scheme != "https") return false;
+        if (!string.Equals(uri.Scheme, "https", StringComparison.Ordinal)) return false;
         // Block internal/metadata IPs
         if (uri.Host.StartsWith("169.254.", StringComparison.Ordinal) || uri.Host.StartsWith("10.", StringComparison.Ordinal) ||
-            uri.Host.StartsWith("172.", StringComparison.Ordinal) || uri.Host == "localhost" ||
-            uri.Host == "127.0.0.1" || uri.Host == "[::1]")
+            uri.Host.StartsWith("172.", StringComparison.Ordinal) || string.Equals(uri.Host, "localhost", StringComparison.Ordinal) ||
+string.Equals(uri.Host, "127.0.0.1", StringComparison.Ordinal) || string.Equals(uri.Host, "[::1]", StringComparison.Ordinal))
             return false;
         return true;
     }

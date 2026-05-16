@@ -67,7 +67,7 @@ internal sealed class PayPalPaymentProcessor(
         }
 
         // 3. Validate metadata if available
-        if (sessionEvent.Metadata.TryGetValue("orderId", out var orderId) && orderId != payment.OrderId.ToString())
+        if (sessionEvent.Metadata.TryGetValue("orderId", out var orderId) && !string.Equals(orderId, payment.OrderId.ToString(), StringComparison.Ordinal))
         {
             logger.LogCritical("OrderId mismatch for session {SessionId}", sessionEvent.SessionId);
             throw new InvalidOperationException("Session validation failed");
@@ -112,7 +112,7 @@ internal sealed class PayPalPaymentProcessor(
         if (string.IsNullOrEmpty(sessionId)) return false;
 
         var payment = await paymentRepository.GetByProviderSessionAsync(PaymentProvider.PayPal, sessionId, ct).ConfigureAwait(false);
-        if (payment == null || payment.UserId != userId) return false;
+        if (payment == null || !string.Equals(payment.UserId, userId, StringComparison.Ordinal)) return false;
 
         return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
         {
@@ -125,7 +125,7 @@ internal sealed class PayPalPaymentProcessor(
 
                 var responseStream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
                 var order = await JsonSerializer.DeserializeAsync<PayPalOrder>(responseStream, PayPalJsonOptions.Default, token).ConfigureAwait(false);
-                return order?.Status == PayPalOrderStatuses.Completed || order?.Status == PayPalOrderStatuses.Approved;
+                return string.Equals(order?.Status, PayPalOrderStatuses.Completed, StringComparison.Ordinal) || string.Equals(order?.Status, PayPalOrderStatuses.Approved, StringComparison.Ordinal);
             }
             catch (Exception ex)
             {

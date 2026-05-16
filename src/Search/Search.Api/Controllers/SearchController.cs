@@ -13,12 +13,10 @@ namespace Haworks.Search.Api.Controllers;
 public sealed class SearchController : ControllerBase
 {
     private readonly ISearchIndex _index;
-    private readonly ILogger<SearchController> _logger;
 
-    public SearchController(ISearchIndex index, ILogger<SearchController> logger)
+    public SearchController(ISearchIndex index)
     {
         _index = index;
-        _logger = logger;
     }
 
     [HttpGet]

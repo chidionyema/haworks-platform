@@ -37,7 +37,6 @@ public sealed class TemplateTests
             textFallback: "Order {{ order_id }} shipped",
             requiredVariables: OrderShippedRequired);
 
-        var renderer = new ScribanTemplateRenderer();
         var data = new Dictionary<string, object?>
         {
             ["order_id"] = "ABC-123",
@@ -46,7 +45,7 @@ public sealed class TemplateTests
             ["tracking_url"] = "https://track/ABC-123"
         };
 
-        var rendered = renderer.Render(template, data);
+        var rendered = ScribanTemplateRenderer.Render(template, data);
 
         rendered.Subject.Should().Be("Your order #ABC-123 has shipped via Royal Mail");
         rendered.Body.Should().Be("Hi Ada, track at https://track/ABC-123");
@@ -67,8 +66,7 @@ public sealed class TemplateTests
             textFallback: null,
             requiredVariables: WelcomeRequired);
 
-        var renderer = new ScribanTemplateRenderer();
-        var rendered = renderer.Render(template, new Dictionary<string, object?> { ["name"] = "Ada" });
+        var rendered = ScribanTemplateRenderer.Render(template, new Dictionary<string, object?> { ["name"] = "Ada" });
 
         rendered.Body.Should().Be("Welcome Ada");
         rendered.TextFallback.Should().BeNull();
@@ -88,14 +86,13 @@ public sealed class TemplateTests
             textFallback: null,
             requiredVariables: MissingTrackingRequired);
 
-        var renderer = new ScribanTemplateRenderer();
         var data = new Dictionary<string, object?>
         {
             ["order_id"] = "ABC-123"
             // tracking_url intentionally missing
         };
 
-        var act = () => renderer.Render(template, data);
+        var act = () => ScribanTemplateRenderer.Render(template, data);
 
         act.Should().Throw<ArgumentException>()
             .WithMessage("*missing variable: tracking_url*");
@@ -115,10 +112,9 @@ public sealed class TemplateTests
             textFallback: null,
             requiredVariables: SingleARequired);
 
-        var renderer = new ScribanTemplateRenderer();
         var data = new Dictionary<string, object?> { ["a"] = null };
 
-        var act = () => renderer.Render(template, data);
+        var act = () => ScribanTemplateRenderer.Render(template, data);
 
         act.Should().Throw<ArgumentException>()
             .WithMessage("*missing variable: a*");
@@ -138,8 +134,7 @@ public sealed class TemplateTests
             textFallback: null,
             requiredVariables: null);
 
-        var renderer = new ScribanTemplateRenderer();
-        var rendered = renderer.Render(template, new Dictionary<string, object?>());
+        var rendered = ScribanTemplateRenderer.Render(template, new Dictionary<string, object?>());
 
         rendered.Subject.Should().Be("static subject");
         rendered.Body.Should().Be("static body");

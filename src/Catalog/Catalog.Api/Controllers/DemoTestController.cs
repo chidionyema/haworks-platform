@@ -86,7 +86,11 @@ public sealed class DemoTestController(
             ? StatusCode(StatusCodes.Status503ServiceUnavailable, new { chaos = true, message = "Chaos injection active" })
             : Ok(new { chaos = false, healthy = true });
 
-    public sealed record ChaosRequest(string Scenario, int DurationSeconds);
+    public sealed record ChaosRequest
+    {
+        public required string Scenario { get; init; }
+        public required int DurationSeconds { get; init; }
+    }
 
     /// <summary>
     /// T2.6: real cache-stampede demo. Fires N concurrent reads through
@@ -111,7 +115,7 @@ public sealed class DemoTestController(
             return $"value-{Guid.NewGuid():N}";
         }
 
-        if (request.ProtectionMode == "singleflight")
+        if (string.Equals(request.ProtectionMode, "singleflight", StringComparison.Ordinal))
         {
             // HybridCache collapses concurrent factories for the same key.
             await Parallel.ForEachAsync(
@@ -142,7 +146,13 @@ public sealed class DemoTestController(
         });
     }
 
-    public sealed record StampedeRequest(int ConcurrentRequests, string CacheKey, string ProtectionMode, int SimulatedDbLatencyMs);
+    public sealed record StampedeRequest
+    {
+        public required int ConcurrentRequests { get; init; }
+        public required string CacheKey { get; init; }
+        public required string ProtectionMode { get; init; }
+        public required int SimulatedDbLatencyMs { get; init; }
+    }
 
     /// <summary>
     /// Idempotent demo-product seed for the cache-invalidation demo. The
@@ -165,7 +175,7 @@ public sealed class DemoTestController(
         const string ProductName = "Demo Widget";
 
         var existingCategories = await categories.ListAsync(ct);
-        var demoCategory = existingCategories.FirstOrDefault(c => c.Name == CategoryName);
+        var demoCategory = existingCategories.FirstOrDefault(c => string.Equals(c.Name, CategoryName, StringComparison.Ordinal));
         if (demoCategory is null)
         {
             var createCategoryResult = await mediator.Send(
@@ -179,7 +189,7 @@ public sealed class DemoTestController(
         }
 
         var existingProducts = await products.ListAsync(skip: 0, take: 100, categoryId: demoCategory!.Id, ct);
-        var demoProduct = existingProducts.FirstOrDefault(p => p.Name == ProductName);
+        var demoProduct = existingProducts.FirstOrDefault(p => string.Equals(p.Name, ProductName, StringComparison.Ordinal));
         if (demoProduct is null)
         {
             var createProductResult = await mediator.Send(

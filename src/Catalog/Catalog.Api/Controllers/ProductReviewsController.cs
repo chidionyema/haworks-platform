@@ -16,12 +16,10 @@ namespace Haworks.Catalog.Api.Controllers;
 public class ProductReviewsController : ControllerBase
 {
     private readonly IMediator _mediator;
-    private readonly ICurrentUserService _currentUserService;
 
-    public ProductReviewsController(IMediator mediator, ICurrentUserService currentUserService)
+    public ProductReviewsController(IMediator mediator)
     {
         _mediator = mediator;
-        _currentUserService = currentUserService;
     }
 
     [HttpGet]

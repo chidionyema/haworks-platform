@@ -20,7 +20,7 @@ public static class DependencyInjection
 
         services.AddScoped<IMerchantDbContext>(provider => provider.GetRequiredService<MerchantDbContext>());
 
-        if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Test")
+        if (!string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Test", StringComparison.Ordinal))
         {
             services.AddMassTransit(x =>
             {

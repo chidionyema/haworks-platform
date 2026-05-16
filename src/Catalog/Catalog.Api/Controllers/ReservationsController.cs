@@ -36,6 +36,7 @@ public sealed class ReservationsController(IMediator mediator) : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create(
         [FromBody] CreateReservationRequest body,
+        [FromHeader(Name = "X-Idempotency-Key")] string? idempotencyKey,
         CancellationToken ct)
     {
         // BFF-forwarded user id (A1/A4). Anonymous callers get the guest
@@ -44,9 +45,7 @@ public sealed class ReservationsController(IMediator mediator) : ControllerBase
         var userId = HttpContext.GetForwardedUserId();
         if (string.IsNullOrEmpty(userId)) userId = GuestUserId;
 
-        var clientKey = Request.Headers.TryGetValue("X-Idempotency-Key", out var hdr)
-            ? hdr.ToString()
-            : null;
+        var clientKey = string.IsNullOrEmpty(idempotencyKey) ? null : idempotencyKey;
 
         var items = (body.Items ?? Array.Empty<ReservationItemDto>())
             .Select(i => new ReservationItemDto(i.ProductId, i.ProductName ?? string.Empty, i.Quantity))
@@ -76,6 +75,7 @@ public sealed class ReservationsController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> Confirm(
         Guid reservationId,
         [FromBody] ConfirmReservationRequest body,
+        [FromHeader(Name = "X-Idempotency-Key")] string? idempotencyKey,
         CancellationToken ct)
     {
         var userId = HttpContext.GetForwardedUserId();
@@ -90,9 +90,7 @@ public sealed class ReservationsController(IMediator mediator) : ControllerBase
             return BadRequest(new { error = "Reservation.MissingEmail", message = "Email claim required." });
         }
 
-        var clientKey = Request.Headers.TryGetValue("X-Idempotency-Key", out var hdr)
-            ? hdr.ToString()
-            : null;
+        var clientKey = string.IsNullOrEmpty(idempotencyKey) ? null : idempotencyKey;
 
         var result = await mediator.Send(
             new ConfirmReservationCommand(
@@ -124,6 +122,8 @@ public sealed record CreateReservationRequest(
     IReadOnlyList<ReservationItemDto>? Items);
 
 /// <summary>Body for <c>POST /api/checkout/reservations/{id}/confirm</c>.</summary>
-public sealed record ConfirmReservationRequest(
-    decimal TotalAmount,
-    string Currency);
+public sealed record ConfirmReservationRequest
+{
+    public required decimal TotalAmount { get; init; }
+    public required string Currency { get; init; }
+}

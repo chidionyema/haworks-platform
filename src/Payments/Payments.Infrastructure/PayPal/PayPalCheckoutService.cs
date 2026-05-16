@@ -26,7 +26,7 @@ internal sealed class PayPalCheckoutService(
     private readonly BrandOptions _brand = brandOptions.Value;
 
     /// <inheritdoc />
-    public async Task<CheckoutSessionResult> CreateSessionAsync(
+    public Task<CheckoutSessionResult> CreateSessionAsync(
         CreateCheckoutSessionRequest request, 
         CancellationToken ct = default)
     {
@@ -40,7 +40,7 @@ internal sealed class PayPalCheckoutService(
         ValidateRedirectUrl(request.SuccessUrl, nameof(request.SuccessUrl));
         ValidateRedirectUrl(request.CancelUrl, nameof(request.CancelUrl));
 
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
         {
             var client = await clientFactory.GetAuthenticatedClientAsync(token);
 
@@ -99,7 +99,7 @@ internal sealed class PayPalCheckoutService(
             }
 
             var order = JsonSerializer.Deserialize<PayPalOrder>(responseBody, PayPalJsonOptions.Default);
-            var approvalLink = order?.Links?.FirstOrDefault(l => l.Rel == "approve");
+            var approvalLink = order?.Links?.FirstOrDefault(l => string.Equals(l.Rel, "approve", StringComparison.Ordinal));
 
             return new CheckoutSessionResult
             {
@@ -112,11 +112,11 @@ internal sealed class PayPalCheckoutService(
     }
 
     /// <inheritdoc />
-    public async Task<CheckoutSessionResult> CreateSubscriptionSessionAsync(
+    public Task<CheckoutSessionResult> CreateSubscriptionSessionAsync(
         CreateSubscriptionSessionRequest request, 
         CancellationToken ct = default)
     {
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
         {
             var client = await clientFactory.GetAuthenticatedClientAsync(token);
 
@@ -157,7 +157,7 @@ internal sealed class PayPalCheckoutService(
             }
 
             var sub = JsonSerializer.Deserialize<PayPalSubscription>(responseBody, PayPalJsonOptions.Default);
-            var approvalLink = sub?.Links?.FirstOrDefault(l => l.Rel == "approve");
+            var approvalLink = sub?.Links?.FirstOrDefault(l => string.Equals(l.Rel, "approve", StringComparison.Ordinal));
 
             return new CheckoutSessionResult
             {
@@ -234,7 +234,7 @@ internal sealed class PayPalCheckoutService(
         if (string.IsNullOrWhiteSpace(url)) return;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             throw new ArgumentException($"Invalid URL: {paramName}", paramName);
-        if (uri.Scheme != "https" && uri.Scheme != "http")
+        if (!string.Equals(uri.Scheme, "https", StringComparison.Ordinal) && !string.Equals(uri.Scheme, "http", StringComparison.Ordinal))
             throw new ArgumentException($"URL must use HTTPS: {paramName}", paramName);
         if (uri.Host is "localhost" or "127.0.0.1" or "0.0.0.0" || uri.Host.EndsWith(".internal", StringComparison.Ordinal))
             throw new ArgumentException($"URL must not point to internal hosts: {paramName}", paramName);

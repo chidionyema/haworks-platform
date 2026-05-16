@@ -39,7 +39,7 @@ internal sealed class GetProductReviewQueryHandler
         }
 
         // Only show approved reviews to non-admins unless it's their own review
-        if (!review.IsApproved && !request.IsAdmin && review.UserId != request.UserId)
+        if (!review.IsApproved && !request.IsAdmin && !string.Equals(review.UserId, request.UserId, StringComparison.Ordinal))
         {
             return Result.Failure<ProductReviewDto>(new Error("Reviews.NotFound", "Review not found"));
         }

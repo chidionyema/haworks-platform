@@ -62,7 +62,7 @@ public sealed class DependencyHealthProbe : IDependencyHealthProbe
         // Aggregate: any offline -> degraded; all online -> healthy. There's
         // no "down" state at the BFF level since the BFF itself answering
         // means "api" is online — true outage means we couldn't respond at all.
-        var aggregate = results.All(r => r.Status == "online") ? "healthy" : "degraded";
+        var aggregate = results.All(r => string.Equals(r.Status, "online", StringComparison.Ordinal)) ? "healthy" : "degraded";
 
         return new DependencySnapshot(results, aggregate, DateTime.UtcNow);
     }
@@ -70,31 +70,27 @@ public sealed class DependencyHealthProbe : IDependencyHealthProbe
     private static Task<DependencyStatus> ProbeApiAsync() =>
         Task.FromResult(new DependencyStatus("api", "BFF-WEB", "online", 0, null));
 
-    private async Task<DependencyStatus> ProbeHttpAsync(string id, string name, string clientName, CancellationToken ct) =>
-        await TimedAsync(id, name, async () =>
+    private Task<DependencyStatus> ProbeHttpAsync(string id, string name, string clientName, CancellationToken ct) =>
+        TimedAsync(id, name, async () =>
         {
             var client = _httpClientFactory.CreateClient(clientName);
-            // Aspire service-discovery resolves https+http://<svc> to whichever
-            // endpoint the target advertises. /health is provided by Aspire's
-            // ServiceDefaults.MapDefaultEndpoints — every platform service has it.
             using var resp = await client.GetAsync("/health", ct).ConfigureAwait(false);
             if (resp.IsSuccessStatusCode)
             {
                 return ("online", (string?)null);
             }
             return ("degraded", $"HTTP {(int)resp.StatusCode}");
-        }).ConfigureAwait(false);
+        });
 
-    private async Task<DependencyStatus> ProbeRabbitMqAsync() =>
-        await TimedAsync("mq", "RABBITMQ", async () =>
+    private Task<DependencyStatus> ProbeRabbitMqAsync() =>
+        TimedAsync("mq", "RABBITMQ", () =>
         {
             var bus = _services.GetService<IBus>();
-            if (bus is null) return ("offline", "IBus not registered");
-            if (bus.Address is null) return ("offline", "bus has no remote address");
+            if (bus is null) return Task.FromResult(("offline", (string?)"IBus not registered"));
+            if (bus.Address is null) return Task.FromResult(("offline", (string?)"bus has no remote address"));
 
-            await Task.CompletedTask;
-            return ("online", (string?)null);
-        }).ConfigureAwait(false);
+            return Task.FromResult(("online", (string?)null));
+        });
 
     private async Task<DependencyStatus> TimedAsync(
         string id,

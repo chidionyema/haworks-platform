@@ -74,7 +74,7 @@ internal sealed class StripeRefundService(
 
                 var payment = await paymentRepository.GetByProviderTransactionIdAsync(request.TransactionId, token);
                 
-                if (payment != null && refund.Status == "succeeded")
+                if (payment != null && string.Equals(refund.Status, "succeeded", StringComparison.Ordinal))
                 {
                     // Publish event for downstream consumers (e.g., Orders)
                     await eventPublisher.PublishAsync(new RefundIssuedEvent 

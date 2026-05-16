@@ -121,10 +121,10 @@ public class NotificationsDbContext : DbContext
         modelBuilder.AddOutboxMessageEntity();
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         StampAuditFields();
-        return await base.SaveChangesAsync(cancellationToken);
+        return base.SaveChangesAsync(cancellationToken);
     }
 
     private void StampAuditFields()

@@ -98,9 +98,9 @@ public sealed class VideoProcessor(
         }
     }
 
-    private async Task DownloadToFileAsync(string s3Key, string filePath, CancellationToken ct)
+    private Task DownloadToFileAsync(string s3Key, string filePath, CancellationToken ct)
     {
-        await s3.DownloadToFileAsync(s3Key, filePath, ct);
+        return s3.DownloadToFileAsync(s3Key, filePath, ct);
     }
 
     private async Task UploadFileAsync(string filePath, string s3Key, string mimeType, CancellationToken ct)
@@ -109,11 +109,11 @@ public sealed class VideoProcessor(
         await s3.UploadAsync(s3Key, mimeType, fs, ct);
     }
 
-    private static async Task WriteMasterPlaylistAsync(
+    private static Task WriteMasterPlaylistAsync(
         string path, IReadOnlyList<MediaVariant> variants, CancellationToken ct)
     {
         var lines = new List<string> { "#EXTM3U" };
-        foreach (var v in variants.Where(v => v.Kind.StartsWith("hls-", StringComparison.Ordinal) && v.Kind != "hls-master"))
+        foreach (var v in variants.Where(v => v.Kind.StartsWith("hls-", StringComparison.Ordinal) && !string.Equals(v.Kind, "hls-master", StringComparison.Ordinal)))
         {
             var bandwidth = v.Kind switch
             {
@@ -127,6 +127,6 @@ public sealed class VideoProcessor(
             lines.Add($"#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION=x{v.Height}");
             lines.Add($"{tierName}/{tierName}.m3u8");
         }
-        await File.WriteAllLinesAsync(path, lines, ct);
+        return File.WriteAllLinesAsync(path, lines, ct);
     }
 }

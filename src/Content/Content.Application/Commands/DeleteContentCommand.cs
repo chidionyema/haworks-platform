@@ -21,7 +21,7 @@ internal sealed class DeleteContentCommandHandler(
             return Result.Failure(Error.Content.NotFound);
         }
 
-        if (content.OwnerUserId != request.OwnerUserId)
+        if (!string.Equals(content.OwnerUserId, request.OwnerUserId, StringComparison.Ordinal))
         {
             return Result.Failure(Error.Content.Forbidden);
         }

@@ -48,7 +48,7 @@ public class WebhooksControllerTests
         _sut.Request.Headers["X-Twilio-Email-Event-Webhook-Signature"] = "sig";
         _sut.Request.Headers["X-Twilio-Email-Event-Webhook-Timestamp"] = "ts";
 
-        var result = await _sut.SendGrid(CancellationToken.None);
+        var result = await _sut.SendGrid("sig", "ts", CancellationToken.None);
 
         // Signature won't match (test uses fake sig), so controller rejects
         result.Should().BeOfType<BadRequestObjectResult>();

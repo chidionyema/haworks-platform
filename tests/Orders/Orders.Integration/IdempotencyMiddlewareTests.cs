@@ -17,9 +17,9 @@ public sealed class IdempotencyMiddlewareTests(OrdersWebAppFactory factory) : IA
 {
     private readonly HttpClient _client = factory.CreateClient();
 
-    public async Task InitializeAsync()
+    public Task InitializeAsync()
     {
-        await factory.EnsureSchemaAsync();
+        return factory.EnsureSchemaAsync();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;

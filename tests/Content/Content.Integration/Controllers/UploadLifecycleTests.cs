@@ -205,10 +205,10 @@ public sealed class UploadLifecycleTests : IClassFixture<ContentWebAppFactory>, 
         var s3 = BuildSideChannelS3();
         var beforeUploads = await s3.ListMultipartUploadsAsync(new ListMultipartUploadsRequest
         {
-            BucketName = _factory.Bucket,
+            BucketName = ContentWebAppFactory.Bucket,
         });
         beforeUploads.MultipartUploads
-            .Any(u => u.UploadId == init.UploadId).Should().BeTrue(
+            .Any(u => string.Equals(u.UploadId, init.UploadId, StringComparison.Ordinal)).Should().BeTrue(
                 "the multipart upload should be live in S3 right after Init");
 
         // Manually shift CreatedAt back past the sweeper's TTL — the
@@ -249,10 +249,10 @@ public sealed class UploadLifecycleTests : IClassFixture<ContentWebAppFactory>, 
         // The S3 multipart upload should no longer exist.
         var afterUploads = await s3.ListMultipartUploadsAsync(new ListMultipartUploadsRequest
         {
-            BucketName = _factory.Bucket,
+            BucketName = ContentWebAppFactory.Bucket,
         });
         afterUploads.MultipartUploads
-            .Any(u => u.UploadId == init.UploadId).Should().BeFalse(
+            .Any(u => string.Equals(u.UploadId, init.UploadId, StringComparison.Ordinal)).Should().BeFalse(
                 "AbortMultipartUpload should have torn down the abandoned upload in S3");
     }
 
@@ -341,11 +341,11 @@ public sealed class UploadLifecycleTests : IClassFixture<ContentWebAppFactory>, 
         return new AmazonS3Client("test", "test", cfg);
     }
 
-    private async Task<bool> ObjectExistsAsync(IAmazonS3 s3, string key)
+    private static async Task<bool> ObjectExistsAsync(IAmazonS3 s3, string key)
     {
         try
         {
-            await s3.GetObjectMetadataAsync(_factory.Bucket, key);
+            await s3.GetObjectMetadataAsync(ContentWebAppFactory.Bucket, key);
             return true;
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)

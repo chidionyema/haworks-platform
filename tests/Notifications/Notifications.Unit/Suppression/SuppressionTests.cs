@@ -148,24 +148,24 @@ public class SuppressionTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public async Task AddAsync_BlankRecipient_Throws(string? recipient)
+    public Task AddAsync_BlankRecipient_Throws(string? recipient)
     {
         var sut = BuildSut();
 
         var act = () => sut.AddAsync(recipient!, NotificationChannel.Email, "reason", null, CancellationToken.None);
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        return act.Should().ThrowAsync<ArgumentException>();
     }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public async Task AddAsync_BlankReason_Throws(string? reason)
+    public Task AddAsync_BlankReason_Throws(string? reason)
     {
         var sut = BuildSut();
 
         var act = () => sut.AddAsync("u@e.com", NotificationChannel.Email, reason!, null, CancellationToken.None);
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        return act.Should().ThrowAsync<ArgumentException>();
     }
 }

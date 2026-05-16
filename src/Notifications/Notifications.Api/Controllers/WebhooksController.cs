@@ -31,13 +31,13 @@ public sealed class WebhooksController(
             // TODO: Verify signature properly in V4
             // if (!snsMessage.IsSignatureValid()) ...
 
-            if (snsMessage.Type == "SubscriptionConfirmation")
+            if (string.Equals(snsMessage.Type, "SubscriptionConfirmation", StringComparison.Ordinal))
             {
                 logger.LogInformation("SES SNS subscription confirmation received");
                 return Ok();
             }
 
-            if (snsMessage.Type == "Notification")
+            if (string.Equals(snsMessage.Type, "Notification", StringComparison.Ordinal))
             {
                 using var doc = JsonDocument.Parse(snsMessage.MessageText);
                 var root = doc.RootElement;
@@ -59,10 +59,11 @@ public sealed class WebhooksController(
     }
 
     [HttpPost("sendgrid")]
-    public async Task<IActionResult> SendGrid(CancellationToken ct)
+    public async Task<IActionResult> SendGrid(
+        [FromHeader(Name = "X-Twilio-Email-Event-Webhook-Signature")] string signature,
+        [FromHeader(Name = "X-Twilio-Email-Event-Webhook-Timestamp")] string timestamp,
+        CancellationToken ct)
     {
-        var signature = Request.Headers["X-Twilio-Email-Event-Webhook-Signature"].ToString();
-        var timestamp = Request.Headers["X-Twilio-Email-Event-Webhook-Timestamp"].ToString();
         
         var rawPayload = await ReadRawBodyAsync(ct);
         
@@ -93,10 +94,11 @@ public sealed class WebhooksController(
     }
 
     [HttpPost("twilio")]
-    public async Task<IActionResult> Twilio(CancellationToken ct)
+    public async Task<IActionResult> Twilio(
+        [FromHeader(Name = "X-Twilio-Signature")] string signature,
+        CancellationToken ct)
     {
-        var signature = Request.Headers["X-Twilio-Signature"].ToString();
-        var url = Request.Scheme + "://" + Request.Host + Request.Path + Request.QueryString;
+        var url = $"{Request.Scheme}://{Request.Host}{Request.Path}{Request.QueryString}";
         
         var form = await Request.ReadFormAsync(ct);
         var dict = form.ToDictionary(x => x.Key, x => x.Value.ToString());
@@ -137,7 +139,7 @@ public sealed class WebhooksController(
         }
     }
 
-    private async Task PublishValidatedAsync(
+    private Task PublishValidatedAsync(
         string provider,
         string providerEventId,
         string eventType,
@@ -154,7 +156,7 @@ public sealed class WebhooksController(
             Signature = signature,
         };
 
-        await publishEndpoint.Publish(evt, context =>
+        return publishEndpoint.Publish(evt, context =>
         {
             context.MessageId = DeterministicGuidFor(provider, providerEventId);
         }, ct);

@@ -179,7 +179,7 @@ public class JwtTokenService : IJwtTokenService
             HttpOnly = true,
             Secure = _environment.IsProduction(),
             SameSite = SameSiteMode.Strict,
-            Expires = token.ValidTo,
+            Expires = new DateTimeOffset(token.ValidTo, TimeSpan.Zero),
             Path = "/",
             IsEssential = true
         };

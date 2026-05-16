@@ -6,9 +6,9 @@ namespace Haworks.Notifications.Infrastructure.Persistence;
 
 internal sealed class NotificationRepository(NotificationsDbContext dbContext) : INotificationRepository
 {
-    public async Task<Guid?> FindIdByIdempotencyKeyAsync(string idempotencyKey, CancellationToken ct)
+    public Task<Guid?> FindIdByIdempotencyKeyAsync(string idempotencyKey, CancellationToken ct)
     {
-        return await dbContext.Notifications
+        return dbContext.Notifications
             .AsNoTracking()
             .Where(n => n.IdempotencyKey == idempotencyKey)
             .Select(n => (Guid?)n.Id)
@@ -20,22 +20,22 @@ internal sealed class NotificationRepository(NotificationsDbContext dbContext) :
         dbContext.Notifications.Add(notification);
     }
 
-    public async Task<Notification?> GetByIdAsync(Guid id, CancellationToken ct)
+    public Task<Notification?> GetByIdAsync(Guid id, CancellationToken ct)
     {
-        return await dbContext.Notifications
+        return dbContext.Notifications
             .Include(n => n.DeliveryAttempts)
             .FirstOrDefaultAsync(n => n.Id == id, ct);
     }
 
-    public async Task<Notification?> GetByProviderMessageIdAsync(string providerMessageId, CancellationToken ct)
+    public Task<Notification?> GetByProviderMessageIdAsync(string providerMessageId, CancellationToken ct)
     {
-        return await dbContext.Notifications
+        return dbContext.Notifications
             .Include(n => n.DeliveryAttempts)
             .FirstOrDefaultAsync(n => n.ProviderMessageId == providerMessageId, ct);
     }
 
-    public async Task<int> SaveChangesAsync(CancellationToken ct)
+    public Task<int> SaveChangesAsync(CancellationToken ct)
     {
-        return await dbContext.SaveChangesAsync(ct);
+        return dbContext.SaveChangesAsync(ct);
     }
 }

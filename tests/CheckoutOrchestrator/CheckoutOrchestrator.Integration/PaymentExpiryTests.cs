@@ -52,7 +52,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
             OrderId = orderId,
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Abandoned", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Abandoned", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var sagaState = await ReadSagaAsync(sagaId);
         sagaState!.FailureReason.Should().Contain("PaymentExpired");
@@ -81,7 +81,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
             SessionId = "sess_test", CheckoutUrl = "https://stripe.test/sess_test",
             Provider = "Stripe", Amount = 25.50m, Currency = "USD",
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "ReadyForPayment", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "ReadyForPayment", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         await PublishAsync(new PaymentExpiredEvent
         {
@@ -89,7 +89,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
             OrderId = orderId,
         });
 
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Abandoned", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Abandoned", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var sagaState = await ReadSagaAsync(sagaId);
         sagaState!.FailureReason.Should().Contain("PaymentExpired");
@@ -115,7 +115,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
         var (sagaId, orderId, _) = await DriveSagaToStockReservedAsync();
 
         await PublishAsync(new PaymentExpiredEvent { SagaId = sagaId, OrderId = orderId });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Abandoned", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Abandoned", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         var releaseCountBefore = harness.Published.Select<StockReleaseRequestedEvent>()
@@ -150,7 +150,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
             IdempotencyKey = "key-" + Guid.NewGuid().ToString("N"),
             IsGuest = false,
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "Initiated", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         await PublishAsync(new StockReservedEvent
         {
@@ -165,7 +165,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
                 ProductId = productId, ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
             }},
         });
-        await PollUntilAsync(() => SagaStateOrNull(sagaId) == "StockReservedState", TimeSpan.FromSeconds(15));
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         return (sagaId, orderId, productId);
     }

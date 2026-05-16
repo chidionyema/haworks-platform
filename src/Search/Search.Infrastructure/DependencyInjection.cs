@@ -43,7 +43,7 @@ public static class DependencyInjection
         services.AddHttpClient<ICatalogProductsApi, CatalogProductsApiClient>((sp, c) =>
         {
             c.BaseAddress = new Uri(configuration["Catalog:BaseAddress"]
-                ?? "http://haworks-catalog.flycast:8080");
+                ?? throw new InvalidOperationException("Catalog:BaseAddress configuration is required"));
             var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
             c.Timeout = TimeSpan.FromSeconds(t.SearchCatalogSeconds);
         });

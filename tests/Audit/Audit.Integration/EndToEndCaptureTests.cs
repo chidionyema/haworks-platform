@@ -30,7 +30,7 @@ public sealed class EndToEndCaptureTests : IClassFixture<AuditWebAppFactory>
         var dbContext = scope.ServiceProvider.GetRequiredService<AuditDbContext>();
 
         // Clean slate — truncate audit events from previous runs
-        try { await dbContext.Database.ExecuteSqlRawAsync("TRUNCATE TABLE audit.audit_events CASCADE"); } catch { }
+        try { await dbContext.Database.ExecuteSqlRawAsync("TRUNCATE TABLE audit.audit_events CASCADE"); } catch (Exception) { /* table may not exist yet */ }
 
         var orderId = Guid.NewGuid();
         var paymentId = Guid.NewGuid();

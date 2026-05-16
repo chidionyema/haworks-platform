@@ -111,4 +111,8 @@ public sealed class AdminController(
     }
 }
 
-public sealed record DemoEventRequest(Guid SessionId, string? Payload);
+public sealed record DemoEventRequest
+{
+    public required Guid SessionId { get; init; }
+    public string? Payload { get; init; }
+}

@@ -7,7 +7,7 @@ namespace Haworks.BuildingBlocks.Testing.Containers;
 /// Lazy-singleton PostGIS container for services that need geospatial
 /// extensions (e.g. Location). Same reuse pattern as <see cref="SharedTestPostgres"/>.
 /// </summary>
-public static class SharedTestPostGIS
+public static class SharedTestPostGis
 {
     private static readonly SemaphoreSlim _gate = new(1, 1);
     private static PostgreSqlContainer? _container;
@@ -17,7 +17,7 @@ public static class SharedTestPostGIS
         if (_container is { State: DotNet.Testcontainers.Containers.TestcontainersStates.Running })
             return _container;
         if (!await _gate.WaitAsync(TimeSpan.FromMinutes(5)))
-            throw new TimeoutException("SharedTestPostGIS container gate timed out after 5 minutes");
+            throw new TimeoutException("SharedTestPostGis container gate timed out after 5 minutes");
         try
         {
             if (_container is null)

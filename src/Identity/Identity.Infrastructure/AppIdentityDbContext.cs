@@ -18,7 +18,6 @@ public class AppIdentityDbContext : IdentityDbContext<User>
     private readonly IHostEnvironment _environment;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ICurrentUserService _currentUserService;
-    private readonly ILogger<AppIdentityDbContext> _logger;
 
     public AppIdentityDbContext(
         DbContextOptions<AppIdentityDbContext> options,
@@ -31,10 +30,6 @@ public class AppIdentityDbContext : IdentityDbContext<User>
         _environment = environment;
         _loggerFactory = loggerFactory;
         _currentUserService = currentUserService;
-        _logger = logger;
-
-        ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.TrackAll;
-        ChangeTracker.LazyLoadingEnabled = false;
     }
 
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
@@ -44,6 +39,9 @@ public class AppIdentityDbContext : IdentityDbContext<User>
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);
+
+        ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.TrackAll;
+        ChangeTracker.LazyLoadingEnabled = false;
 
         optionsBuilder.UseLoggerFactory(_loggerFactory);
 
@@ -196,10 +194,10 @@ public class AppIdentityDbContext : IdentityDbContext<User>
         });
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         AddAuditInfo();
-        return await base.SaveChangesAsync(cancellationToken);
+        return base.SaveChangesAsync(cancellationToken);
     }
 
     private void AddAuditInfo()

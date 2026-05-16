@@ -26,12 +26,12 @@ public sealed class SuppressionService : ISuppressionService
     }
 
     /// <inheritdoc />
-    public async Task<bool> IsSuppressedAsync(string recipient, NotificationChannel channel, CancellationToken ct)
+    public Task<bool> IsSuppressedAsync(string recipient, NotificationChannel channel, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(recipient);
 
         var hash = HashRecipient(recipient, channel);
-        return await _repository.ExistsAsync(hash, channel).ConfigureAwait(false);
+        return _repository.ExistsAsync(hash, channel);
     }
 
     /// <inheritdoc />

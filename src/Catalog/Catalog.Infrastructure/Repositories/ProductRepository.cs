@@ -135,12 +135,11 @@ internal sealed class ProductRepository(CatalogDbContext db) : IProductRepositor
             await tx.CommitAsync(ct);
             return reservation;
         }
-        catch
+        finally
         {
             // EF disposes the txn on dispose; explicit rollback above for
             // the InsufficientStockException path means double-rollback is
             // safe (BeginTransactionAsync no-ops after commit/rollback).
-            throw;
         }
     }
 

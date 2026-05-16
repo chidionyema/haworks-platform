@@ -27,7 +27,7 @@ public static class DependencyInjection
         services.AddScoped<IPayoutGateway, StripePayoutGateway>();
         services.AddScoped<Haworks.Payouts.Application.Ledger.Services.ILedgerService, Haworks.Payouts.Application.Ledger.Services.LedgerService>();
         services.AddScoped<Haworks.Payouts.Application.Disbursements.Services.IDisbursementService, Haworks.Payouts.Application.Disbursements.Services.DisbursementService>();
-        if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Test")
+        if (!string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Test", StringComparison.Ordinal))
         {
             services.AddMassTransit(x => {
                 x.SetKebabCaseEndpointNameFormatter();
@@ -49,7 +49,7 @@ public static class DependencyInjection
                 });
             });
         }
-        if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Test")
+        if (!string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Test", StringComparison.Ordinal))
         {
             services.AddHangfire(config => config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180).UseSimpleAssemblyNameTypeSerializer().UseRecommendedSerializerSettings().UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString)));
             services.AddHangfireServer();

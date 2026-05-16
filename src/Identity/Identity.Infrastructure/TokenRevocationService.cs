@@ -115,6 +115,6 @@ public class TokenRevocationService : ITokenRevocationService
     private sealed record RevokedTokenMarker
     {
         public static readonly RevokedTokenMarker Instance = new();
-        public bool IsRevoked => true;
+        public static bool IsRevoked => true;
     }
 }

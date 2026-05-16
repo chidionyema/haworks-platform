@@ -13,17 +13,15 @@ public class LedgerIntegrationTests : IAsyncLifetime
     private readonly PayoutsWebAppFactory _factory;
     private readonly IServiceScope _scope;
     private readonly ILedgerService _ledgerService;
-    private readonly IPayoutsDbContext _context;
 
     public LedgerIntegrationTests(PayoutsWebAppFactory factory)
     {
         _factory = factory;
         _scope = _factory.Services.CreateScope();
         _ledgerService = _scope.ServiceProvider.GetRequiredService<ILedgerService>();
-        _context = _scope.ServiceProvider.GetRequiredService<IPayoutsDbContext>();
     }
 
-    public async Task InitializeAsync() => await _factory.EnsureSchemaAsync();
+    public Task InitializeAsync() => _factory.EnsureSchemaAsync();
     public Task DisposeAsync() { _scope.Dispose(); return Task.CompletedTask; }
 
     [Fact]

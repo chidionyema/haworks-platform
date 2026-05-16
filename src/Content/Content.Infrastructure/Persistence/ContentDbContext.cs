@@ -27,9 +27,6 @@ public class ContentDbContext : DbContext
         _environment = environment;
         _loggerFactory = loggerFactory;
         _currentUserService = currentUserService;
-
-        ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.TrackAll;
-        ChangeTracker.LazyLoadingEnabled = false;
     }
 
     public DbSet<ContentEntity> Contents => Set<ContentEntity>();
@@ -39,6 +36,9 @@ public class ContentDbContext : DbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);
+
+        ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.TrackAll;
+        ChangeTracker.LazyLoadingEnabled = false;
 
         optionsBuilder.UseLoggerFactory(_loggerFactory);
 
@@ -190,10 +190,10 @@ public class ContentDbContext : DbContext
         });
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         AddAuditInfo();
-        return await base.SaveChangesAsync(cancellationToken);
+        return base.SaveChangesAsync(cancellationToken);
     }
 
     private void AddAuditInfo()

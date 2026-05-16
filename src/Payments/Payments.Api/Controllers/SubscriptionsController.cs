@@ -75,10 +75,12 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
     }
 }
 
-public sealed record CreateSubscriptionCheckoutRequest(
-    string PriceId,
-    decimal Amount,
-    string? RedirectPath);
+public sealed record CreateSubscriptionCheckoutRequest
+{
+    public required string PriceId { get; init; }
+    public required decimal Amount { get; init; }
+    public string? RedirectPath { get; init; }
+}
 
 public sealed record CancelSubscriptionRequest(string SubscriptionId, bool Immediate = false);
 public sealed record ResumeSubscriptionRequest(string SubscriptionId);

@@ -18,7 +18,7 @@ public sealed class CreateWebhookSubscriptionValidator : AbstractValidator<Creat
             .Must(url =>
             {
                 if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
-                return uri.Scheme == "https";
+                return string.Equals(uri.Scheme, "https", StringComparison.Ordinal);
             })
             .WithMessage("Only HTTPS URLs are allowed.")
             .Must(url =>
@@ -79,7 +79,7 @@ public sealed class UpdateWebhookSubscriptionValidator : AbstractValidator<Updat
             .Must(url =>
             {
                 if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
-                return uri.Scheme == "https";
+                return string.Equals(uri.Scheme, "https", StringComparison.Ordinal);
             })
             .WithMessage("Only HTTPS URLs are allowed.")
             .Must(url =>

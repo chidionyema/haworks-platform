@@ -22,7 +22,7 @@ public sealed class E2EEnvironmentFixture : IAsyncLifetime
     public static bool IsEnabled =>
         !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("E2E_TARGET_URL")) ||
         !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")) ||
-        Environment.GetEnvironmentVariable("E2E_ENABLED") == "1";
+string.Equals(Environment.GetEnvironmentVariable("E2E_ENABLED"), "1", StringComparison.Ordinal);
 
     public string BaseUrl => _baseUrl ?? "http://not-initialized";
     public IPlaywright Playwright => _playwright ?? throw new InvalidOperationException("Playwright not initialized — E2E tests require E2E_ENABLED=1 or CI environment");

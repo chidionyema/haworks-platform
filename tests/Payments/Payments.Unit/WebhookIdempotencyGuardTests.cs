@@ -22,7 +22,7 @@ public class WebhookIdempotencyGuardTests
         _paymentRepositoryMock = new Mock<IPaymentRepository>();
         _cacheMock = new Mock<IDistributedCache>();
         _loggerMock = new Mock<ILogger<WebhookIdempotencyGuard>>();
-        _guard = new WebhookIdempotencyGuard(_paymentRepositoryMock.Object, _cacheMock.Object, _loggerMock.Object);
+        _guard = new WebhookIdempotencyGuard(_paymentRepositoryMock.Object, _cacheMock.Object);
     }
 
     [Fact]

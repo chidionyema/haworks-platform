@@ -23,6 +23,6 @@ internal static class StripeValidationHelper
             return false;
         }
 
-        return sessionOrderId == paymentRecord.OrderId.ToString();
+        return string.Equals(sessionOrderId, paymentRecord.OrderId.ToString(), StringComparison.Ordinal);
     }
 }

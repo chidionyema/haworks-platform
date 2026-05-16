@@ -110,7 +110,7 @@ public class Product : AuditableEntity
 
     public void AddMetadata(string key, string value)
     {
-        var existing = _metadata.FirstOrDefault(m => m.KeyName == key);
+        var existing = _metadata.FirstOrDefault(m => string.Equals(m.KeyName, key, StringComparison.Ordinal));
         if (existing != null)
         {
             existing.UpdateValue(value);

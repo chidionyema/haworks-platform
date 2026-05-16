@@ -47,7 +47,7 @@ public sealed class CategoryEventsTests : IAsyncLifetime
 
         var listing = await _client.GetFromJsonAsync<CategoryDto[]>("/api/categories");
         listing.Should().NotBeNull();
-        var created = listing!.Single(c => c.Name == originalName);
+        var created = listing!.Single(c => string.Equals(c.Name, originalName, StringComparison.Ordinal));
 
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         var publishedBefore = harness.Published.Select<CategoryUpdatedEvent>().Count();

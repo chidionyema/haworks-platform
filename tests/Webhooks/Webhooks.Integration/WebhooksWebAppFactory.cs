@@ -75,7 +75,7 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
         // CreateTablesAsync creates only the model's tables regardless.
         var creator = db.Database.GetService<Microsoft.EntityFrameworkCore.Storage.IRelationalDatabaseCreator>();
         try { await creator.CreateTablesAsync(); }
-        catch (Npgsql.PostgresException ex) when (ex.SqlState == "42P07") { /* tables already exist */ }
+        catch (Npgsql.PostgresException ex) when (string.Equals(ex.SqlState, "42P07", StringComparison.Ordinal)) { /* tables already exist */ }
     }
 
     async Task IAsyncLifetime.DisposeAsync()

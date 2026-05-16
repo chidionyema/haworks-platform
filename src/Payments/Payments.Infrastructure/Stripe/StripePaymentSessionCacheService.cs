@@ -86,7 +86,7 @@ internal sealed class StripePaymentSessionCacheService : IPaymentSessionCache
     {
         // For this platform, we'll assume UserId can be compared directly.
         // Guest user logic would be handled by the caller or a constant if needed.
-        return cached.UserId == userId;
+        return string.Equals(cached.UserId, userId, StringComparison.Ordinal);
     }
 
     private static string BuildCacheKey(string sessionId) =>

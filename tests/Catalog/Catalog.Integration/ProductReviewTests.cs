@@ -19,9 +19,9 @@ public sealed class ProductReviewTests(CatalogWebAppFactory factory) : IAsyncLif
 {
     private readonly HttpClient _client = factory.CreateClient();
 
-    public async Task InitializeAsync()
+    public Task InitializeAsync()
     {
-        await factory.EnsureSchemaAsync();
+        return factory.EnsureSchemaAsync();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
