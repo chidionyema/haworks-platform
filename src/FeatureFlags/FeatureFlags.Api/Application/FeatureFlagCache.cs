@@ -28,7 +28,7 @@ public class FeatureFlagCache : IFeatureFlagCache
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FeatureFlagsDbContext>();
-        
+
         var flags = await db.FeatureFlags.Include(x => x.Rules).ToListAsync(ct);
         foreach (var flag in flags)
         {
