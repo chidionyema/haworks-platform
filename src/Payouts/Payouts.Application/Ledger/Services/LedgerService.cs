@@ -11,6 +11,7 @@ public interface ILedgerService
     Task CreditSellerAsync(Guid sellerId, decimal amount, string currency, Guid referenceId, string description, CancellationToken ct = default);
     Task DebitSellerAsync(Guid sellerId, decimal amount, string currency, Guid referenceId, string description, CancellationToken ct = default);
     Task<decimal> GetBalanceAsync(Guid sellerId, AccountType type, string currency, CancellationToken ct = default);
+    Task<bool> HasCreditForReferenceAsync(Guid referenceId, CancellationToken ct = default);
 }
 
 public class LedgerService : ILedgerService
@@ -152,6 +153,11 @@ public class LedgerService : ILedgerService
             await tx.RollbackAsync(ct);
             throw;
         }
+    }
+
+    public async Task<bool> HasCreditForReferenceAsync(Guid referenceId, CancellationToken ct = default)
+    {
+        return await _context.LedgerEntries.AnyAsync(e => e.ReferenceId == referenceId.ToString(), ct);
     }
 
     public async Task<decimal> GetBalanceAsync(Guid sellerId, AccountType type, string currency, CancellationToken ct = default)
