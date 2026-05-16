@@ -4,6 +4,8 @@ using Haworks.BuildingBlocks.Extensions;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Startup;
 using Haworks.Media.Api.Infrastructure;
+using Haworks.Media.Api.Infrastructure.Workers;
+using Haworks.Media.Api.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Serilog;
@@ -31,6 +33,12 @@ builder.Services.AddDbContext<MediaDbContext>(options =>
 // ── Health checks ──
 builder.Services.AddHealthChecks()
     .AddDbHealthCheck<MediaDbContext>();
+
+// ── Upload options ──
+builder.Services.AddOptions<UploadOptions>()
+    .Bind(builder.Configuration.GetSection(UploadOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 // ── S3 storage ──
 builder.Services.AddOptions<MediaStorageOptions>()
@@ -80,6 +88,12 @@ builder.Services.AddMediatR(cfg =>
 });
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+
+// ── Background workers ──
+if (!builder.Environment.IsEnvironment("Test"))
+{
+    builder.Services.AddHostedService<UploadSweeperWorker>();
+}
 
 // ── Startup task runner (EF migrations with retry) ──
 builder.Services.AddStartupTaskRunner();

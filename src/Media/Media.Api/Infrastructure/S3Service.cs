@@ -8,6 +8,10 @@ public interface IS3Service
 {
     string GeneratePreSignedUrl(string key, string mimeType);
     Task<Stream> DownloadAsync(string key, CancellationToken ct);
+    Task<string> InitiateMultipartUploadAsync(string key, string mimeType, CancellationToken ct);
+    string GeneratePartPresignedUrl(string key, string uploadId, int partNumber);
+    Task CompleteMultipartUploadAsync(string key, string uploadId, IList<PartETag> parts, CancellationToken ct);
+    Task AbortMultipartUploadAsync(string key, string uploadId, CancellationToken ct);
 }
 
 /// <summary>
@@ -72,8 +76,6 @@ public class S3Service : IS3Service
     {
         if (!_opts.Enabled)
         {
-            // Dev / CI environments without an S3 backend — return a placeholder
-            // so the rest of the flow (deduplication, metadata persistence) still works.
             return $"https://s3-disabled.local/{_opts.BucketName}/{key}";
         }
 
@@ -88,5 +90,60 @@ public class S3Service : IS3Service
         };
 
         return _s3.GetPreSignedURL(req);
+    }
+
+    public async Task<string> InitiateMultipartUploadAsync(string key, string mimeType, CancellationToken ct)
+    {
+        if (!_opts.Enabled) return $"disabled-upload-{Guid.NewGuid()}";
+
+        var response = await _s3.InitiateMultipartUploadAsync(new InitiateMultipartUploadRequest
+        {
+            BucketName = _opts.BucketName,
+            Key = key,
+            ContentType = mimeType,
+        }, ct);
+        return response.UploadId;
+    }
+
+    public string GeneratePartPresignedUrl(string key, string uploadId, int partNumber)
+    {
+        if (!_opts.Enabled) return $"https://s3-disabled.local/{_opts.BucketName}/{key}?partNumber={partNumber}";
+
+        var req = new GetPreSignedUrlRequest
+        {
+            BucketName = _opts.BucketName,
+            Key = key,
+            Verb = HttpVerb.PUT,
+            Expires = DateTime.UtcNow.AddMinutes(_opts.PresignedUrlExpiryMinutes),
+            Protocol = _presignProtocol,
+        };
+        req.Headers["uploadId"] = uploadId;
+        req.Headers["partNumber"] = partNumber.ToString();
+        return _s3.GetPreSignedURL(req);
+    }
+
+    public async Task CompleteMultipartUploadAsync(string key, string uploadId, IList<PartETag> parts, CancellationToken ct)
+    {
+        if (!_opts.Enabled) return;
+
+        await _s3.CompleteMultipartUploadAsync(new CompleteMultipartUploadRequest
+        {
+            BucketName = _opts.BucketName,
+            Key = key,
+            UploadId = uploadId,
+            PartETags = parts.ToList(),
+        }, ct);
+    }
+
+    public async Task AbortMultipartUploadAsync(string key, string uploadId, CancellationToken ct)
+    {
+        if (!_opts.Enabled) return;
+
+        await _s3.AbortMultipartUploadAsync(new AbortMultipartUploadRequest
+        {
+            BucketName = _opts.BucketName,
+            Key = key,
+            UploadId = uploadId,
+        }, ct);
     }
 }

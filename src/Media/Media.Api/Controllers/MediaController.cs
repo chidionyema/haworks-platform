@@ -4,10 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Haworks.Media.Api.Controllers;
 
-/// <summary>
-/// Response DTO — shields the API surface from internal entity shape changes
-/// and prevents accidental serialisation of EF navigation properties.
-/// </summary>
 public sealed record MediaFileResponse(
     Guid Id,
     string FileName,
@@ -19,30 +15,49 @@ public sealed record MediaFileResponse(
 [ApiController]
 [Authorize]
 [Route("api/[controller]")]
-public class MediaController : ControllerBase
+public class MediaController(IMediator mediator) : ControllerBase
 {
-    private readonly IMediator _mediator;
-
-    public MediaController(IMediator mediator)
-    {
-        _mediator = mediator;
-    }
-
+    /// <summary>
+    /// Initiates a media upload. Returns presigned PUT URL for single-part uploads,
+    /// or S3 upload ID + per-part presigned URLs for multipart uploads (files > 8MB).
+    /// </summary>
     [HttpPost("initiate")]
     public async Task<IActionResult> InitiateUpload([FromBody] InitiateUploadCommand command)
     {
-        var result = await _mediator.Send(command);
+        var result = await mediator.Send(command);
         return result.ToActionResult();
     }
 
     /// <summary>
-    /// Called by the client after the direct S3 PUT upload completes.
-    /// Triggers the virus scan pipeline for the media file.
+    /// Called by the client after a single-part S3 PUT upload completes.
+    /// Triggers the virus scan pipeline.
     /// </summary>
     [HttpPost("{id}/complete")]
     public async Task<IActionResult> CompleteUpload(Guid id)
     {
-        var result = await _mediator.Send(new ProcessVirusScanCommand(id));
+        var result = await mediator.Send(new ProcessVirusScanCommand(id));
+        return result.ToActionResult();
+    }
+
+    /// <summary>
+    /// Called by the client after all multipart parts are uploaded.
+    /// Stitches parts in S3 and triggers the virus scan pipeline.
+    /// </summary>
+    [HttpPost("{id}/complete-multipart")]
+    public async Task<IActionResult> CompleteMultipartUpload(Guid id, [FromBody] CompleteMultipartRequest body)
+    {
+        var parts = body.Parts.Select(p => new PartETagDto(p.PartNumber, p.ETag)).ToList();
+        var result = await mediator.Send(new CompleteMultipartUploadCommand(id, parts));
+        return result.ToActionResult();
+    }
+
+    /// <summary>
+    /// Aborts an in-progress upload. For multipart uploads, also aborts the S3 multipart upload.
+    /// </summary>
+    [HttpPost("{id}/abort")]
+    public async Task<IActionResult> AbortUpload(Guid id)
+    {
+        var result = await mediator.Send(new AbortUploadCommand(id));
         return result.ToActionResult();
     }
 
@@ -69,3 +84,6 @@ public class MediaController : ControllerBase
         return Ok(response);
     }
 }
+
+public sealed record CompleteMultipartRequest(IReadOnlyList<PartETagRequest> Parts);
+public sealed record PartETagRequest(int PartNumber, string ETag);

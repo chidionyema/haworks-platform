@@ -3,7 +3,9 @@ using Haworks.BuildingBlocks.CurrentUser;
 using Haworks.Media.Api.Application;
 using Haworks.Media.Api.Infrastructure;
 using Haworks.Media.Api.Domain;
+using Haworks.Media.Api.Options;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -25,7 +27,8 @@ public class InitiateUploadTests
         _s3ServiceMock = new Mock<IS3Service>();
         _currentUserMock = new Mock<ICurrentUserService>();
         _currentUserMock.Setup(x => x.UserId).Returns("test-owner-123");
-        _handler = new InitiateUploadHandler(_context, _s3ServiceMock.Object, _currentUserMock.Object);
+        var uploadOpts = Options.Create(new UploadOptions());
+        _handler = new InitiateUploadHandler(_context, _s3ServiceMock.Object, _currentUserMock.Object, uploadOpts);
     }
 
     [Fact]
@@ -61,7 +64,7 @@ public class InitiateUploadTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Id.Should().Be(existingFile.Id);
         result.Value.AlreadyExists.Should().BeTrue();
-        result.Value.UploadUrl.Should().BeEmpty();
+        result.Value.UploadUrl.Should().BeNull();
     }
 
     [Fact]

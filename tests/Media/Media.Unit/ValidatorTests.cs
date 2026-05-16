@@ -2,13 +2,15 @@ using FluentAssertions;
 using FluentValidation.TestHelper;
 using Haworks.Media.Api.Application;
 using Haworks.Media.Api.Domain;
+using Haworks.Media.Api.Options;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Haworks.Media.Unit;
 
 public class ValidatorTests
 {
-    private readonly InitiateUploadValidator _initiateValidator = new();
+    private readonly InitiateUploadValidator _initiateValidator = new(Options.Create(new UploadOptions()));
     private readonly ProcessVirusScanValidator _scanValidator = new();
 
     [Fact]

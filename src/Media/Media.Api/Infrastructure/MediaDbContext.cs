@@ -19,6 +19,9 @@ public class MediaDbContext : DbContext
             entity.HasIndex(e => new { e.Hash, e.OwnerId }).IsUnique();
             entity.Property(e => e.MimeType).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.UploadKind).HasConversion<string>().HasDefaultValue(UploadKind.SinglePart);
+            entity.Property(e => e.S3UploadId).HasMaxLength(256);
+            entity.Property(e => e.PartCount).HasDefaultValue(0);
             entity.Property(e => e.OwnerId).IsRequired().HasMaxLength(128);
             entity.HasIndex(e => e.OwnerId);
 

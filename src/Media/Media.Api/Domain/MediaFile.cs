@@ -8,6 +8,12 @@ public enum MediaStatus
     Rejected
 }
 
+public enum UploadKind
+{
+    SinglePart,
+    Multipart
+}
+
 public class MediaFile
 {
     public Guid Id { get; private set; }
@@ -18,6 +24,9 @@ public class MediaFile
     public MediaStatus Status { get; private set; }
     public string OwnerId { get; private set; } = null!;
     public DateTime CreatedAt { get; private set; }
+    public UploadKind UploadKind { get; private set; }
+    public string? S3UploadId { get; private set; }
+    public int PartCount { get; private set; }
 
     private MediaFile() { }
 
@@ -32,8 +41,18 @@ public class MediaFile
             MimeType = mimeType,
             Status = MediaStatus.Pending,
             OwnerId = ownerId,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            UploadKind = UploadKind.SinglePart,
         };
+    }
+
+    public void InitiateMultipart(string s3UploadId, int partCount)
+    {
+        if (Status != MediaStatus.Pending)
+            throw new InvalidOperationException($"Cannot initiate multipart from {Status}.");
+        S3UploadId = s3UploadId ?? throw new ArgumentNullException(nameof(s3UploadId));
+        PartCount = partCount > 0 ? partCount : throw new ArgumentOutOfRangeException(nameof(partCount));
+        UploadKind = UploadKind.Multipart;
     }
 
     public void MarkAsQuarantined()
