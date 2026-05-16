@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace Haworks.Location.Infrastructure.Persistence;
 
 /// <summary>
-/// DbContext for the Location bounded context. 
+/// DbContext for the Location bounded context.
 /// Uses PostGIS for geospatial data and EF Core Outbox for transactional messaging.
 /// </summary>
 public class LocationDbContext : DbContext, ILocationDbContext
@@ -59,25 +59,31 @@ public class LocationDbContext : DbContext, ILocationDbContext
         {
             entity.ToTable("Addresses");
             entity.HasKey(a => a.Id);
-            
+
             entity.Property(a => a.Street).HasMaxLength(500).IsRequired();
             entity.Property(a => a.City).HasMaxLength(200).IsRequired();
             entity.Property(a => a.Postcode).HasMaxLength(20).IsRequired();
             entity.Property(a => a.Country).HasMaxLength(100).IsRequired();
-            
+
             // Geography Point with SRID 4326 (WGS 84)
             entity.Property(a => a.Coordinates)
                 .HasColumnType("geography(Point, 4326)")
                 .IsRequired();
-                
+
             entity.Property(a => a.Geohash).HasMaxLength(12).IsRequired();
             entity.Property(a => a.Metadata).HasColumnType("jsonb");
 
             // Spatial index for coordinates
             entity.HasIndex(a => a.Coordinates)
                 .HasMethod("gist");
-                
+
             entity.HasIndex(a => a.Geohash);
+
+            // Optimistic concurrency via PostgreSQL xmin system column
+            entity.Property<uint>("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
         });
 
         // MassTransit Outbox entities
