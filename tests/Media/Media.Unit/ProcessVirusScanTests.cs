@@ -2,13 +2,9 @@ using FluentAssertions;
 using Haworks.BuildingBlocks.CurrentUser;
 using Haworks.Media.Api.Application;
 using Haworks.Media.Api.Infrastructure;
-using Haworks.Media.Api.Infrastructure.Processing;
 using Haworks.Media.Api.Domain;
-using Haworks.Media.Api.Options;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -36,16 +32,20 @@ public class ProcessVirusScanTests
         _currentUserMock = new Mock<ICurrentUserService>();
         _currentUserMock.Setup(x => x.UserId).Returns(OwnerId);
         _s3Mock = new Mock<IS3Service>();
-        _s3Mock.Setup(x => x.DownloadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new MemoryStream(new byte[] { 1, 2, 3 }));
-        var orchestrator = new MediaProcessingOrchestrator(
-            Array.Empty<IMediaProcessor>(),
-            Options.Create(new TranscodeOptions()),
-            NullLogger<MediaProcessingOrchestrator>.Instance);
+        // DownloadToFileAsync writes test bytes to the temp file path
+        _s3Mock.Setup(x => x.DownloadToFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns((string _, string destPath, CancellationToken _) =>
+            {
+                File.WriteAllBytes(destPath, new byte[] { 1, 2, 3 });
+                return Task.FromResult(destPath);
+            });
         var publisherMock = new Mock<IPublishEndpoint>();
+        var sendEndpointMock = new Mock<ISendEndpointProvider>();
+        sendEndpointMock.Setup(x => x.GetSendEndpoint(It.IsAny<Uri>()))
+            .ReturnsAsync(Mock.Of<ISendEndpoint>());
         _handler = new ProcessVirusScanHandler(
             _context, _scannerMock.Object, _currentUserMock.Object, _s3Mock.Object,
-            orchestrator, publisherMock.Object);
+            publisherMock.Object, sendEndpointMock.Object);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class ProcessVirusScanTests
         _context.MediaFiles.Add(mediaFile);
         await _context.SaveChangesAsync();
 
-        _scannerMock.Setup(x => x.ScanAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+        _scannerMock.Setup(x => x.ScanFileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
         var result = await _handler.Handle(new ProcessVirusScanCommand(mediaFile.Id), CancellationToken.None);
@@ -72,7 +72,7 @@ public class ProcessVirusScanTests
         _context.MediaFiles.Add(mediaFile);
         await _context.SaveChangesAsync();
 
-        _scannerMock.Setup(x => x.ScanAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+        _scannerMock.Setup(x => x.ScanFileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
         var result = await _handler.Handle(new ProcessVirusScanCommand(mediaFile.Id), CancellationToken.None);

@@ -27,6 +27,12 @@ public sealed class ClamAvOptions
 public interface IVirusScanner
 {
     Task<bool> ScanAsync(Stream fileStream, CancellationToken ct = default);
+
+    /// <summary>
+    /// Scans a file already on disk. Avoids copying to a second temp file
+    /// when the caller already downloaded the content to a temp path.
+    /// </summary>
+    Task<bool> ScanFileAsync(string filePath, CancellationToken ct = default);
 }
 
 public sealed class ClamAvScanner : IVirusScanner
@@ -62,6 +68,41 @@ public sealed class ClamAvScanner : IVirusScanner
 
         // Small files: stream directly via INSTREAM protocol
         return await ScanViaStreamAsync(fileStream, cts.Token);
+    }
+
+    public async Task<bool> ScanFileAsync(string filePath, CancellationToken ct = default)
+    {
+        if (!_opts.Enabled)
+        {
+            _logger.LogWarning("ClamAV disabled — skipping scan (UNSAFE in production)");
+            return true;
+        }
+
+        var fileSize = new FileInfo(filePath).Length;
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(_opts.TimeoutSeconds));
+
+        // Small files: read into stream for INSTREAM protocol
+        if (fileSize <= _opts.InStreamMaxBytes)
+        {
+            await using var stream = File.OpenRead(filePath);
+            return await ScanViaStreamAsync(stream, cts.Token);
+        }
+
+        // Large files: scan directly on disk — no temp file copy
+        var clam = new ClamClient(_opts.Host, _opts.Port);
+        ClamScanResult result;
+        try
+        {
+            result = await clam.ScanFileOnServerAsync(filePath, cts.Token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ClamAV filesystem scan failed for {Path}", filePath);
+            return false; // fail closed
+        }
+
+        return InterpretResult(result);
     }
 
     private async Task<bool> ScanViaStreamAsync(Stream fileStream, CancellationToken ct)

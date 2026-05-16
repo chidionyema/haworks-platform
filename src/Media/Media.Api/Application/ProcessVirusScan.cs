@@ -1,7 +1,6 @@
 using Haworks.BuildingBlocks.CurrentUser;
 using Haworks.Contracts.Media;
 using Haworks.Media.Api.Infrastructure;
-using Haworks.Media.Api.Infrastructure.Processing;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,23 +22,23 @@ public class ProcessVirusScanHandler : IRequestHandler<ProcessVirusScanCommand, 
     private readonly IVirusScanner _virusScanner;
     private readonly ICurrentUserService _currentUser;
     private readonly IS3Service _s3;
-    private readonly MediaProcessingOrchestrator _orchestrator;
     private readonly IPublishEndpoint _publisher;
+    private readonly ISendEndpointProvider _sendEndpoint;
 
     public ProcessVirusScanHandler(
         MediaDbContext context,
         IVirusScanner virusScanner,
         ICurrentUserService currentUser,
         IS3Service s3,
-        MediaProcessingOrchestrator orchestrator,
-        IPublishEndpoint publisher)
+        IPublishEndpoint publisher,
+        ISendEndpointProvider sendEndpoint)
     {
         _context = context;
         _virusScanner = virusScanner;
         _currentUser = currentUser;
         _s3 = s3;
-        _orchestrator = orchestrator;
         _publisher = publisher;
+        _sendEndpoint = sendEndpoint;
     }
 
     public async Task<Result<Unit>> Handle(ProcessVirusScanCommand request, CancellationToken cancellationToken)
@@ -63,97 +62,98 @@ public class ProcessVirusScanHandler : IRequestHandler<ProcessVirusScanCommand, 
             return Result.Failure<MediatR.Unit>(new Error("Media.Forbidden", "You do not own this media file."));
         }
 
-        await using var tx = await _context.Database.BeginTransactionAsync(cancellationToken);
+        // Download to temp file — avoids OOM for large files (up to 256GB).
+        var tempPath = Path.Combine(Path.GetTempPath(), $"media-scan-{Guid.NewGuid()}");
         try
         {
-            mediaFile.MarkAsQuarantined();
-            await _context.SaveChangesAsync(cancellationToken);
-
-            await using var stream = await _s3.DownloadAsync(mediaFile.Id.ToString(), cancellationToken);
+            await _s3.DownloadToFileAsync(mediaFile.Id.ToString(), tempPath, cancellationToken);
 
             // Verify server-side hash matches client-declared hash
-            stream.Position = 0;
-            var actualHash = Convert.ToHexStringLower(
-                await System.Security.Cryptography.SHA256.HashDataAsync(stream, cancellationToken));
-            if (!string.Equals(actualHash, mediaFile.Hash, StringComparison.OrdinalIgnoreCase))
+            await using (var hashStream = File.OpenRead(tempPath))
             {
-                mediaFile.MarkAsRejected();
-                await _context.SaveChangesAsync(cancellationToken);
-                await tx.CommitAsync(cancellationToken);
-                return Result.Failure<MediatR.Unit>(new Error("Media.HashMismatch",
-                    "Server-side hash does not match declared hash."));
+                var actualHash = Convert.ToHexStringLower(
+                    await System.Security.Cryptography.SHA256.HashDataAsync(hashStream, cancellationToken));
+                if (!string.Equals(actualHash, mediaFile.Hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    await using var tx = await _context.Database.BeginTransactionAsync(cancellationToken);
+                    mediaFile.MarkAsQuarantined();
+                    await _context.SaveChangesAsync(cancellationToken);
+                    mediaFile.MarkAsRejected();
+                    await _context.SaveChangesAsync(cancellationToken);
+                    await tx.CommitAsync(cancellationToken);
+                    return Result.Failure<MediatR.Unit>(new Error("Media.HashMismatch",
+                        "Server-side hash does not match declared hash."));
+                }
             }
 
-            stream.Position = 0;
-            var isClean = await _virusScanner.ScanAsync(stream, cancellationToken);
+            // Virus scan using file path directly — avoids double temp file for large files
+            var isClean = await _virusScanner.ScanFileAsync(tempPath, cancellationToken);
 
-            if (isClean)
+            // All DB writes + event publishes inside a single transaction.
+            // With MassTransit EF outbox, Publish() writes to OutboxMessage in the same tx —
+            // guarantees atomicity between state change and event delivery.
+            await using var tx2 = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
             {
-                mediaFile.MarkAsActive();
+                mediaFile.MarkAsQuarantined();
                 await _context.SaveChangesAsync(cancellationToken);
-                await tx.CommitAsync(cancellationToken);
 
-                await _publisher.Publish(new MediaScanPassedEvent
+                if (isClean)
                 {
-                    MediaId = mediaFile.Id,
-                    OwnerId = mediaFile.OwnerId,
-                    FileName = mediaFile.FileName,
-                    MimeType = mediaFile.MimeType,
-                    Size = mediaFile.Size,
-                }, cancellationToken);
+                    mediaFile.MarkAsActive();
+                    await _context.SaveChangesAsync(cancellationToken);
 
-                // Trigger processing pipeline (transcode, thumbnails, audio normalization)
-                try
-                {
-                    var variants = await _orchestrator.ProcessAsync(
-                        mediaFile.Id, mediaFile.Id.ToString(), mediaFile.MimeType, cancellationToken);
-
-                    if (variants.Count > 0)
-                    {
-                        await _publisher.Publish(new MediaProcessingCompletedEvent
-                        {
-                            MediaId = mediaFile.Id,
-                            OwnerId = mediaFile.OwnerId,
-                            FileName = mediaFile.FileName,
-                            Variants = variants,
-                        }, cancellationToken);
-                    }
-                }
-                catch (Exception)
-                {
-                    // Processing failure doesn't block the scan result — file is still Active
-                    await _publisher.Publish(new MediaProcessingFailedEvent
+                    // Publish scan-passed event inside the outbox transaction
+                    await _publisher.Publish(new MediaScanPassedEvent
                     {
                         MediaId = mediaFile.Id,
                         OwnerId = mediaFile.OwnerId,
                         FileName = mediaFile.FileName,
-                        Reason = "Media processing failed. Original file is still available.",
+                        MimeType = mediaFile.MimeType,
+                        Size = mediaFile.Size,
+                    }, cancellationToken);
+
+                    // Send command point-to-point (not fan-out Publish) — exactly one consumer
+                    var endpoint = await _sendEndpoint.GetSendEndpoint(
+                        new Uri("queue:process-media-command"));
+                    await endpoint.Send(new ProcessMediaCommand
+                    {
+                        MediaId = mediaFile.Id,
+                        OwnerId = mediaFile.OwnerId,
+                        FileName = mediaFile.FileName,
+                        MimeType = mediaFile.MimeType,
+                        S3Key = mediaFile.Id.ToString(),
                     }, cancellationToken);
                 }
-            }
-            else
-            {
-                mediaFile.MarkAsRejected();
-                await _context.SaveChangesAsync(cancellationToken);
-                await tx.CommitAsync(cancellationToken);
-
-                await _publisher.Publish(new MediaScanFailedEvent
+                else
                 {
-                    MediaId = mediaFile.Id,
-                    OwnerId = mediaFile.OwnerId,
-                    FileName = mediaFile.FileName,
-                    Reason = "Virus detected or scan failed.",
-                }, cancellationToken);
+                    mediaFile.MarkAsRejected();
+                    await _context.SaveChangesAsync(cancellationToken);
+
+                    await _publisher.Publish(new MediaScanFailedEvent
+                    {
+                        MediaId = mediaFile.Id,
+                        OwnerId = mediaFile.OwnerId,
+                        FileName = mediaFile.FileName,
+                        Reason = "Virus detected or scan failed.",
+                    }, cancellationToken);
+                }
+
+                await tx2.CommitAsync(cancellationToken);
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                return Unit.Value;
+            }
+            catch
+            {
+                await tx2.RollbackAsync(cancellationToken);
+                throw;
             }
         }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        finally
         {
-            return Unit.Value;
-        }
-        catch
-        {
-            await tx.RollbackAsync(cancellationToken);
-            throw;
+            try { File.Delete(tempPath); } catch { /* best effort */ }
         }
 
         return Unit.Value;

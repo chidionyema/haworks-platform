@@ -1,3 +1,5 @@
+using MassTransit;
+
 namespace Haworks.Media.Api.Infrastructure;
 
 public class MediaDbContext : DbContext
@@ -30,5 +32,11 @@ public class MediaDbContext : DbContext
                 .ValueGeneratedOnAddOrUpdate()
                 .IsConcurrencyToken();
         });
+
+        // MassTransit transactional outbox tables — required for Publish() to write
+        // to OutboxMessage in the same EF transaction as domain state changes.
+        modelBuilder.AddInboxStateEntity();
+        modelBuilder.AddOutboxStateEntity();
+        modelBuilder.AddOutboxMessageEntity();
     }
 }

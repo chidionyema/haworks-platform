@@ -1,5 +1,6 @@
 using Amazon.S3.Model;
 using Haworks.BuildingBlocks.CurrentUser;
+using MassTransit;
 
 namespace Haworks.Media.Api.Application;
 
@@ -24,7 +25,9 @@ public class CompleteMultipartUploadHandler(
     MediaDbContext context,
     IS3Service s3,
     IVirusScanner virusScanner,
-    ICurrentUserService currentUser) : IRequestHandler<CompleteMultipartUploadCommand, Result<Unit>>
+    ICurrentUserService currentUser,
+    IPublishEndpoint publisher,
+    ISendEndpointProvider sendEndpoint) : IRequestHandler<CompleteMultipartUploadCommand, Result<Unit>>
 {
     public async Task<Result<Unit>> Handle(CompleteMultipartUploadCommand request, CancellationToken ct)
     {
@@ -53,32 +56,93 @@ public class CompleteMultipartUploadHandler(
         // Stitch parts in S3
         await s3.CompleteMultipartUploadAsync(mediaFile.Id.ToString(), mediaFile.S3UploadId, parts, ct);
 
-        // Trigger virus scan — same as single-part POST /complete
-        await using var tx = await context.Database.BeginTransactionAsync(ct);
+        // Download to temp file to avoid OOM for large files
+        var tempPath = Path.Combine(Path.GetTempPath(), $"media-scan-{Guid.NewGuid()}");
         try
         {
-            mediaFile.MarkAsQuarantined();
-            await context.SaveChangesAsync(ct);
+            await s3.DownloadToFileAsync(mediaFile.Id.ToString(), tempPath, ct);
 
-            await using var stream = await s3.DownloadAsync(mediaFile.Id.ToString(), ct);
-            var isClean = await virusScanner.ScanAsync(stream, ct);
+            // Verify server-side hash matches client-declared hash
+            await using (var hashStream = File.OpenRead(tempPath))
+            {
+                var actualHash = Convert.ToHexStringLower(
+                    await System.Security.Cryptography.SHA256.HashDataAsync(hashStream, ct));
+                if (!string.Equals(actualHash, mediaFile.Hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    await using var hashTx = await context.Database.BeginTransactionAsync(ct);
+                    mediaFile.MarkAsQuarantined();
+                    await context.SaveChangesAsync(ct);
+                    mediaFile.MarkAsRejected();
+                    await context.SaveChangesAsync(ct);
+                    await hashTx.CommitAsync(ct);
+                    return Result.Failure<Unit>(new Error("Media.HashMismatch",
+                        "Server-side hash does not match declared hash."));
+                }
+            }
 
-            if (isClean)
-                mediaFile.MarkAsActive();
-            else
-                mediaFile.MarkAsRejected();
+            var isClean = await virusScanner.ScanFileAsync(tempPath, ct);
 
-            await context.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
+            // All DB writes + event publishes inside a single transaction (outbox atomicity)
+            await using var tx = await context.Database.BeginTransactionAsync(ct);
+            try
+            {
+                mediaFile.MarkAsQuarantined();
+                await context.SaveChangesAsync(ct);
+
+                if (isClean)
+                {
+                    mediaFile.MarkAsActive();
+                    await context.SaveChangesAsync(ct);
+
+                    await publisher.Publish(new Haworks.Contracts.Media.MediaScanPassedEvent
+                    {
+                        MediaId = mediaFile.Id,
+                        OwnerId = mediaFile.OwnerId,
+                        FileName = mediaFile.FileName,
+                        MimeType = mediaFile.MimeType,
+                        Size = mediaFile.Size,
+                    }, ct);
+
+                    var endpoint = await sendEndpoint.GetSendEndpoint(
+                        new Uri("queue:process-media-command"));
+                    await endpoint.Send(new Haworks.Contracts.Media.ProcessMediaCommand
+                    {
+                        MediaId = mediaFile.Id,
+                        OwnerId = mediaFile.OwnerId,
+                        FileName = mediaFile.FileName,
+                        MimeType = mediaFile.MimeType,
+                        S3Key = mediaFile.Id.ToString(),
+                    }, ct);
+                }
+                else
+                {
+                    mediaFile.MarkAsRejected();
+                    await context.SaveChangesAsync(ct);
+
+                    await publisher.Publish(new Haworks.Contracts.Media.MediaScanFailedEvent
+                    {
+                        MediaId = mediaFile.Id,
+                        OwnerId = mediaFile.OwnerId,
+                        FileName = mediaFile.FileName,
+                        Reason = "Virus detected or scan failed.",
+                    }, ct);
+                }
+
+                await tx.CommitAsync(ct);
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                // Another process already started scanning — idempotent
+            }
+            catch
+            {
+                await tx.RollbackAsync(ct);
+                throw;
+            }
         }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        finally
         {
-            // Another process already started scanning — idempotent
-        }
-        catch
-        {
-            await tx.RollbackAsync(ct);
-            throw;
+            try { File.Delete(tempPath); } catch { /* best effort */ }
         }
 
         return Unit.Value;

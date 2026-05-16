@@ -133,36 +133,18 @@ public sealed class S3EventConsumer(
             return;
         }
 
-        var scanner = scope.ServiceProvider.GetRequiredService<IVirusScanner>();
-        var s3 = scope.ServiceProvider.GetRequiredService<IS3Service>();
-
-        await using var tx = await context.Database.BeginTransactionAsync(ct);
-        try
+        // Publish MediaUploadCompletedEvent → MediaUploadCompletedConsumer runs the same
+        // scan + event pipeline as the HTTP path, ensuring a single code path.
+        var publisher = scope.ServiceProvider.GetRequiredService<MassTransit.IPublishEndpoint>();
+        await publisher.Publish(new Haworks.Contracts.Media.MediaUploadCompletedEvent
         {
-            file.MarkAsQuarantined();
-            await context.SaveChangesAsync(ct);
+            MediaId = file.Id,
+            OwnerId = file.OwnerId,
+            FileName = file.FileName,
+            MimeType = file.MimeType,
+            Size = file.Size,
+        }, ct);
 
-            await using var stream = await s3.DownloadAsync(file.Id.ToString(), ct);
-            var isClean = await scanner.ScanAsync(stream, ct);
-
-            if (isClean)
-                file.MarkAsActive();
-            else
-                file.MarkAsRejected();
-
-            await context.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
-
-            logger.LogInformation("S3 event scan complete for {MediaId}: {Status}", mediaId, file.Status);
-        }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
-        {
-            logger.LogInformation("Concurrent scan for {MediaId} — already handled", mediaId);
-        }
-        catch
-        {
-            await tx.RollbackAsync(ct);
-            throw;
-        }
+        logger.LogInformation("S3 event published MediaUploadCompletedEvent for {MediaId}", mediaId);
     }
 }
