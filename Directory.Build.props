@@ -85,4 +85,20 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- ═══════════════════════════════════════════════════════════════════════
+    Custom Haworks Architecture Analyzers (HWK001-050)
+    Enforces platform-specific rules that third-party analyzers cannot:
+    - MassTransit outbox integrity (HWK001/005/007/008)
+    - Financial precision (HWK003/029/035)
+    - Polly idempotency (HWK002)
+    - Event contract safety (HWK016/031)
+    - CancellationToken propagation (HWK050)
+    ═══════════════════════════════════════════════════════════════════════
+  -->
+  <ItemGroup Condition="'$(IsRoslynComponent)' != 'true'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src/Analyzers/Haworks.Architecture.Analyzers/Haworks.Architecture.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

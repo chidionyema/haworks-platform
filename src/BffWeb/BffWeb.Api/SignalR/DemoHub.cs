@@ -23,6 +23,8 @@ public class DemoHub : Hub
         _logger = logger;
     }
 
+    private const int MaxGroupsPerConnection = 5;
+
     public async Task SubscribeToSession(string sessionId)
     {
         if (!Guid.TryParse(sessionId, out var parsedSessionId))
@@ -30,6 +32,15 @@ public class DemoHub : Hub
             await Clients.Caller.SendAsync("OnSubscriptionError", "Invalid session ID format");
             return;
         }
+
+        // H4 Fix: Bound group membership per connection to prevent backplane exhaustion
+        var groupCount = (int)(Context.Items.TryGetValue("groupCount", out var c) ? c! : 0);
+        if (groupCount >= MaxGroupsPerConnection)
+        {
+            await Clients.Caller.SendAsync("OnSubscriptionError", "Maximum session subscriptions reached");
+            return;
+        }
+        Context.Items["groupCount"] = groupCount + 1;
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GetGroupName(parsedSessionId));
 
@@ -107,9 +118,10 @@ public class SignalRDemoHubNotifier : IDemoHubNotifier
     {
         if (sessionId == Guid.Empty)
         {
-            // Global broadcast for cross-session infra events (e.g. vault rotation).
-            await _hubContext.Clients.All.SendAsync(methodName, payload, ct);
-            _logger.LogDebug("Globally broadcasted {Method} notification", methodName);
+            // H5 Fix: Drop events with uninitialized sessionId rather than broadcasting globally.
+            // If global broadcast is truly intended, the caller must use a dedicated method.
+            _logger.LogWarning("Dropping {Method} event with Guid.Empty sessionId — likely uninitialized", methodName);
+            return;
         }
         else
         {
