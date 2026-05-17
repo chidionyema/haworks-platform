@@ -14,7 +14,7 @@ it keeps working for local dev. This directory only covers Fly.
 
 | Provider | Sign up at | What you create | What you grab |
 |---|---|---|---|
-| **Neon** (Postgres) | [neon.tech](https://neon.tech) | One project, six databases inside it (`identity`, `catalog`, `orders`, `payments`, `checkout`, `content`) | Connection string base (one for the project — DB-name segment differs per service) |
+| **Neon** (Postgres) | [neon.tech](https://neon.tech) | One project, six databases inside it (`identity`, `catalog`, `orders`, `payments`, `checkout`, `media`) | Connection string base (one for the project — DB-name segment differs per service) |
 | **CloudAMQP** (RabbitMQ) | [cloudamqp.com](https://cloudamqp.com) | One instance (Little Lemur free tier is fine) | AMQPS URL |
 | **Upstash** (Redis) | [upstash.com](https://upstash.com) | One database | `rediss://` URL |
 
@@ -47,7 +47,7 @@ want to understand what it's doing or override pieces.
 | Orders | `haworks-orders` | no | `http://haworks-orders.flycast:8080` |
 | Payments | `haworks-payments` | no | `http://haworks-payments.flycast:8080` |
 | Checkout | `haworks-checkout` | no | `http://haworks-checkout.flycast:8080` |
-| Content | `haworks-content` | no, opt-in | `http://haworks-content.flycast:8080` |
+| Media | `haworks-media` | no, opt-in | `http://haworks-media.flycast:8080` |
 
 Backends are private — only the BFF gets a public IP. Inter-service traffic
 goes over Fly's flycast (private 6PN with load balancing).
@@ -62,7 +62,7 @@ goes over Fly's flycast (private 6PN with load balancing).
 
 | Provider | What you grab |
 |---|---|
-| **Neon** (Postgres) | One project; create 6 databases inside it (`identity`, `catalog`, `orders`, `payments`, `checkout`, `content`). Connection string from the dashboard — only the database-name segment differs per service. |
+| **Neon** (Postgres) | One project; create 6 databases inside it (`identity`, `catalog`, `orders`, `payments`, `checkout`, `media`). Connection string from the dashboard — only the database-name segment differs per service. |
 | **CloudAMQP** (RabbitMQ) | One instance; copy the AMQPS URL. |
 | **Upstash** (Redis) | One database; copy the `rediss://` URL. |
 
@@ -122,8 +122,8 @@ OAUTH_GOOGLE_CLIENT_ID=
 OAUTH_GOOGLE_CLIENT_SECRET=
 # (microsoft, facebook similar)
 STRIPE_WEBHOOK_SECRET=
-# Tigris block — only if DEPLOY_CONTENT=true (see "Adding Content")
-DEPLOY_CONTENT=false
+# Tigris block — only if DEPLOY_MEDIA=true (see "Adding Media service")
+DEPLOY_MEDIA=false
 ```
 
 To add an optional value later: edit `.env.local`, re-run `up.sh`. The
@@ -184,17 +184,17 @@ flyctl releases rollback -a haworks-<svc>
 
 Cross-service rollback isn't automated — roll back each app individually.
 
-## Adding Content service
+## Adding Media service
 
-Default skips `haworks-content` because it needs S3-compatible storage.
+Default skips `haworks-media` because it needs S3-compatible storage.
 To opt in with Fly Tigris:
 
 ```bash
 # 1. Create the app first so storage attaches to it.
-flyctl apps create haworks-content
+flyctl apps create haworks-media
 
 # 2. Provision Tigris. flyctl prints the credentials to stdout.
-flyctl storage create -a haworks-content
+flyctl storage create -a haworks-media
 
 # 3. Copy the printed AWS_* values into .env.local's TIGRIS_* slots:
 #    AWS_ACCESS_KEY_ID         → TIGRIS_ACCESS_KEY
@@ -202,9 +202,9 @@ flyctl storage create -a haworks-content
 #    AWS_ENDPOINT_URL_S3       → TIGRIS_SERVICE_URL  (keep https://)
 #    AWS_REGION                → TIGRIS_REGION       (typically "auto")
 #    BUCKET_NAME               → TIGRIS_BUCKET
-# 4. Set DEPLOY_CONTENT=true in .env.local.
+# 4. Set DEPLOY_MEDIA=true in .env.local.
 
-deploy/fly/up.sh             # re-runs end to end with content
+deploy/fly/up.sh             # re-runs end to end with media
 ```
 
 ClamAV (`CLAMAV_REST_URL`) is optional. Without it, uploads succeed without

@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rulesengine-svc
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/chidionyema/haworks-platform.git
+    targetRevision: HEAD
+    path: deploy/helm/rulesengine-svc
+    helm:
+      releaseName: rulesengine-svc
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: haworks
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
