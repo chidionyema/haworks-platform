@@ -56,7 +56,11 @@ public class DisbursementService : IDisbursementService
         var payoutAmount = 0m;
         Guid? payoutId = null;
         var currency = string.Empty;
-        var idempotencyKey = $"PAYOUT:{accountId}:{DateTimeOffset.UtcNow:yyyy-MM-dd}";
+        // H2 Fix: Use payoutId (generated in Phase 1) in the idempotency key.
+        // Day-granularity blocked legitimate same-day retries; per-payout key is idempotent for retries
+        // of the same attempt while allowing new payouts on the same day.
+        var payoutIdForKey = Guid.NewGuid();
+        var idempotencyKey = $"PAYOUT:{payoutIdForKey}";
 
         // =====================================================================
         // PHASE 1: ATOMIC LOCAL RESERVATION (debit balance, create Payout)
@@ -126,8 +130,10 @@ public class DisbursementService : IDisbursementService
 
             if (isSuccess)
             {
+                // H3 Fix: Only transition to InTransit here. The terminal Succeeded state
+                // must be driven by a Stripe webhook (transfer.paid) — the funds are not
+                // confirmed until Stripe settles the transfer to the connected account.
                 payout!.MarkInTransit(externalId!);
-                payout.MarkSucceeded();
             }
             else
             {

@@ -55,12 +55,11 @@ public sealed class PromotionCodeRepository : IPromotionCodeRepository
     /// Atomic CAS redemption using ExecuteSqlRawAsync.
     /// Returns true if the redemption succeeded.
     /// </summary>
-    public async Task<bool> TryRedeemAsync(Guid promotionCodeId, Guid orderId, string? userId, decimal discountAmount, CancellationToken ct = default)
+    public async Task<bool> TryRedeemAsync(Guid promotionCodeId, Guid orderId, string? userId, decimal discountAmount, int? maxUsesPerUser, CancellationToken ct = default)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
         try
         {
-            // Set lock timeout for this transaction
             await _context.Database.ExecuteSqlRawAsync(
                 "SET LOCAL lock_timeout = '500ms'", ct).ConfigureAwait(false);
 
@@ -81,6 +80,21 @@ public sealed class PromotionCodeRepository : IPromotionCodeRepository
                 return false;
             }
 
+            // C2 Fix: Per-user limit check INSIDE the transaction (atomic with FOR UPDATE)
+            // Prevents TOCTOU race where two concurrent requests both pass the check.
+            if (maxUsesPerUser.HasValue && userId is not null)
+            {
+                var userCount = await _context.PromotionRedemptions
+                    .CountAsync(r => r.PromotionCodeId == promotionCodeId && r.UserId == userId, ct)
+                    .ConfigureAwait(false);
+
+                if (userCount >= maxUsesPerUser.Value)
+                {
+                    await transaction.RollbackAsync(ct).ConfigureAwait(false);
+                    return false;
+                }
+            }
+
             // Check if this order already redeemed (idempotency)
             var existingRedemption = await _context.PromotionRedemptions
                 .AnyAsync(r => r.PromotionCodeId == promotionCodeId && r.OrderId == orderId, ct)
@@ -88,9 +102,8 @@ public sealed class PromotionCodeRepository : IPromotionCodeRepository
 
             if (existingRedemption)
             {
-                // Idempotent — already redeemed for this order, rollback the increment
                 await transaction.RollbackAsync(ct).ConfigureAwait(false);
-                return true; // Still success from caller's perspective
+                return true;
             }
 
             // Insert redemption record

@@ -36,19 +36,11 @@ public sealed class RedeemPromotionCodeCommandHandler : IRequestHandler<RedeemPr
             return new RedeemPromotionCodeResult { Success = false, FailureReason = reason };
         }
 
-        // Per-user limit check
-        if (code.MaxUsesPerUser.HasValue && request.UserId is not null)
-        {
-            var userCount = await _repository.GetUserRedemptionCountAsync(code.Id, request.UserId, ct).ConfigureAwait(false);
-            if (userCount >= code.MaxUsesPerUser.Value)
-            {
-                return new RedeemPromotionCodeResult { Success = false, FailureReason = "exhausted" };
-            }
-        }
-
-        // Atomic CAS redemption
+        // C2 Fix: Per-user limit is now enforced INSIDE TryRedeemAsync (atomic with FOR UPDATE lock)
+        // to prevent TOCTOU race where two concurrent requests both pass the check.
         var redeemed = await _repository.TryRedeemAsync(
-            code.Id, request.OrderId, request.UserId, request.DiscountAmount, ct).ConfigureAwait(false);
+            code.Id, request.OrderId, request.UserId, request.DiscountAmount,
+            code.MaxUsesPerUser, ct).ConfigureAwait(false);
 
         if (!redeemed)
         {

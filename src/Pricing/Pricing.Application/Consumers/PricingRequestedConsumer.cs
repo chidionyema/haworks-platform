@@ -1,4 +1,6 @@
+using System.Linq;
 using Haworks.Contracts.Pricing;
+using Haworks.Pricing.Application.Commands;
 using Haworks.Pricing.Application.Queries;
 using Haworks.Pricing.Domain.Exceptions;
 using MassTransit;
@@ -35,6 +37,25 @@ public sealed class PricingRequestedConsumer(
                 StateCode = msg.StateCode,
             }, context.CancellationToken);
 
+            // C1 Fix: Redeem promo code BEFORE publishing (atomic with the calculation).
+            // Without this, the saga uses the discounted price but the code's use-count
+            // is never decremented — allowing unlimited reuse.
+            if (!string.IsNullOrWhiteSpace(msg.PromoCode) && result.Discounts.Any(d =>
+                string.Equals(d.Type, "PromotionCode", System.StringComparison.Ordinal)))
+            {
+                var promoDiscount = result.Discounts
+                    .First(d => string.Equals(d.Type, "PromotionCode", System.StringComparison.Ordinal));
+
+                await mediator.Send(new Commands.RedeemPromotionCodeCommand
+                {
+                    Code = msg.PromoCode!.ToUpperInvariant(),
+                    OrderId = msg.OrderId,
+                    UserId = msg.UserId,
+                    DiscountAmount = promoDiscount.Amount,
+                    CalculationId = result.CalculationId,
+                }, context.CancellationToken);
+            }
+
             await context.Publish(new PriceCalculatedEvent
             {
                 SagaId = msg.SagaId,
@@ -49,7 +70,8 @@ public sealed class PricingRequestedConsumer(
             logger.LogInformation(
                 "Price calculated for order {OrderId}: total={Total}", msg.OrderId, result.Total);
         }
-        catch (Exception ex) when (ex is PromotionExhaustedException or TaxCalculationException or Haworks.BuildingBlocks.Common.ValidationException)
+        // H5 Fix: InvalidOperationException = product not found (catalog failure) — business fault, not infra
+        catch (Exception ex) when (ex is PromotionExhaustedException or TaxCalculationException or InvalidOperationException or Haworks.BuildingBlocks.Common.ValidationException)
         {
             logger.LogWarning(ex, "Pricing business rule failed for order {OrderId}: {Reason}", msg.OrderId, ex.Message);
 
