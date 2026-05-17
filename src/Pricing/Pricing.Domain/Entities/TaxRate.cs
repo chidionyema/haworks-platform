@@ -30,6 +30,21 @@ public sealed class TaxRate : AuditableEntity
         DateTimeOffset? effectiveTo = null,
         string? notes = null)
     {
+        // H1 Fix: Validate rate bounds (0-50% reasonable upper bound for any jurisdiction)
+        if (combinedRate < 0 || combinedRate > 0.5m)
+            throw new ArgumentOutOfRangeException(nameof(combinedRate), "Combined tax rate must be between 0 and 0.5 (50%)");
+        if (stateRate < 0 || stateRate > 0.5m)
+            throw new ArgumentOutOfRangeException(nameof(stateRate), "State rate must be between 0 and 0.5");
+        if (countyRate < 0 || countyRate > 0.5m)
+            throw new ArgumentOutOfRangeException(nameof(countyRate), "County rate must be between 0 and 0.5");
+        if (localRate < 0 || localRate > 0.5m)
+            throw new ArgumentOutOfRangeException(nameof(localRate), "Local rate must be between 0 and 0.5");
+
+        // M3 Fix: Validate sub-rate consistency
+        var subRateSum = stateRate + countyRate + localRate;
+        if (subRateSum > 0 && Math.Abs(combinedRate - subRateSum) > 0.001m)
+            throw new ArgumentException($"CombinedRate ({combinedRate}) must equal sum of sub-rates ({subRateSum})");
+
         return new TaxRate
         {
             CountryCode = countryCode.ToUpperInvariant(),

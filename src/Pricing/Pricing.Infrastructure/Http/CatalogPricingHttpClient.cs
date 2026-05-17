@@ -44,10 +44,18 @@ internal sealed class CatalogPricingHttpClient : ICatalogPricingClient
             _logger.LogWarning("Catalog returned {StatusCode} for product {ProductId}", response.StatusCode, id);
             return new CatalogProductResponse { IsSuccess = false };
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "Failed to fetch product {ProductId} from catalog", id);
-            return null;
+            // H7 Fix: Distinguish transient network failures from permanent errors.
+            // Rethrow so Polly retry (configured on the HttpClient) can handle it,
+            // rather than masking transient failures as "product not found".
+            _logger.LogError(ex, "Transient failure fetching product {ProductId} from catalog", id);
+            throw;
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogError(ex, "Timeout fetching product {ProductId} from catalog", id);
+            throw;
         }
     }
 }
