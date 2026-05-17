@@ -22,6 +22,7 @@ builder.Host.UseSerilog((context, loggerConfiguration) => loggerConfiguration
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddStartupTaskRunner();
+builder.Services.AddHostedService<Haworks.Scheduler.Api.Infrastructure.LeaseBootstrapStartupTask>();
 
 builder.Services.AddPlatformAuthentication(builder.Configuration);
 
@@ -65,6 +66,25 @@ if (app.Environment.IsDevelopment())
     {
         Authorization = new[] { new Haworks.Scheduler.Api.HangfireLocalRequestFilter() }
     });
+}
+
+// Register rotation recurring jobs (only when Hangfire is active)
+if (!app.Environment.IsEnvironment("Test"))
+{
+    RecurringJob.AddOrUpdate<Haworks.Scheduler.Application.Jobs.SecretExpiryWatcherJob>(
+        "secret-expiry-watcher",
+        job => job.RunAsync(CancellationToken.None),
+        "*/15 * * * *");
+
+    RecurringJob.AddOrUpdate<Haworks.Scheduler.Application.Jobs.RotateJwtKeyJob>(
+        "rotate-jwt-key",
+        job => job.RunAsync(CancellationToken.None),
+        Cron.Monthly());
+
+    RecurringJob.AddOrUpdate<Haworks.Scheduler.Application.Jobs.LeaseWatcherJob>(
+        "vault-lease-watcher",
+        job => job.ExecuteAsync(CancellationToken.None),
+        Cron.Hourly());
 }
 
 app.Run();

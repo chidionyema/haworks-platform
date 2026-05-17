@@ -1,5 +1,6 @@
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.Scheduler.Application.Common.Interfaces;
+using Haworks.Scheduler.Application.Jobs;
 using Haworks.Scheduler.Infrastructure.Messaging;
 using Haworks.Scheduler.Infrastructure.Persistence;
 using MassTransit;
@@ -23,6 +24,7 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
 
         services.AddScoped<IEventScheduler, HangfireEventScheduler>();
+        services.AddScoped<ILeaseRepository, LeaseRepository>();
 
         if (!env.IsEnvironment("Test"))
         {
@@ -56,6 +58,12 @@ public static class DependencyInjection
 
             services.AddHangfireServer();
         }
+
+        // Rotation jobs
+        services.AddScoped<SecretExpiryWatcherJob>();
+        services.AddScoped<RotateJwtKeyJob>();
+        services.AddScoped<ClearPreviousJwtKeyJob>();
+        services.AddScoped<LeaseWatcherJob>();
 
         return services;
     }
