@@ -16,7 +16,7 @@ public interface IPromotionCodeRepository
     /// Atomic CAS redemption. Returns true if redemption succeeded, false if exhausted.
     /// Uses ExecuteSqlRawAsync with FOR UPDATE + compare-and-swap.
     /// </summary>
-    Task<bool> TryRedeemAsync(Guid promotionCodeId, Guid orderId, string? userId, decimal discountAmount, CancellationToken ct = default);
+    Task<bool> TryRedeemAsync(Guid promotionCodeId, Guid orderId, string? userId, decimal discountAmount, int? maxUsesPerUser, CancellationToken ct = default);
 
     /// <summary>
     /// Check per-user redemption count.

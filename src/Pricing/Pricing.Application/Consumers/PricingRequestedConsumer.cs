@@ -70,7 +70,8 @@ public sealed class PricingRequestedConsumer(
             logger.LogInformation(
                 "Price calculated for order {OrderId}: total={Total}", msg.OrderId, result.Total);
         }
-        catch (Exception ex) when (ex is PromotionExhaustedException or TaxCalculationException or Haworks.BuildingBlocks.Common.ValidationException)
+        // H5 Fix: InvalidOperationException = product not found (catalog failure) — business fault, not infra
+        catch (Exception ex) when (ex is PromotionExhaustedException or TaxCalculationException or InvalidOperationException or Haworks.BuildingBlocks.Common.ValidationException)
         {
             logger.LogWarning(ex, "Pricing business rule failed for order {OrderId}: {Reason}", msg.OrderId, ex.Message);
 
