@@ -112,7 +112,8 @@ public class TokenRevocationService : ITokenRevocationService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error checking revocation cache synchronously for {Token}", tokenValue);
+            var tokenPrefix = tokenValue?[..Math.Min(8, tokenValue.Length)] + "...";
+            _logger.LogWarning(ex, "Error checking revocation cache synchronously for {TokenPrefix}", tokenPrefix);
         }
 
         // Fallback to synchronous DB check

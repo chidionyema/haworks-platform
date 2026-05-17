@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Polly;
+using Polly.Retry;
 
 namespace Haworks.BuildingBlocks.Startup;
 
@@ -26,20 +28,26 @@ public sealed class StartupTaskRunner : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var retryPolicy = new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                MaxRetryAttempts = 1,
+                Delay = TimeSpan.FromSeconds(5),
+                OnRetry = args =>
+                {
+                    _logger.LogWarning(args.Outcome.Exception,
+                        "Startup task failed — retrying in 5s (attempt {Attempt})",
+                        args.AttemptNumber + 1);
+                    return ValueTask.CompletedTask;
+                }
+            })
+            .Build();
+
         foreach (var task in _tasks)
         {
-            try
-            {
-                await task(_serviceProvider, stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Startup task failed — retrying in 5s");
-                await Task.Delay(5000, stoppingToken);
-                // Retry once
-                try { await task(_serviceProvider, stoppingToken); }
-                catch (Exception retryEx) { _logger.LogCritical(retryEx, "Startup task failed permanently"); }
-            }
+            await retryPolicy.ExecuteAsync(
+                async ct => await task(_serviceProvider, ct),
+                stoppingToken);
         }
         _isReady = true;
         _logger.LogInformation("All startup tasks completed — service is ready");

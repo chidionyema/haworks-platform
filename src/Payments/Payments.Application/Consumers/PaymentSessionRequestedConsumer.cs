@@ -106,9 +106,8 @@ public sealed class PaymentSessionRequestedConsumer(
 
             // 3. Update payment with provider details (Status = Processing)
             payment.AttachProviderSession(result.SessionId, result.SessionUrl);
-            await paymentRepository.SaveChangesAsync(context.CancellationToken);
 
-            // 4. Notify saga
+            // 4. Notify saga (publish before SaveChanges so outbox persists atomically)
             await eventPublisher.PublishAsync(new PaymentSessionCreatedEvent
             {
                 OrderId = evt.OrderId,
@@ -120,6 +119,9 @@ public sealed class PaymentSessionRequestedConsumer(
                 Amount = evt.Amount,
                 Currency = evt.Currency
             }, context.CancellationToken);
+
+            // 5. Persist payment state + outbox message atomically
+            await paymentRepository.SaveChangesAsync(context.CancellationToken);
         }
         catch (Exception ex)
         {

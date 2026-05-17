@@ -45,7 +45,7 @@ public sealed class PricingDbContext : DbContext
         modelBuilder.Entity<TieredPrice>(e =>
         {
             e.HasKey(x => x.Id);
-            e.Property(x => x.UnitPrice).HasPrecision(18, 4);
+            e.Property(x => x.UnitPrice).HasColumnType("numeric(18,4)");
             e.Property<uint>("xmin")
                 .HasColumnName("xmin")
                 .HasColumnType("xid")

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Haworks.Pricing.Application.Commands;
 using Haworks.Pricing.Application.Queries;
 using Haworks.Pricing.Domain.Exceptions;
@@ -57,11 +58,11 @@ public sealed class PricingController : ControllerBase
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
         {
-            return NotFound(new { error = ex.Message });
+            return NotFound(new { error = "The requested product was not found." });
         }
-        catch (TaxCalculationException ex)
+        catch (TaxCalculationException)
         {
-            return StatusCode(500, new { error = "Tax calculation failed", detail = ex.Message });
+            return StatusCode(500, new { error = "Tax calculation failed. Please try again later." });
         }
     }
 
@@ -80,7 +81,7 @@ public sealed class PricingController : ControllerBase
         {
             Code = request.Code,
             ProductId = request.ProductId,
-            UserId = request.UserId,
+            UserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub"), // from JWT
         }, ct).ConfigureAwait(false);
 
         return Ok(result);
@@ -102,7 +103,7 @@ public sealed class PricingController : ControllerBase
         {
             Code = request.Code,
             OrderId = request.OrderId,
-            UserId = request.UserId,
+            UserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub"), // from JWT
             DiscountAmount = request.DiscountAmount,
             CalculationId = request.CalculationId,
         }, ct).ConfigureAwait(false);
