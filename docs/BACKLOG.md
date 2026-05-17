@@ -99,6 +99,70 @@
 
 ---
 
+## Tier 1.5 — OSS Replacements (high ROI, reduce operational burden)
+
+### B-022: Replace Webhooks with Svix
+- **Effort**: S (2-3 days)
+- **Status**: Custom webhooks service (28 files) works but is maintenance burden
+- **Why**: Svix (MIT, self-hosted) gives retry+backoff, SSRF protection, signature rotation, delivery dashboard, replay, rate limiting, multi-tenant isolation, partner portal — all battle-tested. Deletes ~1500 lines of custom code.
+- **What to do**:
+  - [ ] Deploy Svix container (Docker/Fly)
+  - [ ] Create thin MassTransit consumer that forwards events to Svix API
+  - [ ] Migrate existing webhook subscriptions to Svix
+  - [ ] Remove custom CdcFanOutWorker, WebhookDispatcher, SSRF guard, Hangfire retry
+  - [ ] Keep existing contracts (OrderCreated, PaymentCompleted events unchanged)
+- **Dependencies**: None — drop-in replacement
+- **Spec**: `docs/specs/external-integrations.md`
+
+### B-023: Replace Notifications with Novu (when signals hit)
+- **Effort**: M (1-2 weeks)
+- **Status**: Current multi-provider with circuit breakers is solid (91 files)
+- **Trigger signals**: >50 templates, need visual template editor, need in-app notification feed, need digest/batching
+- **Why**: Novu (OSS, self-hosted) provides visual template editor, digest engine, in-app notifications, multi-channel orchestration, subscriber preferences — eliminates custom rendering + preference logic.
+- **What to do**:
+  - [ ] Deploy Novu (API + worker + web UI) as Docker containers
+  - [ ] Map existing NotificationCreatedEvent → Novu trigger
+  - [ ] Migrate templates from Scriban → Novu visual editor
+  - [ ] Keep existing provider credentials (SES, SendGrid, Twilio, FCM)
+  - [ ] Retire custom NotificationRequestConsumer, channel gateways, template renderer
+- **Dependencies**: MongoDB (Novu backend)
+
+### B-024: Replace Analytics clickstream with PostHog
+- **Effort**: M (1-2 weeks)
+- **Status**: Custom Kafka buffer works but provides no analysis
+- **Why**: PostHog (OSS, self-hosted) gives session replay, funnels, retention, A/B testing, feature flags, AND event ingestion — one tool replaces Analytics + portions of FeatureFlags + GrowthBook.
+- **What to do**:
+  - [ ] Deploy PostHog container (or use PostHog Cloud free tier)
+  - [ ] Replace custom KafkaFlushingService with PostHog SDK (posthog-dotnet)
+  - [ ] Configure PostHog data pipeline to read from existing Kafka topics (backward compat)
+  - [ ] Retire custom Analytics service (3 files)
+  - [ ] Wire PostHog feature flags alongside existing FeatureFlags service
+- **Dependencies**: None
+
+### B-025: Add imgproxy for image transforms
+- **Effort**: S (1-2 days)
+- **Status**: Media service does image processing via ImageSharp in-process
+- **Why**: imgproxy (Go, single binary, S3-native) handles resize/crop/format conversion at the CDN edge — offloads CPU from Media service, sub-50ms transforms, URL-based API.
+- **What to do**:
+  - [ ] Deploy imgproxy container pointing at S3 bucket
+  - [ ] Generate signed imgproxy URLs in GetMediaUrl handler instead of raw S3 URLs
+  - [ ] Remove in-process ImageProcessor from Media service
+  - [ ] Keep VideoProcessor/AudioProcessor (imgproxy is images only)
+- **Dependencies**: S3 bucket access
+
+### B-026: Central package management (Directory.Packages.props)
+- **Effort**: S (1 day)
+- **Status**: Each service pins own package versions — drift risk
+- **Why**: One version per package across 23 services. Prevents downgrade errors, simplifies updates, enforces consistency.
+- **What to do**:
+  - [ ] Create `Directory.Packages.props` at repo root with all package versions
+  - [ ] Add `<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>` to Directory.Build.props
+  - [ ] Remove `Version=` from all `<PackageReference>` in service csproj files
+  - [ ] CI validates no version drift (single source of truth)
+- **Dependencies**: None — purely mechanical refactor
+
+---
+
 ## Tier 2 — Medium Priority (3-12 months)
 
 ### B-012: Recommendation engine
@@ -113,22 +177,23 @@
 
 ### B-015: A/B testing framework
 - **Effort**: M
-- **Why**: FeatureFlags has percentage rollout. Analytics has clickstream. No experiment tracking or statistical significance.
-- **Dependencies**: FeatureFlags (cohort), Analytics (metrics)
+- **Status**: GrowthBook container added (PR #209); SDK not yet integrated in services
+- **Why**: FeatureFlags has percentage rollout. GrowthBook adds statistical significance, experiment lifecycle, metric tracking.
+- **Dependencies**: FeatureFlags (cohort), Analytics/PostHog (metrics), GrowthBook (deployed)
 
 ### B-016: Multi-tenancy BuildingBlock
 - **Effort**: L
 - **Why**: No `ITenantContext`, no row-level security. Merchant scoping is FK-based only.
 
 ### B-017: Shipping / fulfillment integration
-- **Effort**: L
-- **Why**: Address captured but no carrier integration (EasyPost/ShipEngine), no tracking.
-- **Dependencies**: Orders, CheckoutOrchestrator, Location
+- **Effort**: S
+- **Status**: ✅ EasyPost Shipping service built (PR #209) — domain, API, provider, events, tests
+- **Remaining**: Wire into CheckoutOrchestrator saga (post-payment → create shipment), add to BFF
 
 ### B-018: Web Push / APNs notification channel
 - **Effort**: M
 - **Why**: FCM push exists for sending. No VAPID web push, no APNs.
-- **Dependencies**: Notifications service, Identity (device registration)
+- **Dependencies**: Notifications service (or Novu if B-023 done), Identity (device registration)
 
 ---
 
@@ -138,7 +203,7 @@
 - **Effort**: L | Current EF write-through + outbox is appropriate for current scale.
 
 ### B-020: Reporting / BI layer
-- **Effort**: L | No data warehouse, dbt models, or self-serve reporting.
+- **Effort**: L | No data warehouse, dbt models, or self-serve reporting. PostHog (B-024) may cover basic analytics.
 
 ### B-021: Social features (follows, feeds, wishlists)
 - **Effort**: L | Not core to marketplace.
@@ -154,3 +219,4 @@
 | BB-03 | Standardize migration orchestration | Low | S | StartupTaskRunner already handles this |
 | BB-04 | Cache invalidation event contract | Low | S | ProductCacheInvalidatedEvent exists as pattern |
 | BB-05 | Distributed lock abstraction | Low | M | Redis-based; needed for multi-instance coordination |
+| BB-06 | Central package management | High | S | See B-026 |
