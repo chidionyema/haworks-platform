@@ -69,4 +69,52 @@ public static class Diagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoSwallowedDbUpdateException = new(
+        id: "HWK010",
+        title: "Do not swallow DbUpdateException without re-throwing",
+        messageFormat: "Catch block for '{0}' does not re-throw which poisons the DbContext",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoTaskRunWithScopedService = new(
+        id: "HWK013",
+        title: "Do not capture scoped services in Task.Run",
+        messageFormat: "Scoped service '{0}' may be disposed before the background work completes",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoAsyncVoid = new(
+        id: "HWK015",
+        title: "Do not use async void methods",
+        messageFormat: "Method '{0}' is async void which causes unobserved exceptions",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoPositionalRecordForEvents = new(
+        id: "HWK016",
+        title: "MassTransit events must not use positional record constructors",
+        messageFormat: "Record '{0}' uses positional parameters which break MassTransit deserialization",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoNotImplementedException = new(
+        id: "HWK018",
+        title: "Do not use NotImplementedException in production code",
+        messageFormat: "'{0}' will crash at runtime — implement the method or remove it",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoHardcodedLocalhost = new(
+        id: "HWK019",
+        title: "Do not hardcode localhost/127.0.0.1 in production code",
+        messageFormat: "Hardcoded '{0}' will silently fail in containers — use configuration",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }
