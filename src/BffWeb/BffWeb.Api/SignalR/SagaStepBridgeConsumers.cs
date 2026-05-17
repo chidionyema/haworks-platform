@@ -145,7 +145,9 @@ public sealed class PaymentAmountMismatchSagaBridge(
         }
         catch (Exception ex)
         {
+            // H7 Fix: Re-throw so MassTransit retries/dead-letters instead of silent loss
             logger.LogError(ex, "Error looking up saga for order {OrderId}", ctx.Message.OrderId);
+            throw;
         }
     }
 }
