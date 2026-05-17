@@ -5,6 +5,7 @@ using Haworks.Payments.Application.Common;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Domain.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Stripe.Checkout;
@@ -114,7 +115,14 @@ internal sealed class StripePaymentProcessor(
         }
 
         // 5. Atomic payment completion
-        await CompletePaymentAsync(sessionEvent, payment, ct).ConfigureAwait(false);
+        try
+        {
+            await CompletePaymentAsync(sessionEvent, payment, ct).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            logger.LogWarning(ex, "Concurrency conflict processing session {SessionId} — duplicate webhook, safely ignoring", sessionEvent.SessionId);
+        }
     }
 
     /// <inheritdoc />
