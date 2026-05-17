@@ -309,4 +309,12 @@ public static class Diagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor MustPropagateCancellationToken = new(
+        id: "HWK050",
+        title: "Async call must propagate available CancellationToken",
+        messageFormat: "'{0}' has a CancellationToken overload but the available token '{1}' was not passed",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
 }
