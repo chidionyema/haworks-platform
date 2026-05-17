@@ -48,12 +48,17 @@ public sealed class AdminTaxRatesController : ControllerBase
         var existing = await _taxRateRepo.GetByIdAsync(id, ct).ConfigureAwait(false);
         if (existing is null) return NotFound();
 
+        var effectiveFrom = request.EffectiveFrom ?? DateTimeOffset.UtcNow;
+
         var newRate = TaxRate.Create(
             request.CountryCode, request.StateCode,
             request.CombinedRate, request.StateRate,
             request.CountyRate, request.LocalRate,
-            request.EffectiveFrom, request.EffectiveTo,
+            effectiveFrom, request.EffectiveTo,
             request.Notes);
+
+        // H2 Fix: Expire the old rate when creating a replacement
+        existing.SetEffectiveTo(effectiveFrom);
 
         await _taxRateRepo.AddAsync(newRate, ct).ConfigureAwait(false);
         await _taxRateRepo.SaveChangesAsync(ct).ConfigureAwait(false);

@@ -19,6 +19,11 @@ public sealed class TaxRate : AuditableEntity
     public DateTimeOffset? EffectiveTo { get; private set; }
     public string? Notes { get; private set; }
 
+    public void SetEffectiveTo(DateTimeOffset effectiveTo)
+    {
+        EffectiveTo = effectiveTo;
+    }
+
     public static TaxRate Create(
         string countryCode,
         string? stateCode,
