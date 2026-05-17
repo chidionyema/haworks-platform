@@ -66,6 +66,18 @@ public class StripePayoutGateway : IPayoutGateway
         var service = new TransferService(_client);
         var transfer = await service.CreateAsync(options, requestOptions);
 
-        return (transfer.Id, PayoutStatus.Succeeded);
+        // C4 Fix: Map Stripe's actual transfer status instead of hardcoding Succeeded.
+        // Stripe Transfers are not instant — they go through pending → paid → failed.
+        var status = MapStripeStatus(transfer.Reversed, transfer.Id);
+        return (transfer.Id, status);
+    }
+
+    private static PayoutStatus MapStripeStatus(bool reversed, string transferId)
+    {
+        // Stripe Transfer objects have limited status fields at creation time.
+        // A newly-created transfer is always "pending" until Stripe settles it.
+        // The terminal state (paid/failed) arrives via webhook (transfer.paid/transfer.failed).
+        if (reversed) return PayoutStatus.Failed;
+        return PayoutStatus.InTransit;
     }
 }

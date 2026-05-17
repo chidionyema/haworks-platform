@@ -22,48 +22,83 @@ public class MatureFundsCommandHandler : IRequestHandler<MatureFundsCommand>
 
     public async Task Handle(MatureFundsCommand request, CancellationToken cancellationToken)
     {
-        var pendingAccounts = await _context.LedgerAccounts
-            .FromSqlRaw(@"SELECT *, xmin FROM payouts.""LedgerAccounts"" WHERE ""Type"" = {0} AND ""Balance"" > 0 ORDER BY ""Id"" ASC FOR UPDATE SKIP LOCKED LIMIT 500", (int)AccountType.SellerPending)
-            .ToListAsync(cancellationToken);
-
-        if (pendingAccounts.Count == 0) return;
-
-        var ownerIds = pendingAccounts.Select(a => a.OwnerId).Distinct().ToList();
-        var payableAccounts = await _context.LedgerAccounts
-            .Where(a => ownerIds.Contains(a.OwnerId) && a.Type == AccountType.SellerPayable)
-            .ToDictionaryAsync(a => (a.OwnerId, a.Currency), cancellationToken);
-
-        var maturedCount = 0;
-        foreach (var pendingAccount in pendingAccounts)
-        {
-            var key = (pendingAccount.OwnerId, pendingAccount.Currency);
-            if (!payableAccounts.TryGetValue(key, out var payableAccount))
-            {
-                payableAccount = LedgerAccount.Create(pendingAccount.OwnerId, AccountType.SellerPayable, pendingAccount.Currency);
-                payableAccounts[key] = payableAccount;
-                _context.LedgerAccounts.Add(payableAccount);
-            }
-
-            var amount = pendingAccount.Balance;
-            pendingAccount.UpdateBalance(amount, EntryType.Debit);
-            payableAccount.UpdateBalance(amount, EntryType.Credit);
-
-            var transactionId = Guid.NewGuid();
-            _context.LedgerEntries.AddRange(
-                LedgerEntry.Create(pendingAccount.Id, transactionId, amount, EntryType.Debit, "Funds matured", "MATURITY"),
-                LedgerEntry.Create(payableAccount.Id, transactionId, amount, EntryType.Credit, "Funds matured", "MATURITY"));
-            maturedCount++;
-        }
+        // C3 Fix: Wrap in explicit transaction so FOR UPDATE locks are held until commit
+        var dbContext = (DbContext)_context;
+        await using var tx = await dbContext.Database.BeginTransactionAsync(
+            System.Data.IsolationLevel.RepeatableRead, cancellationToken);
 
         try
         {
+            var pendingAccounts = await _context.LedgerAccounts
+                .FromSqlRaw(
+                    """
+                    SELECT *, xmin FROM payouts."LedgerAccounts"
+                    WHERE "Type" = {0} AND "Balance" > 0
+                    ORDER BY "Id" ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 500
+                    """,
+                    (int)AccountType.SellerPending)
+                .ToListAsync(cancellationToken);
+
+            if (pendingAccounts.Count == 0)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                return;
+            }
+
+            var ownerIds = pendingAccounts.Select(a => a.OwnerId).Distinct().ToList();
+
+            // Lock payable accounts too to prevent concurrent DisbursementService reads
+            var payableAccounts = await _context.LedgerAccounts
+                .FromSqlRaw(
+                    """
+                    SELECT *, xmin FROM payouts."LedgerAccounts"
+                    WHERE "Type" = {0} AND "OwnerId" = ANY({1})
+                    FOR UPDATE
+                    """,
+                    (int)AccountType.SellerPayable, ownerIds.ToArray())
+                .ToDictionaryAsync(a => (a.OwnerId, a.Currency), cancellationToken);
+
+            // M6 Fix: Unique referenceId per maturity batch (prevents constraint violation on 2nd run)
+            var batchRef = $"MATURITY:{DateTimeOffset.UtcNow:yyyyMMddHHmmss}";
+
+            var maturedCount = 0;
+            foreach (var pendingAccount in pendingAccounts)
+            {
+                var key = (pendingAccount.OwnerId, pendingAccount.Currency);
+                if (!payableAccounts.TryGetValue(key, out var payableAccount))
+                {
+                    payableAccount = LedgerAccount.Create(pendingAccount.OwnerId, AccountType.SellerPayable, pendingAccount.Currency);
+                    payableAccounts[key] = payableAccount;
+                    _context.LedgerAccounts.Add(payableAccount);
+                }
+
+                var amount = pendingAccount.Balance;
+                pendingAccount.UpdateBalance(amount, EntryType.Debit);
+                payableAccount.UpdateBalance(amount, EntryType.Credit);
+
+                var transactionId = Guid.NewGuid();
+                _context.LedgerEntries.AddRange(
+                    LedgerEntry.Create(pendingAccount.Id, transactionId, amount, EntryType.Debit, "Funds matured", $"{batchRef}:{pendingAccount.Id}"),
+                    LedgerEntry.Create(payableAccount.Id, transactionId, amount, EntryType.Credit, "Funds matured", $"{batchRef}:{payableAccount.Id}"));
+                maturedCount++;
+            }
+
             await _context.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Matured funds for {Count} accounts", maturedCount);
+            await tx.CommitAsync(cancellationToken);
+
+            _logger.LogInformation("Matured funds for {Count} accounts in batch {BatchRef}", maturedCount, batchRef);
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            // Another instance already matured some of these accounts — safe to skip
+            await tx.RollbackAsync(cancellationToken);
             _logger.LogWarning(ex, "Concurrency conflict during fund maturity — another instance handled some accounts");
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            throw;
         }
     }
 }
