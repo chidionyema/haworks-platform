@@ -41,13 +41,21 @@ public sealed class VaultRotatingConnectionStringProvider : BackgroundService, I
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Initial credential fetch
-        await RefreshCredentialsAsync(stoppingToken).ConfigureAwait(false);
-
-        using var timer = new PeriodicTimer(_pollInterval);
-        while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
+        try
         {
-            await RefreshCredentialsSafeAsync(stoppingToken).ConfigureAwait(false);
+            // Initial credential fetch
+            await RefreshCredentialsAsync(stoppingToken).ConfigureAwait(false);
+
+            using var timer = new PeriodicTimer(_pollInterval);
+            while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
+            {
+                await RefreshCredentialsSafeAsync(stoppingToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogCritical(ex, "VaultRotatingConnectionStringProvider encountered an unexpected error and stopped");
+            throw;
         }
     }
 

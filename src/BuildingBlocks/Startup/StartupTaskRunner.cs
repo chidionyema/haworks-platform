@@ -26,24 +26,32 @@ public sealed class StartupTaskRunner : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var anyFailed = false;
-        foreach (var task in _tasks)
+        try
         {
-            if (!await RunWithRetryAsync(task, stoppingToken))
+            var anyFailed = false;
+            foreach (var task in _tasks)
             {
-                anyFailed = true;
+                if (!await RunWithRetryAsync(task, stoppingToken))
+                {
+                    anyFailed = true;
+                }
             }
-        }
 
-        if (anyFailed)
+            if (anyFailed)
+            {
+                _logger.LogCritical("One or more startup tasks failed permanently — service will NOT become ready");
+                throw new InvalidOperationException(
+                    "Startup tasks failed permanently. The host process should exit.");
+            }
+
+            _isReady = true;
+            _logger.LogInformation("All startup tasks completed — service is ready");
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
-            _logger.LogCritical("One or more startup tasks failed permanently — service will NOT become ready");
-            throw new InvalidOperationException(
-                "Startup tasks failed permanently. The host process should exit.");
+            _logger.LogCritical(ex, "StartupTaskRunner encountered an unexpected error");
+            throw;
         }
-
-        _isReady = true;
-        _logger.LogInformation("All startup tasks completed — service is ready");
     }
 
     /// <summary>

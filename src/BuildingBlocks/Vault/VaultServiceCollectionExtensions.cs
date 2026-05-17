@@ -52,7 +52,7 @@ public static class VaultServiceCollectionExtensions
             // don't have to populate the section.
             .PostConfigure(opts =>
             {
-                if (string.IsNullOrWhiteSpace(opts.Host)) opts.Host = "localhost";
+                // Do not fall back to localhost — callers must configure Database:Host explicitly.
                 if (opts.Port == 0) opts.Port = 5432;
                 if (string.IsNullOrWhiteSpace(opts.Database)) opts.Database = "postgres";
             })
@@ -132,13 +132,16 @@ public static class VaultServiceCollectionExtensions
             var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Options.VaultOptions>>().Value;
             // Vault client creation runs on a thread-pool thread to avoid blocking the DI
             // container build thread (no sync-over-async on the request path).
-            var handle = Task.Run(async () =>
-                await factory.CreateClientAsync(options, CancellationToken.None)
-                    .ConfigureAwait(false))
-                .GetAwaiter(); // Dispose-safe one-time DI init
+            // HWK021: sync-over-async is intentional here — IServiceProvider factory delegates
+            // are synchronous; there is no async DI registration API in Microsoft.Extensions.DI.
+#pragma warning disable HWK021
+            var vaultClientResult = Task.Run(() =>
+                factory.CreateClientAsync(options, CancellationToken.None))
+                .GetAwaiter().GetResult();
+#pragma warning restore HWK021
             var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
                 .CreateLogger<VaultCredentialProvider>();
-            return new VaultCredentialProvider(handle.GetResult().Client, logger);
+            return new VaultCredentialProvider(vaultClientResult.Client, logger);
         });
 
         // The base connection string is the static one from config (without dynamic user/pass).

@@ -21,13 +21,13 @@ public abstract class ThreePhaseHandlerBase<TRequest, TResponse, TDbContext>(
         object? pendingState = null;
 
         // PHASE 1: LOCAL LOCK & STATE PREPARATION
-        await strategy.ExecuteAsync(async () =>
+        await strategy.ExecuteAsync(async ct2 =>
         {
-            await using var tx = await context.Database.BeginTransactionAsync(ct);
-            pendingState = await PrepareAndLockAsync(request, ct);
-            await context.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
-        });
+            await using var tx = await context.Database.BeginTransactionAsync(ct2);
+            pendingState = await PrepareAndLockAsync(request, ct2);
+            await context.SaveChangesAsync(ct2);
+            await tx.CommitAsync(ct2);
+        }, ct);
 
         if (pendingState == null)
             return await HandleIdempotentShortCircuitAsync(request, ct);
@@ -37,7 +37,7 @@ public abstract class ThreePhaseHandlerBase<TRequest, TResponse, TDbContext>(
         try
         {
             gatewayResult = await resiliencePolicy.ExecuteAsync(
-                () => ExecuteExternalCallAsync(request, pendingState, ct));
+                ct2 => ExecuteExternalCallAsync(request, pendingState, ct2), ct);
         }
         catch (Exception ex)
         {
@@ -47,13 +47,13 @@ public abstract class ThreePhaseHandlerBase<TRequest, TResponse, TDbContext>(
 
         // PHASE 3: SETTLEMENT & OUTBOX RECONCILIATION
         TResponse result = default!;
-        await strategy.ExecuteAsync(async () =>
+        await strategy.ExecuteAsync(async ct2 =>
         {
-            await using var tx = await context.Database.BeginTransactionAsync(ct);
-            result = await SettleAsync(request, pendingState, gatewayResult, ct);
-            await context.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
-        });
+            await using var tx = await context.Database.BeginTransactionAsync(ct2);
+            result = await SettleAsync(request, pendingState, gatewayResult, ct2);
+            await context.SaveChangesAsync(ct2);
+            await tx.CommitAsync(ct2);
+        }, ct);
 
         return result;
     }

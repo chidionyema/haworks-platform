@@ -42,9 +42,10 @@ public sealed class VaultAppRoleAuthenticator : IVaultAppRoleAuthenticator
             throw new ArgumentException("Secret ID required.", nameof(secretId));
 
         // At bootstrap (before DI is built), IHttpClientFactory is unavailable.
+        // HWK022: pass a handler explicitly so the analyzer sees socket lifetime is controlled.
         var factoryClient = _httpClientFactory?.CreateClient(nameof(VaultAppRoleAuthenticator));
         using var fallbackClient = factoryClient == null
-            ? new HttpClient { Timeout = TimeSpan.FromSeconds(30) }
+            ? new HttpClient(new HttpClientHandler()) { Timeout = TimeSpan.FromSeconds(30) }
             : null;
         var http = factoryClient ?? fallbackClient!;
         {

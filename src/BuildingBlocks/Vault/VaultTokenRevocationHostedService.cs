@@ -71,7 +71,11 @@ internal sealed class VaultTokenRevocationHostedService(
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            // Sync-over-async is intentional: ApplicationStopping fires on a sync
+            // callback and there is no async shutdown hook available in IHostApplicationLifetime.
+#pragma warning disable HWK021
             vault.RevokeTokenAsync(cts.Token).GetAwaiter().GetResult();
+#pragma warning restore HWK021
         }
         catch (Exception ex)
         {
