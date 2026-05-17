@@ -8,6 +8,7 @@ public sealed record CatalogProductDto
     public Guid ProductId { get; init; }
     public string Name { get; init; } = string.Empty;
     public decimal UnitPrice { get; init; }
+    public string Currency { get; init; } = "USD";
     public bool IsInStock { get; init; }
     public bool IsListed { get; init; }
     public Guid CategoryId { get; init; }

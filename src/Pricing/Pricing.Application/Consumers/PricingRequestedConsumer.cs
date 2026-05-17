@@ -1,4 +1,6 @@
+using System.Linq;
 using Haworks.Contracts.Pricing;
+using Haworks.Pricing.Application.Commands;
 using Haworks.Pricing.Application.Queries;
 using Haworks.Pricing.Domain.Exceptions;
 using MassTransit;
@@ -34,6 +36,25 @@ public sealed class PricingRequestedConsumer(
                 CountryCode = msg.CountryCode,
                 StateCode = msg.StateCode,
             }, context.CancellationToken);
+
+            // C1 Fix: Redeem promo code BEFORE publishing (atomic with the calculation).
+            // Without this, the saga uses the discounted price but the code's use-count
+            // is never decremented — allowing unlimited reuse.
+            if (!string.IsNullOrWhiteSpace(msg.PromoCode) && result.Discounts.Any(d =>
+                string.Equals(d.Type, "PromotionCode", System.StringComparison.Ordinal)))
+            {
+                var promoDiscount = result.Discounts
+                    .First(d => string.Equals(d.Type, "PromotionCode", System.StringComparison.Ordinal));
+
+                await mediator.Send(new Commands.RedeemPromotionCodeCommand
+                {
+                    Code = msg.PromoCode!.ToUpperInvariant(),
+                    OrderId = msg.OrderId,
+                    UserId = msg.UserId,
+                    DiscountAmount = promoDiscount.Amount,
+                    CalculationId = result.CalculationId,
+                }, context.CancellationToken);
+            }
 
             await context.Publish(new PriceCalculatedEvent
             {

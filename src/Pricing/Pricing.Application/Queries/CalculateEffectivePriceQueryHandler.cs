@@ -63,6 +63,7 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
         }
 
         var baseUnitPrice = product!.UnitPrice;
+        var currency = product.Currency;
         var categoryId = product.CategoryId;
 
         // Step 2: Load active rules
@@ -80,11 +81,12 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
             }
         }
 
-        // Step 6: Run calculation engine
+        // Step 6: Run calculation engine (C3 Fix: pass product currency, not hardcoded USD)
         var result = _engine.Calculate(
             request.ProductId,
             request.Quantity,
             baseUnitPrice,
+            currency,
             categoryId,
             rules,
             promoCode,
