@@ -44,6 +44,9 @@ exporters:
 
   loki:
     endpoint: http://loki:3100/loki/api/v1/push
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 30s
 
   debug:
     verbosity: basic
