@@ -1,34 +1,103 @@
 # Merchant Service
 
-Manages merchant profiles: onboarding, activation, and suspension.
+> Merchant onboarding and lifecycle management with admin approval workflows, state machine governance, and full audit trail.
 
-## Responsibilities
-- Create and persist merchant profiles with slug generation
-- Activate or suspend merchants (`MerchantProfile.Activate()` / `Suspend()`)
-- Publish domain events via MassTransit transactional outbox
+## High-Level Design
+
+```mermaid
+graph LR
+    Owner -->|POST /api/merchants| API[Merchant API]
+    Owner -->|PUT /api/merchants/:id| API
+    Admin -->|POST /approve/reject/suspend| API
+    API --> SM[State Machine Guards]
+    SM --> DB[(Merchant DB)]
+    DB -->|Outbox| MQ[Message Bus]
+```
+
+## Features
+
+- Merchant onboarding with mandatory admin approval
+- State machine lifecycle (Pending, Active, Suspended, Deactivated, Rejected)
+- Operating hours management
+- Slug-based public lookup
+- Separation of owner self-service vs admin operations
+- Full audit trail (who performed each transition and when)
 
 ## API Endpoints
-| Method | Route | Notes |
-|--------|-------|-------|
-| POST | `/api/merchants` | Create merchant profile |
 
-## Domain Entities
-- **MerchantProfile** — `OwnerId`, `Name`, `Slug`, `Bio`, `Status`; methods `Activate()` / `Suspend()`
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | /api/merchants | Yes | Register a new merchant |
+| GET | /api/merchants/{id} | Yes | Get merchant by ID |
+| GET | /api/merchants/by-slug/{slug} | Yes | Get merchant by slug |
+| GET | /api/merchants/mine | Yes | Get current user's merchant |
+| GET | /api/merchants | Admin | List merchants (filtered) |
+| PUT | /api/merchants/{id} | Owner | Update merchant details |
+| PUT | /api/merchants/{id}/hours | Owner | Update operating hours |
+| POST | /api/merchants/{id}/approve | Admin | Approve pending merchant |
+| POST | /api/merchants/{id}/reject | Admin | Reject pending merchant |
+| POST | /api/merchants/{id}/suspend | Admin | Suspend active merchant |
+| POST | /api/merchants/{id}/deactivate | Owner/Admin | Deactivate merchant |
 
-## Events Published
-- `MerchantCreatedEvent`
-- `MerchantActivatedEvent`
-- `MerchantSuspendedEvent`
+## Events (Published)
 
-## Infrastructure Dependencies
-- PostgreSQL (`MerchantDbContext`)
-- RabbitMQ via MassTransit (transactional outbox; skipped in `Test` environment)
+| Event | Trigger |
+|-------|---------|
+| MerchantCreatedEvent | New merchant registered |
+| MerchantApprovedEvent | Admin approves merchant |
+| MerchantRejectedEvent | Admin rejects merchant |
+| MerchantSuspendedEvent | Admin suspends merchant |
+| MerchantDeactivatedEvent | Merchant deactivated |
 
-## Configuration
+## Domain Model
+
+```mermaid
+classDiagram
+    class Merchant {
+        +Guid Id
+        +Guid OwnerId
+        +string Name
+        +string Slug
+        +MerchantState State
+        +List~OperatingHours~ Hours
+        +DateTime CreatedAt
+    }
+    class MerchantState {
+        <<enumeration>>
+        Pending
+        Active
+        Suspended
+        Deactivated
+        Rejected
+    }
+    class OperatingHours {
+        +DayOfWeek Day
+        +TimeOnly Open
+        +TimeOnly Close
+    }
+    class AuditEntry {
+        +Guid MerchantId
+        +string Action
+        +string PerformedBy
+        +DateTime PerformedAt
+    }
+    Merchant --> MerchantState
+    Merchant --> OperatingHours
+    Merchant --> AuditEntry
 ```
-ConnectionStrings:merchant
-RabbitMq:Host / Username / Password
-```
 
-## Health Checks
-- DB: `AddDbHealthCheck<MerchantDbContext>()`
+## Edge Cases & Hard Problems Solved
+
+- State machine guards validate legal transitions (e.g., cannot approve an already-active merchant)
+- Slug uniqueness enforced at DB level with friendly error propagation
+- Owner vs admin operation separation prevents privilege escalation
+- All transitions produce audit entries with actor identity and timestamp
+
+## Non-Functional Requirements
+
+| Requirement | How Achieved |
+|-------------|--------------|
+| Audit trail | Every state transition persisted with actor + timestamp |
+| Reliable event delivery | Transactional outbox pattern |
+| Data integrity | State machine guards prevent illegal transitions |
+| Slug uniqueness | Unique DB constraint + application-level validation |

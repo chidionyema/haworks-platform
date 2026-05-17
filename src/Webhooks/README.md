@@ -1,43 +1,99 @@
 # Webhooks Service
 
-Outbound webhook delivery platform for external partners. Fans out platform domain events to partner-registered HTTP endpoints with HMAC signing and Hangfire-backed retries.
+> Webhook subscription management and guaranteed delivery with SSRF prevention, HMAC signing, and dual event sourcing (MassTransit + Kafka CDC).
 
-## Responsibilities
-- Fan out 5 domain event types to matching `WebhookSubscription` records (`EventFanOutConsumer<T>`)
-- Enqueue Hangfire delivery jobs per matching subscription
-- Sign payloads with HMAC-SHA256 using per-subscription secret
-- Expose partner API for CRUD on subscriptions
-- Rotate subscription secrets (`WebhookSubscription.RotateSecret()`)
+## High-Level Design
+
+```mermaid
+graph LR
+    Producer[Application Events] -->|MassTransit| Webhooks[Webhooks Service]
+    CDC[Kafka CDC / Debezium] -->|Change events| Webhooks
+    Webhooks -->|HMAC-signed POST| Partner[Partner Endpoint]
+    Webhooks -->|Retry queue| Hangfire[(Hangfire)]
+    Webhooks -->|Subscriptions| DB[(PostgreSQL)]
+    Webhooks -->|DNS check| DNS[DNS Resolver]
+```
+
+## Features
+
+- Webhook subscription CRUD with partner-scoped isolation
+- Guaranteed delivery with Hangfire retry and configurable backoff
+- HMAC secret signing with rotation support (bcrypt hash + preview suffix)
+- Comprehensive SSRF prevention (blocks private IPs, link-local, DNS rebinding)
+- Dual event sources: MassTransit application events + Kafka CDC change streams
+- Delivery replay for failed or missed webhooks
+- Full delivery attempt audit trail
 
 ## API Endpoints
-| Method | Route | Notes |
-|--------|-------|-------|
-| GET | `/api/webhooks/subscriptions` | List partner subscriptions |
-| POST | `/api/webhooks/subscriptions` | Create subscription |
-| PUT | `/api/webhooks/subscriptions/{id}` | Update subscription |
-| DELETE | `/api/webhooks/subscriptions/{id}` | Soft-delete |
-| POST | `/api/webhooks/subscriptions/{id}/rotate-secret` | Rotate HMAC secret |
 
-## Domain Entities
-- **WebhookSubscription** — `PartnerId`, `Url`, `Secret`, `SecretHash`, `SecretPreview`, `Events[]`; `RotateSecret()`, `SoftDelete()`
-- **WebhookDelivery** — delivery attempt record with status and response body
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | /api/webhooks/subscriptions | Yes | Create webhook subscription |
+| GET | /api/webhooks/subscriptions/{id} | Yes | Get subscription details |
+| PATCH | /api/webhooks/subscriptions/{id} | Yes | Update subscription |
+| DELETE | /api/webhooks/subscriptions/{id} | Yes | Delete subscription |
+| POST | /api/webhooks/subscriptions/{id}/rotate-secret | Yes | Rotate HMAC signing secret |
+| GET | /api/webhooks/deliveries | Yes | List deliveries (filtered) |
+| GET | /api/webhooks/deliveries/{id}/attempts | Yes | List delivery attempts |
+| POST | /api/webhooks/deliveries/{id}/replay | Yes | Replay a delivery |
 
-## Events Consumed (fan-out)
-- `OrderCompletedEvent`, `PaymentCompletedEvent`, `PaymentFailedEvent`
-- `RefundCompletedEvent`, `ContentAvailableEvent`
+## Events
 
-## Infrastructure Dependencies
-- PostgreSQL (`WebhooksDbContext`) with EF Core outbox
-- RabbitMQ via MassTransit (5 fan-out consumers)
-- Hangfire with PostgreSQL storage (delivery job queue)
-- HTTP client (outbound delivery to partner URLs)
+### Consumed
 
-## Configuration
+| Event | Source | Description |
+|-------|--------|-------------|
+| OrderCreatedEvent | MassTransit | New order placed |
+| OrderCompletedEvent | MassTransit | Order fulfilled |
+| OrderAbandonedEvent | MassTransit | Order abandoned |
+| PaymentCompletedEvent | MassTransit | Payment captured |
+| RefundIssuedEvent | MassTransit | Refund processed |
+| CDC: products | Kafka Debezium | Product data changes |
+| CDC: categories | Kafka Debezium | Category data changes |
+| CDC: orders | Kafka Debezium | Order state changes |
+| CDC: payments | Kafka Debezium | Payment state changes |
+
+## Domain Model
+
 ```
-ConnectionStrings:webhooks
-RabbitMq:Host / Username / Password
-Hangfire:Workers
+Subscription
+├── Id : Guid
+├── PartnerId : string (from partner_id claim)
+├── CallbackUrl : Uri (SSRF-validated)
+├── EventTypes : string[] (filter)
+├── Secret : bcrypt hash
+├── Status : Active | Paused | Disabled
+
+Delivery
+├── Id : Guid
+├── SubscriptionId : Guid
+├── EventType : string
+├── Payload : JSON
+├── Status : Pending → Delivered | Failed → Exhausted
+
+DeliveryAttempt
+├── AttemptNumber : int
+├── StatusCode : int
+├── ResponseBody : string (truncated)
+├── Timestamp : DateTimeOffset
 ```
 
-## Health Checks
-- DB: `AddDbHealthCheck<WebhooksDbContext>()`
+## Edge Cases & Hard Problems Solved
+
+- SSRF guard blocks localhost, RFC 1918, link-local (169.254.x.x), CGNAT (100.64.0.0/10), test-nets, multicast, and performs DNS rebinding check via ResolvesToPrivateIpAsync
+- Secret rotation uses bcrypt hash with preview suffix — old secret remains valid during rollover window
+- Delivery status lifecycle: Pending -> Failed -> Exhausted with configurable exponential backoff
+- Duplicate detection via PostgreSQL unique constraint (error code 23505) after crash recovery — prevents double-delivery on restart
+- Partner-scoped subscriptions via partner_id JWT claim — tenants cannot access each other's webhooks
+- DisableConcurrentExecution on Hangfire jobs prevents parallel delivery to same endpoint
+
+## Non-Functional Requirements
+
+| Requirement | How Achieved |
+|-------------|--------------|
+| Guaranteed delivery | Hangfire persistent retry with exponential backoff until Exhausted |
+| SSRF safety | Comprehensive private IP blocking + async DNS rebinding detection |
+| Replay capability | Immutable delivery records with full attempt history |
+| Dual event sourcing | MassTransit for app events + Kafka CDC for data changes |
+| Tenant isolation | Partner-scoped queries enforced at repository layer |
+| Auditability | Full delivery attempt log with status codes and timestamps |
