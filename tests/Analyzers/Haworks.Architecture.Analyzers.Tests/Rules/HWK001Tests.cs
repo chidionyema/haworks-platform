@@ -1,6 +1,5 @@
 using Haworks.Architecture.Analyzers.Rules;
 using Haworks.Architecture.Analyzers.Tests.Verifiers;
-using Microsoft.CodeAnalysis.Testing;
 using Xunit;
 
 namespace Haworks.Architecture.Analyzers.Tests.Rules;
@@ -21,14 +20,14 @@ public class HWK001Tests
                 private readonly MyDb _db = new();
                 public async Task Consume(ConsumeContext<OrderCreatedEvent> context)
                 {
-                    await _db.SaveChangesAsync(context.CancellationToken);
+                    await {|#0:_db.SaveChangesAsync(context.CancellationToken)|};
                 }
             }
             """;
 
         var expected = CSharpAnalyzerVerifier<HWK001_NoManualSaveChangesInConsumerAnalyzer>
             .Diagnostic(Diagnostics.NoManualSaveChangesInConsumer)
-            .WithSpan("/0/Test3.cs", 11, 15, 11, 62)
+            .WithLocation(0)
             .WithArguments("SaveChangesAsync");
 
         await CSharpAnalyzerVerifier<HWK001_NoManualSaveChangesInConsumerAnalyzer>
@@ -45,14 +44,39 @@ public class HWK001Tests
             public class OrderService
             {
                 private readonly MyDb _db = new();
-                public async Task DoWork()
-                {
-                    await _db.SaveChangesAsync();
-                }
+                public async Task DoWork() { await _db.SaveChangesAsync(); }
             }
             """;
 
         await CSharpAnalyzerVerifier<HWK001_NoManualSaveChangesInConsumerAnalyzer>
             .VerifyNoDiagnosticsAsync(source);
+    }
+
+    [Fact]
+    public async Task BeginTransactionAsync_InsideConsumer_Reports()
+    {
+        const string source = """
+            using System.Threading.Tasks;
+            using MassTransit;
+            using Microsoft.EntityFrameworkCore;
+            public record OrderCreatedEvent;
+            public class MyDb : DbContext { }
+            public class BadConsumer : IConsumer<OrderCreatedEvent>
+            {
+                private readonly MyDb _db = new();
+                public async Task Consume(ConsumeContext<OrderCreatedEvent> context)
+                {
+                    await {|#0:_db.Database.BeginTransactionAsync(context.CancellationToken)|};
+                }
+            }
+            """;
+
+        var expected = CSharpAnalyzerVerifier<HWK001_NoManualSaveChangesInConsumerAnalyzer>
+            .Diagnostic(Diagnostics.NoBeginTransactionInConsumer)
+            .WithLocation(0)
+            .WithArguments("BeginTransactionAsync");
+
+        await CSharpAnalyzerVerifier<HWK001_NoManualSaveChangesInConsumerAnalyzer>
+            .VerifyAnalyzerAsync(source, expected);
     }
 }

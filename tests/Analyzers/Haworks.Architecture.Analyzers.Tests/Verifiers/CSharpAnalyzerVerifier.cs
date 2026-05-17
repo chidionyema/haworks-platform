@@ -38,6 +38,8 @@ public static class CSharpAnalyzerVerifier<TAnalyzer>
 
 internal static class Stubs
 {
+    public static string All => MassTransit + "\n" + EfCore + "\n" + Polly;
+
     public const string MassTransit = """
         namespace MassTransit
         {
@@ -49,6 +51,7 @@ internal static class Stubs
             {
                 T Message { get; }
                 System.Threading.CancellationToken CancellationToken { get; }
+                System.Threading.Tasks.Task Publish<TMsg>(TMsg message, System.Threading.CancellationToken ct = default) where TMsg : class;
             }
         }
         """;
