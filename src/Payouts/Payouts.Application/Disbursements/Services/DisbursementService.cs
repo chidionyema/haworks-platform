@@ -26,6 +26,8 @@ public class DisbursementService : IDisbursementService
 
     public async Task ProcessEligiblePayoutsAsync()
     {
+        _logger.LogInformation("Starting payout disbursement cycle");
+
         var eligibleAccounts = await _context.LedgerAccounts
             .AsNoTracking()
             .Where(a => a.Type == AccountType.SellerPayable && a.Balance > 0)
@@ -46,8 +48,15 @@ public class DisbursementService : IDisbursementService
                               account.Balance >= p.PayoutThreshold)
             .Select(account => (account.Id, profiles[account.OwnerId]));
 
-        await Parallel.ForEachAsync(payoutTasks, new ParallelOptions { MaxDegreeOfParallelism = 5 },
+        var payoutList = payoutTasks.ToList();
+        _logger.LogInformation(
+            "Found {EligibleCount} accounts, {QualifiedCount} qualified for payout",
+            eligibleAccounts.Count, payoutList.Count);
+
+        await Parallel.ForEachAsync(payoutList, new ParallelOptions { MaxDegreeOfParallelism = 5 },
             async (item, ct) => await ExecutePayout(item.Id, item.Item2));
+
+        _logger.LogInformation("Payout disbursement cycle complete. Processed={Count}", payoutList.Count);
     }
 
     private async Task ExecutePayout(Guid accountId, SellerProfile profile)
@@ -77,6 +86,9 @@ public class DisbursementService : IDisbursementService
 
             if (account.Balance <= 0 || account.Balance < profile.PayoutThreshold)
             {
+                _logger.LogDebug(
+                    "Skipping payout for seller {SellerId}: balance={Balance}, threshold={Threshold}",
+                    profile.SellerId, account.Balance, profile.PayoutThreshold);
                 await tx.RollbackAsync();
                 return;
             }
@@ -87,6 +99,10 @@ public class DisbursementService : IDisbursementService
             var payout = Payout.Create(profile.SellerId, payoutAmount, currency);
             payoutId = payout.Id;
             _context.Payouts.Add(payout);
+
+            _logger.LogInformation(
+                "Phase 1 complete: payout reserved. PayoutId={PayoutId}, SellerId={SellerId}, Amount={Amount} {Currency}",
+                payout.Id, profile.SellerId, payoutAmount, currency);
 
             account.UpdateBalance(payoutAmount, EntryType.Debit);
             var entry = LedgerEntry.Create(account.Id, Guid.NewGuid(), payoutAmount, EntryType.Debit, "Payout initiated", payout.Id.ToString());
@@ -101,6 +117,10 @@ public class DisbursementService : IDisbursementService
         // =====================================================================
         // PHASE 2: EXTERNAL GATEWAY CALL (outside DB locks)
         // =====================================================================
+        _logger.LogInformation(
+            "Phase 2: initiating gateway call. PayoutId={PayoutId}, SellerId={SellerId}, IdempotencyKey={Key}",
+            payoutId, profile.SellerId, idempotencyKey);
+
         string? externalId = null;
         var isSuccess = false;
         string? errorMessage = null;
@@ -111,13 +131,19 @@ public class DisbursementService : IDisbursementService
                 profile.ExternalProviderId!, payoutAmount, currency, $"Payout for {profile.SellerId}",
                 idempotencyKey);
 
-            isSuccess = status == PayoutStatus.Succeeded;
+            isSuccess = status is PayoutStatus.Succeeded or PayoutStatus.InTransit;
             externalId = gatewayExternalId;
-            if (!isSuccess) errorMessage = "Gateway returned non-success status";
+            if (!isSuccess) errorMessage = $"Gateway returned status: {status}";
+
+            _logger.LogInformation(
+                "Phase 2 complete: gateway responded. PayoutId={PayoutId}, ExternalId={ExternalId}, Status={Status}",
+                payoutId, gatewayExternalId, status);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Gateway error for seller {SellerId}", profile.SellerId);
+            _logger.LogError(ex,
+                "Phase 2 failed: gateway error. PayoutId={PayoutId}, SellerId={SellerId}",
+                payoutId, profile.SellerId);
             errorMessage = ex.Message;
         }
 
@@ -132,16 +158,15 @@ public class DisbursementService : IDisbursementService
 
             if (isSuccess)
             {
-                // H3 Fix: Only transition to InTransit here. The terminal Succeeded state
-                // must be driven by a Stripe webhook (transfer.paid) — the funds are not
-                // confirmed until Stripe settles the transfer to the connected account.
                 payout!.MarkInTransit(externalId!);
+                _logger.LogInformation(
+                    "Phase 3 complete: payout in-transit. PayoutId={PayoutId}, SellerId={SellerId}, ExternalId={ExternalId}",
+                    payoutId, profile.SellerId, externalId);
             }
             else
             {
                 payout!.MarkFailed(errorMessage ?? "Unknown error");
 
-                // REFUND: re-credit the account since gateway failed
                 var account = await _context.LedgerAccounts
                     .FromSqlRaw("SELECT *, xmin FROM payouts.\"LedgerAccounts\" WHERE \"Id\" = {0} FOR UPDATE", accountId)
                     .FirstAsync();
@@ -149,6 +174,10 @@ public class DisbursementService : IDisbursementService
                 account.UpdateBalance(payoutAmount, EntryType.Credit);
                 var entry = LedgerEntry.Create(account.Id, Guid.NewGuid(), payoutAmount, EntryType.Credit, "Payout failed — refund", payout.Id.ToString());
                 _context.LedgerEntries.Add(entry);
+
+                _logger.LogWarning(
+                    "Phase 3 complete: payout failed, balance refunded. PayoutId={PayoutId}, SellerId={SellerId}, Reason={Reason}",
+                    payoutId, profile.SellerId, errorMessage);
             }
 
             await _context.SaveChangesAsync(CancellationToken.None);
