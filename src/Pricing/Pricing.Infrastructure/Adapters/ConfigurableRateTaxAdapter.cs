@@ -38,13 +38,15 @@ public sealed class ConfigurableRateTaxAdapter : ITaxCalculator
 
         if (rate is null)
         {
-            if (_options.FailOpen)
+            // M7 Fix: FailOpen=true means "allow traffic through on failure" (return 0%)
+            // FailOpen=false means "fail closed" (throw, blocking the transaction)
+            if (!_options.FailOpen)
             {
                 throw new TaxCalculationException($"No tax rate configured for {countryCode}/{stateCode}");
             }
 
             _logger.LogWarning(
-                "No tax rate configured for {Country}/{State}. Returning 0% (FailOpen=false).",
+                "No tax rate configured for {Country}/{State}. Returning 0% (FailOpen=true).",
                 countryCode, stateCode);
             return Task.FromResult(new TaxCalculationResult(0m, 0m, "RateTable"));
         }
