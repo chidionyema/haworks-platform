@@ -1,36 +1,62 @@
 # Localization Service
 
-Translation string management with locale-aware lookups. Stores translations as JSONB key-value pairs per locale, with CDN integration for static asset delivery.
+> Translation key-value store with locale-keyed dictionaries, CDN integration, and user attribution tracking.
 
-## Responsibilities
-- Store and retrieve translations by key and locale
-- Serve translations via REST for client-side i18n
-- Push updated translation bundles to CDN (production) or mock (dev/test)
+## High-Level Design
+
+```mermaid
+graph LR
+    Client -->|GET /translations/:key| API[Localization API]
+    API --> DB[(Translations DB)]
+    Client -->|PUT /translations/:key| API
+    API --> CDN[CDN Service]
+    CDN -->|Invalidate| Edge[CDN Edge]
+```
+
+## Features
+
+- Translation key-value store keyed by locale
+- Single record per key stores all locales (no N+1 queries)
+- CDN service abstraction for edge cache invalidation on updates
+- User attribution tracking (who last modified each translation)
 
 ## API Endpoints
-| Method | Route | Auth | Description |
-|--------|-------|------|-------------|
-| GET | `/api/translations/{key}` | None | Get translation by key, optional `?locale=en-US` |
 
-## Domain Entities
-- **Translation** — Id, Key (unique), Values (JSONB dict of locale → string)
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | /api/translations/{key}?locale= | Yes | Retrieve translation for a key and locale |
+| PUT | /api/translations/{key} | Yes | Create or update a translation |
 
-## Events Consumed
-- `TranslationUpdated` — via MassTransit consumer
+## Events (Published)
 
-## Events Published
-None.
+| Event | Trigger |
+|-------|---------|
+| TranslationMissingEvent | Key not found for locale — enables monitoring of missing translations |
 
-## Infrastructure Dependencies
-- PostgreSQL (`LocalizationDbContext`, schema: `localization`)
-- RabbitMQ via MassTransit (transactional outbox)
-- CDN service (`ICdnService` — mock in dev/test, real in production)
+## Domain Model
 
-## Configuration
+```mermaid
+classDiagram
+    class Translation {
+        +string Key
+        +Dictionary~string,string~ Locales
+        +string LastModifiedBy
+        +DateTime LastModifiedAt
+    }
 ```
-ConnectionStrings:localization    Postgres connection string
-RabbitMq:Host / Username / Password
-```
 
-## Health Checks
-- DB: `AddDbHealthCheck<LocalizationDbContext>()`
+## Edge Cases & Hard Problems Solved
+
+- One Translation record stores all locales in a dictionary column, eliminating N+1 queries when fetching multiple locales
+- CDN invalidation triggered on every PUT ensures edge caches never serve stale translations
+- User attribution on every write provides full audit lineage
+- Concurrent upsert handling (retry-on-constraint-violation for simultaneous creates)
+
+## Non-Functional Requirements
+
+| Requirement | How Achieved |
+|-------------|--------------|
+| Sub-ms lookups | DB indexed by key |
+| CDN propagation | Automatic invalidation on update |
+| No N+1 queries | All locales in single record |
+| Audit lineage | LastModifiedBy on every write |
