@@ -122,13 +122,13 @@ public class SecretExpiryWatcherJobTests
     private SecretExpiryWatcherJob CreateJob() =>
         new(_vaultClient.Object, _publishEndpoint.Object, _logger.Object);
 
-    private static VaultSharp.V1.Commons.Secret<VaultSharp.V1.SecretsEngines.KeyValue.V2.SecretMetadata> CreateMetadata(DateTimeOffset createdTime)
+    private static VaultSharp.V1.Commons.Secret<VaultSharp.V1.Commons.FullSecretMetadata> CreateMetadata(DateTimeOffset createdTime)
     {
-        var metadata = new VaultSharp.V1.SecretsEngines.KeyValue.V2.SecretMetadata
+        var metadata = new VaultSharp.V1.Commons.FullSecretMetadata
         {
-            CreatedTime = createdTime
+            CreatedTime = createdTime.ToString("o")
         };
-        return new VaultSharp.V1.Commons.Secret<VaultSharp.V1.SecretsEngines.KeyValue.V2.SecretMetadata>
+        return new VaultSharp.V1.Commons.Secret<VaultSharp.V1.Commons.FullSecretMetadata>
         {
             Data = metadata
         };

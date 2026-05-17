@@ -24,6 +24,7 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
 
         services.AddScoped<IEventScheduler, HangfireEventScheduler>();
+        services.AddScoped<ILeaseRepository, LeaseRepository>();
 
         if (!env.IsEnvironment("Test"))
         {
@@ -62,6 +63,7 @@ public static class DependencyInjection
         services.AddScoped<SecretExpiryWatcherJob>();
         services.AddScoped<RotateJwtKeyJob>();
         services.AddScoped<ClearPreviousJwtKeyJob>();
+        services.AddScoped<LeaseWatcherJob>();
 
         return services;
     }
