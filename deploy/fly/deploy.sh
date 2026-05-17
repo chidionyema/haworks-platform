@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Deploy services in dependency order:
 #   1. identity                                    (others may auth at boot)
-#   2. catalog, orders, payments, checkout, content (parallel)
+#   2. all backend services                        (parallel)
 #   3. bffweb                                      (talks to all backends)
 #
-# DEPLOY_CONTENT=true (in .env.local) opts into content-svc; default skips it.
+# DEPLOY_MEDIA=true (in .env.local) opts into media-svc (S3/ClamAV); default skips it.
 # Run bootstrap.sh first (or any time .env.local changes) to stage secrets.
 
 set -euo pipefail
@@ -12,17 +12,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 ENV_FILE="$ROOT_DIR/deploy/fly/.env.local"
-DEPLOY_CONTENT="false"
+DEPLOY_MEDIA="false"
 if [[ -f "$ENV_FILE" ]]; then
   # shellcheck disable=SC1090
   set -a; source "$ENV_FILE"; set +a
 fi
-DEPLOY_CONTENT="${DEPLOY_CONTENT:-false}"
+DEPLOY_MEDIA="${DEPLOY_MEDIA:-false}"
 
 # ── Step 0: Fresh Vault credentials ──────────────────────────────────
-# Generate fresh response-wrapped SecretIds (30-min TTL) for every service.
-# This MUST run before any fly deploy so the wrapping tokens are fresh
-# when services boot and attempt to unwrap.
 echo ">>> staging fresh Vault credentials (wrapped, 30-min TTL)"
 if [[ -x "$ROOT_DIR/deploy/fly/ci-stage-vault-creds.sh" ]]; then
   "$ROOT_DIR/deploy/fly/ci-stage-vault-creds.sh" || {
@@ -37,18 +34,13 @@ echo ""
 deploy_one() {
   local svc="$1"
   echo ">>> deploying $svc"
-  # --ha=false → 1 machine per app instead of Fly's default of 2 (HA pair).
-  # 7 services × 2 machines = 14, which busts the free-tier cap. Single-
-  # machine deploys + auto-stop are plenty for portfolio traffic; flip to
-  # `flyctl scale count N -a haworks-<svc>` after upgrading the org if
-  # you want real HA.
   flyctl deploy -c "fly.${svc}.toml" --remote-only --ha=false
 }
 
 deploy_one identity
 
-PARALLEL=(catalog orders payments checkout audit search webhooks)
-[[ "$DEPLOY_CONTENT" == "true" ]] && PARALLEL+=(content)
+PARALLEL=(catalog orders payments checkout audit search webhooks notifications scheduler payouts pricing merchant privacy location realtime featureflags analytics localization rulesengine)
+[[ "$DEPLOY_MEDIA" == "true" ]] && PARALLEL+=(media)
 
 pids=()
 for svc in "${PARALLEL[@]}"; do

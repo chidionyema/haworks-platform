@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: content-svc
+  name: merchant-svc
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -10,9 +10,9 @@ spec:
   source:
     repoURL: https://github.com/chidionyema/haworks-platform.git
     targetRevision: HEAD
-    path: deploy/helm/content-svc
+    path: deploy/helm/merchant-svc
     helm:
-      releaseName: content-svc
+      releaseName: merchant-svc
   destination:
     server: https://kubernetes.default.svc
     namespace: haworks

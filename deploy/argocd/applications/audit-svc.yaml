@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: audit-svc
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/chidionyema/haworks-platform.git
+    targetRevision: HEAD
+    path: deploy/helm/audit-svc
+    helm:
+      releaseName: audit-svc
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: haworks
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

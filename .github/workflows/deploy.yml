@@ -57,12 +57,23 @@ jobs:
       checkout: ${{ steps.filter.outputs.checkout }}
       search: ${{ steps.filter.outputs.search }}
       meilisearch: ${{ steps.filter.outputs.meilisearch }}
-      content: ${{ steps.filter.outputs.content }}
+      media: ${{ steps.filter.outputs.media }}
       notifications: ${{ steps.filter.outputs.notifications }}
       bff: ${{ steps.filter.outputs.bff }}
       shared: ${{ steps.filter.outputs.shared }}
       audit: ${{ steps.filter.outputs.audit }}
       webhooks: ${{ steps.filter.outputs.webhooks }}
+      scheduler: ${{ steps.filter.outputs.scheduler }}
+      payouts: ${{ steps.filter.outputs.payouts }}
+      pricing: ${{ steps.filter.outputs.pricing }}
+      merchant: ${{ steps.filter.outputs.merchant }}
+      privacy: ${{ steps.filter.outputs.privacy }}
+      location: ${{ steps.filter.outputs.location }}
+      realtime: ${{ steps.filter.outputs.realtime }}
+      featureflags: ${{ steps.filter.outputs.featureflags }}
+      analytics: ${{ steps.filter.outputs.analytics }}
+      localization: ${{ steps.filter.outputs.localization }}
+      rulesengine: ${{ steps.filter.outputs.rulesengine }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v4
@@ -104,9 +115,42 @@ jobs:
               - 'fly.search.toml'
             meilisearch:
               - 'fly.meilisearch.toml'
-            content:
-              - 'src/Content/**'
-              - 'fly.content.toml'
+            media:
+              - 'src/Media/**'
+              - 'fly.media.toml'
+            scheduler:
+              - 'src/Scheduler/**'
+              - 'fly.scheduler.toml'
+            payouts:
+              - 'src/Payouts/**'
+              - 'fly.payouts.toml'
+            pricing:
+              - 'src/Pricing/**'
+              - 'fly.pricing.toml'
+            merchant:
+              - 'src/Merchant/**'
+              - 'fly.merchant.toml'
+            privacy:
+              - 'src/Privacy/**'
+              - 'fly.privacy.toml'
+            location:
+              - 'src/Location/**'
+              - 'fly.location.toml'
+            realtime:
+              - 'src/Realtime/**'
+              - 'fly.realtime.toml'
+            featureflags:
+              - 'src/FeatureFlags/**'
+              - 'fly.featureflags.toml'
+            analytics:
+              - 'src/Analytics/**'
+              - 'fly.analytics.toml'
+            localization:
+              - 'src/Localization/**'
+              - 'fly.localization.toml'
+            rulesengine:
+              - 'src/RulesEngine/**'
+              - 'fly.rulesengine.toml'
             notifications:
               - 'src/Notifications/**'
               - 'fly.notifications.toml'
@@ -141,11 +185,22 @@ jobs:
       C_CHECKOUT: ${{ needs.changes.outputs.checkout }}
       C_SEARCH: ${{ needs.changes.outputs.search }}
       C_MEILISEARCH: ${{ needs.changes.outputs.meilisearch }}
-      C_CONTENT: ${{ needs.changes.outputs.content }}
+      C_MEDIA: ${{ needs.changes.outputs.media }}
       C_NOTIFICATIONS: ${{ needs.changes.outputs.notifications }}
       C_BFF: ${{ needs.changes.outputs.bff }}
       C_AUDIT: ${{ needs.changes.outputs.audit }}
       C_WEBHOOKS: ${{ needs.changes.outputs.webhooks }}
+      C_SCHEDULER: ${{ needs.changes.outputs.scheduler }}
+      C_PAYOUTS: ${{ needs.changes.outputs.payouts }}
+      C_PRICING: ${{ needs.changes.outputs.pricing }}
+      C_MERCHANT: ${{ needs.changes.outputs.merchant }}
+      C_PRIVACY: ${{ needs.changes.outputs.privacy }}
+      C_LOCATION: ${{ needs.changes.outputs.location }}
+      C_REALTIME: ${{ needs.changes.outputs.realtime }}
+      C_FEATUREFLAGS: ${{ needs.changes.outputs.featureflags }}
+      C_ANALYTICS: ${{ needs.changes.outputs.analytics }}
+      C_LOCALIZATION: ${{ needs.changes.outputs.localization }}
+      C_RULESENGINE: ${{ needs.changes.outputs.rulesengine }}
     steps:
       - id: set
         run: |
@@ -162,10 +217,21 @@ jobs:
           add_if search        "$C_SEARCH"        "$C_SHARED"
           add_if notifications "$C_NOTIFICATIONS" "$C_SHARED"
           add_if meilisearch   "$C_MEILISEARCH"   "false"  # no shared triggers meili
-          add_if audit        "$C_AUDIT" "$C_SHARED"
-          add_if webhooks    "$C_WEBHOOKS" "$C_SHARED"
-          if [[ "${{ vars.DEPLOY_CONTENT }}" == "true" ]]; then
-            add_if content "$C_CONTENT" "$C_SHARED"
+          add_if audit         "$C_AUDIT"         "$C_SHARED"
+          add_if webhooks      "$C_WEBHOOKS"      "$C_SHARED"
+          add_if scheduler     "$C_SCHEDULER"     "$C_SHARED"
+          add_if payouts       "$C_PAYOUTS"       "$C_SHARED"
+          add_if pricing       "$C_PRICING"       "$C_SHARED"
+          add_if merchant      "$C_MERCHANT"      "$C_SHARED"
+          add_if privacy       "$C_PRIVACY"       "$C_SHARED"
+          add_if location      "$C_LOCATION"      "$C_SHARED"
+          add_if realtime      "$C_REALTIME"      "$C_SHARED"
+          add_if featureflags  "$C_FEATUREFLAGS"  "$C_SHARED"
+          add_if analytics     "$C_ANALYTICS"     "$C_SHARED"
+          add_if localization  "$C_LOCALIZATION"   "$C_SHARED"
+          add_if rulesengine   "$C_RULESENGINE"   "$C_SHARED"
+          if [[ "${{ vars.DEPLOY_MEDIA }}" == "true" ]]; then
+            add_if media "$C_MEDIA" "$C_SHARED"
           fi
 
           if [[ ${#services[@]} -eq 0 ]]; then

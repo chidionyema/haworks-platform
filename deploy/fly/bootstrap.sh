@@ -30,30 +30,30 @@ for v in "${required[@]}"; do
 done
 
 REGION="${REGION:-iad}"
-# DEPLOY_CONTENT gates the optional content service. Two places must agree:
-#   1. .env.local DEPLOY_CONTENT=true  → this script creates the Fly app + secrets
-#   2. GitHub repo variable DEPLOY_CONTENT=true  → deploy.yml adds it to the matrix
+# DEPLOY_MEDIA gates the optional content service. Two places must agree:
+#   1. .env.local DEPLOY_MEDIA=true  → this script creates the Fly app + secrets
+#   2. GitHub repo variable DEPLOY_MEDIA=true  → deploy.yml adds it to the matrix
 # Setting only one creates a mismatch (app missing on deploy, or secrets unset).
-DEPLOY_CONTENT="${DEPLOY_CONTENT:-false}"
+DEPLOY_MEDIA="${DEPLOY_MEDIA:-false}"
 
-# Cross-check the GitHub repo variable when DEPLOY_CONTENT is on locally,
+# Cross-check the GitHub repo variable when DEPLOY_MEDIA is on locally,
 # so silent mismatches don't surface as "content service never deploys".
 # Soft-fails when gh CLI is missing/unauthenticated (the dev may not have
 # it set up yet) — only prints a warning then.
-if [[ "$DEPLOY_CONTENT" == "true" ]]; then
+if [[ "$DEPLOY_MEDIA" == "true" ]]; then
   if command -v gh >/dev/null 2>&1; then
-    gh_value=$(gh variable list 2>/dev/null | awk '$1=="DEPLOY_CONTENT"{print $2}' || true)
+    gh_value=$(gh variable list 2>/dev/null | awk '$1=="DEPLOY_MEDIA"{print $2}' || true)
     if [[ "$gh_value" != "true" ]]; then
-      echo "ERROR: .env.local has DEPLOY_CONTENT=true but the GitHub repo variable is '${gh_value:-unset}'." >&2
+      echo "ERROR: .env.local has DEPLOY_MEDIA=true but the GitHub repo variable is '${gh_value:-unset}'." >&2
       echo "       Set it to match so deploy.yml includes content in the matrix:" >&2
-      echo "         gh variable set DEPLOY_CONTENT --body true" >&2
-      echo "       Or set DEPLOY_CONTENT=false in .env.local to disable content entirely." >&2
+      echo "         gh variable set DEPLOY_MEDIA --body true" >&2
+      echo "       Or set DEPLOY_MEDIA=false in .env.local to disable content entirely." >&2
       exit 1
     fi
   else
-    echo "WARN: gh CLI not installed — cannot verify GitHub repo variable DEPLOY_CONTENT" >&2
+    echo "WARN: gh CLI not installed — cannot verify GitHub repo variable DEPLOY_MEDIA" >&2
     echo "      matches .env.local. Set it manually in repo Settings → Secrets and" >&2
-    echo "      variables → Actions → Variables: DEPLOY_CONTENT=true" >&2
+    echo "      variables → Actions → Variables: DEPLOY_MEDIA=true" >&2
   fi
 fi
 
@@ -154,11 +154,22 @@ INTERNAL_APPS=(
   haworks-notifications
   haworks-audit
   haworks-webhooks
+  haworks-scheduler
+  haworks-payouts
+  haworks-pricing
+  haworks-merchant
+  haworks-privacy
+  haworks-location
+  haworks-realtime
+  haworks-featureflags
+  haworks-analytics
+  haworks-localization
+  haworks-rulesengine
   haworks-kafka
   haworks-debezium
 )
-if [[ "$DEPLOY_CONTENT" == "true" ]]; then
-  INTERNAL_APPS+=(haworks-content)
+if [[ "$DEPLOY_MEDIA" == "true" ]]; then
+  INTERNAL_APPS+=(haworks-media)
 fi
 # Vault + vault-pg are created here but kept out of INTERNAL_APPS because
 # they don't take the standard common secrets (no RabbitMQ/Redis, and
@@ -427,12 +438,12 @@ set_secrets haworks-identity "${id_extra[@]}"
 [[ -n "${STRIPE_WEBHOOK_SECRET:-}" ]] && \
   set_secrets haworks-payments "Webhooks__Stripe__WebhookSecret=$STRIPE_WEBHOOK_SECRET"
 
-# Content-specific (only when DEPLOY_CONTENT=true).
+# Content-specific (only when DEPLOY_MEDIA=true).
 # Storage backend on Fly is Tigris (S3-compatible). Same Storage__* env shape
 # as local-dev/test (LocalStack) — only ServiceUrl/Region/ForcePathStyle vary.
 # Tigris credentials come from `flyctl storage create -a haworks-content`
 # (printed once as AWS_*); stash them in .env.local under TIGRIS_* slots.
-if [[ "$DEPLOY_CONTENT" == "true" ]]; then
+if [[ "$DEPLOY_MEDIA" == "true" ]]; then
   content_extra=()
   [[ -n "${TIGRIS_ACCESS_KEY:-}" ]] && content_extra+=("Storage__AccessKey=$TIGRIS_ACCESS_KEY")
   [[ -n "${TIGRIS_SECRET_KEY:-}" ]] && content_extra+=("Storage__SecretKey=$TIGRIS_SECRET_KEY")
