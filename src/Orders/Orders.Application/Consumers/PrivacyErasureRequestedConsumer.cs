@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Contracts.Privacy;
 using Haworks.Orders.Domain.Interfaces;
 using MassTransit;
@@ -12,6 +13,7 @@ namespace Haworks.Orders.Application.Consumers;
 /// </summary>
 public sealed class PrivacyErasureRequestedConsumer(
     IOrderRepository orders,
+    IDomainEventPublisher eventPublisher,
     ILogger<PrivacyErasureRequestedConsumer> logger
 ) : IConsumer<PrivacyErasureRequested>
 {
@@ -45,11 +47,15 @@ public sealed class PrivacyErasureRequestedConsumer(
 
         logger.LogInformation("Anonymised {Count} orders for UserId={UserId}", totalAnonymised, msg.UserId);
 
-        await context.Publish(new PrivacyErasureCompleted
+        // Use IDomainEventPublisher (outbox-backed) instead of context.Publish
+        // so the completion event commits in the same EF transaction as the
+        // final batch of anonymised orders.
+        await eventPublisher.PublishAsync(new PrivacyErasureCompleted
         {
             RequestId = msg.RequestId,
             UserId = msg.UserId,
             ServiceName = "orders-svc"
         });
+        await orders.SaveChangesAsync(context.CancellationToken);
     }
 }

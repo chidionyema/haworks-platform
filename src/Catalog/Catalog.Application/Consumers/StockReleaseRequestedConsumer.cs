@@ -1,4 +1,5 @@
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Haworks.Contracts.Catalog;
 
 namespace Haworks.Catalog.Application.Consumers;
@@ -64,18 +65,35 @@ public sealed class StockReleaseRequestedConsumer(
             product.ReleaseStock(item.Quantity);
         }
 
+        // Mark the reservation as released to prevent double-release on retry.
+        if (existingReservation is not null)
+        {
+            existingReservation.MarkReleased(evt.Reason);
+        }
+
         // Publish BEFORE save — same outbox-friendly pattern as the rest
         // of the platform. The OutboxMessage row commits in the same EF
         // transaction as the stock increments; on rollback the publish
         // is rolled back too.
-        await eventPublisher.PublishAsync(new StockReleasedEvent
+        try
         {
-            OrderId = evt.OrderId,
-            Items = evt.Items,
-            Reason = evt.Reason,
-        }, context.CancellationToken);
+            await eventPublisher.PublishAsync(new StockReleasedEvent
+            {
+                OrderId = evt.OrderId,
+                Items = evt.Items,
+                Reason = evt.Reason,
+            }, context.CancellationToken);
 
-        // MassTransit EF Outbox commits automatically
-        logger.LogInformation("Released stock for orderId={OrderId}; published StockReleasedEvent", evt.OrderId);
+            // MassTransit EF Outbox commits automatically
+            logger.LogInformation("Released stock for orderId={OrderId}; published StockReleasedEvent", evt.OrderId);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+        {
+            // Defense-in-depth: unique constraint violation means another
+            // consumer instance already released this stock.
+            logger.LogInformation(ex,
+                "Stock release for orderId={OrderId} hit unique constraint; idempotent skip",
+                evt.OrderId);
+        }
     }
 }

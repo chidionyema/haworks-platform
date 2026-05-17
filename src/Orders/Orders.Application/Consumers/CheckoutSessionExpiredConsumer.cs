@@ -22,7 +22,7 @@ public sealed class CheckoutSessionExpiredConsumer(
     public async Task Consume(ConsumeContext<CheckoutSessionExpiredEvent> context)
     {
         var evt = context.Message;
-        
+
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
             ["OrderId"] = evt.OrderId,
@@ -45,14 +45,10 @@ public sealed class CheckoutSessionExpiredConsumer(
             return;
         }
 
-        // Atomically mark order expired.
-        // The MarkStockReleasedAsync repository method uses ExecuteUpdateAsync for a 
-        // high-performance, atomic status transition.
-        var wasMarked = await orders.MarkStockReleasedAsync(
-            order.Id, 
-            OrderStatus.Expired, 
-            "checkout_session_expired", 
-            context.CancellationToken);
+        // Use tracked entity + domain method instead of ExecuteUpdateAsync so
+        // that the order update and outbox message commit in a single EF
+        // transaction (MassTransit outbox).
+        var wasMarked = order.MarkExpired("checkout_session_expired");
 
         if (!wasMarked)
         {
@@ -61,6 +57,7 @@ public sealed class CheckoutSessionExpiredConsumer(
         }
 
         // Publish stock release requested event for catalog-svc.
+        // Outbox writes the message row in the same EF transaction.
         await eventPublisher.PublishAsync(new StockReleaseRequestedEvent
         {
             OrderId = order.Id,
@@ -75,8 +72,8 @@ public sealed class CheckoutSessionExpiredConsumer(
             }).ToList()
         }, context.CancellationToken);
 
-        // ExecuteUpdateAsync bypasses the change tracker, so the outbox message
-        // written by PublishAsync must be flushed explicitly.
+        // SaveChanges commits both the order status change and the outbox
+        // message atomically.
         await orders.SaveChangesAsync(context.CancellationToken);
 
         logger.LogInformation("Order {OrderId} marked Expired; published StockReleaseRequestedEvent", order.Id);
