@@ -46,6 +46,11 @@ public class InitiatePrivacyRequestCommandHandler : IRequestHandler<InitiatePriv
 
         _context.PrivacyRequests.Add(privacyRequest);
 
+        // Publish BEFORE SaveChanges — UseBusOutbox writes the outbox row
+        // into the same EF transaction, so SaveChanges commits both the
+        // entity and the message atomically. No crash window.
+        await _publishEndpoint.Publish(new InitiatePrivacyRequestMessage { RequestId = privacyRequest.Id, UserId = request.UserId }, cancellationToken);
+
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
@@ -61,8 +66,6 @@ public class InitiatePrivacyRequestCommandHandler : IRequestHandler<InitiatePriv
                 return concurrentExisting.Id;
             throw;
         }
-
-        await _publishEndpoint.Publish(new InitiatePrivacyRequestMessage { RequestId = privacyRequest.Id, UserId = request.UserId }, cancellationToken);
 
         return privacyRequest.Id;
     }

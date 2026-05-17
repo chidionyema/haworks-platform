@@ -95,7 +95,6 @@ internal sealed class ReservationSweeperService : BackgroundService
         await using var scope = _scopeFactory.CreateAsyncScope();
         var sp = scope.ServiceProvider;
         var repo = sp.GetRequiredService<IProductRepository>();
-        var stockService = sp.GetRequiredService<IStockService>();
         var metrics = sp.GetRequiredService<IReservationMetrics>();
 
         var batchSize = _options.Value.BatchSize;
@@ -121,9 +120,8 @@ internal sealed class ReservationSweeperService : BackgroundService
             {
                 // Aggregate transition first — its guard enforces "must be
                 // Pending". Doing this before the stock release means a
-                // partial failure (DB up, stock release blip) leaves the
-                // reservation Pending and re-tryable on the next sweep,
-                // rather than half-released.
+                // partial failure leaves the reservation Pending and
+                // re-tryable on the next sweep.
                 if (!reservation.Expire())
                 {
                     // Raced with confirm or another sweeper — skip and move on.
@@ -133,10 +131,28 @@ internal sealed class ReservationSweeperService : BackgroundService
                     continue;
                 }
 
+                // Release stock INLINE (same unit of work) instead of calling
+                // stockService.ReleaseStockAsync which commits its own
+                // transaction. This ensures reservation expiry + stock
+                // increment are atomic — no crash window for double-release.
                 var items = ParseItems(reservation.ItemsJson);
-                await stockService
-                    .ReleaseStockAsync(items, ct)
-                    .ConfigureAwait(false);
+                foreach (var item in items)
+                {
+                    if (item.Quantity <= 0) continue;
+
+                    var product = await repo.GetByIdTrackedAsync(item.ProductId, ct).ConfigureAwait(false);
+                    if (product is null)
+                    {
+                        _logger.LogWarning(
+                            "Reservation {ReservationId} references unknown product {ProductId}; skipping item",
+                            reservation.Id, item.ProductId);
+                        continue;
+                    }
+
+                    product.ReleaseStock(item.Quantity);
+                }
+
+                reservation.MarkReleased("sweeper_expired");
 
                 metrics.RecordReservationExpiredBySweeper();
                 metrics.RecordReservationHoldDuration(
@@ -157,6 +173,8 @@ internal sealed class ReservationSweeperService : BackgroundService
             }
         }
 
+        // Single SaveChanges commits all reservation expirations + stock
+        // increments atomically.
         await repo.SaveChangesAsync(ct).ConfigureAwait(false);
         return expiredCount;
     }
