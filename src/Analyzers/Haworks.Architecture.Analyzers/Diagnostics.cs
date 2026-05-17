@@ -45,4 +45,28 @@ public static class Diagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor MustUseContextPublishInConsumer = new(
+        id: "HWK007",
+        title: "Consumers must publish via ConsumeContext not IPublishEndpoint or IDomainEventPublisher",
+        messageFormat: "'{0}' bypasses the consumer's outbox transaction — use context.Publish instead",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoExecuteUpdateInConsumer = new(
+        id: "HWK008",
+        title: "Do not use ExecuteUpdateAsync/ExecuteDeleteAsync inside MassTransit Consumers",
+        messageFormat: "'{0}' bypasses the EF change tracker making entity changes invisible to the MassTransit Outbox",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoExternalIoInsideTransaction = new(
+        id: "HWK009",
+        title: "Do not make external HTTP/API calls inside a database transaction",
+        messageFormat: "External call '{0}' is made while a database transaction is held open",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

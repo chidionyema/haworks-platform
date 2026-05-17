@@ -7,6 +7,8 @@ public class MediaDbContext : DbContext
     public MediaDbContext(DbContextOptions<MediaDbContext> options) : base(options) { }
 
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
+    public DbSet<MediaMetadata> MediaMetadata => Set<MediaMetadata>();
+    public DbSet<MediaVersion> MediaVersions => Set<MediaVersion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

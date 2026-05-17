@@ -2,10 +2,14 @@ namespace Haworks.Media.Api.Domain;
 
 public enum MediaStatus
 {
-    Pending,
-    Quarantined,
-    Active,
-    Rejected
+    Pending = 0,
+    Quarantined = 1,
+    Active = 2,
+    Rejected = 3,
+    Stitching = 4,
+    Validating = 5,
+    Failed = 6,
+    Deleted = 7
 }
 
 public enum UploadKind
@@ -27,6 +31,15 @@ public class MediaFile
     public UploadKind UploadKind { get; private set; }
     public string? S3UploadId { get; private set; }
     public int PartCount { get; private set; }
+    public Guid? EntityId { get; private set; }
+    public string? EntityType { get; private set; }
+    public string? Slug { get; private set; }
+    public string ETag { get; private set; } = string.Empty;
+    public string ObjectName { get; private set; } = string.Empty;
+    public string BucketName { get; private set; } = string.Empty;
+    public string? QuarantineReason { get; private set; }
+    public string? FailureReason { get; private set; }
+    public DateTime? ValidatedAt { get; private set; }
     public bool IsDeleted { get; private set; }
     public DateTimeOffset? DeletedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
@@ -92,11 +105,47 @@ public class MediaFile
         StampUpdate(time, actor);
     }
 
-    public void MarkDeleted(TimeProvider time)
+    public void SetEntityLink(Guid entityId, string entityType)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(entityType);
+        EntityId = entityId;
+        EntityType = entityType;
+    }
+
+    public void SetSlug(string slug)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(slug);
+        Slug = slug;
+    }
+
+    public void SetValidated(string eTag, string sha256)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(eTag);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sha256);
+        ETag = eTag;
+        Hash = sha256;
+        ValidatedAt = DateTime.UtcNow;
+        Status = MediaStatus.Active;
+    }
+
+    public void MarkAsFailed(string reason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        FailureReason = reason;
+        Status = MediaStatus.Failed;
+    }
+
+    public void MarkAsDeleted(TimeProvider time)
     {
         IsDeleted = true;
         DeletedAt = time.GetUtcNow();
+        Status = MediaStatus.Deleted;
         StampUpdate(time, null);
+    }
+
+    public void MarkDeleted(TimeProvider time)
+    {
+        MarkAsDeleted(time);
     }
 
     private void StampUpdate(TimeProvider? time, string? actor)
