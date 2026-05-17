@@ -87,7 +87,8 @@ public class ShipmentsController(
     [AllowAnonymous]
     public async Task<IActionResult> HandleWebhook([FromBody] EasyPostWebhookPayload payload, CancellationToken ct)
     {
-        if (payload.Description != "tracker.updated" && payload.Description != "tracker.created")
+        if (!string.Equals(payload.Description, "tracker.updated", StringComparison.Ordinal)
+            && !string.Equals(payload.Description, "tracker.created", StringComparison.Ordinal))
             return Ok();
 
         var trackingCode = payload.Result?.TrackingCode;
@@ -134,10 +135,13 @@ public class ShipmentsController(
 }
 
 public sealed record CreateShipmentHttpRequest(
-    Guid OrderId,
+    [property: System.Text.Json.Serialization.JsonRequired] Guid OrderId,
     string FromStreet, string FromCity, string FromState, string FromZip, string FromCountry,
     string ToStreet, string ToCity, string ToState, string ToZip, string ToCountry,
-    double LengthInches, double WidthInches, double HeightInches, double WeightOz);
+    [property: System.Text.Json.Serialization.JsonRequired] double LengthInches,
+    [property: System.Text.Json.Serialization.JsonRequired] double WidthInches,
+    [property: System.Text.Json.Serialization.JsonRequired] double HeightInches,
+    [property: System.Text.Json.Serialization.JsonRequired] double WeightOz);
 
 public sealed record BuyLabelRequest(string RateId);
 
