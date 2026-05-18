@@ -6,6 +6,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using System;
+using System.Text.Json;
 
 namespace Haworks.BuildingBlocks.Vault;
 
@@ -128,10 +129,89 @@ public static class VaultServiceCollectionExtensions
                     }
                 }, TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(30));
             }
+            else if (string.Equals(dbMode, "AgentFile", StringComparison.OrdinalIgnoreCase))
+            {
+                var agentSecretsPath = config["Vault:Agent:SecretsPath"] ?? "/vault/secrets";
+                var serviceName = roleName.StartsWith("haworks-", StringComparison.OrdinalIgnoreCase)
+                    ? roleName["haworks-".Length..]
+                    : roleName;
+                var credFile = Path.Combine(agentSecretsPath, $"db-{serviceName}.json");
+                var logger = sp.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("Haworks.Vault.AgentFilePasswordProvider");
+                var fallbackPassword = csb.Password ?? string.Empty;
+                var lastKnownGoodPassword = fallbackPassword;
+
+                builder.UsePeriodicPasswordProvider(async (sb, ct) =>
+                {
+                    var result = await ReadAgentCredentialFileAsync(credFile, logger, ct).ConfigureAwait(false);
+
+                    if (result is null)
+                    {
+                        logger.LogDebug("Agent credential file {File} not found; using fallback", credFile);
+                        return lastKnownGoodPassword;
+                    }
+
+                    if (result.Value.Error is { } ex)
+                    {
+                        VaultMetrics.CredentialRotationFailure.Add(1,
+                            new KeyValuePair<string, object?>("role", serviceName),
+                            new KeyValuePair<string, object?>("error_type", ex.GetType().Name));
+                        logger.LogWarning(ex,
+                            "Failed to read agent credential file {File}; using last-known-good password",
+                            credFile);
+                        return lastKnownGoodPassword;
+                    }
+
+                    if (!string.IsNullOrEmpty(result.Value.Username))
+                        sb.Username = result.Value.Username;
+
+                    lastKnownGoodPassword = result.Value.Password;
+                    return result.Value.Password;
+                }, TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(10));
+            }
 
             return builder.Build();
         });
         return services;
     }
 
+    /// <summary>
+    /// Reads a Vault Agent-rendered credential JSON file containing
+    /// <c>{ "username": "...", "password": "..." }</c>.
+    /// Returns <c>null</c> when the file does not exist, or an error result
+    /// when the file is malformed. Extracted for unit-testability.
+    /// </summary>
+    internal static async ValueTask<AgentCredentialResult?> ReadAgentCredentialFileAsync(
+        string filePath, ILogger? logger = null, CancellationToken ct = default)
+    {
+        if (!File.Exists(filePath))
+            return null;
+
+        try
+        {
+            var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            var password = root.GetProperty("password").GetString()
+                ?? throw new InvalidOperationException($"Agent credential file {filePath} has null password");
+
+            string? username = null;
+            if (root.TryGetProperty("username", out var usernameEl))
+                username = usernameEl.GetString();
+
+            return new AgentCredentialResult(username, password, Error: null);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to parse agent credential file {File}", filePath);
+            return new AgentCredentialResult(null, string.Empty, ex);
+        }
+    }
+
+    /// <summary>Result of reading a Vault Agent credential file.</summary>
+    internal readonly record struct AgentCredentialResult(
+        string? Username,
+        string Password,
+        Exception? Error);
 }

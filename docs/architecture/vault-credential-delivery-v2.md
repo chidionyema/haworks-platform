@@ -177,5 +177,36 @@ Search in Loki: `{app="haworks-identity"} |= "VaultCredentialRotated"`.
 | 2 | Delete dead code (VaultRotatingConnectionStringProvider, SecureStringExtensions, CredentialStore) | Next sprint |
 | 3 | Add VaultMetrics + OpenTelemetry instrumentation | Next sprint |
 | 4 | Integration tests with Testcontainers Vault | Next sprint |
-| 5 | Enable `StaticRole` on vault-pg sandbox | After Phase 4 |
+| 5 | Enable `StaticRole` on vault-pg sandbox | Done (this PR) |
 | 6 | Implement `AgentFile` mode for K8s | When K8s migration starts |
+
+## Enabling/Disabling StaticRole Mode
+
+### Enable for a service
+
+Run the helper script to stage Vault database rotation secrets on a Fly app:
+
+```bash
+./scripts/enable-vault-db-rotation.sh identity
+```
+
+This stages `Vault__DatabaseMode=StaticRole` and vault-pg connection details.
+Deploy the service to activate. The service will call
+`GET /v1/database/static-creds/haworks-identity` on each rotation interval.
+
+### Prerequisites
+
+1. **vault-pg deployed** with init.sql (creates Postgres users):
+   `fly deploy -c fly.vault-pg.toml`
+2. **vault deployed** with seed.sh (creates static roles in Vault):
+   `fly deploy -c fly.vault.toml`
+3. **Service has Vault enabled**: `Vault__Enabled=true` already staged.
+
+### Disable (revert to Neon)
+
+```bash
+flyctl secrets unset -a haworks-identity \
+  Vault__DatabaseMode Database__Host Database__Port Database__Database Database__SslMode
+```
+
+The service falls back to `DatabaseMode=None` and uses its static connection string.
