@@ -1,34 +1,69 @@
-# Haworks Platform — Engineering Standards & Context
+# Haworks Platform — Agent Instructions
 
-This document defines the foundation rules for the Haworks microservices platform.
+## FIRST: Read These Files
+1. `docs/agent-briefs/agent-standards.md` — 12 categories of non-negotiable rules
+2. `.claude/projects/*/memory/MEMORY.md` — current state, file paths, decisions
+3. `docs/agent-briefs/` — task-specific specs (check before starting any task)
 
-## 🚀 Quality & Validation Mandates
+## Anti-Loop Rules
+- If something fails twice with the same approach, STOP and try a different approach
+- If a build has >5 errors, fix ONE at a time — build after each fix
+- If editing a file >500 lines, use grep to find the exact line first — never read the whole file
+- If sed/regex breaks a file, `git checkout -- <file>` and use a different method
+- NEVER batch edits then build — edit ONE thing, build, confirm, move on
+- If stuck for >3 tool calls on the same problem, state what's blocking and ask
 
-### 1. Mandatory MediatR Validation
-- **Rule:** EVERY MediatR `Command` or `Query` MUST have a corresponding `AbstractValidator<T>` implementation in the same assembly.
-- **Enforcement:** Validation is wired into the pipeline via `ValidationBehavior`. Bypassing this behavior by manually validating in controllers or handlers is FORBIDDEN.
-- **Standard:** Use `FluentValidation.TestHelper` to ensure 100% coverage of validator rules.
+## Build Loop (mandatory after every edit)
+```
+1. Edit file
+2. dotnet build <changed-project>.csproj -v q 2>&1 | tail -3
+3. If errors: fix → goto 2
+4. If clean: next edit
+```
 
-### 2. Result Pattern Consistency
-- **Mandate:** Controllers MUST NOT contain business logic. They act as thin wrappers around MediatR.
-- **Standard:** Every handler returns `Result<T>`. Use `.ToActionResult()` extension to map results to appropriate HTTP status codes (400 for Validation, 404 for NotFound, etc.).
+## Quick Reference
 
-## 🏛 Native Architecture
+### Project
+- .NET 9.0 microservices, Clean Architecture, 16 services
+- Solution: `HaworksPlatform.sln`, per-service filters: `filters/*.slnf`
+- Branch: always feature branch, never main directly
 
-### 1. Bounded Context Isolation
-- **Rule:** Cross-context communication is exclusively via **Events** (MassTransit) or **BFF-Web** orchestration. Direct DB access or HTTP calls between services are prohibited.
-- **Data:** References between contexts must be ID-based (Guid), never navigation properties.
+### Build
+| Command | What | Time |
+|---------|------|------|
+| `dotnet build src/<Svc>/<Svc>.Api/<Svc>.Api.csproj -v q` | One service | ~10s |
+| `dotnet build HaworksPlatform.sln -v q` | Full solution | ~60s |
+| `dotnet test tests/<Svc>/<Svc>.Unit/ --no-build` | One test suite | ~5s |
 
-### 2. Transactional Integrity (Outbox)
-- **Rule:** All side effects (event publishing) MUST use the **Outbox Pattern**. Commit domain state and outbox messages in a single atomic transaction.
+### NEVER DO
+- `rm -rf src/` — destroyed repo once
+- `sed` for multi-line C# — mangles braces
+- `cat >>` to append to .ts/.cs — appends outside closures
+- `SaveChangesAsync()` in MassTransit consumers
+- `BeginTransactionAsync()` in consumers
+- `continue-on-error` to hide test failures
+- Work on main without a branch
 
-### 3. Geospatial Integrity (Location Service)
-- **Rule:** All coordinates MUST be stored as `GEOGRAPHY(POINT, 4326)` in PostgreSQL.
-- **Geohashing:** Every location record MUST have a corresponding 12-char Geohash for efficient grid-based indexing.
-- **Search:** Proximity searches MUST be performed against the Elasticsearch `geo_point` projection, followed by gRPC hydration for rich metadata.
+### Test Categories + CI Filter
+- Unit: `tests/<Svc>/<Svc>.Unit/` — no Docker
+- Integration: `tests/<Svc>/<Svc>.Integration/` — needs Docker
+- E2E: `tests/E2E/` — full Aspire stack, dedicated CI job
+- CI fast step filter: `FullyQualifiedName!~Integration&FullyQualifiedName!~E2E&FullyQualifiedName!~Smoke`
 
-## 🧠 Institutional Memory
+### Roslyn Analyzers > Arch Guards
+- Analyzers: `src/Analyzers/Haworks.Architecture.Analyzers/`
+- Compile-time, zero false positives, IDE squiggles
+- When adding a rule: add to Diagnostics.cs + Rules/ + test + delete arch guard duplicate
 
-### The "Validation Gap" Remediation (May 2026)
-- Found critical gaps where `CheckoutOrchestrator` and other services lacked validation.
-- **Action:** Implementing `ValidationBehavior` across all services. Every PR adding a Command MUST include a Validator and ValidatorTests.
+### MassTransit Laws
+1. No `SaveChangesAsync` in consumers — outbox commits automatically
+2. No `BeginTransactionAsync` in consumers — conflicts with outbox
+3. No `Guid.NewGuid()` inside Polly retry — key changes per attempt
+4. No DB locks across external API calls — use ThreePhaseHandlerBase
+5. No events without `SaveChangesAsync` in non-consumer code
+
+### Portfolio Site
+- Separate repo: `portfolio-site/`
+- URL: `https://haworks-platform.pages.dev`
+- Stack: Astro 6 + React 18 + Tailwind
+- Quality: `bash scripts/check-quality.sh`
