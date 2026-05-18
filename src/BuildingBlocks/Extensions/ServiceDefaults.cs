@@ -55,9 +55,6 @@ public static class ServiceDefaults
             opts.EnableForHttps = true;
         });
 
-        // Rate limiting is configured per-service in each API's Program.cs.
-        // The shared library cannot reference Microsoft.AspNetCore.App APIs.
-
         // Correlation-id propagation: registers IHttpContextAccessor + the
         // outbound DelegatingHandler. Must be called before
         // ConfigureHttpClientDefaults so the handler type is registered
