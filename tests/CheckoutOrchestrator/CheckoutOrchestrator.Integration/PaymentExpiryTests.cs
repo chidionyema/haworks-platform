@@ -149,7 +149,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
                 ProductId = productId, ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
             }},
             IdempotencyKey = "key-" + Guid.NewGuid().ToString("N"),
-            IsGuest = false,
+            Currency = "USD", IsGuest = false,
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 

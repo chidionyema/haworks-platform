@@ -48,6 +48,7 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             CustomerEmail = "test@example.com",
             TotalAmount = 100m,
             Items = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPrice = 100m } },
+            Currency = "USD",
             IdempotencyKey = "key-" + Guid.NewGuid()
         });
 
@@ -88,6 +89,7 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             CustomerEmail = "test@example.com",
             TotalAmount = 100m,
             Items = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPrice = 100m } },
+            Currency = "USD",
             IdempotencyKey = "key-" + Guid.NewGuid()
         });
 

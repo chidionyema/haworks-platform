@@ -31,7 +31,7 @@ public sealed class CheckoutWebAppFactory : WebApplicationFactory<Program>, IAsy
     public async Task InitializeAsync()
     {
         ConnectionString = await SharedTestPostgres.CreateDatabaseAsync("checkout");
-        _resetter = new DatabaseResetter(ConnectionString);
+        _resetter = new DatabaseResetter(ConnectionString, "checkout", "public");
         JwtTestDefaults.SetTestEnvironmentVariables();
 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Test");
@@ -82,6 +82,8 @@ public sealed class CheckoutWebAppFactory : WebApplicationFactory<Program>, IAsy
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CheckoutDbContext>();
         await db.Database.MigrateAsync();
+        // Re-initialize resetter AFTER migrations so Respawn finds the tables
+        _resetter = new DatabaseResetter(ConnectionString, "checkout", "public");
     }
 
     public Task ResetDatabaseAsync() => _resetter!.ResetAsync();
