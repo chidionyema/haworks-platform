@@ -1,4 +1,5 @@
 using VaultSharp;
+using VaultSharp.Core;
 using VaultSharp.V1.AuthMethods.Token;
 using VaultSharp.V1.Commons;
 
@@ -131,7 +132,12 @@ public static class VaultConfigBootstrap
                 login = await authenticator.LoginAsync(address, roleId, secretId, ct);
                 break;
             }
-            catch (Exception ex) when (attempt < maxAttempts && !ct.IsCancellationRequested)
+            catch (Exception ex) when (attempt < maxAttempts && !ct.IsCancellationRequested
+                && (ex is HttpRequestException
+                    or TaskCanceledException
+                    or TimeoutException
+                    or VaultApiException { HttpStatusCode: >= System.Net.HttpStatusCode.InternalServerError }
+                    or VaultApiException { HttpStatusCode: (System.Net.HttpStatusCode)429 }))
             {
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1));
                 logger?.LogWarning(ex,
@@ -143,6 +149,7 @@ public static class VaultConfigBootstrap
 
         var client = new VaultClient(new VaultClientSettings(address, new TokenAuthMethodInfo(login!.ClientToken)));
 
+        var kvMountPoint = configuration["Vault:KvMountPoint"] ?? "secret";
         var dict = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         foreach (var mapping in kvMappings)
         {
@@ -151,7 +158,7 @@ public static class VaultConfigBootstrap
             {
                 var kvStart = DateTime.UtcNow;
                 var resp = await client.V1.Secrets.KeyValue.V2.ReadSecretAsync(
-                    path: vaultPath, mountPoint: "secret");
+                    path: vaultPath, mountPoint: kvMountPoint);
                 foreach (var (key, value) in resp.Data.Data)
                 {
                     dict[$"{configPrefix}:{key}"] = value?.ToString();

@@ -243,7 +243,15 @@ public class VaultService : IVaultService
         var start = DateTime.UtcNow;
 
         var client = await GetClientAsync(ct);
-        var resp = await client.V1.Secrets.Database.GetStaticCredentialsAsync(roleName);
+        var credentialTask = client.V1.Secrets.Database.GetStaticCredentialsAsync(roleName);
+        var timeoutTask = Task.Delay(TimeSpan.FromSeconds(30), ct);
+        var completed = await Task.WhenAny(credentialTask, timeoutTask);
+        if (completed == timeoutTask)
+        {
+            ct.ThrowIfCancellationRequested();
+            throw new TimeoutException($"Vault GetStaticCredentialsAsync for role '{roleName}' timed out after 30s.");
+        }
+        var resp = await credentialTask; // propagate any exception
         var leaseDuration = TimeSpan.FromSeconds(resp.LeaseDurationSeconds);
 
         var entry = new CachedCredential(
@@ -403,6 +411,7 @@ public class VaultService : IVaultService
         if (disposing)
         {
             _cache.Clear();
+            (_client as IDisposable)?.Dispose();
             _clientGate.Dispose();
         }
         _disposed = true;
