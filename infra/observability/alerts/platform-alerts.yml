@@ -85,14 +85,34 @@ groups:
           summary: "RabbitMQ queue {{ $labels.queue }} has backlog"
           description: "Queue {{ $labels.queue }} has {{ $value }} messages pending (threshold: 1000)"
 
-      - alert: RabbitMqErrorQueue
-        expr: rabbitmq_queue_messages{queue=~".*_error"} > 0
-        for: 1m
+      - alert: DlqPermanentFailure
+        expr: increase(masstransit_faults_total{is_transient="False"}[5m]) > 0
+        for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "Messages in error queue: {{ $labels.queue }}"
-          description: "{{ $value }} message(s) in {{ $labels.queue }} — consumer crash or poison message"
+          summary: "Permanent DLQ failure in {{ $labels.consumer }}"
+          description: "{{ $labels.exception_type }} in {{ $labels.consumer }} — code bug or schema mismatch, replay won't help"
+
+      - alert: DlqTransientBacklog
+        expr: |
+          rabbitmq_queue_messages{queue=~".*_error"} > 5
+          AND increase(masstransit_faults_total{is_transient="True"}[10m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Transient DLQ backlog in {{ $labels.queue }}"
+          description: "{{ $value }} messages in {{ $labels.queue }} — likely upstream outage, delayed redelivery should resolve"
+
+      - alert: PoisonMessageDetected
+        expr: increase(masstransit_poison_messages_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Poison message detected in {{ $labels.consumer }}"
+          description: "A message has failed {{ $value }}+ times after replays. Do NOT replay — inspect payload and fix root cause."
 
       - alert: OutboxBacklogHigh
         expr: masstransit_outbox_pending_count > 100

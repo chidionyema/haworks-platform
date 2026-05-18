@@ -1,0 +1,24 @@
+{
+  "policies": [
+    {
+      "vhost": "/",
+      "name": "dlq-ttl",
+      "pattern": ".*_error$",
+      "apply-to": "queues",
+      "definition": {
+        "message-ttl": 604800000
+      },
+      "priority": 0
+    },
+    {
+      "vhost": "/",
+      "name": "quarantine-ttl",
+      "pattern": ".*_quarantine$",
+      "apply-to": "queues",
+      "definition": {
+        "message-ttl": 2592000000
+      },
+      "priority": 0
+    }
+  ]
+}
