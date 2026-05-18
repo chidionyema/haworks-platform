@@ -41,6 +41,7 @@ public class VaultService : IVaultService
     private static readonly TimeSpan s_clientRefreshHeadroom = TimeSpan.FromMinutes(5);
 
     private IVaultClient? _client;
+    private VaultClientHandle? _currentHandle;
     private DateTime _clientExpiresAtUtc;
     private AsyncCircuitBreakerPolicy? _circuitBreaker;
     private AsyncRetryPolicy? _retryPolicy;
@@ -199,7 +200,8 @@ public class VaultService : IVaultService
     private async Task BuildClientAsync(CancellationToken ct)
     {
         var handle = await _clientFactory.CreateClientAsync(_vaultOptions, ct);
-        (_client as IDisposable)?.Dispose();
+        _currentHandle?.Dispose(); // Disposes the old HttpClient
+        _currentHandle = handle;
         _client = handle.Client;
         _clientExpiresAtUtc = handle.CreatedAt + handle.LeaseDuration;
         _logger.LogInformation("Vault AppRole lease issued; duration={LeaseMinutes:F1} min, expiresAt={ExpiresAt:O}",
@@ -411,7 +413,7 @@ public class VaultService : IVaultService
         if (disposing)
         {
             _cache.Clear();
-            (_client as IDisposable)?.Dispose();
+            _currentHandle?.Dispose();
             _clientGate.Dispose();
         }
         _disposed = true;

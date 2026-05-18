@@ -94,7 +94,7 @@ public class VaultClientFactory : IVaultClientFactory
         };
 
         var client = new VaultSharp.VaultClient(settings);
-        return new VaultClientHandle(client, DateTime.UtcNow, login.LeaseDuration);
+        return new VaultClientHandle(client, DateTime.UtcNow, login.LeaseDuration, httpClient);
     }
 
     /// <summary>

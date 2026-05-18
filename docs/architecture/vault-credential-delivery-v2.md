@@ -63,12 +63,34 @@ The switch is config-only:
 - On callback failure: logs warning, returns static password from connection string
 - Health check monitors lease TTL
 
-#### `DatabaseMode=AgentFile` (future K8s)
+#### `DatabaseMode=AgentFile` (K8s -- implemented)
 
 - Vault Agent sidecar renders credentials to `/vault/secrets/db-{service}.json`
-- `UsePeriodicPasswordProvider` reads the file every 1 minute
+- `UsePeriodicPasswordProvider` reads the file every 1 minute via
+  `VaultServiceCollectionExtensions.ReadAgentCredentialFileAsync`
 - When Vault Agent rotates the file, next poll picks up new password
-- On file-not-found: returns static password from connection string
+- Both `username` and `password` are read from the JSON; username changes
+  are applied to the connection string builder on each rotation
+- On file-not-found: returns last-known-good password (initial fallback is
+  the static password from the connection string)
+- On malformed JSON: logs warning, increments `vault.credential_rotation.failure`
+  metric, returns last-known-good password
+
+##### K8s Configuration
+
+```yaml
+# Pod annotations (Vault Agent Injector)
+vault.hashicorp.com/agent-inject: "true"
+vault.hashicorp.com/agent-inject-secret-db-orders.json: "database/static-creds/haworks-orders"
+vault.hashicorp.com/agent-inject-template-db-orders.json: |
+  {{ with secret "database/static-creds/haworks-orders" }}
+  { "username": "{{ .Data.username }}", "password": "{{ .Data.password }}" }
+  {{ end }}
+
+# App environment
+Vault__DatabaseMode: "AgentFile"
+Vault__Agent__SecretsPath: "/vault/secrets"
+```
 
 ## Service Integration Pattern
 
@@ -178,7 +200,7 @@ Search in Loki: `{app="haworks-identity"} |= "VaultCredentialRotated"`.
 | 3 | Add VaultMetrics + OpenTelemetry instrumentation | Next sprint |
 | 4 | Integration tests with Testcontainers Vault | Next sprint |
 | 5 | Enable `StaticRole` on vault-pg sandbox | Done (this PR) |
-| 6 | Implement `AgentFile` mode for K8s | When K8s migration starts |
+| 6 | Implement `AgentFile` mode for K8s | Done (this PR) |
 
 ## Enabling/Disabling StaticRole Mode
 

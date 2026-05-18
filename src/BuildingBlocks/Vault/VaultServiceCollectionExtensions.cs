@@ -190,6 +190,9 @@ public static class VaultServiceCollectionExtensions
         try
         {
             var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(json))
+                return new AgentCredentialResult(null, string.Empty,
+                    new InvalidOperationException($"Agent credential file {filePath} is empty (0 bytes) — Vault Agent may still be rendering"));
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
