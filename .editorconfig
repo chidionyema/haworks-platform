@@ -96,3 +96,4 @@ dotnet_diagnostic.AsyncFixer02.severity = error  # Long-running on threadpool wi
 dotnet_diagnostic.AsyncFixer03.severity = error  # Fire-and-forget async call
 dotnet_diagnostic.AsyncFixer04.severity = error # Fire-and-forget in using block
 dotnet_diagnostic.AsyncFixer05.severity = error  # Implicit casting to Task
+
