@@ -44,6 +44,9 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: nuget-${{ runner.os }}-
 
+      - name: Architecture guards
+        run: bash scripts/check-architecture.sh
+
       - name: Restore
         run: dotnet restore HaworksPlatform.sln
 
