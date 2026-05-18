@@ -1,0 +1,14 @@
+# Gitleaks configuration — allowlist for test fixtures and constants.
+# These are fake/deterministic keys used exclusively in unit tests.
+# Real secrets are stored in HashiCorp Vault, never in source.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures and constants — not real secrets"
+
+paths = [
+  '''tests/''',
+  '''src/BuildingBlocks\.Testing/''',
+]
