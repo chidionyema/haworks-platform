@@ -22,7 +22,6 @@ public class ShippingDbContext : DbContext
             e.HasIndex(x => x.EasyPostShipmentId).IsUnique();
             e.Property(x => x.Status).HasConversion<string>();
             e.Property(x => x.RateAmount).HasColumnType("numeric(18,2)");
-            e.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
         });
 
         modelBuilder.AddInboxStateEntity();

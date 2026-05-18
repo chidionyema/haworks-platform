@@ -50,7 +50,6 @@ public sealed class WebhooksDbContext(DbContextOptions<WebhooksDbContext> option
             // xmin concurrency token — PostgreSQL only (not available on InMemory/SQLite providers)
             if (Database.ProviderName?.Contains("Npgsql") == true)
             {
-                entity.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
             }
         });
 
