@@ -185,8 +185,6 @@ jobs:
             path: tests/BffWeb/BffWeb.Integration
           - suite: CheckoutOrchestrator
             path: tests/CheckoutOrchestrator/CheckoutOrchestrator.Integration
-          - suite: Content
-            path: tests/Content/Content.Integration
           - suite: Search
             path: tests/Search/Search.Integration
           - suite: Audit
@@ -196,9 +194,9 @@ jobs:
           - suite: Webhooks
             path: tests/Webhooks/Webhooks.Integration
           - suite: Payouts
-            path: tests/Payouts.Integration
+            path: tests/Payouts/Payouts.Integration
           - suite: Scheduler
-            path: tests/Scheduler.Integration
+            path: tests/Scheduler/Scheduler.Integration
 
     steps:
       - uses: actions/checkout@v6

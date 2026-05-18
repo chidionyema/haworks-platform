@@ -34,6 +34,7 @@ public sealed class IdentityWebAppFactory : WebApplicationFactory<Program>, IAsy
         Environment.SetEnvironmentVariable("Authentication__Facebook__AppId",         "test-facebook-app-id");
         Environment.SetEnvironmentVariable("Authentication__Facebook__AppSecret",     "test-facebook-app-secret");
         Environment.SetEnvironmentVariable("Security__AllowedRedirectHosts__0", "localhost");
+        Environment.SetEnvironmentVariable("Cors__AllowedOrigins__0", "http://localhost");
 
         JwtTestDefaults.SetTestEnvironmentVariables();
     }
@@ -56,6 +57,7 @@ public sealed class IdentityWebAppFactory : WebApplicationFactory<Program>, IAsy
                 ["Jwt:Issuer"]   = "test-issuer",
                 ["Jwt:Audience"] = "test-audience",
                 ["Vault:Enabled"] = "false",
+                ["Cors:AllowedOrigins:0"] = "http://localhost",
             });
         });
 
