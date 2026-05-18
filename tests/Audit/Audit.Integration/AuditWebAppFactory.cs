@@ -32,6 +32,7 @@ public class AuditWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Test");
         Environment.SetEnvironmentVariable("ConnectionStrings__audit", ConnectionString);
         Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", RabbitMqConnectionString);
+        Environment.SetEnvironmentVariable("ConnectionStrings__s3", "http://localhost:9000");
         Environment.SetEnvironmentVariable("Vault__Enabled", "false");
 
         // Force the host to build so Services are available for migration
@@ -64,6 +65,7 @@ public class AuditWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
             {
                 ["ConnectionStrings:audit"] = ConnectionString,
                 ["ConnectionStrings:rabbitmq"] = RabbitMqConnectionString,
+                ["ConnectionStrings:s3"] = "http://localhost:9000",
                 ["Vault:Enabled"] = "false",
             });
         });
@@ -83,6 +85,8 @@ public class AuditWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
             {
                 AuditMassTransit.RegisterConsumers(mt);
             });
+
+            services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
         });
     }
 }

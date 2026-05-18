@@ -19,6 +19,69 @@ public sealed class PlatformGuardTests
         path.Contains("Analyzers\\Haworks.Architecture.Analyzers\\") ||
         path.Contains("PlatformGuardTests");
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // GUARD CATEGORIES — what lives here vs. Roslyn HWK analyzers
+    //
+    // ─── Cross-Project & Architecture Rules (Roslyn cannot check these) ───
+    //   Domain_layer_does_not_reference_Infrastructure_or_Application
+    //   Application_layer_does_not_reference_Infrastructure
+    //   No_cross_service_project_references
+    //   Controllers_do_not_directly_use_DbContext
+    //
+    // ─── Infrastructure & Deployment Checks ───
+    //   Every_service_API_project_has_Dockerfile, Every_service_has_README
+    //   Every_DbContext_has_migrations_directory, Every_Dockerfile_sets_non_root_user
+    //   Dockerfiles_dont_use_COPY_dot_dot, Every_deployed_service_has_fly_toml
+    //
+    // ─── Saga & State Machine Guards ───
+    //   Every_saga_has_SetCompletedWhenFinalized
+    //   Every_saga_that_acquires_resources_has_corresponding_release
+    //   No_saga_dead_end_states_without_handler, No_Publish_inside_saga_Then_block
+    //
+    // ─── Security & Auth Guards ───
+    //   Every_Program_cs_calls_UseAuthentication_before_UseAuthorization
+    //   Every_controller_has_Authorize_or_AllowAnonymous_attribute
+    //   CurrentUserService_checks_JWT_before_header
+    //   No_userId_from_request_body_in_state_changing_endpoints
+    //   No_AllowAnyOrigin_with_AllowCredentials, No_CORS_wildcard_in_production
+    //
+    // ─── Financial & Idempotency Guards ───
+    //   All_financial_commands_must_have_IdempotencyKey
+    //   Consumer_handling_financial_events_checks_idempotency
+    //   Financial_decimal_properties_have_explicit_column_type_in_DbContext
+    //   No_long_cast_truncation_for_Stripe_amounts
+    //   Ledger_and_financial_services_wrap_writes_in_transactions
+    //
+    // ─── Test Infrastructure Guards ───
+    //   No_EnsureDeletedAsync_in_test_factories, Test_factories_set_JwtTestDefaults
+    //   Test_factories_use_ConfigureTestServices_not_ConfigureServices
+    //   No_Testcontainers_in_service_projects, No_xunit_or_moq_in_service_projects
+    //
+    // ─── Code Quality (unique to guards, not in Roslyn) ───
+    //   No_TODO_comments_in_source_code, No_throwing_generic_Exception
+    //   No_IConfiguration_injected_into_handlers/domain_layer
+    //   Every_service_with_source_code_has_unit_tests
+    //
+    // NOTE: The following were REMOVED — HWK Roslyn analyzers enforce them at compile time:
+    //   HWK001 No_manual_SaveChangesAsync_in_consumers
+    //   HWK002 Idempotency_key_not_inside_Polly_ExecuteAsync
+    //   HWK005 No_BeginTransactionAsync_in_consumers
+    //   HWK015 No_async_void_methods
+    //   HWK016 No_positional_record_syntax_in_Contracts
+    //   HWK018 No_NotImplementedException_in_production_code
+    //   HWK019 No_hardcoded_localhost_in_production_runtime_code
+    //   HWK020 No_DateTime_Now_use_DateTime_UtcNow
+    //   HWK021 No_sync_over_async_blocking_calls
+    //   HWK024 No_Thread_Sleep_in_production_code
+    //   HWK025 No_catch_blocks_without_logging_in_production
+    //   HWK027 No_string_interpolation_in_ExecuteSqlRaw/FromSqlRaw
+    //   HWK029 No_float_or_double_for_money
+    //   HWK035 No_hardcoded_USD_currency
+    //   HWK045 No_sensitive_data_in_LogWarning_or_LogError
+    //   HWK046 No_string_concatenation_in_log_messages
+    //   HWK050 No_SaveChangesAsync_without_CancellationToken
+    // ══════════════════════════════════════════════════════════════════════════
+
     // ─── Auth & Middleware ────────────────────────────────────────────
 
     [Fact]
@@ -79,26 +142,6 @@ public sealed class PlatformGuardTests
         violations.Should().BeEmpty("placeholder Guid.NewGuid() must not exist in production consumer code");
     }
 
-    [Fact]
-    public void No_NotImplementedException_in_production_code()
-    {
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (lines[i].Contains("throw new NotImplementedException") &&
-                    !file.Contains("/Test") && !file.Contains("/test"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: NotImplementedException in production code");
-                }
-            }
-        }
-        violations.Should().BeEmpty("NotImplementedException must not exist in production code paths");
-    }
-
     // ─── Validators ──────────────────────────────────────────────────
 
     [Fact]
@@ -157,27 +200,6 @@ public sealed class PlatformGuardTests
             }
         }
         violations.Should().BeEmpty("Stripe amount conversions must use Math.Round to avoid truncation");
-    }
-
-    [Fact]
-    public void No_hardcoded_USD_currency()
-    {
-        var violations = new List<string>();
-        foreach (var file in FindSagaFiles())
-        {
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (Regex.IsMatch(lines[i], @"\.Currency\s*=\s*""USD""") &&
-                    !lines[i].TrimStart().StartsWith("//") &&
-                    !lines[i].Contains("fallback") && !lines[i].Contains("default"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: currency must not be hardcoded to USD — carry from source event");
-                }
-            }
-        }
-        violations.Should().BeEmpty("currency must be configurable, not hardcoded");
     }
 
     // ─── Consumers ───────────────────────────────────────────────────
@@ -659,29 +681,6 @@ public sealed class PlatformGuardTests
     // ─── Concurrency & Data Safety ───────────────────────────────────
 
     [Fact]
-    public void No_float_or_double_for_money()
-    {
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                var line = lines[i];
-                if (line.TrimStart().StartsWith("//")) continue;
-                // Check for float/double used with money-related variable names
-                if ((Regex.IsMatch(line, @"\b(float|double)\s+\w*(amount|price|total|balance|commission|tax|cost|fee|payout)\w*", RegexOptions.IgnoreCase)) &&
-                    !file.Contains("Test") && !file.Contains("test"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: float/double used for monetary value — use decimal");
-                }
-            }
-        }
-        violations.Should().BeEmpty("monetary values must use decimal, never float or double");
-    }
-
-    [Fact]
     public void No_SaveChangesAsync_inside_foreach_loop()
     {
         var violations = new List<string>();
@@ -1128,28 +1127,6 @@ public sealed class PlatformGuardTests
     // ─── Reliability ─────────────────────────────────────────────────
 
     [Fact]
-    public void No_async_void_methods()
-    {
-        // async void is fire-and-forget — exceptions crash the process
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (Regex.IsMatch(lines[i], @"\basync\s+void\b") &&
-                    !lines[i].Contains("EventHandler") && // event handlers are the one valid use
-                    !lines[i].TrimStart().StartsWith("//"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: async void — use async Task (exceptions in async void crash the process)");
-                }
-            }
-        }
-        violations.Should().BeEmpty("async void methods must not exist — use async Task");
-    }
-
-    [Fact]
     public void No_Task_Run_in_request_pipeline()
     {
         // Task.Run in controllers/handlers causes thread pool starvation under load
@@ -1173,72 +1150,7 @@ public sealed class PlatformGuardTests
 
     // ─── Data Safety ─────────────────────────────────────────────────
 
-    [Fact]
-    public void No_DateTime_Now_use_DateTime_UtcNow()
-    {
-        // DateTime.Now uses local timezone — always use UtcNow in server code
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            if (file.Contains("Test") || file.Contains("Migration")) continue;
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (Regex.IsMatch(lines[i], @"DateTime\.Now\b") &&
-                    !lines[i].Contains("UtcNow") &&
-                    !lines[i].TrimStart().StartsWith("//"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: DateTime.Now — use DateTime.UtcNow (server code must not depend on local timezone)");
-                }
-            }
-        }
-        violations.Should().BeEmpty("always use DateTime.UtcNow, never DateTime.Now in server code");
-    }
-
-    [Fact]
-    public void No_string_interpolation_in_ExecuteSqlRaw()
-    {
-        // ExecuteSqlRawAsync with $"..." is SQL injection. Use ExecuteSqlInterpolatedAsync or {0} params.
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (lines[i].Contains("ExecuteSqlRaw") && lines[i].Contains("$\""))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: string interpolation in ExecuteSqlRaw — SQL injection risk. Use ExecuteSqlInterpolated or parameterized {0}");
-                }
-            }
-        }
-        violations.Should().BeEmpty("ExecuteSqlRaw must use parameterized queries, never string interpolation");
-    }
-
     // ─── Observability ───────────────────────────────────────────────
-
-    [Fact]
-    public void No_string_concatenation_in_log_messages()
-    {
-        // Log messages should use structured logging {Param}, not "text" + variable
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            if (file.Contains("Test")) continue;
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (Regex.IsMatch(lines[i], @"Log(Information|Warning|Error|Debug|Critical)\s*\(\s*\$""") &&
-                    !lines[i].TrimStart().StartsWith("//"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: string interpolation in log message — use structured logging with {{placeholders}}");
-                }
-            }
-        }
-        violations.Should().BeEmpty("log messages must use structured logging {Placeholders}, not string interpolation");
-    }
 
     // ─── Event Contracts ─────────────────────────────────────────────
 
@@ -1421,46 +1333,6 @@ public sealed class PlatformGuardTests
 
     // ─── Lens 2: Sync-over-Async (Concurrency) ────────────────────────
 
-    [Fact]
-    public void No_sync_over_async_blocking_calls()
-    {
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            if (file.Contains("Program.cs") || file.Contains("Migration") || file.Contains("ModuleInitializer")) continue;
-            // Startup/bootstrap code legitimately needs sync-over-async for one-time init
-            if (file.Contains("Extensions") && file.Contains("Authentication")) continue;
-            // Hosted services and disposables may use sync-over-async in teardown paths
-            if (file.Contains("HostedService") || file.Contains("Revocation")) continue;
-            // Demo infrastructure is not in the request path
-            if (file.Contains("/Demo/")) continue;
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                var line = lines[i];
-                if (line.TrimStart().StartsWith("//")) continue;
-                // Match Task.Result / .Result (property on Task) but NOT foo.Result (arbitrary property)
-                // Key: .Result must NOT be followed by further property access typical of value objects
-                if ((Regex.IsMatch(line, @"\.GetAwaiter\(\)\.GetResult\(\)") ||
-                     Regex.IsMatch(line, @"\)\s*\.Result\b") ||    // someTask().Result
-                     Regex.IsMatch(line, @"Task.*\.Result\b")) &&  // Task<T>.Result
-                    !line.Contains("ModuleInitializer") && !line.Contains("Main(") &&
-                    !line.Contains("Dispose") && !line.Contains("dispose") &&
-                    !line.Contains("ScanResult") && !line.Contains("ClamScan"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: .Result or .GetAwaiter().GetResult() — blocks thread pool, use await");
-                }
-                if (Regex.IsMatch(line, @"\.Wait\(\)") && !line.Contains("WaitAsync") &&
-                    !line.Contains("SpinWait") && !line.Contains("ManualReset"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: .Wait() blocks thread pool — use await");
-                }
-            }
-        }
-        violations.Should().BeEmpty("sync-over-async (.Result, .Wait()) causes thread pool starvation — use await");
-    }
-
     // ─── Lens 5: Webhook Idempotency ────────────────────────────────
 
     [Fact]
@@ -1554,37 +1426,6 @@ public sealed class PlatformGuardTests
 
     // ─── Lens 8: Event Records Must Not Use Positional Syntax ───────
 
-    [Fact]
-    public void No_positional_record_syntax_in_Contracts()
-    {
-        var contractsDir = Path.Combine(SrcRoot, "Contracts");
-        if (!Directory.Exists(contractsDir)) return;
-        var violations = new List<string>();
-        foreach (var file in Directory.GetFiles(contractsDir, "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains("obj")))
-        {
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                // Positional record: record Foo(string Bar, int Baz)
-                // Non-positional: record Foo { ... } or record Foo : Base { ... }
-                var recordMatch = Regex.Match(lines[i], @"record\s+(\w+)\s*\(");
-                if (recordMatch.Success && !lines[i].Contains("//"))
-                {
-                    var recordName = recordMatch.Groups[1].Value;
-                    // Skip DTOs/envelopes/value objects that aren't MassTransit events
-                    if (recordName.Contains("Envelope") || recordName.Contains("Dto") ||
-                        recordName.Contains("Request") || recordName.Contains("Source") ||
-                        recordName.Contains("Payload") || recordName.Contains("Response"))
-                        continue;
-                    violations.Add($"{Relative(file)}:{i + 1}: {recordName} uses positional record syntax — MassTransit Init<T> faults. Use {{ get; init; }} properties");
-                }
-            }
-        }
-        violations.Should().BeEmpty("event records in Contracts must use {{ get; init; }} properties, never positional syntax");
-    }
-
     // ─── Lens 9: Unbounded Responses in Controllers ─────────────────
 
     [Fact]
@@ -1651,25 +1492,6 @@ public sealed class PlatformGuardTests
 
     // ─── Lens 12: FromSqlRaw Injection ──────────────────────────────
 
-    [Fact]
-    public void No_string_interpolation_in_FromSqlRaw()
-    {
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (lines[i].Contains("FromSqlRaw") && lines[i].Contains("$\""))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: string interpolation in FromSqlRaw — SQL injection risk. Use FromSqlInterpolated or {0} parameters");
-                }
-            }
-        }
-        violations.Should().BeEmpty("FromSqlRaw must use parameterized queries, never string interpolation");
-    }
-
     // ═══════════════════════════════════════════════════════════════════
     // AGENT MISTAKE PREVENTION — patterns AI agents commonly produce wrong
     // ═══════════════════════════════════════════════════════════════════
@@ -1732,46 +1554,6 @@ public sealed class PlatformGuardTests
             }
         }
         violations.Should().BeEmpty("consumers must not silently swallow exceptions");
-    }
-
-    [Fact]
-    public void No_hardcoded_localhost_in_production_runtime_code()
-    {
-        // Agents default to localhost URLs. Only design-time factories and
-        // dev-gated config may reference localhost.
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            if (file.Contains("Test") || file.Contains("Factory") ||
-                file.Contains("Demo") || file.Contains("Migration")) continue;
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (lines[i].TrimStart().StartsWith("//")) continue;
-                if ((lines[i].Contains("\"http://localhost") || lines[i].Contains("\"https://localhost") ||
-                     lines[i].Contains("\"127.0.0.1")) &&
-                    !lines[i].Contains("BlockedHosts") && // webhook URL blocklists are correct
-                    !lines[i].Contains("?? \"http") &&    // fallback pattern already guarded elsewhere
-                    !lines[i].Contains("CORS") && !lines[i].Contains("cors") &&
-                    !lines[i].Contains("Development") && !lines[i].Contains("IsDevelopment"))
-                {
-                    // Check if gated by environment check or if this is validation/blocklist code
-                    var context = string.Join(" ", lines.Skip(Math.Max(0, i - 10)).Take(20));
-                    var fileContent = File.ReadAllText(file);
-                    if (!context.Contains("IsDevelopment") && !context.Contains("IsEnvironment") &&
-                        !context.Contains("#if DEBUG") && !context.Contains("// dev only") &&
-                        !context.Contains("Validate") && !context.Contains("throw new Argument") &&
-                        !context.Contains("Block") && !context.Contains("== \"localhost\"") &&
-                        !file.Contains("Validator") &&
-                        !fileContent.Contains("IsValidRedirectUrl") && !fileContent.Contains("IsAllowedUrl"))
-                    {
-                        violations.Add($"{Relative(file)}:{i + 1}: hardcoded localhost URL not gated by environment check");
-                    }
-                }
-            }
-        }
-        violations.Should().BeEmpty("localhost URLs must be gated behind IsDevelopment() checks");
     }
 
     [Fact]
@@ -2297,26 +2079,6 @@ public sealed class PlatformGuardTests
     // ═══════════════════════════════════════════════════════════════════
 
     [Fact]
-    public void No_Thread_Sleep_in_production_code()
-    {
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            if (file.Contains("Test") || file.Contains("Demo") || file.Contains("Migration")) continue;
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (lines[i].Contains("Thread.Sleep(") && !lines[i].TrimStart().StartsWith("//"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: Thread.Sleep blocks the thread — use await Task.Delay with CancellationToken");
-                }
-            }
-        }
-        violations.Should().BeEmpty("Thread.Sleep must never appear in production code — it blocks the thread pool");
-    }
-
-    [Fact]
     public void No_Console_Write_in_production_code()
     {
         var violations = new List<string>();
@@ -2434,65 +2196,6 @@ public sealed class PlatformGuardTests
     // ═══════════════════════════════════════════════════════════════════
     // LOGGING DISCIPLINE — structured, no PII, correct levels
     // ═══════════════════════════════════════════════════════════════════
-
-    [Fact]
-    public void No_catch_blocks_without_logging_in_production()
-    {
-        // Every catch block that doesn't rethrow must log. Silent failures are invisible.
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            if (file.Contains("Test") || file.Contains("Demo") || file.Contains("Migration") ||
-                file.Contains("Factory")) continue;
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (!Regex.IsMatch(lines[i], @"catch\s*(\(|{)")) continue;
-                // Read next 10 lines for logging or rethrow
-                var block = string.Join(" ", lines.Skip(i).Take(10));
-                if (!block.Contains("_logger") && !block.Contains("Log") &&
-                    !block.Contains("throw") && !block.Contains("throw;") &&
-                    !block.Contains("best effort") && !block.Contains("// ignore") &&
-                    !block.Contains("// expected") && !block.Contains("finally"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: catch block without logging or rethrow — silent failures are invisible");
-                }
-            }
-        }
-        // Informational — some catch blocks legitimately suppress (e.g., file cleanup)
-        // violations.Should().BeEmpty("catch blocks must either log or rethrow");
-    }
-
-    [Fact]
-    public void No_sensitive_data_in_LogWarning_or_LogError()
-    {
-        // Card numbers, passwords, tokens, SSNs must never appear at Warning/Error level
-        var sensitivePatterns = new[] { "cardNumber", "CardNumber", "card_number", "cvv", "ssn", "SSN",
-            "password", "Password", "secret", "Secret", "token", "Token", "apiKey", "ApiKey" };
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            if (file.Contains("Test")) continue;
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (!lines[i].Contains("LogWarning") && !lines[i].Contains("LogError") &&
-                    !lines[i].Contains("LogCritical")) continue;
-                if (lines[i].TrimStart().StartsWith("//")) continue;
-                foreach (var pattern in sensitivePatterns)
-                {
-                    if (lines[i].Contains($"{{{pattern}}}") || lines[i].Contains($"{{@{pattern}}}"))
-                    {
-                        violations.Add($"{Relative(file)}:{i + 1}: sensitive field '{pattern}' in log message — redact before logging");
-                        break;
-                    }
-                }
-            }
-        }
-        violations.Should().BeEmpty("sensitive data (passwords, tokens, card numbers) must be redacted before logging");
-    }
 
     // ═══════════════════════════════════════════════════════════════════
     // DEPENDENCY HYGIENE — prevent coupling violations
@@ -3210,29 +2913,6 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
         // violations.Should().BeEmpty("query handlers should use AsNoTracking for read-only queries");
     }
 
-    [Fact]
-    public void No_SaveChangesAsync_without_CancellationToken()
-    {
-        // Forgetting to pass CancellationToken to SaveChangesAsync means user-cancelled
-        // requests still commit to DB
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            if (file.Contains("Test") || file.Contains("Migration")) continue;
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (Regex.IsMatch(lines[i], @"SaveChangesAsync\(\s*\)") &&
-                    !lines[i].TrimStart().StartsWith("//"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: SaveChangesAsync() without CancellationToken — cancelled requests still commit");
-                }
-            }
-        }
-        violations.Should().BeEmpty("SaveChangesAsync must receive CancellationToken so cancelled requests don't commit");
-    }
-
     // ═══════════════════════════════════════════════════════════════════
     // MASSTRANSIT & MESSAGING PITFALLS
     // ═══════════════════════════════════════════════════════════════════
@@ -3781,107 +3461,6 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
             }
         }
         violations.Should().BeEmpty("PublishAsync without SaveChangesAsync means the outbox message is never committed — dual-write risk");
-    }
-
-    [Fact]
-    public void No_BeginTransactionAsync_in_MassTransit_consumers()
-    {
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles().Where(f => f.Contains("Consumer")))
-        {
-            var content = File.ReadAllText(file);
-            if (IsExcludedFromGuards(file)) continue;
-            if (!content.Contains("IConsumer<")) continue;
-            if (!content.Contains("BeginTransactionAsync")) continue;
-            // Skip base classes that document why this is wrong
-            if (content.Contains("IdempotentConsumerBase") && content.Contains("abstract class")) continue;
-            // Media consumer uses multi-step file scan workflow — tracked for follow-up
-            if (file.Contains("MediaUploadCompletedConsumer")) continue;
-
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (lines[i].Contains("BeginTransactionAsync"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: BeginTransactionAsync in MassTransit consumer — conflicts with EF Outbox ambient transaction");
-                    break;
-                }
-            }
-        }
-        violations.Should().BeEmpty("MassTransit EF Outbox manages the transaction — manual BeginTransactionAsync creates nested/competing transactions");
-    }
-
-    [Fact]
-    public void Idempotency_key_must_not_be_generated_inside_Polly_ExecuteAsync()
-    {
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles())
-        {
-            var content = File.ReadAllText(file);
-            if (IsExcludedFromGuards(file)) continue;
-            if (!content.Contains(".ExecuteAsync(")) continue;
-            if (!content.Contains("Guid.NewGuid()")) continue;
-
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (!lines[i].Contains(".ExecuteAsync(")) continue;
-
-                int braceDepth = 0;
-                bool insideDelegate = false;
-                for (int j = i; j < Math.Min(i + 50, lines.Length); j++)
-                {
-                    var line = lines[j];
-                    braceDepth += line.Count(c => c == '{') - line.Count(c => c == '}');
-                    if (line.Contains("{")) insideDelegate = true;
-                    if (insideDelegate && line.Contains("Guid.NewGuid()") && (line.Contains("IdempotencyKey") || line.Contains("Idempotency") || line.Contains("RequestId")))
-                    {
-                        violations.Add($"{Relative(file)}:{j + 1}: Guid.NewGuid() for idempotency key inside Polly retry — each retry gets a different key");
-                        break;
-                    }
-                    if (insideDelegate && braceDepth <= 0) break;
-                }
-            }
-        }
-        violations.Should().BeEmpty("idempotency keys generated inside Polly ExecuteAsync change on every retry — generate BEFORE the retry block");
-    }
-
-    [Fact]
-    public void No_manual_SaveChangesAsync_in_MassTransit_consumers()
-    {
-        var violations = new List<string>();
-        foreach (var file in FindProductionCsFiles().Where(f => f.Contains("Consumer")))
-        {
-            var content = File.ReadAllText(file);
-            if (IsExcludedFromGuards(file)) continue;
-            if (!content.Contains("IConsumer<")) continue;
-            if (!content.Contains("SaveChangesAsync")) continue;
-            if (content.Contains("abstract class")) continue;
-            // Consumers using raw SQL (ExecuteUpdateAsync, ExecuteDeleteAsync, FromSqlRaw)
-            // bypass the change tracker — they MUST call SaveChangesAsync to flush the outbox.
-            if (content.Contains("ExecuteUpdateAsync") || content.Contains("ExecuteDeleteAsync") || content.Contains("FromSqlRaw")) continue;
-            // Consumers with mid-loop re-query patterns need intermediate commits
-            if (content.Contains("while (true)") || content.Contains("while(true)")) continue;
-            // Consumers that call external APIs (gateways, HTTP) need SaveChanges before the
-            // irreversible send to persist status — outbox auto-commit is too late
-            if (content.Contains("Gateway") || content.Contains("SendAsync") || content.Contains("HttpClient")) continue;
-            // Privacy erasure consumers use batched SaveChanges + final publish
-            if (file.Contains("PrivacyErasure")) continue;
-
-            var lines = File.ReadAllLines(file);
-            if (IsExcludedFromGuards(file)) continue;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (lines[i].Contains("SaveChangesAsync"))
-                {
-                    violations.Add($"{Relative(file)}:{i + 1}: manual SaveChangesAsync in consumer — MassTransit EF Outbox commits automatically");
-                    break;
-                }
-            }
-        }
-        violations.Should().BeEmpty("MassTransit EF Outbox calls SaveChangesAsync automatically when Consume returns — manual calls risk double-commit or outbox bypass");
     }
 
     // ─── Outbox/Inbox Atomicity Guards ──────────────────────────────────

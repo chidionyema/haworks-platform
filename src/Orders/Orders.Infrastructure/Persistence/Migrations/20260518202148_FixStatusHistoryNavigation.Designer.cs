@@ -3,17 +3,20 @@ using System;
 using Haworks.Orders.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Haworks.Orders.Infrastructure.Migrations
+namespace Haworks.Orders.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(OrderDbContext))]
-    partial class OrderDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260518202148_FixStatusHistoryNavigation")]
+    partial class FixStatusHistoryNavigation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
