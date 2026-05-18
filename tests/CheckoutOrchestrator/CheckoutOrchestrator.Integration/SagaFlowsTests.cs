@@ -10,6 +10,8 @@ using Haworks.CheckoutOrchestrator.Application.Sagas;
 using Haworks.CheckoutOrchestrator.Domain;
 using Haworks.CheckoutOrchestrator.Infrastructure;
 
+namespace Haworks.CheckoutOrchestrator.Integration;
+
 /// <summary>
 /// End-to-end CheckoutSaga state-machine tests. Each test publishes a
 /// sequence of upstream events into the in-memory test harness and asserts
@@ -18,11 +20,11 @@ using Haworks.CheckoutOrchestrator.Infrastructure;
 /// postgres so the EF saga repository's xmin concurrency / row-level lock /
 /// MT outbox semantics are all in play exactly as in production.
 /// </summary>
-public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.Integration.CheckoutWebAppFactory>, IAsyncLifetime
+public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyncLifetime
 {
-    private readonly Haworks.CheckoutOrchestrator.Integration.CheckoutWebAppFactory _factory;
+    private readonly CheckoutWebAppFactory _factory;
 
-    public SagaFlowsTests(Haworks.CheckoutOrchestrator.Integration.CheckoutWebAppFactory factory)
+    public SagaFlowsTests(CheckoutWebAppFactory factory)
     {
         _factory = factory;
     }
@@ -313,6 +315,7 @@ public sealed class SagaFlowsTests : IClassFixture<Haworks.CheckoutOrchestrator.
             {
                 ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
             }},
+            Currency = "USD",
             IdempotencyKey = "key-" + Guid.NewGuid().ToString("N"),
             IsGuest = false,
         });
