@@ -47,9 +47,15 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+      - "15692:15692"   # Prometheus metrics
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - ../../infra/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    command: >
+      bash -c "rabbitmq-plugins enable rabbitmq_delayed_message_exchange rabbitmq_prometheus rabbitmq_management_definitions &&
+               rabbitmq-server"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_running"]
       interval: 10s
