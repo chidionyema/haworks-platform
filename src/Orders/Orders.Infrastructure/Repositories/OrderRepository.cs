@@ -14,11 +14,13 @@ internal sealed class OrderRepository(OrderDbContext db) : IOrderRepository
     public Task<Order?> GetByIdTrackedAsync(Guid id, CancellationToken ct = default) =>
         db.Orders
             .Include(o => o.Items)
+            .Include(o => o.StatusHistory)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
 
     public Task<Order?> GetBySagaIdTrackedAsync(Guid sagaId, CancellationToken ct = default) =>
         db.Orders
             .Include(o => o.Items)
+            .Include(o => o.StatusHistory)
             .FirstOrDefaultAsync(o => o.SagaId == sagaId, ct);
 
     public async Task<IReadOnlyList<Order>> ListByUserAsync(string userId, int skip, int take, CancellationToken ct = default)

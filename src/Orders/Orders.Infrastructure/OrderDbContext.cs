@@ -60,11 +60,13 @@ public class OrderDbContext : DbContext
             entity.Property(o => o.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
             entity.Property(o => o.AbandonReason).HasMaxLength(500);
 
-            entity.Property<uint>("xmin")
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
+            // xmin-based optimistic concurrency was removed: Npgsql 9.x parameter
+            // type resolution for xid is unreliable across Postgres minor versions
+            // (parameter sent as int OID rather than xid OID, causing 0-row updates).
+            // Application-level idempotency guards (MarkPaid/MarkAbandoned/MarkExpired
+            // return false on invalid transitions) and MassTransit inbox dedup are
+            // the primary correctness mechanisms. The xmin column still exists at the
+            // DB level (system column) but is no longer used for concurrency tracking.
 
             entity.HasIndex(o => o.UserId).HasDatabaseName("IX_Orders_UserId");
             entity.HasIndex(o => o.SagaId).IsUnique().HasDatabaseName("IX_Orders_SagaId");

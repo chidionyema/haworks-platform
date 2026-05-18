@@ -10,6 +10,7 @@ using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 using Haworks.Orders.Application.Consumers;
+using Haworks.Orders.Infrastructure;
 
 namespace Haworks.Orders.Integration;
 
@@ -58,6 +59,12 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
         {
             services.AddMassTransitTestHarness(mt =>
             {
+                mt.AddEntityFrameworkOutbox<OrderDbContext>(o =>
+                {
+                    o.UsePostgres();
+                    o.UseBusOutbox();
+                });
+
                 mt.AddConsumer<PaymentCompletedConsumer>();
                 mt.AddConsumer<PaymentSessionFailedConsumer>();
                 mt.AddConsumer<StockReservationFailedConsumer>();
@@ -68,8 +75,6 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
             services.AddDomainEventPublisher();
 
             // [Authorize]-decorated endpoints need an authentication scheme.
-            // BuildingBlocks.Testing's TestAuthenticationHandler is a no-op
-            // handler that auto-authenticates as a fixed test user.
             services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
         });
     }

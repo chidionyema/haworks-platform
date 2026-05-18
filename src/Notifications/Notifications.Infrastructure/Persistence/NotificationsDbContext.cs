@@ -63,10 +63,10 @@ public class NotificationsDbContext : DbContext
             entity.Property(n => n.Body).IsRequired();
             entity.Property(n => n.IdempotencyKey).HasMaxLength(200);
             entity.Property(n => n.Variables)
-                .HasColumnType("jsonb")
-                .HasConversion(
+                .HasConversion<string>(
                     v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                    v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null));
+                    v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null)!)
+                .HasColumnType("jsonb");
 
             entity.OwnsMany(n => n.DeliveryAttempts, a =>
             {

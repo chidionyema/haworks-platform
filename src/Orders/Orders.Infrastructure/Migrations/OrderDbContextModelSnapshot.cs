@@ -154,12 +154,6 @@ namespace Haworks.Orders.Infrastructure.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
-                    b.Property<uint>("xmin")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
                     b.HasKey("Id");
 
                     b.HasIndex("IdempotencyKey")
