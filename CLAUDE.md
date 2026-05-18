@@ -108,3 +108,9 @@ Network idempotency (Inbox) is not enough. You must protect against logical busi
   ├──────────────────────────────────┼────────────────────────────────────┼───────┤
   │ make test svc=identity mode=unit │ Unit tests only                    │ ~15s  │
   └──────────────────────────────────┴────────────────────────────────────┴───────┘
+# CI Compatibility Rules
+- Before adding ANY test, verify it passes with: `dotnet test <project> --filter "FullyQualifiedName~<TestName>"`
+- E2E tests (Aspire AppHost) MUST be in `tests/E2E/` — they run in a dedicated CI job, not the fast unit test step
+- Integration tests MUST have "Integration" in their namespace or project name
+- NEVER add tests that require infrastructure (Docker, Vault, external APIs) to unit test projects
+- The fast CI step filter is: `FullyQualifiedName!~Integration&FullyQualifiedName!~E2E&FullyQualifiedName!~Smoke`
