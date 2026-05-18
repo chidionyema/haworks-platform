@@ -43,9 +43,10 @@ public sealed class CheckoutSessionExpiredConsumerTests(OrdersWebAppFactory fact
             Provider = "Stripe"
         });
 
-        // Assert
-        await PollUntilAsync(() => harness.Published.Select<StockReleaseRequestedEvent>().Any(p => p.Context.Message.OrderId == orderId),
-            TimeSpan.FromSeconds(30));
+        // Poll DB state directly — the consumer publishes StockReleaseRequestedEvent
+        // before SaveChangesAsync commits, so polling harness.Published can return
+        // before the DB write lands. The DB is the authoritative signal.
+        await PollUntilStateAsync(orderId, OrderStatus.Expired, TimeSpan.FromSeconds(30));
 
         await using var scope = _services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();

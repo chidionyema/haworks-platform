@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using Haworks.BffWeb.Api.SignalR;
+using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.Contracts.Payments;
 
 namespace Haworks.BffWeb.Integration;
@@ -81,7 +82,7 @@ public sealed class SignalRPushTests : IClassFixture<BffWebFactory>, IAsyncLifet
                 OrderId = orderId,
                 SagaId = sagaId,
                 PaymentId = paymentId,
-                UserId = "test-user-id",
+                UserId = TestAuthenticationHandler.TestUserId,
                 SessionId = "sess_test",
                 CheckoutUrl = "https://stripe.test/sess_test",
                 Provider = "Stripe",
@@ -124,7 +125,7 @@ public sealed class SignalRPushTests : IClassFixture<BffWebFactory>, IAsyncLifet
                 OrderId = Guid.NewGuid(),
                 SagaId = otherSagaId,
                 PaymentId = Guid.NewGuid(),
-                UserId = "other-user-id",
+                UserId = TestAuthenticationHandler.TestUserId,
                 SessionId = "sess_other",
                 CheckoutUrl = "https://stripe.test/sess_other",
                 Provider = "Stripe",

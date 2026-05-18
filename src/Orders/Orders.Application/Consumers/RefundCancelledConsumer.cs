@@ -33,7 +33,10 @@ public sealed class RefundCancelledConsumer(
 
         if (order.RevertToPaid())
         {
-            // MassTransit EF Outbox commits automatically
+            // SaveChanges persists the RevertToPaid state change. In production
+            // the EF outbox filter commits this automatically; in tests (no outbox)
+            // this call is what persists the row.
+            await orderRepository.SaveChangesAsync(context.CancellationToken);
             logger.LogInformation("Order {OrderId} status reverted to Paid after refund cancellation", msg.OrderId);
         }
     }

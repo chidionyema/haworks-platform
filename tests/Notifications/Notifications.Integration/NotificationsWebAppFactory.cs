@@ -140,16 +140,8 @@ public class NotificationsWebAppFactory : WebApplicationFactory<Program>, IAsync
     {
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
-        await db.Database.OpenConnectionAsync();
-        try
-        {
-            await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS notifications;");
-            await db.Database.EnsureCreatedAsync();
-        }
-        finally
-        {
-            await db.Database.CloseConnectionAsync();
-        }
+        await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS notifications;");
+        await db.Database.EnsureCreatedAsync();
     }
 
     public Task ResetDatabaseAsync() => _resetter!.ResetAsync();

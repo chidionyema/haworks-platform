@@ -77,7 +77,11 @@ public sealed class PaymentCompletedConsumer(
             PaymentId = evt.PaymentId,
         }, context.CancellationToken);
 
-        // MassTransit EF Outbox commits automatically
+        // SaveChanges persists the MarkPaid state change. In production the
+        // EF outbox filter (OrdersConsumerDefinition) calls this automatically
+        // as part of the outbox transaction; in the test harness (no outbox)
+        // the call here is what actually commits the row.
+        await orders.SaveChangesAsync(context.CancellationToken);
         logger.LogInformation("Order {OrderId} marked Paid; published OrderCompletedEvent", order.Id);
     }
 

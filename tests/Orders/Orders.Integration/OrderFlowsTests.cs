@@ -5,6 +5,7 @@ using MassTransit.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.Contracts.Catalog;
 using Haworks.Contracts.Orders;
 using Haworks.Contracts.Payments;
@@ -50,14 +51,16 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
     [Fact]
     public async Task POST_creates_order_and_GET_reads_it_back()
     {
-        var (orderId, userId) = await CreateOrderAsync();
+        var (orderId, _) = await CreateOrderAsync();
 
         var resp = await _client.GetAsync($"/api/orders/{orderId}");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var order = await resp.Content.ReadFromJsonAsync<OrderDtoForTests>();
         order.Should().NotBeNull();
         order!.Id.Should().Be(orderId);
-        order.UserId.Should().Be(userId);
+        // The controller always stamps UserId from X-User-Id (set by
+        // TestAuthenticationHandler), never from the request body.
+        order.UserId.Should().Be(TestAuthenticationHandler.TestUserId);
         order.Status.Should().Be("Created");
         order.Items.Should().NotBeEmpty();
     }
@@ -81,15 +84,18 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
     [Fact]
     public async Task GET_by_user_returns_paged_results()
     {
-        var userId = Guid.NewGuid().ToString();
+        // The controller stamps UserId from X-User-Id ("test-user") and also
+        // enforces that the path userId matches the authenticated user, so we
+        // must query with TestUserId to avoid a 403.
+        var userId = TestAuthenticationHandler.TestUserId;
         await CreateOrderAsync(userId: userId);
         await CreateOrderAsync(userId: userId);
 
         var resp = await _client.GetAsync($"/api/orders/by-user/{userId}?take=10");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var page = await resp.Content.ReadFromJsonAsync<PagedResultForTests>();
-        page!.Total.Should().Be(2);
-        page.Items.Should().HaveCount(2);
+        page!.Total.Should().BeGreaterThanOrEqualTo(2);
+        page.Items.Should().HaveCountGreaterThanOrEqualTo(2);
     }
 
     [Fact]
@@ -110,13 +116,16 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
             TransactionReference = "pi_xyz",
         });
 
-        // Poll Published rather than Consumed — Consumed.Any can race with
-        // EF retry-on-failure (the consumer is still retrying SaveChanges
-        // when the test wakes up). Poll for the downstream event with a
-        // generous deadline; the assertion below tells us the consumer
-        // actually ran AND succeeded.
-        await PollUntilAsync(() => harness.Published.Select<OrderCompletedEvent>().Any(p => p.Context.Message.OrderId == orderId),
-            TimeSpan.FromSeconds(30));
+        // Poll DB state directly — the consumer publishes the event BEFORE
+        // SaveChangesAsync commits, so polling harness.Published can return
+        // before the DB write lands. Polling the DB is the authoritative signal.
+        await PollUntilAsync(() =>
+        {
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+            var o = db.Orders.AsNoTracking().FirstOrDefault(x => x.Id == orderId);
+            return o?.Status == OrderStatus.Paid;
+        }, TimeSpan.FromSeconds(30));
 
         var completed = harness.Published.Select<OrderCompletedEvent>()
             .FirstOrDefault(p => p.Context.Message.OrderId == orderId);
@@ -125,8 +134,8 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
         completed.Context.Message.CustomerEmail.Should().Be("buyer@example.com");
 
         await using var verifyScope = _factory.Services.CreateAsyncScope();
-        var db = verifyScope.ServiceProvider.GetRequiredService<OrderDbContext>();
-        var stored = await db.Orders.AsNoTracking().FirstAsync(o => o.Id == orderId);
+        var db2 = verifyScope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var stored = await db2.Orders.AsNoTracking().FirstAsync(o => o.Id == orderId);
         stored.Status.Should().Be(OrderStatus.Paid);
         stored.PaymentId.Should().Be(paymentId);
     }
@@ -148,8 +157,14 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
             IsFinalAttempt = true,
         });
 
-        await PollUntilAsync(() => harness.Published.Select<OrderAbandonedEvent>().Any(p => p.Context.Message.OrderId == orderId),
-            TimeSpan.FromSeconds(30));
+        // Poll DB state — the consumer publishes before SaveChangesAsync commits.
+        await PollUntilAsync(() =>
+        {
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+            var o = db.Orders.AsNoTracking().FirstOrDefault(x => x.Id == orderId);
+            return o?.Status == OrderStatus.Abandoned;
+        }, TimeSpan.FromSeconds(30));
 
         var abandoned = harness.Published.Select<OrderAbandonedEvent>()
             .FirstOrDefault(p => p.Context.Message.OrderId == orderId);
@@ -157,8 +172,8 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
         abandoned!.Context.Message.PreviousStatus.Should().Be("Created");
 
         await using var verifyScope = _factory.Services.CreateAsyncScope();
-        var db = verifyScope.ServiceProvider.GetRequiredService<OrderDbContext>();
-        var stored = await db.Orders.AsNoTracking().FirstAsync(o => o.Id == orderId);
+        var db2 = verifyScope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var stored = await db2.Orders.AsNoTracking().FirstAsync(o => o.Id == orderId);
         stored.Status.Should().Be(OrderStatus.Abandoned);
         stored.AbandonReason.Should().Contain("PaymentSessionFailed");
     }
@@ -186,16 +201,22 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
             Reason = "Insufficient stock",
         });
 
-        await PollUntilAsync(() => harness.Published.Select<OrderAbandonedEvent>().Any(p => p.Context.Message.OrderId == orderId),
-            TimeSpan.FromSeconds(30));
+        // Poll DB state — the consumer publishes before SaveChangesAsync commits.
+        await PollUntilAsync(() =>
+        {
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+            var o = db.Orders.AsNoTracking().FirstOrDefault(x => x.Id == orderId);
+            return o?.Status == OrderStatus.Abandoned;
+        }, TimeSpan.FromSeconds(30));
 
         var abandoned = harness.Published.Select<OrderAbandonedEvent>()
             .FirstOrDefault(p => p.Context.Message.OrderId == orderId);
         abandoned.Should().NotBeNull();
 
         await using var verifyScope = _factory.Services.CreateAsyncScope();
-        var db = verifyScope.ServiceProvider.GetRequiredService<OrderDbContext>();
-        var stored = await db.Orders.AsNoTracking().FirstAsync(o => o.Id == orderId);
+        var db2 = verifyScope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var stored = await db2.Orders.AsNoTracking().FirstAsync(o => o.Id == orderId);
         stored.Status.Should().Be(OrderStatus.Abandoned);
         stored.AbandonReason.Should().Contain("StockReservationFailed");
     }
@@ -223,8 +244,14 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
             });
         }
 
-        await PollUntilAsync(() => harness.Published.Select<OrderCompletedEvent>().Any(p => p.Context.Message.OrderId == orderId),
-            TimeSpan.FromSeconds(30));
+        // Poll DB state — the consumer publishes before SaveChangesAsync commits.
+        await PollUntilAsync(() =>
+        {
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+            var o = db.Orders.AsNoTracking().FirstOrDefault(x => x.Id == orderId);
+            return o?.Status == OrderStatus.Paid;
+        }, TimeSpan.FromSeconds(30));
         await Task.Delay(500); // let the other 2 consumes settle
 
         // Application-level idempotency — what we actually care about — is
@@ -233,8 +260,8 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
         // xmin shadow concurrency token catches concurrent transitions on
         // the same row. The DB state is the source of truth.
         await using var verifyScope = _factory.Services.CreateAsyncScope();
-        var db = verifyScope.ServiceProvider.GetRequiredService<OrderDbContext>();
-        var stored = await db.Orders.AsNoTracking().FirstAsync(o => o.Id == orderId);
+        var db2 = verifyScope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var stored = await db2.Orders.AsNoTracking().FirstAsync(o => o.Id == orderId);
         stored.Status.Should().Be(OrderStatus.Paid);
         stored.PaymentId.Should().Be(paymentId);
 

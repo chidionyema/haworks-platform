@@ -1,5 +1,7 @@
+using System.Text.Json;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Haworks.Notifications.Domain.Entities;
@@ -60,7 +62,11 @@ public class NotificationsDbContext : DbContext
             entity.Property(n => n.Subject).HasMaxLength(500);
             entity.Property(n => n.Body).IsRequired();
             entity.Property(n => n.IdempotencyKey).HasMaxLength(200);
-            entity.Property(n => n.Variables).HasColumnType("jsonb");
+            entity.Property(n => n.Variables)
+                .HasColumnType("jsonb")
+                .HasConversion(
+                    v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null));
 
             entity.OwnsMany(n => n.DeliveryAttempts, a =>
             {

@@ -1,3 +1,6 @@
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -5,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Xunit;
 using Haworks.BuildingBlocks.Testing;
 using Haworks.BuildingBlocks.Testing.Authentication;
@@ -14,6 +19,38 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
 namespace Haworks.Webhooks.Integration;
+
+/// <summary>
+/// Webhooks-specific test auth handler. Extends the standard test principal
+/// with a <c>partner_id</c> claim (GUID) so that <c>SubscriptionsController.GetPartnerId()</c>
+/// resolves to a non-empty GUID and passes FluentValidation's NotEmpty rule.
+/// </summary>
+internal sealed class WebhooksTestAuthHandler(
+    IOptionsMonitor<AuthenticationSchemeOptions> options,
+    ILoggerFactory logger,
+    UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    internal const string TestPartnerIdString = "00000000-0000-0000-0000-000000000123";
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, TestAuthenticationHandler.TestUserId),
+            new Claim("sub", TestAuthenticationHandler.TestUserId),
+            new Claim("partner_id", TestPartnerIdString),
+            new Claim("email", "test@test.invalid"),
+            new Claim(ClaimTypes.Name, TestAuthenticationHandler.TestUserId),
+            new Claim(ClaimTypes.Role, "User"),
+            new Claim(ClaimTypes.Role, "Admin"),
+        };
+
+        var identity = new ClaimsIdentity(claims, TestAuthenticationHandler.SchemeName);
+        var principal = new ClaimsPrincipal(identity);
+        var ticket = new AuthenticationTicket(principal, TestAuthenticationHandler.SchemeName);
+        return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}
 
 public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
@@ -82,7 +119,9 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
             mockFactory.Setup(_ => _.CreateClient(It.IsAny<string>())).Returns(httpClient);
             
             services.AddSingleton(mockFactory.Object);
-            services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
+            services.AddAuthentication(TestAuthenticationHandler.SchemeName)
+                .AddScheme<AuthenticationSchemeOptions, WebhooksTestAuthHandler>(
+                    TestAuthenticationHandler.SchemeName, _ => { });
         });
     }
 }
