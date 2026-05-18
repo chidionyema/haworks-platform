@@ -25,25 +25,8 @@ builder.Services.AddStartupTaskRunner();
 builder.Services.AddJwksAuthentication(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
 
-builder.Services.AddRateLimiter(options =>
-{
-    options.AddPolicy("api", context =>
-    {
-        // Partition by authenticated user ID so limits are per-user, not global.
-        var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                     ?? context.User.FindFirst("sub")?.Value
-                     ?? context.Connection.RemoteIpAddress?.ToString()
-                     ?? "anonymous";
-
-        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: userId,
-            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1)
-            });
-    });
-});
+// Rate limiting provided by ServiceDefaults (AddPlatformRateLimiting).
+// Privacy endpoints use [EnableRateLimiting("user")] — 100/min per user.
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

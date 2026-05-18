@@ -55,8 +55,8 @@ public static class ServiceDefaults
             opts.EnableForHttps = true;
         });
 
-        // Rate limiting is configured per-service in each API's Program.cs.
-        // The shared library cannot reference Microsoft.AspNetCore.App APIs.
+        // Rate limiting — centralized policies for all services.
+        builder.Services.AddPlatformRateLimiting(builder.Configuration);
 
         // Correlation-id propagation: registers IHttpContextAccessor + the
         // outbound DelegatingHandler. Must be called before

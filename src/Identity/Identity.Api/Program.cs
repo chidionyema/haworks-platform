@@ -117,19 +117,8 @@ builder.Services.AddSwaggerGen();
 // IAntiforgery even on endpoints that opt OUT of the check.
 builder.Services.AddAntiforgery();
 
-// Rate limiting: AuthenticationController uses [EnableRateLimiting("auth")].
-// 5 attempts per minute per IP — standard "stop credential stuffing" knob.
-builder.Services.AddRateLimiter(options =>
-{
-    options.AddPolicy("auth", context =>
-        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 5,
-                Window = TimeSpan.FromMinutes(1)
-            }));
-});
+// Rate limiting provided by ServiceDefaults (AddPlatformRateLimiting).
+// AuthenticationController uses [EnableRateLimiting("auth")] — 5/min per IP.
 
 // Serilog with explicit console sink. Avoid ReadFrom.Configuration here —
 // when the appsettings shape isn't exactly what Serilog.Settings.Configuration
