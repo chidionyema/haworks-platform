@@ -108,8 +108,8 @@ public sealed class DlqReplayService
         var client = _httpClientFactory.CreateClient("RabbitMqManagement");
         var url = _config["RabbitMQ:ManagementUrl"]
             ?? throw new InvalidOperationException("RabbitMQ:ManagementUrl configuration is required for DLQ replay");
-        var user = _config["RabbitMQ:ManagementUser"] ?? "guest";
-        var pass = _config["RabbitMQ:ManagementPassword"] ?? "guest";
+        var user = _config["RabbitMQ:ManagementUser"] ?? throw new InvalidOperationException("RabbitMQ management credentials required");
+        var pass = _config["RabbitMQ:ManagementPassword"] ?? throw new InvalidOperationException("RabbitMQ management credentials required");
 
         client.BaseAddress = new Uri(url);
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(

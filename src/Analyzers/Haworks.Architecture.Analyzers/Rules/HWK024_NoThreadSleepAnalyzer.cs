@@ -39,7 +39,7 @@ public sealed class HWK024_NoThreadSleepAnalyzer : DiagnosticAnalyzer
             method.ContainingType?.ToDisplayString() == "System.Threading.Thread")
         {
             context.ReportDiagnostic(
-                Diagnostic.Create(Diagnostics.NoThreadSleep, invocation.GetLocation(), "Thread.Sleep()"));
+                Diagnostic.Create(Diagnostics.NoThreadSleep, invocation.GetLocation(), invocation.ToString()));
         }
     }
 }

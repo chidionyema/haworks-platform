@@ -111,9 +111,10 @@ public sealed class GlobalFaultConsumer : IConsumer<Fault>
                     messageId, count, consumerType);
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Cache failure must not break fault handling
+            // Poison detection is best-effort: cache failures must not break the fault handler.
+            // The message was still nacked — only the poison counter is lost.
             _logger.LogDebug(ex, "Poison detection cache operation failed for {MessageId}", messageId);
         }
     }

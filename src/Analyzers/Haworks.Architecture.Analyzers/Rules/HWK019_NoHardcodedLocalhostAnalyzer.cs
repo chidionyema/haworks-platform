@@ -9,7 +9,8 @@ namespace Haworks.Architecture.Analyzers.Rules;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class HWK019_NoHardcodedLocalhostAnalyzer : DiagnosticAnalyzer
 {
-    private static readonly string[] LocalhostPatterns = { "localhost", "127.0.0.1", "0.0.0.0" };
+    // Blocklist: these are the patterns we REJECT in production code, not use.
+    private static readonly string[] BlockedHostPatterns = ["localhost", "127.0.0.1", "0.0.0.0"];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         ImmutableArray.Create(Diagnostics.NoHardcodedLocalhost);
@@ -29,7 +30,7 @@ public sealed class HWK019_NoHardcodedLocalhostAnalyzer : DiagnosticAnalyzer
         if (string.IsNullOrEmpty(value))
             return;
 
-        foreach (var pattern in LocalhostPatterns)
+        foreach (var pattern in BlockedHostPatterns)
         {
             if (value.Contains(pattern))
             {

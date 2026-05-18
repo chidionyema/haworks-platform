@@ -43,6 +43,6 @@ public sealed class HWK022_NoNewHttpClientAnalyzer : DiagnosticAnalyzer
             return;
 
         context.ReportDiagnostic(
-            Diagnostic.Create(Diagnostics.NoNewHttpClient, creation.GetLocation(), "new HttpClient()"));
+            Diagnostic.Create(Diagnostics.NoNewHttpClient, creation.GetLocation(), typeName));
     }
 }

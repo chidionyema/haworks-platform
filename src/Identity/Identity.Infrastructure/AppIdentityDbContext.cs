@@ -1,7 +1,7 @@
 using Haworks.Identity.Application;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.Identity.Domain;
-using Haworks.Identity.Domain;
+using MassTransit;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
@@ -199,6 +199,11 @@ public class AppIdentityDbContext : IdentityDbContext<User>
                 .HasForeignKey(rt => rt.UserId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
+
+        // MassTransit EF Outbox/Inbox entities
+        modelBuilder.AddInboxStateEntity();
+        modelBuilder.AddOutboxStateEntity();
+        modelBuilder.AddOutboxMessageEntity();
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

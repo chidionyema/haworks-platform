@@ -101,7 +101,7 @@ if (!app.Environment.IsEnvironment("Test"))
             new Rule { Id = Guid.NewGuid(), Name = "fraud:high-risk-country", Expression = "countryCode == \"XX\" OR countryCode == \"YY\"", IsActive = true, CreatedAt = DateTime.UtcNow },
         };
         db.Set<Rule>().AddRange(fraudRules);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(CancellationToken.None);
         logger.LogInformation("Seeded {Count} fraud detection rules", fraudRules.Length);
     }
 }

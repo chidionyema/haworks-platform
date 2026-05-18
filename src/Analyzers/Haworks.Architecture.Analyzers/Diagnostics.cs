@@ -72,8 +72,8 @@ public static class Diagnostics
 
     public static readonly DiagnosticDescriptor NoAsyncVoid = new(
         id: "HWK015",
-        title: "Do not use async void methods",
-        messageFormat: "Method '{0}' is async void which causes unobserved exceptions",
+        title: "Do not use void async methods",
+        messageFormat: "Method '{0}' returns void from an async method — unobserved exceptions will crash the process",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -112,7 +112,7 @@ public static class Diagnostics
 
     public static readonly DiagnosticDescriptor NoTaskResultOrWait = new(
         id: "HWK021",
-        title: "Do not use .Result or .Wait() on tasks",
+        title: "Do not block synchronously on tasks — use await",
         messageFormat: "'{0}' can deadlock the request pipeline — use await instead",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
@@ -200,8 +200,8 @@ public static class Diagnostics
 
     public static readonly DiagnosticDescriptor NoAsNoTrackingWithSaveChanges = new(
         id: "HWK032",
-        title: "Do not mix AsNoTracking() with SaveChangesAsync()",
-        messageFormat: "Method '{0}' calls AsNoTracking() and SaveChangesAsync() which silently discards mutations",
+        title: "Do not mix AsNoTracking with SaveChanges",
+        messageFormat: "Method '{0}' calls AsNoTracking then persists — tracked entities are required for change detection",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);

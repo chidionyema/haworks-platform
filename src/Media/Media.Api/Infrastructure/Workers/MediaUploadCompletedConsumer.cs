@@ -125,7 +125,7 @@ public sealed class MediaUploadCompletedConsumer(
         }
         finally
         {
-            try { File.Delete(tempPath); } catch (Exception ex) { logger.LogWarning(ex, "Failed to delete temporary file {TempPath}", tempPath); }
+            try { File.Delete(tempPath); } catch (IOException ex) { logger.LogWarning(ex, "Failed to delete temporary file {TempPath}", tempPath); }
         }
     }
 }

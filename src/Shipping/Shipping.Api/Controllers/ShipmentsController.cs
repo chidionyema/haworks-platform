@@ -83,7 +83,7 @@ public class ShipmentsController(
     public async Task<IActionResult> GetByOrder(Guid orderId, CancellationToken ct)
     {
         var shipments = await db.Shipments.AsNoTracking()
-            .Where(s => s.OrderId == orderId)
+            .Where(s => s.OrderId == orderId).OrderByDescending(s => s.CreatedAt).Take(100)
             .ToListAsync(ct);
         return Ok(shipments);
     }

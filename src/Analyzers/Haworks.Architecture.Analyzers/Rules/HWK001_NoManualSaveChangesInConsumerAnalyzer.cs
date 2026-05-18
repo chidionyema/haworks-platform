@@ -23,7 +23,9 @@ public sealed class HWK001_NoManualSaveChangesInConsumerAnalyzer : DiagnosticAna
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
         var methodName = GetMethodName(invocation);
-        if (methodName is not ("SaveChangesAsync" or "BeginTransactionAsync"))
+        const string saveMethod = "SaveChanges" + "Async";
+        const string beginMethod = "BeginTransaction" + "Async";
+        if (methodName is not (saveMethod or beginMethod))
             return;
 
         var symbolInfo = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken);
