@@ -76,7 +76,7 @@
   <ItemGroup>
     <!-- Sonar C# analyzer — 600+ rules for bugs, vulnerabilities, code smells.
          Runs at compile time in IDE + CI. No SonarQube server required. -->
-    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.4.0.108396">
+    <PackageReference Include="SonarAnalyzer.CSharp">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
@@ -86,7 +86,7 @@
          - Fire-and-forget calls without await
          - Async void methods
          - Blocking on async (sync-over-async) -->
-    <PackageReference Include="AsyncFixer" Version="1.6.0">
+    <PackageReference Include="AsyncFixer">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
@@ -96,7 +96,7 @@
          - MA0006: Use String.Equals with StringComparison
          - MA0011: IFormatProvider missing
          - MA0051: Method too long (complexity guard) -->
-    <PackageReference Include="Meziantou.Analyzer" Version="3.0.85">
+    <PackageReference Include="Meziantou.Analyzer">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>

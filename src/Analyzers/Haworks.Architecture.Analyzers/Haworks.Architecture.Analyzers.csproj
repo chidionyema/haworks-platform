@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IsRoslynComponent>true</IsRoslynComponent>
+    <NoWarn>$(NoWarn);RS1038</NoWarn>
     <RootNamespace>Haworks.Architecture.Analyzers</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
