@@ -47,6 +47,9 @@ jobs:
       - name: Restore
         run: dotnet restore HaworksPlatform.sln
 
+      - name: Format check
+        run: dotnet format HaworksPlatform.sln --verify-no-changes --verbosity diagnostic 2>&1 | tail -20 || echo "::warning::Format violations found — run 'dotnet format' locally"
+
       - name: Build (no restore)
         run: dotnet build HaworksPlatform.sln --no-restore --configuration Release
 

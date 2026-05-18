@@ -1,7 +1,14 @@
-.PHONY: help dev k8s-up k8s-down k8s-smoke local-smoke refresh-images
+.PHONY: help setup dev test k8s-up k8s-down k8s-smoke local-smoke refresh-images
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+setup: ## First-time setup: install git hooks + restore packages
+	./scripts/install-git-hooks.sh
+	dotnet restore HaworksPlatform.sln
+
+test: ## Run tests for one service: make test svc=identity [mode=unit|integration]
+	./scripts/test.sh $(svc) $(or $(mode),all)
 
 dev: ## Start the full stack via Aspire (one process tree, live reload)
 	dotnet run --project deploy/aspire
