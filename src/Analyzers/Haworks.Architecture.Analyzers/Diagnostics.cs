@@ -317,4 +317,12 @@ public static class Diagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoSaveChangesBeforePublishWithoutTransaction = new(
+        id: "HWK051",
+        title: "Do not call SaveChangesAsync before PublishAsync without a transaction",
+        messageFormat: "Method calls SaveChangesAsync then PublishAsync without an explicit transaction — if publish fails, the database change cannot be rolled back. Reverse the order (Publish then SaveChanges) to use the Outbox, or wrap in a transaction.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

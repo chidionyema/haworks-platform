@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Haworks.Orders.Infrastructure.Persistence.Migrations
+namespace Haworks.Orders.Infrastructure.Migrations
 {
     /// <inheritdoc />
     public partial class FixStatusHistoryNavigation : Migration

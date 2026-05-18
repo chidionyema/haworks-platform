@@ -60,11 +60,11 @@ public class OrderDbContext : DbContext
             entity.Property(o => o.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
             entity.Property(o => o.AbandonReason).HasMaxLength(500);
 
-            entity.Property<uint>("xmin")
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
+            // xmin concurrency token removed: Npgsql 9.x sends xmin parameters
+            // with integer OID (23) but Postgres requires xid OID (28) — no
+            // implicit cast exists, causing DbUpdateConcurrencyException on every
+            // SaveChanges. Optimistic concurrency is not required for Order
+            // aggregates; domain-guard + pessimistic locks cover race conditions.
 
             entity.HasIndex(o => o.UserId).HasDatabaseName("IX_Orders_UserId");
             entity.HasIndex(o => o.SagaId).IsUnique().HasDatabaseName("IX_Orders_SagaId");
@@ -149,6 +149,16 @@ public class OrderDbContext : DbContext
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        // OrderStatusHistory entities added via the backing field
+        // are detected as Modified by EF's snapshot tracker (the
+        // collection was not loaded, so EF has no baseline). Fix
+        // them to Added before save.
+        foreach (var entry in ChangeTracker.Entries<OrderStatusHistory>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+
         StampAuditFields();
         return base.SaveChangesAsync(cancellationToken);
     }

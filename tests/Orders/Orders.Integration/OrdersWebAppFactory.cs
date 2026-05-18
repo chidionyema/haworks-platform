@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Testing.Authentication;
@@ -56,6 +58,22 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
 
         builder.ConfigureTestServices(services =>
         {
+            // BusOutboxDeliveryService polls orders.OutboxState on a 1-second
+            // timer starting immediately when the host boots (which happens when
+            // CreateClient() is called in the test class constructor — before
+            // InitializeAsync runs MigrateAsync). This races with schema creation
+            // and produces "relation orders.OutboxState does not exist" errors that
+            // fault ProcessMessageBatch and prevent consumer processing.
+            // Remove it: the test harness delivers messages directly in-process;
+            // no outbox delivery service is needed.
+            var outboxDelivery = services
+                .Where(d => d.ServiceType == typeof(IHostedService) &&
+                            (d.ImplementationType?.Name == "BusOutboxDeliveryService" ||
+                             d.ImplementationType?.FullName?.Contains("BusOutboxDelivery") == true))
+                .ToList();
+            foreach (var d in outboxDelivery)
+                services.Remove(d);
+
             services.AddMassTransitTestHarness(mt =>
             {
                 mt.AddConsumer<PaymentCompletedConsumer>();
