@@ -44,8 +44,12 @@ done
 INIT_FILE=/vault/data/.init.json
 if vault status -format=json | jq -e '.initialized == false' >/dev/null 2>&1; then
   echo "[entrypoint] vault is uninitialized — running operator init"
-  # Single-key shamir for portfolio demo. A real prod deployment would
-  # use 5/3 or 7/5 thresholds with the keys distributed across people.
+  # Single-key shamir for initial launch. Upgrade path:
+  #   1. Schedule a maintenance window
+  #   2. vault operator rekey -init -key-shares=5 -key-threshold=3
+  #   3. Distribute shares to separate operators/escrow
+  #   4. OR migrate to cloud KMS auto-unseal (seal stanza in vault.hcl)
+  # See: https://developer.hashicorp.com/vault/tutorials/operations/rekeying-and-rotating
   vault operator init -key-shares=1 -key-threshold=1 -format=json > "$INIT_FILE"
   chmod 600 "$INIT_FILE"
   echo "[entrypoint] operator init complete; keys stashed at $INIT_FILE"

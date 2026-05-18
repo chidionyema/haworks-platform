@@ -88,7 +88,7 @@ public static class VaultConfigBootstrap
         }
 
         // Response-unwrap support. ci-stage-vault-creds.sh issues secret_ids
-        // with X-Vault-Wrap-TTL: 300s and stages the WRAPPING TOKEN as
+        // with X-Vault-Wrap-TTL: 1800s (30min) and stages the WRAPPING TOKEN as
         // Vault:SecretId, plus Vault:SecretIdIsWrapped=true to opt in to
         // unwrap. A leaked CI log only exposes the wrapper, useless after
         // 5 minutes or one unwrap (whichever comes first).
@@ -107,7 +107,7 @@ public static class VaultConfigBootstrap
             catch (Exception ex)
             {
                 logger?.LogError(ex,
-                    "[VaultBootstrap] Failed to unwrap Vault:SecretId. The wrapper token may have expired (5min default TTL) or already been used. Re-run ci-stage-vault-creds.sh to issue a fresh wrapper.");
+                    "[VaultBootstrap] Failed to unwrap Vault:SecretId. The wrapper token may have expired (30min default TTL, set by WRAP_TTL_SECONDS in ci-stage-vault-creds.sh) or already been used. Re-run ci-stage-vault-creds.sh to issue a fresh wrapper.");
                 throw;
             }
         }
@@ -117,9 +117,31 @@ public static class VaultConfigBootstrap
         // already have a bootstrap logger threaded through, and emitting two
         // log lines for one login event clutters startup output.
         authenticator ??= new VaultAppRoleAuthenticator();
-        var login = await authenticator.LoginAsync(address, roleId, secretId, ct);
 
-        var client = new VaultClient(new VaultClientSettings(address, new TokenAuthMethodInfo(login.ClientToken)));
+        // Retry the AppRole login with exponential backoff. During deploys Vault
+        // may be temporarily unavailable (immediate deploy strategy = brief
+        // downtime). 5 attempts over ~62s (1+2+4+8+16s delays + call time)
+        // covers the typical Fly machine restart window.
+        const int maxAttempts = 5;
+        VaultAppRoleLoginResult? login = null;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                login = await authenticator.LoginAsync(address, roleId, secretId, ct);
+                break;
+            }
+            catch (Exception ex) when (attempt < maxAttempts && !ct.IsCancellationRequested)
+            {
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1));
+                logger?.LogWarning(ex,
+                    "[VaultBootstrap] AppRole login attempt {Attempt}/{MaxAttempts} failed; retrying in {Delay}s",
+                    attempt, maxAttempts, delay.TotalSeconds);
+                await Task.Delay(delay, ct).ConfigureAwait(false);
+            }
+        }
+
+        var client = new VaultClient(new VaultClientSettings(address, new TokenAuthMethodInfo(login!.ClientToken)));
 
         var dict = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         foreach (var mapping in kvMappings)
