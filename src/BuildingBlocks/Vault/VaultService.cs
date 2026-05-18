@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Security;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.BuildingBlocks.Vault.Options;
 using Haworks.BuildingBlocks.Resilience;
@@ -31,9 +30,9 @@ public class VaultService : IVaultService
     private readonly DatabaseOptions _dbOptions;
     private readonly IVaultClientFactory _clientFactory;
     private readonly IResiliencePolicyFactory _policyFactory;
-    private readonly Func<ICredentialStore> _credentialStoreFactory;
 
-    private readonly ConcurrentDictionary<string, ICredentialStore> _stores = new(StringComparer.Ordinal);
+    private sealed record CachedCredential(string Username, string Password, DateTime ExpiresAtUtc, TimeSpan LeaseDuration);
+    private readonly ConcurrentDictionary<string, CachedCredential> _cache = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _clientGate = new(1, 1);
 
     // Refresh the AppRole-backed VaultClient this far ahead of token expiry.
@@ -53,7 +52,6 @@ public class VaultService : IVaultService
         IOptions<DatabaseOptions> dbOpts,
         IVaultClientFactory clientFactory,
         IResiliencePolicyFactory policyFactory,
-        Func<ICredentialStore> credentialStoreFactory,
         ILogger<VaultService> logger,
         ITelemetryService? telemetry = null)
     {
@@ -61,7 +59,6 @@ public class VaultService : IVaultService
         _dbOptions = dbOpts.Value;
         _clientFactory = clientFactory;
         _policyFactory = policyFactory;
-        _credentialStoreFactory = credentialStoreFactory;
         _logger = logger;
         _telemetry = telemetry ?? Haworks.BuildingBlocks.Telemetry.NullTelemetryService.Instance;
 
@@ -210,25 +207,24 @@ public class VaultService : IVaultService
     }
 
     public DateTime LeaseExpiryFor(string roleName) =>
-        _stores.TryGetValue(roleName, out var store) ? store.LeaseExpiry : DateTime.MinValue;
+        _cache.TryGetValue(roleName, out var cached) ? cached.ExpiresAtUtc : DateTime.MinValue;
 
     public TimeSpan LeaseDurationFor(string roleName) =>
-        _stores.TryGetValue(roleName, out var store) ? store.LeaseDuration : TimeSpan.Zero;
+        _cache.TryGetValue(roleName, out var cached) ? cached.LeaseDuration : TimeSpan.Zero;
 
-    public async Task<(string Username, SecureString Password)> GetDatabaseCredentialsAsync(string roleName, CancellationToken ct = default)
+    public async Task<(string Username, string Password)> GetDatabaseCredentialsAsync(string roleName, CancellationToken ct = default)
     {
         ThrowIfDisposed();
         await InitializeAsync(ct);
         ValidateRoleName(roleName);
 
-        var store = _stores.GetOrAdd(roleName, _ => _credentialStoreFactory());
+        if (_cache.TryGetValue(roleName, out var cached)
+            && DateTime.UtcNow.AddMinutes(5) < cached.ExpiresAtUtc)
+        {
+            return (cached.Username, cached.Password);
+        }
 
-        var refreshThreshold = TimeSpan.FromMinutes(5);
-        if (!store.IsExpiredOrNearExpiry(refreshThreshold))
-            return store.Current;
-
-        await RefreshCredentialsInternal(roleName, store, ct);
-        return store.Current;
+        return await RefreshCredentialsInternal(roleName, ct);
     }
 
     public async Task RefreshCredentials(string roleName, CancellationToken ct = default)
@@ -237,38 +233,45 @@ public class VaultService : IVaultService
         await InitializeAsync(ct);
         ValidateRoleName(roleName);
 
-        var store = _stores.GetOrAdd(roleName, _ => _credentialStoreFactory());
         var combined = Policy.WrapAsync(_circuitBreaker!, _retryPolicy!);
-        await combined.ExecuteAsync(token => RefreshCredentialsInternal(roleName, store, token), ct);
+        await combined.ExecuteAsync(token => RefreshCredentialsInternal(roleName, token), ct);
     }
 
-    private async Task RefreshCredentialsInternal(string roleName, ICredentialStore store, CancellationToken ct)
+    private async Task<(string Username, string Password)> RefreshCredentialsInternal(string roleName, CancellationToken ct)
     {
         _logger.LogInformation("Refreshing credentials for role {Role}", roleName);
         var start = DateTime.UtcNow;
 
-        await store.RefreshAsync(async innerCt =>
-        {
-            var client = await GetClientAsync(innerCt);
-            var resp = await client.V1.Secrets.Database.GetStaticCredentialsAsync(roleName);
-            var securePwd = new SecureString();
-            foreach (var c in resp.Data.Password)
-                securePwd.AppendChar(c);
-            securePwd.MakeReadOnly();
-            return (resp.Data.Username, securePwd, TimeSpan.FromSeconds(resp.LeaseDurationSeconds));
-        }, ct);
+        var client = await GetClientAsync(ct);
+        var resp = await client.V1.Secrets.Database.GetStaticCredentialsAsync(roleName);
+        var leaseDuration = TimeSpan.FromSeconds(resp.LeaseDurationSeconds);
 
-        _logger.LogInformation("Credentials refreshed for {Role}. Expires at {Expiry}", roleName, store.LeaseExpiry);
+        var entry = new CachedCredential(
+            resp.Data.Username,
+            resp.Data.Password,
+            DateTime.UtcNow + leaseDuration,
+            leaseDuration);
+        _cache[roleName] = entry;
+
+        _logger.LogInformation("VaultCredentialRotated for {Role}. Expires at {Expiry}, DurationMs={ElapsedMs}",
+            roleName, entry.ExpiresAtUtc, (DateTime.UtcNow - start).TotalMilliseconds);
         _telemetry.TrackEvent("VaultCredentialsRefreshed", new Dictionary<string, string>
         {
             ["Role"] = roleName,
             ["ElapsedMs"] = (DateTime.UtcNow - start).TotalMilliseconds.ToString(),
-            ["LeaseExpiry"] = store.LeaseExpiry.ToString("O")
+            ["LeaseExpiry"] = entry.ExpiresAtUtc.ToString("O")
         });
+
+        return (entry.Username, entry.Password);
     }
 
     public async Task<string> GetDatabaseConnectionStringAsync(string roleName, CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(_dbOptions.Host))
+            throw new InvalidOperationException(
+                "Database:Host is required for GetDatabaseConnectionStringAsync. " +
+                "This method is only supported with Vault-managed databases (not Neon).");
+
         var (user, pwd) = await GetDatabaseCredentialsAsync(roleName, ct);
         var builder = new NpgsqlConnectionStringBuilder
         {
@@ -276,7 +279,7 @@ public class VaultService : IVaultService
             Port = _dbOptions.Port,
             Database = _dbOptions.Database,
             Username = user,
-            Password = pwd.ToInsecureString(),
+            Password = pwd,
             SslMode = Enum.TryParse<SslMode>(_dbOptions.SslMode, ignoreCase: true, out var sm) ? sm : SslMode.Disable,
             MaxPoolSize = 50
         };
@@ -336,7 +339,7 @@ public class VaultService : IVaultService
                 // Refresh every cached store. The dictionary may be modified
                 // by other code paths concurrently (new role on demand) so
                 // snapshot the keys before iterating.
-                foreach (var roleName in _stores.Keys.ToArray())
+                foreach (var roleName in _cache.Keys.ToArray())
                 {
                     await RefreshCredentials(roleName, stoppingToken);
                 }
@@ -345,13 +348,13 @@ public class VaultService : IVaultService
                 // a 5-min safety lead and 0-30s jitter. If no roles are
                 // cached yet, poll every minute to wake up when one appears.
                 TimeSpan delay;
-                if (_stores.IsEmpty)
+                if (_cache.IsEmpty)
                 {
                     delay = TimeSpan.FromMinutes(1);
                 }
                 else
                 {
-                    var earliestExpiry = _stores.Values.Min(s => s.LeaseExpiry);
+                    var earliestExpiry = _cache.Values.Min(c => c.ExpiresAtUtc);
                     delay = (earliestExpiry - TimeSpan.FromMinutes(5)) - DateTime.UtcNow;
                     if (delay < TimeSpan.Zero) delay = TimeSpan.FromMinutes(1);
                 }
@@ -395,10 +398,7 @@ public class VaultService : IVaultService
         if (_disposed) return;
         if (disposing)
         {
-            foreach (var store in _stores.Values)
-            {
-                store.Current.Password?.Dispose();
-            }
+            _cache.Clear();
             _clientGate.Dispose();
         }
         _disposed = true;

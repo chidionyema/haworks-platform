@@ -21,9 +21,6 @@ namespace Haworks.BuildingBlocks.Vault;
 ///   - <see cref="DatabaseOptions"/> (from <c>"Database"</c> config section)
 ///   - <see cref="ICertificateValidator"/>, <see cref="ISecretFileReader"/>
 ///   - <see cref="IVaultClientFactory"/>
-///   - <see cref="ICredentialStore"/> as transient + a
-///     <c>Func&lt;ICredentialStore&gt;</c> factory the VaultService caches
-///     per AppRole role-name internally.
 ///   - <see cref="IResiliencePolicyFactory"/>
 ///   - <see cref="IVaultService"/>
 ///
@@ -63,13 +60,6 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<ISecretFileReader, SecretFileReader>();
         services.AddSingleton<IVaultAppRoleAuthenticator, VaultAppRoleAuthenticator>();
         services.AddSingleton<IVaultClientFactory, VaultClientFactory>();
-
-        // VaultService caches one ICredentialStore per AppRole role-name
-        // and refreshes its credentials in-place; each role gets a fresh
-        // store on first use, so the registration is transient + a
-        // factory delegate the consumer invokes per role.
-        services.AddTransient<ICredentialStore, CredentialStore>();
-        services.AddSingleton<Func<ICredentialStore>>(sp => sp.GetRequiredService<ICredentialStore>);
 
         services.AddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
 
@@ -120,8 +110,8 @@ public static class VaultServiceCollectionExtensions
                 {
                     try
                     {
-                        var (_, securePass) = await vault.GetDatabaseCredentialsAsync(roleName, ct);
-                        return new System.Net.NetworkCredential(string.Empty, securePass).Password;
+                        var (_, password) = await vault.GetDatabaseCredentialsAsync(roleName, ct);
+                        return password;
                     }
                     catch (Exception ex)
                     {
@@ -138,68 +128,4 @@ public static class VaultServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>
-    /// Registers VaultCredentialProvider + VaultRotatingConnectionStringProvider
-    /// for zero-downtime Postgres credential rotation via Vault static roles.
-    /// The <see cref="IConnectionStringProvider"/> can be injected into DbContext
-    /// factories for dynamic connection string resolution.
-    /// </summary>
-    public static IServiceCollection AddVaultRotatingPostgres(
-        this IServiceCollection services,
-        string roleName,
-        IConfiguration configuration)
-    {
-        // Register IVaultCredentialProvider as singleton (it has internal caching).
-        // It resolves IVaultService (already registered by AddVaultIntegration) to
-        // obtain a VaultSharp IVaultClient via the existing factory infrastructure.
-        services.AddSingleton<IVaultCredentialProvider>(sp =>
-        {
-            var factory = sp.GetRequiredService<IVaultClientFactory>();
-            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Options.VaultOptions>>().Value;
-            // Vault client creation runs on a thread-pool thread to avoid blocking the DI
-            // container build thread (no sync-over-async on the request path).
-            var handle = Task.Run(async () =>
-                await factory.CreateClientAsync(options, CancellationToken.None)
-                    .ConfigureAwait(false))
-#pragma warning disable HWK021 // Sync DI factory — no async overload
-                .GetAwaiter(); // Dispose-safe one-time DI init
-#pragma warning restore HWK021
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
-                .CreateLogger<VaultCredentialProvider>();
-            return new VaultCredentialProvider(handle.GetResult().Client, logger);
-        });
-
-        // The base connection string is the static one from config (without dynamic user/pass).
-        // Resolve by stripping the "haworks-" prefix to match the ConnectionStrings key.
-        var serviceKey = roleName.Replace("haworks-", string.Empty, StringComparison.Ordinal);
-        var baseConnectionString = configuration.GetConnectionString(serviceKey)
-            ?? configuration.GetConnectionString("DefaultConnection")
-            ?? string.Empty;
-
-        // Register the rotating provider as both IConnectionStringProvider and IHostedService.
-        services.AddSingleton<VaultRotatingConnectionStringProvider>(sp =>
-        {
-            var credProvider = sp.GetRequiredService<IVaultCredentialProvider>();
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
-                .CreateLogger<VaultRotatingConnectionStringProvider>();
-            return new VaultRotatingConnectionStringProvider(credProvider, roleName, baseConnectionString, logger);
-        });
-        services.AddSingleton<IConnectionStringProvider>(sp =>
-            sp.GetRequiredService<VaultRotatingConnectionStringProvider>());
-        services.AddHostedService(sp =>
-            sp.GetRequiredService<VaultRotatingConnectionStringProvider>());
-
-        // Register Vault lease health check
-        services.AddHealthChecks()
-            .Add(new HealthCheckRegistration(
-                $"vault-lease-{roleName}",
-                sp => new VaultLeaseHealthCheck(
-                    sp.GetRequiredService<IVaultCredentialProvider>(),
-                    roleName,
-                    sp.GetRequiredService<ILogger<VaultLeaseHealthCheck>>()),
-                failureStatus: HealthStatus.Degraded,
-                tags: VaultHealthCheckTags));
-
-        return services;
-    }
 }

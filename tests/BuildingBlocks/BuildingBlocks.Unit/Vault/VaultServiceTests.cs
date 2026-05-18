@@ -16,7 +16,6 @@ public class VaultServiceTests
     private readonly Mock<IVaultClientFactory> _clientFactoryMock = new();
     private readonly Mock<IResiliencePolicyFactory> _policyFactoryMock = new();
     private readonly Mock<ITelemetryService> _telemetryMock = new();
-    private readonly Mock<ICredentialStore> _credentialStoreMock = new();
     private readonly Mock<ILogger<VaultService>> _loggerMock = new();
 
     private readonly VaultOptions _vaultOptions = new()
@@ -82,10 +81,13 @@ public class VaultServiceTests
     }
 
     [Fact]
-    public void Constructor_WithMissingDbHost_ThrowsArgumentNullException()
+    public void Constructor_WithMissingDbHost_DoesNotThrow()
     {
+        // Database:Host is now optional (Neon/managed PG).
+        // VaultService should not crash on startup when Host is empty.
         _dbOptions.Host = "";
-        Assert.Throws<ArgumentNullException>(() => CreateService());
+        var service = CreateService();
+        service.Should().NotBeNull();
     }
 
     private VaultService CreateService()
@@ -95,7 +97,6 @@ public class VaultServiceTests
             Options.Create(_dbOptions),
             _clientFactoryMock.Object,
             _policyFactoryMock.Object,
-            () => _credentialStoreMock.Object,
             _loggerMock.Object,
             _telemetryMock.Object);
     }
