@@ -42,7 +42,7 @@ namespace Haworks.Catalog.Application.Consumers;
 /// </summary>
 public sealed class StockReservationRequestedConsumer(
     IProductRepository products,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<StockReservationRequestedConsumer> logger
 ) : IConsumer<StockReservationRequestedEvent>
 {
@@ -134,7 +134,7 @@ public sealed class StockReservationRequestedConsumer(
                 "Stock reservation failed for orderId={OrderId}; {FailedCount}/{TotalCount} items unavailable",
                 evt.OrderId, failed.Count, evt.Items.Count);
 
-            await eventPublisher.PublishAsync(new StockReservationFailedEvent
+            await eventPublisher.Publish(new StockReservationFailedEvent
             {
                 OrderId = evt.OrderId,
                 SagaId = evt.SagaId,
@@ -147,7 +147,7 @@ public sealed class StockReservationRequestedConsumer(
         // Publish BEFORE save — outbox-friendly. The OutboxMessage row commits
         // in the same EF transaction as the stock decrements; on rollback the
         // publish is rolled back too.
-        await eventPublisher.PublishAsync(new StockReservedEvent
+        await eventPublisher.Publish(new StockReservedEvent
         {
             OrderId = evt.OrderId,
             SagaId = evt.SagaId,

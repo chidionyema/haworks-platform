@@ -1,5 +1,6 @@
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.Contracts.Payments;
+using MassTransit;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Domain.Interfaces;
@@ -22,7 +23,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
     private readonly ISubscriptionManager _subscriptionManager;
     private readonly IWebhookIdempotencyGuard _idempotencyGuard;
     private readonly IPaymentRepository _paymentRepository;
-    private readonly IDomainEventPublisher _eventPublisher;
+    private readonly IPublishEndpoint _eventPublisher;
     private readonly ILogger<StripeWebhookProcessor> _logger;
     private readonly ITelemetryService _telemetry;
 
@@ -38,7 +39,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         ISubscriptionManager subscriptionManager,
         IWebhookIdempotencyGuard idempotencyGuard,
         IPaymentRepository paymentRepository,
-        IDomainEventPublisher eventPublisher,
+        IPublishEndpoint eventPublisher,
         IOptions<PaymentProviderOptions> providerOptions,
         ILogger<StripeWebhookProcessor> logger,
         ITelemetryService telemetry)
@@ -53,12 +54,12 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
     }
 
     /// <inheritdoc />
-    public async Task<WebhookValidationResult> ValidateAndParseAsync(
+    public Task<WebhookValidationResult> ValidateAndParseAsync(
         string payload,
         string signature,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(payload)) return WebhookValidationResult.Failure("Empty payload");
+        if (string.IsNullOrEmpty(payload)) return Task.FromResult(WebhookValidationResult.Failure("Empty payload"));
 
         try
         {
@@ -70,7 +71,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
 
             if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(type))
             {
-                return WebhookValidationResult.Failure("Missing id or type in payload");
+                return Task.FromResult(WebhookValidationResult.Failure("Missing id or type in payload"));
             }
 
             var webhookEvent = new PaymentWebhookEvent
@@ -82,12 +83,12 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
                 RawPayload = payload
             };
 
-            return WebhookValidationResult.Success(webhookEvent);
+            return Task.FromResult(WebhookValidationResult.Success(webhookEvent));
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to parse Stripe webhook payload");
-            return WebhookValidationResult.Failure($"Invalid payload: {ex.Message}");
+            return Task.FromResult(WebhookValidationResult.Failure($"Invalid payload: {ex.Message}"));
         }
     }
 
@@ -220,7 +221,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         if (payment == null) return WebhookProcessingResult.Skipped("No payment record");
 
         // Publish then save — outbox message commits atomically with entity state
-        await _eventPublisher.PublishAsync(new CheckoutSessionExpiredEvent
+        await _eventPublisher.Publish(new CheckoutSessionExpiredEvent
         {
             SessionId = session.Id,
             PaymentId = payment.Id,
@@ -249,7 +250,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         foreach (var refund in charge.Refunds.Data.Where(r => string.Equals(r.Status, "succeeded", StringComparison.Ordinal)))
         {
             // 1. Legacy/Dashboard event for broad consumption
-            await _eventPublisher.PublishAsync(new RefundIssuedEvent
+            await _eventPublisher.Publish(new RefundIssuedEvent
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
@@ -263,7 +264,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
             // 2. Saga-specific correlation event
             if (refund.Metadata.TryGetValue("refund_id", out var sagaIdStr) && Guid.TryParse(sagaIdStr, out var sagaId))
             {
-                await _eventPublisher.PublishAsync(new ProviderRefundSucceededEvent
+                await _eventPublisher.Publish(new ProviderRefundSucceededEvent
                 {
                     RefundId = sagaId,
                     ProviderRefundId = refund.Id,

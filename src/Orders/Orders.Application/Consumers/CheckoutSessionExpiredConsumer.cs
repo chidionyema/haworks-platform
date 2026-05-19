@@ -4,7 +4,6 @@ using Haworks.Contracts.Catalog;
 using Haworks.Contracts.Payments;
 using Haworks.Orders.Domain;
 using Haworks.Orders.Domain.Interfaces;
-using Haworks.BuildingBlocks.Messaging;
 
 namespace Haworks.Orders.Application.Consumers;
 
@@ -15,7 +14,7 @@ namespace Haworks.Orders.Application.Consumers;
 /// </summary>
 public sealed class CheckoutSessionExpiredConsumer(
     IOrderRepository orders,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<CheckoutSessionExpiredConsumer> logger
 ) : IConsumer<CheckoutSessionExpiredEvent>
 {
@@ -58,7 +57,7 @@ public sealed class CheckoutSessionExpiredConsumer(
 
         // Publish stock release requested event for catalog-svc.
         // Outbox writes the message row in the same EF transaction.
-        await eventPublisher.PublishAsync(new StockReleaseRequestedEvent
+        await eventPublisher.Publish(new StockReleaseRequestedEvent
         {
             OrderId = order.Id,
             SagaId = order.SagaId,
@@ -71,10 +70,6 @@ public sealed class CheckoutSessionExpiredConsumer(
                 RemainingStock = null
             }).ToList()
         }, context.CancellationToken);
-
-        // SaveChanges commits both the order status change and the outbox
-        // message atomically.
-        await orders.SaveChangesAsync(context.CancellationToken);
 
         logger.LogInformation("Order {OrderId} marked Expired; published StockReleaseRequestedEvent", order.Id);
     }

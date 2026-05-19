@@ -1,0 +1,35 @@
+# Internal-only service. Reach via http://haworks-privacy.flycast:8080
+
+app            = "haworks-privacy"
+primary_region = "iad"
+
+[build]
+  dockerfile = "src/Privacy/Privacy.Api/Dockerfile"
+
+[env]
+  ASPNETCORE_URLS        = "http://+:8080"
+  ASPNETCORE_ENVIRONMENT = "Production"
+  OTEL_SERVICE_NAME         = "privacy-svc"
+  OTEL_RESOURCE_ATTRIBUTES  = "deployment.environment=production,service.namespace=haworks"
+
+[http_service]
+  internal_port        = 8080
+  force_https          = false
+  auto_stop_machines   = "stop"
+  auto_start_machines  = true
+  min_machines_running = 0
+  processes            = ["app"]
+
+[[http_service.checks]]
+  grace_period = "30s"
+  interval     = "10s"
+  method       = "GET"
+  timeout      = "5s"
+  path         = "/health/ready"
+
+[deploy]
+  strategy = "rolling"
+[[vm]]
+  memory   = "256mb"
+  cpu_kind = "shared"
+  cpus     = 1

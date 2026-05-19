@@ -1,5 +1,6 @@
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
+using MassTransit;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
@@ -19,7 +20,7 @@ namespace Haworks.Payments.Infrastructure.Stripe;
 public sealed class StripeSubscriptionManager(
     IPaymentRepository paymentRepository,
     IStripeClientFactory clientFactory,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     IResiliencePolicyFactory resiliencePolicyFactory,
     ILogger<StripeSubscriptionManager> logger,
     ITelemetryService telemetry) : ISubscriptionManager
@@ -178,7 +179,7 @@ public sealed class StripeSubscriptionManager(
         newSub.UpdateStatus(subscriptionEvent.NewStatus);
         await paymentRepository.AddSubscriptionAsync(newSub, ct);
 
-        await eventPublisher.PublishAsync(new SubscriptionStartedEvent
+        await eventPublisher.Publish(new SubscriptionStartedEvent
         {
             SubscriptionId = newSub.ProviderSubscriptionId,
             UserId = newSub.UserId,
@@ -218,7 +219,7 @@ public sealed class StripeSubscriptionManager(
         _ = long.TryParse(subscriptionEvent.Metadata.GetValueOrDefault("amount_cents"), out var amount);
         var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency);
 
-        await eventPublisher.PublishAsync(new SubscriptionRenewedEvent
+        await eventPublisher.Publish(new SubscriptionRenewedEvent
         {
             SubscriptionId = existing.ProviderSubscriptionId,
             UserId = existing.UserId,
@@ -240,7 +241,7 @@ public sealed class StripeSubscriptionManager(
             existing.SetExpiresAt(subscriptionEvent.CurrentPeriodEnd.Value);
         }
 
-        await eventPublisher.PublishAsync(new SubscriptionCancelledEvent
+        await eventPublisher.Publish(new SubscriptionCancelledEvent
         {
             SubscriptionId = existing.ProviderSubscriptionId,
             UserId = existing.UserId,

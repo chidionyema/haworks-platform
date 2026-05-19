@@ -226,13 +226,11 @@ public static class DependencyInjection
             Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>>(sp =>
             new JwtBearerPostConfigureOptions(sp));
 
-        // MassTransit + IDomainEventPublisher for the vault-rotation demo's
-        // VaultRotationStageEvent publishes. Identity has no DB writes that
-        // need to be transactionally bound to these events, so we skip the
-        // EF outbox and publish straight to RabbitMQ — IDomainEventPublisher
-        // routes through IPublishEndpoint either way. Skipped in Test
-        // environment so the unit/integration fixtures can supply their own
-        // bus or dispense with one entirely.
+        // MassTransit for the vault-rotation demo's VaultRotationStageEvent publishes.
+        // Identity has no DB writes that need to be transactionally bound to these
+        // events, so publishes go straight through IPublishEndpoint to RabbitMQ.
+        // Skipped in Test environment so the unit/integration fixtures can supply
+        // their own bus or dispense with one entirely.
         if (!env.IsEnvironment("Test"))
         {
             services.AddMassTransit(mt =>
@@ -255,7 +253,6 @@ public static class DependencyInjection
                     cfg.ConfigureStandardRabbitMq(context);
                 });
             });
-            services.AddDomainEventPublisher();
         }
 
         return services;

@@ -3,6 +3,7 @@ using Haworks.BuildingBlocks.Telemetry;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Application.Common;
 using Haworks.Payments.Application.Interfaces;
+using MassTransit;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -21,7 +22,7 @@ internal sealed class PayPalPaymentProcessor(
     IPayPalClientFactory paypalClientFactory,
     IResiliencePolicyFactory resiliencePolicyFactory,
     IPaymentAmountMismatchHandler amountMismatchHandler,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<PayPalPaymentProcessor> logger,
     ITelemetryService telemetry) : IPaymentSessionProcessor
 {
@@ -86,7 +87,7 @@ internal sealed class PayPalPaymentProcessor(
         // 5. Atomic payment completion
         payment.MarkCompleted(sessionEvent.TransactionId, "paypal");
 
-        await eventPublisher.PublishAsync(new PaymentCompletedEvent
+        await eventPublisher.Publish(new PaymentCompletedEvent
         {
             PaymentId = payment.Id,
             OrderId = payment.OrderId,

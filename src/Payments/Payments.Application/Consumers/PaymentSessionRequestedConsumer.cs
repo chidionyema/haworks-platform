@@ -39,7 +39,7 @@ namespace Haworks.Payments.Application.Consumers;
 /// </summary>
 public sealed class PaymentSessionRequestedConsumer(
     IConfiguration configuration,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ICheckoutSessionService checkoutService,
     Haworks.Payments.Domain.Interfaces.IPaymentRepository paymentRepository,
     IOptions<BrandOptions> brandOptions,
@@ -108,7 +108,7 @@ public sealed class PaymentSessionRequestedConsumer(
             payment.AttachProviderSession(result.SessionId, result.SessionUrl);
 
             // 4. Notify saga — outbox handles this: entity + event saved atomically
-            await eventPublisher.PublishAsync(new PaymentSessionCreatedEvent
+            await eventPublisher.Publish(new PaymentSessionCreatedEvent
             {
                 OrderId = evt.OrderId,
                 SagaId = evt.SagaId,
@@ -127,7 +127,7 @@ public sealed class PaymentSessionRequestedConsumer(
         {
             logger.LogError(ex, "Failed to create Stripe payment session for OrderId={OrderId}", evt.OrderId);
 
-            await eventPublisher.PublishAsync(new PaymentSessionFailedEvent
+            await eventPublisher.Publish(new PaymentSessionFailedEvent
             {
                 OrderId = evt.OrderId,
                 SagaId = evt.SagaId,
@@ -153,7 +153,7 @@ public sealed class PaymentSessionRequestedConsumer(
         var provider = "demo-mock";
 
         // 1. Create session immediately
-        await eventPublisher.PublishAsync(new PaymentSessionCreatedEvent
+        await eventPublisher.Publish(new PaymentSessionCreatedEvent
         {
             OrderId = evt.OrderId,
             SagaId = evt.SagaId,
@@ -178,7 +178,7 @@ public sealed class PaymentSessionRequestedConsumer(
                 "Simulating payment failure for OrderId={OrderId}, SagaId={SagaId} (scenario detected in IdempotencyKey)",
                 evt.OrderId, evt.SagaId);
 
-            await eventPublisher.PublishAsync(new PaymentSessionFailedEvent
+            await eventPublisher.Publish(new PaymentSessionFailedEvent
             {
                 OrderId = evt.OrderId,
                 SagaId = evt.SagaId,
@@ -195,7 +195,7 @@ public sealed class PaymentSessionRequestedConsumer(
                 "Completing payment for OrderId={OrderId}, SagaId={SagaId}",
                 evt.OrderId, evt.SagaId);
 
-            await eventPublisher.PublishAsync(new PaymentCompletedEvent
+            await eventPublisher.Publish(new PaymentCompletedEvent
             {
                 PaymentId = paymentId,
                 OrderId = evt.OrderId,

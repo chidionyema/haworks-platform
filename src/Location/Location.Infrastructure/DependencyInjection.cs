@@ -71,7 +71,6 @@ public static class DependencyInjection
 
         if (env.IsEnvironment("Test"))
         {
-            services.AddDomainEventPublisher();
             return services;
         }
 
@@ -95,8 +94,6 @@ public static class DependencyInjection
                 cfg.ConfigureStandardRabbitMq(context);
             });
         });
-
-        services.AddDomainEventPublisher();
 
         return services;
     }

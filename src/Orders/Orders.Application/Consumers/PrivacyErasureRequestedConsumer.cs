@@ -1,4 +1,3 @@
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.Contracts.Privacy;
 using Haworks.Orders.Domain.Interfaces;
 using MassTransit;
@@ -13,7 +12,7 @@ namespace Haworks.Orders.Application.Consumers;
 /// </summary>
 public sealed class PrivacyErasureRequestedConsumer(
     IOrderRepository orders,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<PrivacyErasureRequestedConsumer> logger
 ) : IConsumer<PrivacyErasureRequested>
 {
@@ -29,11 +28,11 @@ public sealed class PrivacyErasureRequestedConsumer(
             msg.UserId, msg.RequestId);
 
         var totalAnonymised = 0;
+        var skip = 0;
         while (true)
         {
-            // Always fetch from offset 0 — previously-anonymised rows won't
-            // match the userId filter any more after SaveChanges.
-            var batch = await orders.ListByUserTrackedAsync(userId, 0, PageSize, context.CancellationToken);
+            // Paginate through results without saving, using skip to advance
+            var batch = await orders.ListByUserTrackedAsync(userId, skip, PageSize, context.CancellationToken);
             if (batch.Count == 0) break;
 
             foreach (var order in batch)
@@ -41,21 +40,17 @@ public sealed class PrivacyErasureRequestedConsumer(
                 order.AnonymiseForPrivacy();
             }
 
-            await orders.SaveChangesAsync(context.CancellationToken);
+            skip += batch.Count;
             totalAnonymised += batch.Count;
         }
 
         logger.LogInformation("Anonymised {Count} orders for UserId={UserId}", totalAnonymised, msg.UserId);
 
-        // Use IDomainEventPublisher (outbox-backed) instead of context.Publish
-        // so the completion event commits in the same EF transaction as the
-        // final batch of anonymised orders.
-        await eventPublisher.PublishAsync(new PrivacyErasureCompleted
+        await eventPublisher.Publish(new PrivacyErasureCompleted
         {
             RequestId = msg.RequestId,
             UserId = msg.UserId,
             ServiceName = "orders-svc"
         });
-        await orders.SaveChangesAsync(context.CancellationToken);
     }
 }

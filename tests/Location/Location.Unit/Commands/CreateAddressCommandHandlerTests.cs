@@ -1,6 +1,6 @@
 using FluentAssertions;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.Contracts.Location;
+using MassTransit;
 using Haworks.Location.Application.Commands;
 using Haworks.Location.Application.Interfaces;
 using Haworks.Location.Domain.Entities;
@@ -18,7 +18,7 @@ namespace Haworks.Location.Unit.Commands;
 public class CreateAddressCommandHandlerTests
 {
     private readonly Mock<ILocationDbContext> _dbContextMock;
-    private readonly Mock<IDomainEventPublisher> _publisherMock;
+    private readonly Mock<IPublishEndpoint> _publisherMock;
     private readonly Mock<IGeocodingService> _geocodingMock;
     private readonly Mock<IGeohashService> _geohashMock;
     private readonly CreateAddressCommandHandler _handler;
@@ -26,7 +26,7 @@ public class CreateAddressCommandHandlerTests
     public CreateAddressCommandHandlerTests()
     {
         _dbContextMock = new Mock<ILocationDbContext>();
-        _publisherMock = new Mock<IDomainEventPublisher>();
+        _publisherMock = new Mock<IPublishEndpoint>();
         _geocodingMock = new Mock<IGeocodingService>();
         _geohashMock = new Mock<IGeohashService>();
         

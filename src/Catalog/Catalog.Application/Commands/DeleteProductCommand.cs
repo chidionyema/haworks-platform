@@ -1,9 +1,9 @@
 using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Idempotency;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.Catalog.Application.Interfaces;
 using Haworks.Catalog.Domain.Interfaces;
 using Haworks.Contracts.Catalog;
+using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -19,13 +19,13 @@ internal sealed class DeleteProductCommandHandler : IRequestHandler<DeleteProduc
 {
     private readonly IProductRepository _repository;
     private readonly IProductCacheReader _productCache;
-    private readonly IDomainEventPublisher _eventPublisher;
+    private readonly IPublishEndpoint _eventPublisher;
     private readonly ILogger<DeleteProductCommandHandler> _logger;
 
     public DeleteProductCommandHandler(
         IProductRepository repository,
         IProductCacheReader productCache,
-        IDomainEventPublisher eventPublisher,
+        IPublishEndpoint eventPublisher,
         ILogger<DeleteProductCommandHandler> logger)
     {
         _repository = repository;
@@ -52,7 +52,7 @@ internal sealed class DeleteProductCommandHandler : IRequestHandler<DeleteProduc
 
             // Publish before SaveChanges so the outbox row commits with the
             // delete; bridge consumer fires only after durable commit.
-            await _eventPublisher.PublishAsync(new ProductCacheInvalidatedEvent
+            await _eventPublisher.Publish(new ProductCacheInvalidatedEvent
             {
                 ProductId = request.ProductId,
                 CorrelationId = request.CorrelationId,

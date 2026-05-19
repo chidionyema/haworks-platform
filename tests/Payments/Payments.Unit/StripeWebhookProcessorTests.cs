@@ -1,5 +1,5 @@
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Telemetry;
+using MassTransit;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Domain.Interfaces;
@@ -22,7 +22,7 @@ public class StripeWebhookProcessorTests
     private readonly Mock<IRefundService> _refundServiceMock;
     private readonly Mock<IWebhookIdempotencyGuard> _idempotencyGuardMock;
     private readonly Mock<IPaymentRepository> _paymentRepositoryMock;
-    private readonly Mock<IDomainEventPublisher> _eventPublisherMock;
+    private readonly Mock<IPublishEndpoint> _eventPublisherMock;
     private readonly Mock<ILogger<StripeWebhookProcessor>> _loggerMock;
     private readonly Mock<ITelemetryService> _telemetryMock;
     private readonly IOptions<PaymentProviderOptions> _options;
@@ -35,7 +35,7 @@ public class StripeWebhookProcessorTests
         _refundServiceMock = new Mock<IRefundService>();
         _idempotencyGuardMock = new Mock<IWebhookIdempotencyGuard>();
         _paymentRepositoryMock = new Mock<IPaymentRepository>();
-        _eventPublisherMock = new Mock<IDomainEventPublisher>();
+        _eventPublisherMock = new Mock<IPublishEndpoint>();
         _loggerMock = new Mock<ILogger<StripeWebhookProcessor>>();
         _telemetryMock = new Mock<ITelemetryService>();
 

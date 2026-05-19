@@ -25,7 +25,7 @@ namespace Haworks.Payments.Api.Controllers;
 [Authorize(Roles = "Admin,Service")]
 public sealed class AdminController(
     PaymentDbContext db,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<AdminController> logger) : ControllerBase
 {
     private const string DefaultCurrency = "USD";
@@ -54,10 +54,10 @@ public sealed class AdminController(
 
         // Same publish pattern catalog UpdateProductCommandHandler uses
         // (and which IS observed working end-to-end against real outbox + RabbitMQ):
-        // IDomainEventPublisher.PublishAsync goes through MT's IPublishEndpoint
-        // with an (object)-cast for runtime type resolution, then SaveChanges
+        // IPublishEndpoint.Publish goes through MT's outbox pipeline with an
+        // (object)-cast for runtime type resolution, then SaveChanges
         // commits the OutboxMessage row atomically.
-        await eventPublisher.PublishAsync(demoEvent, ct);
+        await eventPublisher.Publish(demoEvent, ct);
         await db.SaveChangesAsync(ct);
 
         logger.LogInformation(

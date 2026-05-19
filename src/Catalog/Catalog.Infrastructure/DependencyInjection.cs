@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Vault;
 using Haworks.Catalog.Application.Consumers;
 using Haworks.Catalog.Application.Interfaces;
@@ -102,7 +101,7 @@ public static class DependencyInjection
         // tests can assert publishes synchronously without RabbitMQ.
         if (env.IsEnvironment("Test"))
         {
-            // Tests provide their own bus + IDomainEventPublisher; bail early.
+            // Tests provide their own bus + IPublishEndpoint via AddMassTransitTestHarness; bail early.
             return services;
         }
 
@@ -157,8 +156,6 @@ public static class DependencyInjection
                 cfg.ConfigureStandardRabbitMq(context);
             });
         });
-
-        services.AddDomainEventPublisher();
 
         return services;
     }

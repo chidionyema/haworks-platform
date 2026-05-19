@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Vault;
 using Haworks.Orders.Application.Consumers;
 using Haworks.Orders.Infrastructure.Messaging;
@@ -61,7 +60,6 @@ public static class DependencyInjection
 
         services.AddScoped<IOrderRepository, OrderRepository>();
 
-        // Test fixture wires its own MassTransit harness + IDomainEventPublisher.
         if (env.IsEnvironment("Test"))
         {
             return services;
@@ -99,8 +97,6 @@ public static class DependencyInjection
                 cfg.ConfigureStandardRabbitMq(context);
             });
         });
-
-        services.AddDomainEventPublisher();
 
         return services;
     }

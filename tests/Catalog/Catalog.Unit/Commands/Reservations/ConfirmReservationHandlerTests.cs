@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Haworks.BuildingBlocks.Common;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Testing;
+using MassTransit;
 using Haworks.Catalog.Application.Commands.Reservations;
 using Haworks.Catalog.Domain;
 using Haworks.Catalog.Domain.Interfaces;
@@ -16,13 +16,13 @@ namespace Haworks.Catalog.UnitTests.Commands.Reservations;
 public sealed class ConfirmReservationHandlerTests : TestBase
 {
     private readonly Mock<IProductRepository> _products;
-    private readonly Mock<IDomainEventPublisher> _publisher;
+    private readonly Mock<IPublishEndpoint> _publisher;
     private readonly ConfirmReservationCommandHandler _handler;
 
     public ConfirmReservationHandlerTests(ITestOutputHelper output) : base(output)
     {
         _products = MockRepository.Create<IProductRepository>();
-        _publisher = MockRepository.Create<IDomainEventPublisher>();
+        _publisher = MockRepository.Create<IPublishEndpoint>();
         _handler = new ConfirmReservationCommandHandler(
             _products.Object,
             _publisher.Object,
@@ -107,7 +107,7 @@ public sealed class ConfirmReservationHandlerTests : TestBase
 
         StockReservedEvent? published = null;
         _publisher
-            .Setup(x => x.PublishAsync(It.IsAny<StockReservedEvent>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.Publish(It.IsAny<StockReservedEvent>(), It.IsAny<CancellationToken>()))
             .Callback<StockReservedEvent, CancellationToken>((e, _) => published = e)
             .Returns(Task.CompletedTask);
 

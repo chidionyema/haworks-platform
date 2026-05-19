@@ -8,8 +8,8 @@ namespace Haworks.Architecture.Analyzers.Rules;
 
 /// <summary>
 /// HWK007: Inside an IConsumer, all event publishing must go through ConsumeContext.Publish.
-/// Using IPublishEndpoint or IDomainEventPublisher bypasses the consumer's ambient
-/// outbox transaction, creating a dual-write risk.
+/// Using IPublishEndpoint or IBus bypasses the consumer's ambient outbox transaction,
+/// creating a dual-write risk.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class HWK007_MustUseContextPublishInConsumerAnalyzer : DiagnosticAnalyzer
@@ -54,7 +54,7 @@ public sealed class HWK007_MustUseContextPublishInConsumerAnalyzer : DiagnosticA
         if (receiverType.Contains("ConsumeContext"))
             return;
 
-        // FLAG: IPublishEndpoint, IBus, IDomainEventPublisher, ISendEndpointProvider
+        // FLAG: IPublishEndpoint, IBus, ISendEndpointProvider
         if (IsProhibitedPublisher(receiverType))
         {
             context.ReportDiagnostic(
@@ -66,7 +66,6 @@ public sealed class HWK007_MustUseContextPublishInConsumerAnalyzer : DiagnosticA
     private static bool IsProhibitedPublisher(string typeName) =>
         typeName.Contains("IPublishEndpoint") ||
         typeName.Contains("IBus") ||
-        typeName.Contains("IDomainEventPublisher") ||
         typeName.Contains("ISendEndpointProvider") ||
         typeName.Contains("IEventPublisher");
 

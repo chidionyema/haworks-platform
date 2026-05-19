@@ -89,6 +89,8 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 
 var app = builder.Build();
 
+app.MigrateDatabase<Haworks.Payments.Infrastructure.PaymentDbContext>();
+
 if (!app.Environment.IsEnvironment("Test"))
 {
     var startupRunner = app.Services.GetRequiredService<StartupTaskRunner>();
@@ -107,13 +109,7 @@ if (!app.Environment.IsEnvironment("Test"))
         await Task.CompletedTask;
     });
 
-    startupRunner.AddTask(async (sp, ct) =>
-    {
-        using var scope = sp.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<Haworks.Payments.Infrastructure.PaymentDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        await db.Database.MigrateWithRetryAsync(logger, ct);
-    });
+
 }
 
 app.MapDefaultEndpoints();

@@ -13,7 +13,7 @@ namespace Haworks.Orders.Application.Consumers;
 /// </summary>
 public sealed class StockReservationFailedConsumer(
     IOrderRepository orders,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<StockReservationFailedConsumer> logger
 ) : IConsumer<StockReservationFailedEvent>
 {
@@ -40,7 +40,7 @@ public sealed class StockReservationFailedConsumer(
             return;
         }
 
-        await eventPublisher.PublishAsync(new OrderAbandonedEvent
+        await eventPublisher.Publish(new OrderAbandonedEvent
         {
             OrderId = order.Id,
             SagaId = order.SagaId,
@@ -56,10 +56,6 @@ public sealed class StockReservationFailedConsumer(
             CustomerEmail = order.CustomerEmail,
         }, context.CancellationToken);
 
-        // SaveChanges persists the MarkAbandoned state change. In production
-        // the EF outbox filter commits this automatically; in tests (no outbox)
-        // this call is what persists the row.
-        await orders.SaveChangesAsync(context.CancellationToken);
         logger.LogInformation("Order {OrderId} marked Abandoned (StockReservationFailed)", order.Id);
     }
 }

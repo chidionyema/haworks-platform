@@ -103,8 +103,6 @@ public static class DependencyInjection
             });
         });
 
-        services.AddDomainEventPublisher();
-
         // Belt-and-braces fallback for the saga's MT-scheduler-based
         // payment-expiry timeout. Polls every 60s for sagas stuck past
         // 15min and publishes PaymentExpiredEvent directly. Guards

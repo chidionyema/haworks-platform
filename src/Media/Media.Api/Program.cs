@@ -172,8 +172,6 @@ if (!builder.Environment.IsEnvironment("Test"))
     });
 }
 
-builder.Services.AddDomainEventPublisher();
-
 // ── Startup task runner (EF migrations with retry) ──
 builder.Services.AddStartupTaskRunner();
 
@@ -185,18 +183,10 @@ builder.Services.AddSwaggerGen();
 // ────────────────────────────────────────────────────────────────
 var app = builder.Build();
 
+app.MigrateDatabase<MediaDbContext>();
+
 // ── EF migration on startup (skipped in Test environment) ──
-if (!app.Environment.IsEnvironment("Test"))
-{
-    var startupRunner = app.Services.GetRequiredService<StartupTaskRunner>();
-    startupRunner.AddTask(async (sp, ct) =>
-    {
-        using var scope = sp.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MediaDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        await db.Database.MigrateWithRetryAsync(logger, ct);
-    });
-}
+
 
 // ── Middleware pipeline ──
 app.MapDefaultEndpoints();   // /health, /health/ready, /health/live, correlation ID

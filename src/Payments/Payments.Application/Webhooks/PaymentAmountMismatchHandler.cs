@@ -1,5 +1,6 @@
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.Contracts.Payments;
+using MassTransit;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Domain.Interfaces;
@@ -14,13 +15,13 @@ namespace Haworks.Payments.Application.Webhooks;
 public sealed class PaymentAmountMismatchHandler : IPaymentAmountMismatchHandler
 {
     private readonly IPaymentRepository _paymentRepository;
-    private readonly IDomainEventPublisher _eventPublisher;
+    private readonly IPublishEndpoint _eventPublisher;
     private readonly ITelemetryService _telemetry;
     private readonly ILogger<PaymentAmountMismatchHandler> _logger;
 
     public PaymentAmountMismatchHandler(
         IPaymentRepository paymentRepository,
-        IDomainEventPublisher eventPublisher,
+        IPublishEndpoint eventPublisher,
         ITelemetryService telemetry,
         ILogger<PaymentAmountMismatchHandler> logger)
     {
@@ -51,7 +52,7 @@ public sealed class PaymentAmountMismatchHandler : IPaymentAmountMismatchHandler
         payment.Flag();
 
         // Publish event for Orders context to handle order status update.
-        await _eventPublisher.PublishAsync(new PaymentAmountMismatchEvent
+        await _eventPublisher.Publish(new PaymentAmountMismatchEvent
         {
             PaymentId = payment.Id,
             OrderId = payment.OrderId,

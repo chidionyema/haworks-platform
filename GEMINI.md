@@ -59,7 +59,7 @@
 1. No `SaveChangesAsync` in consumers — outbox commits automatically
 2. No `BeginTransactionAsync` in consumers — conflicts with outbox
 3. No `Guid.NewGuid()` inside Polly retry — key changes per attempt
-4. No DB locks across external API calls — use ThreePhaseHandlerBase
+4. No DB locks across external API calls
 5. No events without `SaveChangesAsync` in non-consumer code
 
 ### Portfolio Site

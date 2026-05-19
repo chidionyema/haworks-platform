@@ -51,7 +51,7 @@ These are architectural invariants. Violating them causes data loss or financial
 1. **NEVER call `SaveChangesAsync()` in a MassTransit consumer** — the outbox commits automatically
 2. **NEVER call `BeginTransactionAsync()` in a consumer** — conflicts with the outbox ambient transaction
 3. **NEVER generate `Guid.NewGuid()` inside Polly `ExecuteAsync`** — the key changes per retry, defeating idempotency
-4. **NEVER hold a DB transaction open across an external HTTP call** — use ThreePhaseHandlerBase
+4. **NEVER hold a DB transaction open across an external HTTP call**
 5. **NEVER publish events without `SaveChangesAsync` in non-consumer code** — events are outbox rows
 6. **NEVER use positional record constructors for MassTransit events** — use `{ get; init; }` properties
 

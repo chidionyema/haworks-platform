@@ -143,7 +143,7 @@ public static class VaultConfigBootstrap
                 logger?.LogWarning(ex,
                     "[VaultBootstrap] AppRole login attempt {Attempt}/{MaxAttempts} failed; retrying in {Delay}s",
                     attempt, maxAttempts, delay.TotalSeconds);
-                await Task.Delay(delay, ct).ConfigureAwait(false);
+                await Task.Delay(delay, ct);
             }
         }
 
@@ -197,7 +197,7 @@ public static class VaultConfigBootstrap
         var deadline = DateTime.UtcNow + timeout;
         while (!File.Exists(path) && DateTime.UtcNow < deadline)
         {
-            await Task.Delay(500, ct).ConfigureAwait(false);
+            await Task.Delay(500, ct);
         }
 
         if (!File.Exists(path))

@@ -23,7 +23,7 @@ namespace Haworks.Catalog.Application.Consumers;
 /// </summary>
 public sealed class StockReleaseRequestedConsumer(
     IProductRepository products,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<StockReleaseRequestedConsumer> logger
 ) : IConsumer<StockReleaseRequestedEvent>
 {
@@ -77,7 +77,7 @@ public sealed class StockReleaseRequestedConsumer(
         // is rolled back too.
         try
         {
-            await eventPublisher.PublishAsync(new StockReleasedEvent
+            await eventPublisher.Publish(new StockReleasedEvent
             {
                 OrderId = evt.OrderId,
                 Items = evt.Items,

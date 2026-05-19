@@ -1,9 +1,9 @@
 using System.Text.Json;
+using MassTransit;
 using MediatR;
 using Haworks.Catalog.Application.DTOs.Reservations;
 using Haworks.Contracts.Catalog;
 using Haworks.Contracts.Checkout;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Idempotency;
 
 namespace Haworks.Catalog.Application.Commands.Reservations;
@@ -33,7 +33,7 @@ public sealed record ConfirmReservationCommand(
 
 internal sealed class ConfirmReservationCommandHandler(
     IProductRepository products,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<ConfirmReservationCommandHandler> logger)
     : IRequestHandler<ConfirmReservationCommand, Result<ConfirmReservationResultDto>>
 {
@@ -98,7 +98,7 @@ internal sealed class ConfirmReservationCommandHandler(
 
         // Publish before SaveChanges so the per-context outbox commits the
         // status transition + the event row in one transaction.
-        await eventPublisher.PublishAsync(new StockReservedEvent
+        await eventPublisher.Publish(new StockReservedEvent
         {
             OrderId = orderId,
             SagaId = sagaId,

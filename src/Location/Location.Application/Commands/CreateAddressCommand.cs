@@ -1,9 +1,9 @@
 using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Idempotency;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.Contracts.Location;
 using Haworks.Location.Application.Interfaces;
 using Haworks.Location.Domain.Entities;
+using MassTransit;
 using MediatR;
 using NetTopologySuite.Geometries;
 
@@ -26,7 +26,7 @@ public record CreateAddressCommand : IIdempotentCommand, IRequest<Result<Guid>>
 
 public class CreateAddressCommandHandler(
     ILocationDbContext dbContext,
-    IDomainEventPublisher publisher,
+    IPublishEndpoint publisher,
     IGeocodingService geocodingService,
     IGeohashService geohashService) : IRequestHandler<CreateAddressCommand, Result<Guid>>
 {
@@ -77,7 +77,7 @@ public class CreateAddressCommandHandler(
         // Publish BEFORE save — outbox-friendly. The OutboxMessage row commits
         // in the same EF transaction as the address insert; on rollback the
         // publish is rolled back too.
-        await publisher.PublishAsync(new LocationUpdated
+        await publisher.Publish(new LocationUpdated
         {
             LocationId = address.Id,
             Address = new AddressInfo

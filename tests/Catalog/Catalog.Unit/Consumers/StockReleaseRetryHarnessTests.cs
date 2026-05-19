@@ -35,13 +35,13 @@ public sealed class StockReleaseRetryHarnessTests
     public async Task Forced_failure_retries_and_finally_publishes_Fault()
     {
         // Forced-fail repository that throws every time. The real
-        // consumer holds IProductRepository + IDomainEventPublisher;
+        // consumer holds IProductRepository + IPublishEndpoint;
         // both get stubbed so we control the failure mode.
         var products = new Mock<Haworks.Catalog.Domain.Interfaces.IProductRepository>();
         products.Setup(p => p.GetByIdTrackedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                 .ThrowsAsync(new InvalidOperationException("simulated postgres deadlock"));
 
-        var publisher = Mock.Of<Haworks.BuildingBlocks.Messaging.IDomainEventPublisher>();
+        var publisher = Mock.Of<MassTransit.IPublishEndpoint>();
 
         var services = new ServiceCollection();
         services.AddSingleton(products.Object);

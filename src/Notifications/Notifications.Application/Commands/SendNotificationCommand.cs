@@ -6,7 +6,7 @@ using Haworks.Notifications.Application.Common.Idempotency;
 using Haworks.Notifications.Application.Preferences;
 using Haworks.Notifications.Application.Suppression;
 using Haworks.BuildingBlocks.Common;
-using Haworks.BuildingBlocks.Messaging;
+using MassTransit;
 
 namespace Haworks.Notifications.Application.Commands;
 
@@ -24,7 +24,7 @@ internal sealed class SendNotificationCommandHandler(
     IIdempotencyKeyGenerator idempotencyKeyGenerator,
     IPreferencesService preferencesService,
     ISuppressionService suppressionService,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<SendNotificationCommandHandler> logger
 ) : IRequestHandler<SendNotificationCommand, Result<Guid>>
 {
@@ -113,7 +113,7 @@ internal sealed class SendNotificationCommandHandler(
         var notification = CreateNotification(request, idempotencyKey);
         repository.Add(notification);
 
-        await eventPublisher.PublishAsync(new NotificationCreatedEvent
+        await eventPublisher.Publish(new NotificationCreatedEvent
         {
             NotificationId = notification.Id,
             TemplateId = request.TemplateId,

@@ -1,4 +1,5 @@
 using FluentValidation;
+using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Haworks.Catalog.Application.Interfaces;
@@ -33,7 +34,7 @@ public sealed record ReserveStockCommand(
 
 internal sealed class ReserveStockCommandHandler(
     IProductRepository products,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     IProductCacheReader productCache,
     ILogger<ReserveStockCommandHandler> logger
 ) : IRequestHandler<ReserveStockCommand, Result<Guid>>
@@ -65,7 +66,7 @@ internal sealed class ReserveStockCommandHandler(
         // SaveChangesAsync commits stock decrement + outbox row atomically.
         // The BusOutboxDeliveryService picks up the row and publishes to
         // RabbitMQ asynchronously.
-        await eventPublisher.PublishAsync(new StockReservedEvent
+        await eventPublisher.Publish(new StockReservedEvent
         {
             OrderId = request.OrderId,
             SagaId = request.SagaId,

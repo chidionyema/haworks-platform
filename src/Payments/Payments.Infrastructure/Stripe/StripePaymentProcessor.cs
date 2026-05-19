@@ -3,6 +3,7 @@ using Haworks.BuildingBlocks.Telemetry;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Application.Common;
 using Haworks.Payments.Application.Interfaces;
+using MassTransit;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -28,7 +29,7 @@ internal sealed class StripePaymentProcessor(
     IPaymentSessionCache sessionCache,
     IResiliencePolicyFactory resiliencePolicyFactory,
     IPaymentAmountMismatchHandler amountMismatchHandler,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<StripePaymentProcessor> logger,
     ITelemetryService telemetry) : IPaymentSessionProcessor
 {
@@ -208,7 +209,7 @@ internal sealed class StripePaymentProcessor(
             payment.MarkCompleted(sessionEvent.TransactionId, "card");
 
             // Publish event for Orders context to handle order status update
-            await eventPublisher.PublishAsync(new PaymentCompletedEvent
+            await eventPublisher.Publish(new PaymentCompletedEvent
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,

@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 
@@ -72,18 +71,16 @@ public sealed class CatalogWebAppFactory : WebApplicationFactory<Program>, IAsyn
 
         builder.ConfigureTestServices(services =>
         {
-            // Production AddMassTransit + AddDomainEventPublisher were skipped
-            // by AddInfrastructure when ASPNETCORE_ENVIRONMENT=Test (see
-            // Catalog.Infrastructure.DependencyInjection). Wire the in-memory
-            // test harness + the publisher here so the handler can publish
-            // and tests can assert via ITestHarness.Published.
+            // Production AddMassTransit was skipped by AddInfrastructure when
+            // ASPNETCORE_ENVIRONMENT=Test (see Catalog.Infrastructure.DependencyInjection).
+            // Wire the in-memory test harness so the handler can publish and tests
+            // can assert via ITestHarness.Published.
             services.AddMassTransitTestHarness(mt =>
             {
                 // No additional consumers — catalog-svc is a producer for
                 // StockReservedEvent. Tests inspect the harness Published
                 // collection to assert events landed.
             });
-            services.AddDomainEventPublisher();
 
             // [Authorize]-decorated endpoints need an authentication scheme.
             services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();

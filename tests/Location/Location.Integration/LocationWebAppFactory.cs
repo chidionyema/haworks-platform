@@ -7,8 +7,8 @@ using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 using Microsoft.Extensions.DependencyInjection;
 using Haworks.BuildingBlocks.CurrentUser;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.Location.Application.Interfaces;
+using MassTransit;
 using Moq;
 
 namespace Haworks.Location.Integration;
@@ -55,7 +55,7 @@ public class LocationWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
             currentUserMock.Setup(x => x.ClientIp).Returns("127.0.0.1");
             services.AddSingleton(currentUserMock.Object);
 
-            var publisherMock = new Mock<IDomainEventPublisher>();
+            var publisherMock = new Mock<IPublishEndpoint>();
             services.AddScoped(_ => publisherMock.Object);
 
             var geocodingMock = new Mock<IGeocodingService>();

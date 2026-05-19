@@ -1,6 +1,7 @@
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.BuildingBlocks.Telemetry;
+using MassTransit;
 using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Infrastructure.Options;
@@ -19,7 +20,7 @@ namespace Haworks.Payments.Infrastructure.PayPal;
 /// </summary>
 internal sealed class PayPalSubscriptionManager(
     IPaymentRepository paymentRepository,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     IPayPalClientFactory clientFactory,
     IResiliencePolicyFactory resiliencePolicyFactory,
     ILogger<PayPalSubscriptionManager> logger,
@@ -195,7 +196,7 @@ internal sealed class PayPalSubscriptionManager(
         newSub.UpdateStatus(subscriptionEvent.NewStatus);
         await paymentRepository.AddSubscriptionAsync(newSub, ct);
 
-        await eventPublisher.PublishAsync(new SubscriptionStartedEvent
+        await eventPublisher.Publish(new SubscriptionStartedEvent
         {
             SubscriptionId = newSub.ProviderSubscriptionId,
             UserId = newSub.UserId,
@@ -235,7 +236,7 @@ internal sealed class PayPalSubscriptionManager(
         _ = long.TryParse(subscriptionEvent.Metadata.GetValueOrDefault("amount_cents"), out var amount);
         var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency);
 
-        await eventPublisher.PublishAsync(new SubscriptionRenewedEvent
+        await eventPublisher.Publish(new SubscriptionRenewedEvent
         {
             SubscriptionId = existing.ProviderSubscriptionId,
             UserId = existing.UserId,
@@ -257,7 +258,7 @@ internal sealed class PayPalSubscriptionManager(
             existing.SetExpiresAt(subscriptionEvent.CurrentPeriodEnd.Value);
         }
 
-        await eventPublisher.PublishAsync(new SubscriptionCancelledEvent
+        await eventPublisher.Publish(new SubscriptionCancelledEvent
         {
             SubscriptionId = existing.ProviderSubscriptionId,
             UserId = existing.UserId,

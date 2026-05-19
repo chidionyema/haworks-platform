@@ -48,7 +48,7 @@ public static class Diagnostics
 
     public static readonly DiagnosticDescriptor MustUseContextPublishInConsumer = new(
         id: "HWK007",
-        title: "Consumers must publish via ConsumeContext not IPublishEndpoint or IDomainEventPublisher",
+        title: "Consumers must publish via ConsumeContext not IPublishEndpoint or IBus",
         messageFormat: "'{0}' bypasses the consumer's outbox transaction — use context.Publish instead",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -579,7 +579,7 @@ public static class Diagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        customTags: new[] { WellKnownDiagnosticTags.CompilationEnd });
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     // ─── Financial Precision (HWK084) ───
 

@@ -1,6 +1,7 @@
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.BuildingBlocks.Telemetry;
+using MassTransit;
 using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Microsoft.Extensions.Logging;
@@ -16,7 +17,7 @@ namespace Haworks.Payments.Infrastructure.Stripe;
 internal sealed class StripeRefundService(
     IStripeClientFactory clientFactory,
     IPaymentRepository paymentRepository,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     IResiliencePolicyFactory resiliencePolicyFactory,
     ILogger<StripeRefundService> logger,
     ITelemetryService telemetry) : IRefundService
@@ -102,7 +103,7 @@ internal sealed class StripeRefundService(
         if (payment != null && string.Equals(refund.Status, "succeeded", StringComparison.Ordinal))
         {
             // Publish then save — outbox message and entity state commit atomically
-            await eventPublisher.PublishAsync(new RefundIssuedEvent
+            await eventPublisher.Publish(new RefundIssuedEvent
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,

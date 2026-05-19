@@ -1,8 +1,8 @@
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.BuildingBlocks.Common;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.Contracts.Payments;
+using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -19,7 +19,7 @@ public sealed record CreateRefundCommand(
 
 public sealed class CreateRefundCommandHandler(
     IPaymentRepository paymentRepository,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<CreateRefundCommandHandler> logger) : IRequestHandler<CreateRefundCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CreateRefundCommand request, CancellationToken ct)
@@ -56,7 +56,7 @@ public sealed class CreateRefundCommandHandler(
         // message commit atomically in the same transaction via MassTransit EF Outbox.
         // The Payment entity carries an xmin concurrency token — EF will throw
         // DbUpdateConcurrencyException if another refund raced us.
-        await eventPublisher.PublishAsync(new RefundRequestedEvent
+        await eventPublisher.Publish(new RefundRequestedEvent
         {
             RefundId = refundId,
             OrderId = payment.OrderId,

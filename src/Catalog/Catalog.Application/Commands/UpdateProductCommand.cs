@@ -1,10 +1,10 @@
 using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Idempotency;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.Catalog.Application.DTOs;
 using Haworks.Catalog.Application.Interfaces;
 using Haworks.Catalog.Domain.Interfaces;
 using Haworks.Contracts.Catalog;
+using MassTransit;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -26,14 +26,14 @@ internal sealed class UpdateProductCommandHandler : IRequestHandler<UpdateProduc
     private readonly IProductRepository _productRepository;
     private readonly ICategoryRepository _categoryRepository;
     private readonly IProductCacheReader _productCache;
-    private readonly IDomainEventPublisher _eventPublisher;
+    private readonly IPublishEndpoint _eventPublisher;
     private readonly ILogger<UpdateProductCommandHandler> _logger;
 
     public UpdateProductCommandHandler(
         IProductRepository productRepository,
         ICategoryRepository categoryRepository,
         IProductCacheReader productCache,
-        IDomainEventPublisher eventPublisher,
+        IPublishEndpoint eventPublisher,
         ILogger<UpdateProductCommandHandler> logger)
     {
         _productRepository = productRepository;
@@ -84,7 +84,7 @@ internal sealed class UpdateProductCommandHandler : IRequestHandler<UpdateProduc
         // in the outbox in the same transaction as the row write — the
         // ProductCacheInvalidatedBridge in BffWeb won't fire until the row
         // is durably committed.
-        await _eventPublisher.PublishAsync(new ProductCacheInvalidatedEvent
+        await _eventPublisher.Publish(new ProductCacheInvalidatedEvent
         {
             ProductId = product.Id,
             CorrelationId = request.CorrelationId,

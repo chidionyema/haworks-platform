@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Contracts.Payments;
+using MassTransit;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.BuildingBlocks.Resilience;
 using Haworks.Payments.Infrastructure.Options;
@@ -20,7 +21,7 @@ internal sealed class PayPalWebhookProcessor(
     ISubscriptionManager subscriptionManager,
     IWebhookIdempotencyGuard idempotencyGuard,
     IPayPalClientFactory clientFactory,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     IResiliencePolicyFactory resiliencePolicyFactory,
     IOptions<PaymentProviderOptions> providerOptions,
     ILogger<PayPalWebhookProcessor> logger,
@@ -230,7 +231,7 @@ internal sealed class PayPalWebhookProcessor(
             if (Guid.TryParse(sagaIdStr, out var sagaId))
             {
                 // outbox handles this — event published via MassTransit outbox, SaveChangesAsync called by idempotency guard
-                await eventPublisher.PublishAsync(new ProviderRefundSucceededEvent
+                await eventPublisher.Publish(new ProviderRefundSucceededEvent
                 {
                     RefundId = sagaId,
                     ProviderRefundId = refundId,
