@@ -78,7 +78,6 @@ public class LocationDbContext : DbContext, ILocationDbContext
 
             entity.HasIndex(a => a.Geohash);
 
-            // xmin concurrency token removed — broken under Npgsql 9 (OID mismatch).
             // Concurrency handled by domain guards + pessimistic locks.
         });
 
