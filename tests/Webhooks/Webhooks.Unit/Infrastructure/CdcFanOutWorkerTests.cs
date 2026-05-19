@@ -31,7 +31,7 @@ public class CdcFanOutWorkerTests
         _db = new WebhooksDbContext(options);
 
         var services = new ServiceCollection();
-        services.AddSingleton<IWebhooksDbContext>(_db);
+        services.AddScoped<IWebhooksDbContext>(_ => _db);
         _serviceProvider = services.BuildServiceProvider();
     }
 

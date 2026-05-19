@@ -100,13 +100,25 @@ dotnet_diagnostic.AsyncFixer05.severity = error  # Implicit casting to Task
 # ── Haworks Custom Analyzers (HWK) — tuning phase ─────────────────
 # New analyzers (HWK051-071) need false-positive tuning before promotion to error.
 # Keeping as warning so they're visible but don't block builds.
-dotnet_diagnostic.HWK051.severity = warning  # SaveChanges before Publish — needs outbox awareness
-dotnet_diagnostic.HWK052.severity = warning  # Financial consumer idempotency — needs MassTransit inbox awareness
-dotnet_diagnostic.HWK053.severity = warning  # Financial writes without transaction — too broad
-dotnet_diagnostic.HWK055.severity = warning  # SSRF user URLs — false positives on config-built URLs
-dotnet_diagnostic.HWK058.severity = warning  # Secrets in source — false positives on enum/config names
-dotnet_diagnostic.HWK062.severity = warning  # Guid.Empty as identifier — false positives in validators
-dotnet_diagnostic.HWK064.severity = warning  # Navigation in loop — false positives on BCL members
-dotnet_diagnostic.HWK065.severity = warning  # Tracked queries in handlers — needs read/write context awareness
-dotnet_diagnostic.HWK071.severity = warning  # FirstAsync without filter — false positives on FOR UPDATE queries
+dotnet_diagnostic.HWK051.severity = warning
+dotnet_diagnostic.HWK052.severity = warning
+dotnet_diagnostic.HWK053.severity = warning
+dotnet_diagnostic.HWK054.severity = warning
+dotnet_diagnostic.HWK055.severity = warning
+dotnet_diagnostic.HWK056.severity = warning
+dotnet_diagnostic.HWK057.severity = warning
+dotnet_diagnostic.HWK058.severity = warning
+dotnet_diagnostic.HWK059.severity = warning
+dotnet_diagnostic.HWK060.severity = warning
+dotnet_diagnostic.HWK061.severity = warning
+dotnet_diagnostic.HWK062.severity = warning
+dotnet_diagnostic.HWK063.severity = warning
+dotnet_diagnostic.HWK064.severity = warning
+dotnet_diagnostic.HWK065.severity = warning
+dotnet_diagnostic.HWK066.severity = warning
+dotnet_diagnostic.HWK067.severity = warning
+dotnet_diagnostic.HWK068.severity = warning
+dotnet_diagnostic.HWK069.severity = warning
+dotnet_diagnostic.HWK070.severity = warning
+dotnet_diagnostic.HWK071.severity = warning
 
