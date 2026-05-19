@@ -48,6 +48,7 @@ public abstract class BoundedContextConsumerDefinition<TConsumer, TDbContext>
 /// receive endpoint so saga inbox + saga state writes + saga publishes all
 /// commit atomically in ONE TDbContext transaction.
 /// </summary>
+#pragma warning disable S2326 // TDbContext kept for backward-compatible service definitions
 public abstract class BoundedContextSagaDefinition<TSaga, TDbContext>
     : SagaDefinition<TSaga>
     where TSaga : class, ISaga
