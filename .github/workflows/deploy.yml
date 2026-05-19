@@ -249,8 +249,11 @@ jobs:
             echo "deploy_vault_pg=false" >> "$GITHUB_OUTPUT"
           fi
 
-          # vault: deploy if vault files OR shared changed
-          if [[ "$C_VAULT" == "true" || "$C_SHARED" == "true" || "$FORCE_ALL" == "true" ]]; then
+          # vault: deploy ONLY if vault-specific files changed (or forced).
+          # Shared code changes don't affect the Vault Docker image — it only
+          # contains deploy/vault/ and infra/vault/. Unnecessary redeploys
+          # restart the machine, re-seal Vault, and break the creds staging step.
+          if [[ "$C_VAULT" == "true" || "$FORCE_ALL" == "true" ]]; then
             echo "deploy_vault=true" >> "$GITHUB_OUTPUT"
           else
             echo "deploy_vault=false" >> "$GITHUB_OUTPUT"
@@ -297,7 +300,10 @@ jobs:
     # creds from the previous run are still valid.
     name: Stage vault creds
     needs: [plan, deploy-vault]
-    if: ${{ needs.plan.outputs.deploy_vault == 'true' && inputs.bypass_vault_capture != true }}
+    # Always stage fresh AppRole creds unless explicitly bypassed. Services
+    # need a new wrapped secret_id on every deploy (single-use tokens expire).
+    # The job waits for deploy-vault to finish first so Vault is up.
+    if: ${{ inputs.bypass_vault_capture != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -315,11 +321,7 @@ jobs:
     # on prerequisite jobs that may have been skipped.
     name: Deploy ${{ matrix.svc }}
     needs: [plan, deploy-vault-pg, deploy-vault, stage-vault-creds]
-    # stage-vault-creds failure is non-blocking: services retain valid AppRole
-    # creds from the previous successful staging. Only plan + infra (vault-pg,
-    # vault) are hard gates. This prevents a transient Vault unseal delay from
-    # blocking the entire deploy chain.
-    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.services != '[]' && (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') && (needs.deploy-vault-pg.result == 'success' || needs.deploy-vault-pg.result == 'skipped') }}
+    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.services != '[]' && (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') && (needs.stage-vault-creds.result == 'success' || needs.stage-vault-creds.result == 'skipped') && (needs.deploy-vault-pg.result == 'success' || needs.deploy-vault-pg.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
