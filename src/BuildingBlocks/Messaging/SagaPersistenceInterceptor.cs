@@ -32,6 +32,7 @@ public sealed class SagaPersistenceInterceptor : SaveChangesInterceptor
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
+        Console.Error.WriteLine($"INTERCEPTOR_PROBE: SavingChangesAsync fired on {eventData.Context?.GetType().Name ?? "null"}");
         if (eventData.Context is null) return ValueTask.FromResult(result);
 
         var context = eventData.Context;
