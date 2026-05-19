@@ -233,7 +233,9 @@ public static class DependencyInjection
         // their own bus or dispense with one entirely.
         if (!env.IsEnvironment("Test"))
         {
-            services.AddMassTransit(mt =>
+            services.AddMassTransitDiagnostics();
+
+        services.AddMassTransit(mt =>
             {
                 mt.SetKebabCaseEndpointNameFormatter();
                 mt.AddConsumer<Haworks.Identity.Application.Consumers.PrivacyErasureRequestedConsumer>();

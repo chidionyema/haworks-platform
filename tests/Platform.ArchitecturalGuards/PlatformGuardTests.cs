@@ -3183,9 +3183,10 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
     {
         // Consumers that both write to DB (outbox transaction) and call external APIs
         // in the same Consume method create a coupling between DB transaction lifetime
-        // and external API latency. This causes: long-held locks, phantom reads, and
-        // non-retryable partial failures. Use ThreePhaseHandlerBase instead.
-        // This is a baseline guard — count existing violations and prevent increase.
+        // and external API latency. Roslyn analyzers HWK009 (no external I/O inside
+        // transaction) and HWK075 (DB-write/external-IO/DB-write sandwich) enforce the
+        // three-phase separation at compile time. This regex guard is the belt to the
+        // analyzer's suspenders — it catches patterns the analyzers might miss.
         var externalCallPatterns = new Regex(
             @"(HttpClient|\.SendAsync|\.GetAsync|\.PostAsync|\.PutAsync|" +
             @"StripeService|PayPalService|Gateway\.|Provider\.|" +
@@ -3200,33 +3201,25 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
             if (!content.Contains("IConsumer<") && !content.Contains(": IdempotentConsumerBase"))
                 continue;
 
-            // Skip fault consumers, demo consumers, bridge consumers
             var fileName = Path.GetFileNameWithoutExtension(file);
             if (fileName.Contains("Fault") || fileName.Contains("Demo") ||
                 fileName.Contains("Bridge") || fileName.Contains("Cdc"))
                 continue;
 
-            // Check if the consumer has both DB writes and external API calls
             bool hasDbWrite = content.Contains("SaveChangesAsync") ||
                               content.Contains("_dbContext") ||
                               content.Contains("_context") ||
                               content.Contains(": IdempotentConsumerBase");
             bool hasExternalCall = externalCallPatterns.IsMatch(content);
 
-            // If it already uses ThreePhaseHandlerBase, it's correctly separated
-            if (content.Contains("ThreePhaseHandler") || content.Contains("ThreePhase"))
-                continue;
-
             if (hasDbWrite && hasExternalCall)
             {
-                violations.Add($"{Relative(file)}: {fileName} has both DB writes and external API calls in consumer — use ThreePhaseHandlerBase to separate concerns");
+                violations.Add($"{Relative(file)}: {fileName} has both DB writes and external API calls in consumer — separate into three phases (HWK009/HWK075)");
             }
         }
-        // Baseline guard: track count, prevent increase. Current known violations are baselined.
-        // When all are migrated to ThreePhaseHandlerBase, switch to BeEmpty().
-        var baseline = 5; // current known violations — decrease as services migrate
+        var baseline = 5;
         violations.Should().HaveCountLessOrEqualTo(baseline,
-            $"external API calls inside outbox transactions must not increase beyond baseline ({baseline}) — use ThreePhaseHandlerBase to separate DB writes from external calls");
+            $"external API calls inside outbox transactions must not increase beyond baseline ({baseline}) — see HWK009/HWK075 analyzers");
     }
 
 }

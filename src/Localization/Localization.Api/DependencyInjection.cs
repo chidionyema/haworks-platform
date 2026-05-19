@@ -34,14 +34,18 @@ public static class DependencyInjection
         if (env.IsEnvironment("Test"))
         {
             // In Test, register a no-op MassTransit bus so IPublishEndpoint resolves without RabbitMQ.
-            services.AddMassTransit(mt =>
+            services.AddMassTransitDiagnostics();
+
+        services.AddMassTransit(mt =>
             {
                 mt.UsingInMemory((context, cfg) => cfg.ConfigureEndpoints(context));
             });
         }
         else
         {
-            services.AddMassTransit(mt =>
+            services.AddMassTransitDiagnostics();
+
+        services.AddMassTransit(mt =>
             {
                 mt.SetKebabCaseEndpointNameFormatter();
 

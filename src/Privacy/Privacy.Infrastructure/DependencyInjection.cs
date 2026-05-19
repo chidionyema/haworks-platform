@@ -38,6 +38,8 @@ public static class DependencyInjection
         services.AddHostedService<ErasureStalledWatcher>();
         services.AddHostedService<ErasureHealthWatcher>();
 
+        services.AddMassTransitDiagnostics();
+
         services.AddMassTransit(x =>
         {
             x.SetKebabCaseEndpointNameFormatter();

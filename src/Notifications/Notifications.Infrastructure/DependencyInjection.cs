@@ -75,7 +75,9 @@ public static partial class DependencyInjection
 
         if (!env.IsEnvironment("Test"))
         {
-            services.AddMassTransit(x =>
+            services.AddMassTransitDiagnostics();
+
+        services.AddMassTransit(x =>
             {
                 x.AddConsumer<Haworks.BuildingBlocks.Messaging.GlobalFaultConsumer>();
                 x.AddConsumer<Notifications.Application.Consumers.NotificationRequestConsumer, Messaging.NotificationsConsumerDefinition<Notifications.Application.Consumers.NotificationRequestConsumer>>();

@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Messaging;
 using FluentValidation;
 using Haworks.Pricing.Application.Interfaces;
 using Haworks.Pricing.Application.Options;
@@ -77,7 +78,9 @@ public static class DependencyInjection
         // MassTransit
         if (!env.IsEnvironment("Test"))
         {
-            services.AddMassTransit(mt =>
+            services.AddMassTransitDiagnostics();
+
+        services.AddMassTransit(mt =>
             {
                 mt.SetKebabCaseEndpointNameFormatter();
                 mt.AddDelayedMessageScheduler();

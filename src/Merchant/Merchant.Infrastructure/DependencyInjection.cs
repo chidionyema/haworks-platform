@@ -22,7 +22,9 @@ public static class DependencyInjection
 
         if (!string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Test", StringComparison.Ordinal))
         {
-            services.AddMassTransit(x =>
+            services.AddMassTransitDiagnostics();
+
+        services.AddMassTransit(x =>
             {
                 x.AddEntityFrameworkOutbox<MerchantDbContext>(o =>
                 {

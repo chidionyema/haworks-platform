@@ -20,14 +20,26 @@ public static class MessagingServiceCollectionExtensions
             intervalIncrement: TimeSpan.FromSeconds(2)));
 
         // Stage 2: Delayed redelivery (service outages — Stripe down, DB failover)
-        // After 3 immediate retries fail, message is redelivered 3 more times with
-        // longer delays. Total time before DLQ: ~36 min (vs 9s without this).
-        // Requires: rabbitmq_delayed_message_exchange plugin enabled on broker.
         cfg.UseDelayedRedelivery(r => r.Intervals(
             TimeSpan.FromMinutes(1),
             TimeSpan.FromMinutes(5),
             TimeSpan.FromMinutes(30)));
 
+        // Platform-wide observability: log every consumer fault and dead-letter
+        cfg.ConnectConsumeObserver(context.GetRequiredService<DiagnosticConsumeObserver>());
+        cfg.ConnectReceiveObserver(context.GetRequiredService<DiagnosticReceiveObserver>());
+
         cfg.ConfigureEndpoints(context);
+    }
+
+    /// <summary>
+    /// Registers the diagnostic observers in DI. Call from each service's
+    /// MassTransit setup (or from AddServiceDefaults).
+    /// </summary>
+    public static IServiceCollection AddMassTransitDiagnostics(this IServiceCollection services)
+    {
+        services.AddSingleton<DiagnosticConsumeObserver>();
+        services.AddSingleton<DiagnosticReceiveObserver>();
+        return services;
     }
 }

@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Messaging;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -64,6 +65,8 @@ public static class DependencyInjection
         {
             return services;
         }
+
+        services.AddMassTransitDiagnostics();
 
         services.AddMassTransit(mt =>
         {

@@ -28,7 +28,9 @@ public static class DependencyInjection
 
         if (!env.IsEnvironment("Test"))
         {
-            services.AddMassTransit(x =>
+            services.AddMassTransitDiagnostics();
+
+        services.AddMassTransit(x =>
             {
                 x.SetKebabCaseEndpointNameFormatter();
                 x.AddEntityFrameworkOutbox<SchedulerDbContext>(o =>

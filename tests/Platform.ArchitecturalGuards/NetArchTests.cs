@@ -1,7 +1,5 @@
 using System.Reflection;
 using FluentAssertions;
-using Mono.Cecil;
-using Mono.Cecil.Rocks;
 using NetArchTest.Rules;
 using Xunit;
 
@@ -159,165 +157,17 @@ public sealed class NetArchTests
             "BuildingBlocks is shared infrastructure — must not reference any service");
     }
 
-    // ─── Reusable base component enforcement (IL-level) ───────────────
+    // ─── Reusable base component enforcement ────────────────────────
     //
-    // These tests are ASPIRATIONAL — they document the target architecture.
-    // Remove the Skip attribute after all handlers/consumers have been
-    // migrated to the reusable base classes (IdempotentConsumerBase,
-    // ThreePhaseHandlerBase). Track progress in the migration backlog.
+    // ThreePhaseHandlerBase was deleted — its three-phase separation
+    // pattern is now enforced at compile time by Roslyn analyzers:
+    //   HWK005: No BeginTransactionAsync inside MassTransit consumers
+    //   HWK007: Consumers must publish via ConsumeContext not IPublishEndpoint
+    //   HWK009: No external I/O inside DB transactions
+    //   HWK074: No manual transaction in MassTransit consumers
+    //   HWK075: DB-write/external-IO/DB-write sandwich detection
+    //
+    // IdempotentConsumerBase enforcement is covered by HWK052 (consumers
+    // handling financial events must check idempotency).
     // ──────────────────────────────────────────────────────────────────
-
-    [Fact(Skip = "Migration in progress — will enforce after all handlers are migrated")]
-    public void Consumers_In_Financial_Services_Must_Inherit_IdempotentConsumerBase()
-    {
-        var financialAssemblies = new[]
-        {
-            typeof(Haworks.Payments.Application.DependencyInjection).Assembly,
-            typeof(Haworks.Payouts.Infrastructure.DependencyInjection).Assembly,
-        };
-
-        var consumerTypes = financialAssemblies
-            .SelectMany(a => Types.InAssembly(a)
-                .That()
-                .ImplementInterface(typeof(MassTransit.IConsumer<>))
-                .GetTypes())
-            .Where(t => !t.IsAbstract && !t.IsInterface)
-            .ToList();
-
-        consumerTypes.Should().NotBeEmpty("there should be consumers in financial services");
-
-        foreach (var type in consumerTypes)
-        {
-            var inheritsIdempotentBase = InheritsGenericBase(type, "IdempotentConsumerBase");
-            inheritsIdempotentBase.Should().BeTrue(
-                $"{type.FullName} implements IConsumer<> but does not inherit " +
-                "IdempotentConsumerBase<,> — financial consumers must use the idempotent base " +
-                "to guarantee exactly-once processing");
-        }
-    }
-
-    [Fact(Skip = "Migration in progress — will enforce after all handlers are migrated")]
-    public void Handlers_With_External_Gateways_Must_Not_Call_BeginTransactionAsync_Raw()
-    {
-        var financialAssemblies = new[]
-        {
-            typeof(Haworks.Payments.Infrastructure.DependencyInjection).Assembly,
-            typeof(Haworks.Payouts.Infrastructure.DependencyInjection).Assembly,
-        };
-
-        var result = Types.InAssemblies(financialAssemblies)
-            .That()
-            .AreClasses()
-            .And()
-            .AreNotAbstract()
-            .Should()
-            .MeetCustomRule(new NoRawTransactionManagementRule())
-            .GetResult();
-
-        result.IsSuccessful.Should().BeTrue(
-            "Types that call BeginTransactionAsync must inherit ThreePhaseHandlerBase. " +
-            $"Violating types: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
-    }
-
-    [Fact(Skip = "Migration in progress — will enforce after all handlers are migrated")]
-    public void Handlers_With_Gateway_Dependencies_Must_Use_ThreePhaseHandler()
-    {
-        var financialAssemblies = new[]
-        {
-            typeof(Haworks.Payments.Application.DependencyInjection).Assembly,
-            typeof(Haworks.Payments.Infrastructure.DependencyInjection).Assembly,
-            typeof(Haworks.Payouts.Application.DependencyInjection).Assembly,
-            typeof(Haworks.Payouts.Infrastructure.DependencyInjection).Assembly,
-        };
-
-        var gatewayInterfaceNames = new[]
-        {
-            "IPayoutGateway",
-            "IStripeClientFactory",
-            "IPaymentProcessor",
-            "IRefundService",
-        };
-
-        var handlerTypes = financialAssemblies
-            .SelectMany(a => a.GetTypes())
-            .Where(t => t.IsClass && !t.IsAbstract)
-            .Where(t => t.GetConstructors()
-                .SelectMany(c => c.GetParameters())
-                .Any(p => gatewayInterfaceNames.Contains(p.ParameterType.Name)))
-            .ToList();
-
-        foreach (var type in handlerTypes)
-        {
-            var inheritsThreePhase = InheritsGenericBase(type, "ThreePhaseHandlerBase");
-            inheritsThreePhase.Should().BeTrue(
-                $"{type.FullName} depends on a payment/payout gateway but does not inherit " +
-                "ThreePhaseHandlerBase — handlers with external gateway calls must use the " +
-                "three-phase pattern (validate → execute → persist) to ensure consistency");
-        }
-    }
-
-    // ─── Helpers ──────────────────────────────────────────────────────
-
-    private static bool InheritsGenericBase(Type type, string baseTypeName)
-    {
-        var current = type.BaseType;
-        while (current is not null)
-        {
-            var name = current.IsGenericType ? current.GetGenericTypeDefinition().Name : current.Name;
-            if (name.StartsWith(baseTypeName, StringComparison.Ordinal))
-                return true;
-            current = current.BaseType;
-        }
-        return false;
-    }
-}
-
-/// <summary>
-/// Mono.Cecil IL-inspection rule that blocks raw BeginTransactionAsync calls
-/// outside of ThreePhaseHandlerBase-derived types. This ensures all transaction
-/// management goes through the three-phase pattern.
-/// </summary>
-public sealed class NoRawTransactionManagementRule : NetArchTest.Rules.ICustomRule
-{
-    public bool MeetsRule(TypeDefinition type)
-    {
-        // Types inheriting ThreePhaseHandlerBase are allowed to manage transactions
-        if (InheritsThreePhaseHandler(type))
-            return true;
-
-        // Scan all method bodies for BeginTransactionAsync calls
-        foreach (var method in type.Methods.Where(m => m.HasBody))
-        {
-            foreach (var instruction in method.Body.Instructions)
-            {
-                if (instruction.Operand is MethodReference mr
-                    && string.Equals(mr.Name, "BeginTransactionAsync", StringComparison.Ordinal))
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    private static bool InheritsThreePhaseHandler(TypeDefinition type)
-    {
-        var current = type.BaseType;
-        while (current is not null)
-        {
-            if (current.Name.StartsWith("ThreePhaseHandlerBase", StringComparison.Ordinal))
-                return true;
-
-            try
-            {
-                current = current.Resolve()?.BaseType;
-            }
-            catch
-            {
-                break;
-            }
-        }
-        return false;
-    }
 }

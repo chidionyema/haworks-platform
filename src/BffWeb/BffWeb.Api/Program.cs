@@ -278,7 +278,9 @@ builder.Services.AddHttpClient(BackendClients.CatalogDemo, (sp, client) =>
 // harness with this same consumer wired in.
 if (!builder.Environment.IsEnvironment("Test"))
 {
-    builder.Services.AddMassTransit(mt =>
+    builder.Services.AddMassTransitDiagnostics();
+
+builder.Services.AddMassTransit(mt =>
     {
         mt.SetKebabCaseEndpointNameFormatter();
         mt.AddConsumer<PaymentSessionCreatedConsumer>();

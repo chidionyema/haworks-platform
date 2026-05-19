@@ -55,7 +55,9 @@ public static class DependencyInjection
         // MassTransit — RabbitMQ in all environments except Test.
         if (!env.IsEnvironment("Test"))
         {
-            services.AddMassTransit(x =>
+            services.AddMassTransitDiagnostics();
+
+        services.AddMassTransit(x =>
             {
                 x.AddConsumer<OrderStatusChangedConsumer>();
 

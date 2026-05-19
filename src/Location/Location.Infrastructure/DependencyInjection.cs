@@ -74,6 +74,8 @@ public static class DependencyInjection
             return services;
         }
 
+        services.AddMassTransitDiagnostics();
+
         services.AddMassTransit(mt =>
         {
             mt.SetKebabCaseEndpointNameFormatter();

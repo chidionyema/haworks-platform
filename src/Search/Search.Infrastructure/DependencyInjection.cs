@@ -52,7 +52,9 @@ public static class DependencyInjection
         // wires AddMassTransitTestHarness with the same consumers.
         if (!env.IsEnvironment("Test"))
         {
-            services.AddMassTransit(mt =>
+            services.AddMassTransitDiagnostics();
+
+        services.AddMassTransit(mt =>
             {
                 mt.SetKebabCaseEndpointNameFormatter();
                 mt.AddConsumer<ProductCacheInvalidatedConsumer>();

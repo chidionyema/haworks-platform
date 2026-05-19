@@ -159,6 +159,8 @@ public static class DependencyInjection
 
         services.AddHostedService<SagaHealthWatcher>();
 
+        services.AddMassTransitDiagnostics();
+
         services.AddMassTransit(mt =>
         {
             mt.SetKebabCaseEndpointNameFormatter();

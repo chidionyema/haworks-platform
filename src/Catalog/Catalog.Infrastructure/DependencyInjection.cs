@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Messaging;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -104,6 +105,8 @@ public static class DependencyInjection
             // Tests provide their own bus + IPublishEndpoint via AddMassTransitTestHarness; bail early.
             return services;
         }
+
+        services.AddMassTransitDiagnostics();
 
         services.AddMassTransit(mt =>
         {

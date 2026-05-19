@@ -29,7 +29,9 @@ public static class DependencyInjection
         services.AddScoped<Haworks.Payouts.Application.Disbursements.Services.IDisbursementService, Haworks.Payouts.Application.Disbursements.Services.DisbursementService>();
         if (!string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Test", StringComparison.Ordinal))
         {
-            services.AddMassTransit(x => {
+            services.AddMassTransitDiagnostics();
+
+        services.AddMassTransit(x => {
                 x.SetKebabCaseEndpointNameFormatter();
                 x.AddConsumer<PaymentCompletedConsumer, Messaging.PayoutsConsumerDefinition<PaymentCompletedConsumer>>();
                 x.AddConsumer<RefundIssuedConsumer, Messaging.PayoutsConsumerDefinition<RefundIssuedConsumer>>();
