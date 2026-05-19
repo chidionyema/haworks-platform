@@ -325,4 +325,138 @@ public static class Diagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ConsumerMustCheckIdempotency = new(
+        id: "HWK052",
+        title: "Consumers handling financial events must check idempotency",
+        messageFormat: "Consumer '{0}' handles a financial event but does not check for duplicate processing — use an idempotency journal or FOR UPDATE lock",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor FinancialWritesMustUseTransaction = new(
+        id: "HWK053",
+        title: "Ledger/financial writes must be wrapped in a transaction",
+        messageFormat: "Method '{0}' performs financial writes without an explicit transaction or outbox — partial commits corrupt balances",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    // ─── Security (HWK054-058) ───
+
+    public static readonly DiagnosticDescriptor NoUserIdFromRequestBody = new(
+        id: "HWK054",
+        title: "Do not read userId from request body in state-changing endpoints",
+        messageFormat: "Parameter '{0}' takes userId from the request body — extract from JWT claims to prevent IDOR",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoUnvalidatedUserUrls = new(
+        id: "HWK055",
+        title: "Do not pass user-supplied URLs to HTTP calls without validation",
+        messageFormat: "User-supplied URL '{0}' is passed to HttpClient without SSRF validation",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoAllowAnyOriginWithCredentials = new(
+        id: "HWK056",
+        title: "Do not combine AllowAnyOrigin with AllowCredentials",
+        messageFormat: "CORS policy uses AllowAnyOrigin with AllowCredentials — browsers will reject the response",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoCorsWildcard = new(
+        id: "HWK057",
+        title: "Do not use CORS wildcard (*) in production",
+        messageFormat: "CORS allows any origin via wildcard — restrict to known domains",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoSecretsInSource = new(
+        id: "HWK058",
+        title: "Do not hardcode secrets in source code",
+        messageFormat: "Potential secret '{0}' found in source — use configuration or secret manager",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // ─── Code Quality (HWK059-063) ───
+
+    public static readonly DiagnosticDescriptor NoThrowEx = new(
+        id: "HWK059",
+        title: "Use 'throw' not 'throw ex' to preserve stack trace",
+        messageFormat: "'throw {0}' loses the original stack trace — use 'throw' to rethrow",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoConsoleWrite = new(
+        id: "HWK060",
+        title: "Do not use Console.Write in production code",
+        messageFormat: "'{0}' bypasses structured logging — use ILogger",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoTodoComments = new(
+        id: "HWK061",
+        title: "No TODO comments in committed code",
+        messageFormat: "TODO comment found — resolve before committing",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoGuidEmpty = new(
+        id: "HWK062",
+        title: "Do not use Guid.Empty as a real identifier",
+        messageFormat: "Guid.Empty used as '{0}' — use Guid.NewGuid() or a valid identifier",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoDbContextSingleton = new(
+        id: "HWK063",
+        title: "Do not register DbContext as Singleton",
+        messageFormat: "DbContext '{0}' registered as Singleton — DbContext is not thread-safe, use Scoped",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // ─── EF Core Patterns (HWK064-067) ───
+
+    public static readonly DiagnosticDescriptor NoNavigationInLoop = new(
+        id: "HWK064",
+        title: "Do not access navigation properties inside loops without Include",
+        messageFormat: "Navigation property '{0}' accessed inside a loop — causes N+1 queries, use Include or projection",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoTrackedQueriesInReadHandlers = new(
+        id: "HWK065",
+        title: "Read-only query handlers should use AsNoTracking",
+        messageFormat: "Query handler '{0}' performs tracked queries — add AsNoTracking for read-only operations",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor EfStringMustHaveMaxLength = new(
+        id: "HWK066",
+        title: "EF string properties must have MaxLength configured",
+        messageFormat: "String property '{0}' has no MaxLength — will map to unbounded text column",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NoEntityRecordsWithEf = new(
+        id: "HWK067",
+        title: "Do not use record types as EF Core entities",
+        messageFormat: "Entity '{0}' is a record — records have value equality semantics that break EF change tracking",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

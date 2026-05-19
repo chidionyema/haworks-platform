@@ -81,6 +81,7 @@ internal static class Stubs
                 {
                     public PropertyBuilder<T> HasColumnType(string typeName) => this;
                     public PropertyBuilder<T> HasPrecision(int precision, int scale) => this;
+                    public PropertyBuilder<T> HasMaxLength(int maxLength) => this;
                     public PropertyBuilder<T> IsRequired() => this;
                 }
             }
