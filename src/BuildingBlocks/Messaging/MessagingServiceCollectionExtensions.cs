@@ -20,9 +20,13 @@ public static class MessagingServiceCollectionExtensions
         // tracked in docs/backlog/masstransit-deep-cleanup.md as
         // Workstream 5: all consumers must have definitions.
 
-        // Observability: log consume faults + receive faults
-        cfg.ConnectConsumeObserver(context.GetRequiredService<DiagnosticConsumeObserver>());
-        cfg.ConnectReceiveObserver(context.GetRequiredService<DiagnosticReceiveObserver>());
+        // Observability: log consume faults + receive faults.
+        // Use GetService (not GetRequiredService) — diagnostics are optional
+        // so services that don't call AddMassTransitDiagnostics() still work.
+        var consumeObserver = context.GetService(typeof(DiagnosticConsumeObserver)) as DiagnosticConsumeObserver;
+        var receiveObserver = context.GetService(typeof(DiagnosticReceiveObserver)) as DiagnosticReceiveObserver;
+        if (consumeObserver != null) cfg.ConnectConsumeObserver(consumeObserver);
+        if (receiveObserver != null) cfg.ConnectReceiveObserver(receiveObserver);
         // Saga state persistence is observed via SagaPersistenceInterceptor on the DbContext
 
         cfg.ConfigureEndpoints(context);
