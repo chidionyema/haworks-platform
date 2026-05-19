@@ -144,10 +144,10 @@ public sealed class SagaPersistenceInterceptor : SaveChangesInterceptor
 
     private static bool IsSagaEntity(EntityEntry entry)
     {
-        // ISaga interface check — covers all MassTransit saga state entities
         if (typeof(ISaga).IsAssignableFrom(entry.Metadata.ClrType))
             return true;
-        // Fallback: table name contains "Saga"
+        if (typeof(SagaStateMachineInstance).IsAssignableFrom(entry.Metadata.ClrType))
+            return true;
         var tableName = entry.Metadata.GetTableName() ?? "";
         return tableName.Contains("Saga", StringComparison.OrdinalIgnoreCase);
     }
