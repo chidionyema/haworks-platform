@@ -488,4 +488,105 @@ public static class Diagnostics
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Opening manual database transactions inside MassTransit consumers configured with the EF Core Outbox splits the unit-of-work scope and risks transaction drift.");
+
+    // ─── Three-Phase Enforcement (HWK075) ───
+
+    public static readonly DiagnosticDescriptor DbWriteExternalIoDbWriteSandwich = new(
+        id: "HWK075",
+        title: "DB-write → External I/O → DB-write Must Use Three-Phase Separation",
+        messageFormat: "Method contains SaveChanges at line {0}, external call '{1}' at line {2}, then SaveChanges at line {3}. Use three-phase separation: (1) lock + pending + commit, (2) external I/O, (3) re-lock + settle + commit.",
+        category: "OutboxIntegrity",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When a method performs DB writes both before and after an external API call, it must use the three-phase pattern to prevent partial commits and data corruption on external call failure.");
+
+    // ─── Request Pipeline Safety (HWK076) ───
+
+    public static readonly DiagnosticDescriptor NoTaskRunInRequestPipeline = new(
+        id: "HWK076",
+        title: "No Task.Run in Controllers or Middleware",
+        messageFormat: "Task.Run inside '{0}' loses request context (correlation ID, user claims, cancellation). Use a background service or message queue instead.",
+        category: "Resilience",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // ─── Query Safety (HWK077) ───
+
+    public static readonly DiagnosticDescriptor NoUnboundedToList = new(
+        id: "HWK077",
+        title: "Unbounded ToListAsync Without Take",
+        messageFormat: "'{0}' materializes a query without .Take() — this can load unbounded rows into memory",
+        category: "Scalability",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    // ─── Concurrency (HWK078) ───
+
+    public static readonly DiagnosticDescriptor NoConcurrentDictionaryCheckThenAct = new(
+        id: "HWK078",
+        title: "ConcurrentDictionary Check-Then-Act Race Condition",
+        messageFormat: "'{0}' followed by indexer access is a TOCTOU race. Use GetOrAdd, TryAdd, or AddOrUpdate instead.",
+        category: "Concurrency",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // ─── Async Hygiene (HWK079) ───
+
+    public static readonly DiagnosticDescriptor NoConfigureAwaitFalseInAspNet = new(
+        id: "HWK079",
+        title: "Unnecessary ConfigureAwait(false) in ASP.NET Project",
+        messageFormat: "ConfigureAwait(false) is unnecessary in ASP.NET Core — there is no SynchronizationContext to avoid",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    // ─── EF Performance (HWK080) ───
+
+    public static readonly DiagnosticDescriptor NoSaveChangesInLoop = new(
+        id: "HWK080",
+        title: "SaveChangesAsync Called Inside a Loop",
+        messageFormat: "SaveChangesAsync inside a '{0}' loop causes N round-trips. Batch mutations and call SaveChanges once after the loop.",
+        category: "Scalability",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    // ─── DI Lifetime Safety (HWK081) ───
+
+    public static readonly DiagnosticDescriptor NoServiceLocatorInSingleton = new(
+        id: "HWK081",
+        title: "Service Locator Pattern in Singleton or Static Context",
+        messageFormat: "'{0}' resolves services at runtime instead of through constructor injection — this defeats DI lifetime guarantees",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    // ─── Resilience (HWK082) ───
+
+    public static readonly DiagnosticDescriptor NoHttpCallWithoutResiliencePolicy = new(
+        id: "HWK082",
+        title: "External HTTP Call Without Resilience Policy",
+        messageFormat: "'{0}' on HttpClient is not wrapped in a Polly ExecuteAsync — external calls need retry/circuit-breaker policies",
+        category: "Resilience",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    // ─── Validation (HWK083) ───
+
+    public static readonly DiagnosticDescriptor NoCommandWithoutValidator = new(
+        id: "HWK083",
+        title: "Mutating Command Without FluentValidation Validator",
+        messageFormat: "Command '{0}' has no corresponding AbstractValidator<{0}> — all mutating commands must be validated",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    // ─── Financial Precision (HWK084) ───
+
+    public static readonly DiagnosticDescriptor NoUnroundedFinancialArithmetic = new(
+        id: "HWK084",
+        title: "Financial Decimal Arithmetic Without Explicit Rounding",
+        messageFormat: "Decimal multiplication/division on '{0}' in a financial namespace must use Math.Round with explicit MidpointRounding",
+        category: "FinancialIntegrity",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
 }

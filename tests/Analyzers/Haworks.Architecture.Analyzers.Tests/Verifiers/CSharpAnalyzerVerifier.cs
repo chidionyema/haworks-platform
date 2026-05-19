@@ -104,4 +104,78 @@ internal static class Stubs
             public class Context { }
         }
         """;
+
+    public const string HttpClient = """
+        namespace System.Net.Http
+        {
+            public class HttpClient
+            {
+                public System.Threading.Tasks.Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, System.Threading.CancellationToken ct = default) => System.Threading.Tasks.Task.FromResult(new HttpResponseMessage());
+                public System.Threading.Tasks.Task<HttpResponseMessage> GetAsync(string uri, System.Threading.CancellationToken ct = default) => System.Threading.Tasks.Task.FromResult(new HttpResponseMessage());
+                public System.Threading.Tasks.Task<HttpResponseMessage> PostAsync(string uri, HttpContent content, System.Threading.CancellationToken ct = default) => System.Threading.Tasks.Task.FromResult(new HttpResponseMessage());
+            }
+            public class HttpResponseMessage { }
+            public class HttpRequestMessage { }
+            public class HttpContent { }
+            public class StringContent : HttpContent
+            {
+                public StringContent(string content) { }
+            }
+        }
+        """;
+
+    public const string AspNetCore = """
+        namespace Microsoft.AspNetCore.Mvc
+        {
+            public class Controller : ControllerBase { }
+            public class ControllerBase
+            {
+                public virtual OkResult Ok() => new OkResult();
+            }
+            public class OkResult { }
+            [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method)]
+            public class HttpPostAttribute : System.Attribute { }
+        }
+        namespace Microsoft.AspNetCore.Http
+        {
+            public interface IMiddleware
+            {
+                System.Threading.Tasks.Task InvokeAsync(HttpContext context, RequestDelegate next);
+            }
+            public class HttpContext { }
+            public delegate System.Threading.Tasks.Task RequestDelegate(HttpContext context);
+        }
+        """;
+
+    public const string ConcurrentCollections = """
+        namespace System.Collections.Concurrent
+        {
+            public class ConcurrentDictionary<TKey, TValue>
+            {
+                public bool ContainsKey(TKey key) => false;
+                public bool TryGetValue(TKey key, out TValue value) { value = default; return false; }
+                public TValue GetOrAdd(TKey key, System.Func<TKey, TValue> factory) => default;
+                public bool TryAdd(TKey key, TValue value) => false;
+                public TValue this[TKey key] { get => default; set { } }
+            }
+        }
+        """;
+
+    public const string FluentValidation = """
+        namespace FluentValidation
+        {
+            public abstract class AbstractValidator<T>
+            {
+            }
+        }
+        """;
+
+    public const string MediatR = """
+        namespace MediatR
+        {
+            public interface IRequest<out TResponse> { }
+            public interface IRequest : IRequest<Unit> { }
+            public struct Unit { }
+        }
+        """;
 }
