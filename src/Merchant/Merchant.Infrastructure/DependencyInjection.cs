@@ -17,8 +17,10 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("merchant");
 
         services.AddDbContext<MerchantDbContext>((sp, options) =>
-            options.UseNpgsql(connectionString));
+        {
+            options.UseNpgsql(connectionString);
             options.AddPlatformInterceptors(sp);
+        });
 
         services.AddScoped<IMerchantDbContext>(provider => provider.GetRequiredService<MerchantDbContext>());
 

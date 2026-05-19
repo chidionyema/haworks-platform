@@ -22,8 +22,10 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("scheduler");
 
         services.AddDbContext<SchedulerDbContext>((sp, options) =>
-            options.UseNpgsql(connectionString));
+        {
+            options.UseNpgsql(connectionString);
             options.AddPlatformInterceptors(sp);
+        });
 
         services.AddScoped<IEventScheduler, HangfireEventScheduler>();
         services.AddScoped<ILeaseRepository, LeaseRepository>();
