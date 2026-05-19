@@ -6,6 +6,7 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 COPY Directory.Build.props ./
+COPY Directory.Packages.props ./
 COPY .editorconfig ./
 COPY src/ ./src/
 

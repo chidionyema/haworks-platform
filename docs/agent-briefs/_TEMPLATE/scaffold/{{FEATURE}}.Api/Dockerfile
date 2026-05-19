@@ -5,6 +5,7 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 COPY Directory.Build.props ./
+COPY Directory.Packages.props ./
 COPY src/ ./src/
 
 RUN --mount=type=cache,target=/root/.nuget/packages,sharing=locked dotnet restore src/{{FEATURE}}/{{FEATURE}}.Api/{{FEATURE}}.Api.csproj
