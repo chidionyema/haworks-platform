@@ -386,7 +386,7 @@ public static class Diagnostics
 
     // ─── Code Quality (HWK059-063) ───
 
-    public static readonly DiagnosticDescriptor NoThrowEx = new(
+    public static readonly DiagnosticDescriptor NoThrowOriginalException = new(
         id: "HWK059",
         title: "Use 'throw' not 'throw ex' to preserve stack trace",
         messageFormat: "'throw {0}' loses the original stack trace — use 'throw' to rethrow",
