@@ -23,6 +23,7 @@ public static class MessagingServiceCollectionExtensions
         // Observability: log consume faults + receive faults
         cfg.ConnectConsumeObserver(context.GetRequiredService<DiagnosticConsumeObserver>());
         cfg.ConnectReceiveObserver(context.GetRequiredService<DiagnosticReceiveObserver>());
+        // Saga state persistence is observed via SagaPersistenceInterceptor on the DbContext
 
         cfg.ConfigureEndpoints(context);
     }
@@ -32,6 +33,7 @@ public static class MessagingServiceCollectionExtensions
         services.AddSingleton<DiagnosticConsumeObserver>();
         services.AddSingleton<DiagnosticReceiveObserver>();
         services.AddSingleton<DiagnosticRetryObserver>();
+        services.AddSingleton<SagaPersistenceInterceptor>();
         return services;
     }
 }
