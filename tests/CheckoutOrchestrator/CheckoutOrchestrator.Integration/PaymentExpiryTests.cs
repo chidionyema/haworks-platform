@@ -73,7 +73,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
         // was created -- saga is in ReadyForPayment, stock is still
         // reserved, no PaymentCompleted will ever arrive. The expiry
         // tick is the only thing that frees the inventory.
-        var (sagaId, orderId, productId) = await DriveSagaToStockReservedAsync();
+        var (sagaId, orderId, _) = await DriveSagaToStockReservedAsync();
         var paymentId = Guid.NewGuid();
         await PublishAsync(new PaymentSessionCreatedEvent
         {

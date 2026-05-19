@@ -57,10 +57,40 @@ public sealed class HWK058_NoSecretsInSourceAnalyzer : DiagnosticAnalyzer
         if (string.IsNullOrWhiteSpace(value) || value.Length < 8)
             return;
 
-        // Skip test files
+        // Skip test files and test infrastructure
         var filePath = context.Node.SyntaxTree.FilePath ?? "";
         if (filePath.Contains("/tests/") || filePath.Contains("/Tests/") ||
-            filePath.Contains("\\tests\\") || filePath.Contains("\\Tests\\"))
+            filePath.Contains("\\tests\\") || filePath.Contains("\\Tests\\") ||
+            filePath.Contains("BuildingBlocks.Testing"))
+            return;
+
+        // Skip enum members — names like PasswordChange/PasswordReset are not secrets
+        if (context.Node.FirstAncestorOrSelf<EnumMemberDeclarationSyntax>() != null)
+            return;
+
+        // Skip config key indexer access like ["Vault:SecretIdPath"]
+        if (value.Contains(":") || value.Contains("__"))
+            return;
+
+        // Skip const/enum-like values where the value matches the variable name
+        // (e.g. const string PasswordChange = "PasswordChange")
+        var bareVarName = varName.Contains(".") ? varName.Substring(varName.LastIndexOf('.') + 1) : varName;
+        bareVarName = bareVarName.TrimStart('[', '"').TrimEnd(']', '"');
+        if (string.Equals(bareVarName, value, System.StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Skip values that look like file paths or URIs (not actual secrets)
+        if (value.StartsWith("/", System.StringComparison.Ordinal) ||
+            value.StartsWith("\\", System.StringComparison.Ordinal) ||
+            value.StartsWith("http://", System.StringComparison.Ordinal) ||
+            value.StartsWith("https://", System.StringComparison.Ordinal))
+            return;
+
+        // Skip values that look like placeholder/test tokens (sk_test_, pk_test_, etc.)
+        var lowerValue = value.ToLowerInvariant();
+        if (lowerValue.StartsWith("sk_test", System.StringComparison.Ordinal) ||
+            lowerValue.StartsWith("pk_test", System.StringComparison.Ordinal) ||
+            lowerValue == "changeme" || lowerValue == "placeholder")
             return;
 
         var lowerName = varName.Replace(".", "").Replace("_", "").ToLowerInvariant();

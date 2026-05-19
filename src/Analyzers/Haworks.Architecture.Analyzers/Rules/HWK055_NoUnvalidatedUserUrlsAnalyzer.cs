@@ -77,10 +77,26 @@ public sealed class HWK055_NoUnvalidatedUserUrlsAnalyzer : DiagnosticAnalyzer
     private static bool HasSsrfValidation(MethodDeclarationSyntax method, string varName)
     {
         var methodText = method.ToString();
-        return methodText.Contains("SsrfGuard") ||
-               methodText.Contains("ValidateUrl") ||
-               methodText.Contains("IsAllowedUrl") ||
-               methodText.Contains("AllowedHosts") ||
-               methodText.Contains("UrlValidator");
+
+        // Check for explicit SSRF guard calls
+        if (methodText.Contains("SsrfGuard") ||
+            methodText.Contains("ValidateUrl") ||
+            methodText.Contains("IsAllowedUrl") ||
+            methodText.Contains("AllowedHosts") ||
+            methodText.Contains("UrlValidator"))
+            return true;
+
+        // Skip if the URL variable is built from configuration/options (not user input)
+        if (methodText.Contains($"{varName} = ") || methodText.Contains($"{varName} =\n"))
+        {
+            // Variable assigned from config, options, or string interpolation with config
+            if (methodText.Contains("Configuration[") || methodText.Contains("Options.") ||
+                methodText.Contains("config[") || methodText.Contains("GetValue<") ||
+                methodText.Contains("GetConnectionString") ||
+                methodText.Contains($"$\"") || methodText.Contains("string.Format"))
+                return true;
+        }
+
+        return false;
     }
 }

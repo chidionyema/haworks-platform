@@ -18,6 +18,11 @@ public sealed class HWK064_NoNavigationInLoopAnalyzer : DiagnosticAnalyzer
         { "Items", "Details", "Entries", "History", "Lines", "Children",
           "Orders", "Payments", "Products", "Addresses", "Roles" };
 
+    // BCL/framework members that end with a navigation suffix but are not EF nav properties
+    private static readonly string[] FalsePositives =
+        { "RemoveEmptyEntries", "StringSplitEntries", "LogEntries", "DictionaryEntries",
+          "EnvironmentVariables", "CommandLineArgs" };
+
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         ImmutableArray.Create(Diagnostics.NoNavigationInLoop);
 
@@ -35,6 +40,10 @@ public sealed class HWK064_NoNavigationInLoopAnalyzer : DiagnosticAnalyzer
 
         // Check if property name looks like a navigation collection
         if (!NavigationSuffixes.Any(s => propName.EndsWith(s, System.StringComparison.Ordinal)))
+            return;
+
+        // Exclude known BCL/framework false positives
+        if (FalsePositives.Any(fp => propName.Equals(fp, System.StringComparison.Ordinal)))
             return;
 
         // Must be inside a loop
