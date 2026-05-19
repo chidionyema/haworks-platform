@@ -28,6 +28,8 @@ public sealed class AdminController(
     IDomainEventPublisher eventPublisher,
     ILogger<AdminController> logger) : ControllerBase
 {
+    private const string DefaultCurrency = "USD";
+{
     /// <summary>
     /// T2.5's event-flow demo entry point. Begins a transaction on the
     /// payments DbContext, publishes a <see cref="DemoOutboxEvent"/> via
@@ -85,7 +87,7 @@ public sealed class AdminController(
             userId: "demo-user",
             amount: request.AmountCents / 100m,
             tax: 0m,
-            currency: request.Currency ?? "USD",
+            currency: request.Currency ?? DefaultCurrency,
             provider: PaymentProvider.Stripe,
             sagaId: Guid.NewGuid());
 
