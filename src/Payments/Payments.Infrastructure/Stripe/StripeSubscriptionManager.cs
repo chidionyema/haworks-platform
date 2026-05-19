@@ -1,5 +1,6 @@
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
+using MassTransit;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
@@ -19,7 +20,7 @@ namespace Haworks.Payments.Infrastructure.Stripe;
 public sealed class StripeSubscriptionManager(
     IPaymentRepository paymentRepository,
     IStripeClientFactory clientFactory,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     IResiliencePolicyFactory resiliencePolicyFactory,
     ILogger<StripeSubscriptionManager> logger,
     ITelemetryService telemetry) : ISubscriptionManager

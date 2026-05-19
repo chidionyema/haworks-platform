@@ -66,13 +66,9 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-if (!app.Environment.IsEnvironment("Test"))
-{
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<ShippingDbContext>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    await db.Database.MigrateWithRetryAsync(logger);
-}
+app.MigrateDatabase<ShippingDbContext>();
+
+
 
 app.MapDefaultEndpoints();
 

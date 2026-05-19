@@ -26,7 +26,7 @@ namespace Haworks.Orders.Application.Consumers;
 /// </summary>
 public sealed class PaymentCompletedConsumer(
     IOrderRepository orders,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<PaymentCompletedConsumer> logger
 ) : IConsumer<PaymentCompletedEvent>
 {
@@ -67,7 +67,7 @@ public sealed class PaymentCompletedConsumer(
         // the same EF transaction as the state change (production outbox
         // semantics). In tests with the in-memory harness the publish goes
         // straight to the bus — same observable behavior.
-        await eventPublisher.PublishAsync(new OrderCompletedEvent
+        await eventPublisher.Publish(new OrderCompletedEvent
         {
             OrderId = order.Id,
             CustomerId = TryParseGuid(order.UserId),
@@ -77,11 +77,6 @@ public sealed class PaymentCompletedConsumer(
             PaymentId = evt.PaymentId,
         }, context.CancellationToken);
 
-        // SaveChanges persists the MarkPaid state change. In production the
-        // EF outbox filter (OrdersConsumerDefinition) calls this automatically
-        // as part of the outbox transaction; in the test harness (no outbox)
-        // the call here is what actually commits the row.
-        await orders.SaveChangesAsync(context.CancellationToken);
         logger.LogInformation("Order {OrderId} marked Paid; published OrderCompletedEvent", order.Id);
     }
 

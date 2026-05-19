@@ -68,52 +68,54 @@ public sealed class MediaUploadCompletedConsumer(
             // Virus scan — use file path directly to avoid double temp file for large files
             var isClean = await virusScanner.ScanFileAsync(tempPath, ct);
 
-            await using var tx2 = await context.Database.BeginTransactionAsync(ct);
-            try
+            file.MarkAsQuarantined();
+
+            if (isClean)
             {
-                file.MarkAsQuarantined();
+                file.MarkAsActive();
+                // MassTransit EF Outbox commits automatically
 
-                if (isClean)
+                await publisher.Publish(new MediaScanPassedEvent
                 {
-                    file.MarkAsActive();
-                    // MassTransit EF Outbox commits automatically
+                    MediaId = file.Id,
+                    OwnerId = file.OwnerId,
+                    FileName = file.FileName,
+                    MimeType = file.MimeType,
+                    Size = file.Size,
+                }, ct);
 
-                    await publisher.Publish(new MediaScanPassedEvent
-                    {
-                        MediaId = file.Id,
-                        OwnerId = file.OwnerId,
-                        FileName = file.FileName,
-                        MimeType = file.MimeType,
-                        Size = file.Size,
-                    }, ct);
-
-                    await ctx.Send(new Uri("queue:process-media-command"), new ProcessMediaCommand
-                    {
-                        MediaId = file.Id,
-                        OwnerId = file.OwnerId,
-                        FileName = file.FileName,
-                        MimeType = file.MimeType,
-                        S3Key = file.Id.ToString(),
-                    });
-                }
-                else
+                await ctx.Send(new Uri("queue:process-media-command"), new ProcessMediaCommand
                 {
-                    file.MarkAsRejected();
-                    // MassTransit EF Outbox commits automatically
-
-                    await publisher.Publish(new MediaScanFailedEvent
-                    {
-                        MediaId = file.Id,
-                        OwnerId = file.OwnerId,
-                        FileName = file.FileName,
-                        Reason = "Virus detected or scan failed.",
-                    }, ct);
-                }
-
-                await tx2.CommitAsync(ct);
-                logger.LogInformation("S3 event scan complete for {MediaId}: {Status}", msg.MediaId, file.Status);
+                    MediaId = file.Id,
+                    OwnerId = file.OwnerId,
+                    FileName = file.FileName,
+                    MimeType = file.MimeType,
+                    S3Key = file.Id.ToString(),
+                });
             }
-            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            else
+            {
+                file.MarkAsRejected();
+                // MassTransit EF Outbox commits automatically
+
+                await publisher.Publish(new MediaScanFailedEvent
+                {
+                    MediaId = file.Id,
+                    OwnerId = file.OwnerId,
+                    FileName = file.FileName,
+                    Reason = "Virus detected or scan failed.",
+                }, ct);
+            }
+
+            logger.LogInformation("S3 event scan complete for {MediaId}: {Status}", msg.MediaId, file.Status);
+        }
+        finally
+        {
+            try { File.Delete(tempPath); } catch (IOException ex) { logger.LogWarning(ex, "Failed to delete temporary file {TempPath}", tempPath); }
+        }
+    }
+}
+EntityFrameworkCore.DbUpdateConcurrencyException)
             {
                 logger.LogInformation("Concurrent scan for {MediaId} — already handled", msg.MediaId);
             }

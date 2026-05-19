@@ -145,6 +145,8 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 
 var app = builder.Build();
 
+app.MigrateDatabase<Haworks.Identity.Infrastructure.AppIdentityDbContext>();
+
 if (!app.Environment.IsEnvironment("Test"))
 {
     var startupRunner = app.Services.GetRequiredService<StartupTaskRunner>();
@@ -165,13 +167,7 @@ if (!app.Environment.IsEnvironment("Test"))
     });
 
     // 1. Apply EF migrations (creates tables in 'identity' schema)
-    startupRunner.AddTask(async (sp, ct) =>
-    {
-        using var scope = sp.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<Haworks.Identity.Infrastructure.AppIdentityDbContext>();
-        var migrateLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        await db.Database.MigrateWithRetryAsync(migrateLogger, ct);
-    });
+
 
     // 2. Seed canonical roles. RegisterCommand assigns new users to
     //    "ContentUploader" by default; without this seed step the first

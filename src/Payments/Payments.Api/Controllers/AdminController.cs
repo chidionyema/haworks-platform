@@ -1,4 +1,3 @@
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Middleware;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Domain;
@@ -25,7 +24,7 @@ namespace Haworks.Payments.Api.Controllers;
 [Authorize(Roles = "Admin,Service")]
 public sealed class AdminController(
     PaymentDbContext db,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<AdminController> logger) : ControllerBase
 {
     private const string DefaultCurrency = "USD";
@@ -57,7 +56,7 @@ public sealed class AdminController(
         // IDomainEventPublisher.PublishAsync goes through MT's IPublishEndpoint
         // with an (object)-cast for runtime type resolution, then SaveChanges
         // commits the OutboxMessage row atomically.
-        await eventPublisher.PublishAsync(demoEvent, ct);
+        await eventPublisher.Publish(demoEvent, ct);
         await db.SaveChangesAsync(ct);
 
         logger.LogInformation(

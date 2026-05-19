@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using FluentValidation;
+using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Haworks.Contracts.Orders;
@@ -26,7 +27,7 @@ public sealed record CreateOrderLineItem(
 
 internal sealed class CreateOrderCommandHandler(
     IOrderRepository orders,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     ILogger<CreateOrderCommandHandler> logger
 ) : IRequestHandler<CreateOrderCommand, Result<Guid>>
 {
@@ -74,7 +75,7 @@ internal sealed class CreateOrderCommandHandler(
                 order.Id, request.UserId, customerGuid);
         }
 
-        await eventPublisher.PublishAsync(new OrderCreatedEvent
+        await eventPublisher.Publish(new OrderCreatedEvent
         {
             OrderId = order.Id,
             CustomerId = customerGuid,
