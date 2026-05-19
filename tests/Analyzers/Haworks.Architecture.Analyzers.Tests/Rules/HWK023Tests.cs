@@ -11,9 +11,19 @@ public class HWK023Tests
     {
         const string source = """
             using System.Linq;
+            public interface IQueryable<T> : IQueryable { }
+            public interface IQueryable
+            {
+                IQueryable<T> Take<T>(int count);
+            }
+            public static class Ext
+            {
+                public static IQueryable<T> Take<T>(this IQueryable<T> q, int count) => q;
+                public static T[] ToArray<T>(this IQueryable<T> q) => null;
+            }
             public class Svc
             {
-                public int[] Get(int[] items) => {|#0:items.Take(10)|}.ToArray();
+                public object[] Get(IQueryable<object> items) => {|#0:items.Take(10)|}.ToArray();
             }
             """;
         var expected = CSharpAnalyzerVerifier<HWK023_NoTakeWithoutOrderByAnalyzer>
@@ -29,6 +39,19 @@ public class HWK023Tests
             public class Svc
             {
                 public int[] Get(int[] items) => items.OrderBy(x => x).Take(10).ToArray();
+            }
+            """;
+        await CSharpAnalyzerVerifier<HWK023_NoTakeWithoutOrderByAnalyzer>.VerifyNoDiagnosticsAsync(source);
+    }
+
+    [Fact]
+    public async Task InMemoryArray_Take_NoDiagnostic()
+    {
+        const string source = """
+            using System.Linq;
+            public class Svc
+            {
+                public int[] Get(int[] items) => items.Take(10).ToArray();
             }
             """;
         await CSharpAnalyzerVerifier<HWK023_NoTakeWithoutOrderByAnalyzer>.VerifyNoDiagnosticsAsync(source);

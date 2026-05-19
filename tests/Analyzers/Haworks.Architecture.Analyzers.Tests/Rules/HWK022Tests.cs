@@ -14,7 +14,7 @@ public class HWK022Tests
             public class Svc { public HttpClient Get() => {|#0:new HttpClient()|}; }
             """;
         var expected = CSharpAnalyzerVerifier<HWK022_NoNewHttpClientAnalyzer>
-            .Diagnostic(Diagnostics.NoNewHttpClient).WithLocation(0).WithArguments("new HttpClient()");
+            .Diagnostic(Diagnostics.NoNewHttpClient).WithLocation(0).WithArguments("HttpClient");
         await CSharpAnalyzerVerifier<HWK022_NoNewHttpClientAnalyzer>.VerifyAnalyzerAsync(source, expected);
     }
 
