@@ -74,6 +74,15 @@ public abstract class BoundedContextSagaDefinition<TSaga, TDbContext>
             TimeSpan.FromMinutes(5),
             TimeSpan.FromMinutes(30)));
 
-        endpointConfigurator.UseEntityFrameworkOutbox<TDbContext>(context);
+        // NO UseEntityFrameworkOutbox here. The saga repository (configured
+        // via EntityFrameworkRepository + UsePostgres) manages its own
+        // transaction. Adding UseEntityFrameworkOutbox creates a SECOND
+        // transaction on the same DbContext — EF Core doesn't support nested
+        // transactions on Postgres. The inbox commits independently of the
+        // saga state, causing the SAGA SPLIT bug.
+        //
+        // The inbox is handled by MassTransit's built-in inbox filter which
+        // operates within the saga repository's transaction automatically
+        // when UsePostgres() is configured.
     }
 }
