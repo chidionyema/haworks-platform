@@ -76,13 +76,12 @@ public static class DependencyInjection
             mt.AddDelayedMessageScheduler();
             mt.AddConsumer<Haworks.BuildingBlocks.Messaging.GlobalFaultConsumer>();
 
-            mt.AddEntityFrameworkOutbox<CheckoutDbContext>(o =>
-            {
-                o.UsePostgres();
-                o.UseBusOutbox();
-                o.QueryDelay = TimeSpan.FromMilliseconds(100);
-                o.DuplicateDetectionWindow = TimeSpan.FromMinutes(30);
-            });
+            // AddEntityFrameworkOutbox REMOVED from bus level.
+            // The bus-level inbox filter wraps ALL endpoints including sagas,
+            // creating a transaction split: inbox commits independently of
+            // the saga repository's transaction. Saga endpoints use UsePostgres()
+            // pessimistic locking for deduplication — no inbox needed.
+            // Consumer endpoints get their outbox via BoundedContextConsumerDefinition.
 
             // CheckoutSaga state machine — persisted to CheckoutDbContext
             // via the EF saga repository. Each receive endpoint for the
