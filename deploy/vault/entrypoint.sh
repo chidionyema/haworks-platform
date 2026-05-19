@@ -69,7 +69,7 @@ try_unseal() {
   return 1
 }
 
-if vault status -format=json | jq -e '.sealed == true' >/dev/null 2>&1; then
+if vault status -format=json 2>/dev/null | jq -e '.sealed == true' >/dev/null 2>&1; then
   unsealed=false
 
   # Attempt 1: env var (Fly secret, set by bootstrap.sh)

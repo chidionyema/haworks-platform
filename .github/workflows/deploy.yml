@@ -315,7 +315,11 @@ jobs:
     # on prerequisite jobs that may have been skipped.
     name: Deploy ${{ matrix.svc }}
     needs: [plan, deploy-vault-pg, deploy-vault, stage-vault-creds]
-    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.services != '[]' && (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') && (needs.stage-vault-creds.result == 'success' || needs.stage-vault-creds.result == 'skipped') && (needs.deploy-vault-pg.result == 'success' || needs.deploy-vault-pg.result == 'skipped') }}
+    # stage-vault-creds failure is non-blocking: services retain valid AppRole
+    # creds from the previous successful staging. Only plan + infra (vault-pg,
+    # vault) are hard gates. This prevents a transient Vault unseal delay from
+    # blocking the entire deploy chain.
+    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.services != '[]' && (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') && (needs.deploy-vault-pg.result == 'success' || needs.deploy-vault-pg.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
