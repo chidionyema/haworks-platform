@@ -13,6 +13,7 @@ namespace Haworks.Payments.Infrastructure.Stripe;
 
 internal sealed class StripeCheckoutSessionService : ICheckoutSessionService
 {
+    private const string DefaultCurrency = "USD";
     private readonly IStripeClientFactory _clientFactory;
     private readonly IPaymentSessionCache _cache;
     // Combined policy: retry (3x w/ jitter), circuit breaker (open at 5
@@ -47,7 +48,7 @@ internal sealed class StripeCheckoutSessionService : ICheckoutSessionService
                     PriceData = new SessionLineItemPriceDataOptions
                     {
                         UnitAmount = item.UnitAmountCents,
-                        Currency = item.Currency ?? "USD",
+                        Currency = item.Currency ?? DefaultCurrency,
                         ProductData = new SessionLineItemPriceDataProductDataOptions { Name = item.Name }
                     },
                     Quantity = item.Quantity

@@ -58,7 +58,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         await using var stream = new MemoryStream(content);
         await s3.PutObjectAsync(new PutObjectRequest
         {
-            BucketName = _factory.Bucket,
+            BucketName = MediaWebAppFactory.Bucket,
             Key = mediaId.ToString(),
             ContentType = mimeType,
             InputStream = stream,

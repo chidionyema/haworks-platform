@@ -23,6 +23,7 @@ internal sealed class PayPalRefundService(
     ILogger<PayPalRefundService> logger,
     ITelemetryService telemetry) : IRefundService
 {
+    private const string DefaultCurrency = "USD";
     private readonly IAsyncPolicy _resiliencePolicy = 
         resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
 
@@ -66,7 +67,7 @@ internal sealed class PayPalRefundService(
                 {
                     refundReq.Amount = new PayPalRefundAmount
                     {
-                        CurrencyCode = request.Currency ?? "USD",
+                        CurrencyCode = request.Currency ?? DefaultCurrency,
                         Value = (request.AmountCents.Value / CheckoutConstants.CentMultiplier).ToString("F2")
                     };
                 }
@@ -205,7 +206,10 @@ internal sealed class PayPalRefundService(
             var error = JsonSerializer.Deserialize<PayPalErrorResponse>(responseBody, PayPalJsonOptions.Default);
             return error?.Message ?? error?.Details?.FirstOrDefault()?.Description;
         }
-        catch { return null; }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static bool IsNonTransientHttpError(System.Net.HttpStatusCode statusCode)

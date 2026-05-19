@@ -23,7 +23,7 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
 
     private string? _accessToken;
-    private DateTime _tokenExpiry = DateTime.MinValue;
+    private DateTime _expiresAt = DateTime.MinValue;
 
     /// <summary>
     /// Buffer time before token expiry to trigger refresh (5 minutes).
@@ -81,11 +81,11 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
                 ct);
 
             _accessToken = tokenResponse.AccessToken;
-            _tokenExpiry = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn);
+            _expiresAt = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn);
 
             _logger.LogDebug(
                 "PayPal OAuth token acquired, expires at {ExpiryTime}",
-                _tokenExpiry);
+                _expiresAt);
 
             return CreateAuthenticatedClient(_accessToken);
         }
@@ -98,7 +98,7 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
     private bool IsTokenValid()
     {
         return _accessToken != null &&
-               DateTime.UtcNow < _tokenExpiry.Subtract(TokenExpiryBuffer);
+               DateTime.UtcNow < _expiresAt.Subtract(TokenExpiryBuffer);
     }
 
     private HttpClient CreateAuthenticatedClient(string accessToken)
