@@ -339,38 +339,47 @@ public sealed class PlatformGuardTests
     // ─── Concurrency (Wave 2) ────────────────────────────────────────
 
     [Fact]
-    public void DbContexts_with_consumer_modified_entities_configure_xmin()
+    public void No_xmin_concurrency_tokens_in_DbContexts()
     {
-        // Find services that have BOTH a DbContext AND consumers (meaning concurrent writes)
-        var servicesWithConsumers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var diFile in FindDependencyInjectionFiles())
-        {
-            var diContent = File.ReadAllText(diFile);
-            if (diContent.Contains("AddConsumer"))
-            {
-                // Extract service name from path (e.g., Payments from src/Payments/...)
-                var parts = diFile.Replace(SrcRoot + Path.DirectorySeparatorChar, "").Split(Path.DirectorySeparatorChar);
-                if (parts.Length > 0) servicesWithConsumers.Add(parts[0]);
-            }
-        }
-
+        // Npgsql 9 sends xmin parameters with OID 23 (integer) instead of 28 (xid).
+        // PostgreSQL has no implicit cast → every UPDATE with xmin in the WHERE clause
+        // matches 0 rows → DbUpdateConcurrencyException. Use MassTransit's Version
+        // property + UsePostgres() pessimistic locking instead.
         var violations = new List<string>();
         foreach (var file in FindDbContextFiles())
         {
             var content = File.ReadAllText(file);
             if (IsExcludedFromGuards(file)) continue;
-            if (content.Contains("IsConcurrencyToken") || content.Contains("xmin")) continue;
-            if (!content.Contains("entity.Property") && !content.Contains("OnModelCreating")) continue;
 
-            // Check if this DbContext's service has consumers
-            var serviceName = file.Replace(SrcRoot + Path.DirectorySeparatorChar, "").Split(Path.DirectorySeparatorChar).FirstOrDefault() ?? "";
-            if (servicesWithConsumers.Contains(serviceName))
+            // Match: entity.Property<uint>("xmin")...IsConcurrencyToken()
+            if (Regex.IsMatch(content, @"Property<uint>\(""xmin""\).*IsConcurrencyToken", RegexOptions.Singleline))
             {
-                violations.Add($"{Relative(file)}: service has consumers but DbContext lacks xmin concurrency token");
+                violations.Add($"{Relative(file)}: uses xmin concurrency token — broken under Npgsql 9 (OID mismatch). Remove and use MassTransit Version property.");
             }
         }
-        // Informational — not all entities need xmin. Uncomment when all services migrate.
-        // violations.Should().BeEmpty("services with consumers should configure xmin concurrency tokens");
+        violations.Should().BeEmpty("xmin concurrency tokens break under Npgsql 9 — use Version property + pessimistic locks");
+    }
+
+    [Fact]
+    public void Saga_state_queries_in_command_handlers_use_AsNoTracking()
+    {
+        // If a command handler queries a saga state table (e.g., for idempotency),
+        // and MassTransit's saga consumer later tries to Add a new instance with the
+        // same CorrelationId, the DbContext throws a tracking conflict because both
+        // share the same scoped DbContext. AsNoTracking prevents this.
+        var violations = new List<string>();
+        foreach (var file in FindSourceFiles("*Command*.cs"))
+        {
+            var content = File.ReadAllText(file);
+            if (IsExcludedFromGuards(file)) continue;
+
+            // Match: .SagaTableName.Where( without .AsNoTracking() preceding it
+            if (Regex.IsMatch(content, @"Sagas\s*\.\s*(?!AsNoTracking)Where\("))
+            {
+                violations.Add($"{Relative(file)}: queries saga state table without AsNoTracking() — causes EF tracking conflict with MassTransit saga repository");
+            }
+        }
+        violations.Should().BeEmpty("saga state queries in command handlers must use AsNoTracking to prevent tracking conflicts");
     }
 
     [Fact]

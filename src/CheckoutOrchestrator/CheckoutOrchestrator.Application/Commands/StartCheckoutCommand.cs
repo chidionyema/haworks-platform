@@ -32,6 +32,7 @@ internal sealed class StartCheckoutCommandHandler(
         if (!string.IsNullOrEmpty(request.IdempotencyKey))
         {
             var existing = await db.CheckoutSagas
+                .AsNoTracking()
                 .Where(s => s.IdempotencyKey == request.IdempotencyKey)
                 .Select(s => new { s.CorrelationId, s.OrderId })
                 .FirstOrDefaultAsync(ct);
