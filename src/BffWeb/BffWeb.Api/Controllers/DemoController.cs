@@ -233,6 +233,7 @@ public class DemoController : ControllerBase
                 userId = "demo-user",
                 customerEmail = "demo@haworks.dev",
                 totalAmount = items.Sum(i => i.UnitPrice * i.Quantity),
+                currency = "GBP",
                 idempotencyKey,
                 items,
             };
