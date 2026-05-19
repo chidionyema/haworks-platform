@@ -20,5 +20,7 @@ public sealed record StartCheckoutRequest
 
     public required string IdempotencyKey { get; init; }
 
+    public string? Currency { get; init; }
+
     public required IReadOnlyList<CheckoutItemData> Items { get; init; }
 }

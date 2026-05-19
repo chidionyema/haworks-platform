@@ -30,7 +30,8 @@ public sealed class CheckoutsController(IMediator mediator) : ControllerBase
             body.CustomerEmail,
             body.TotalAmount,
             body.IdempotencyKey,
-            body.Items
+            body.Items,
+            body.Currency
         ), ct);
 
         if (!result.IsSuccess)
