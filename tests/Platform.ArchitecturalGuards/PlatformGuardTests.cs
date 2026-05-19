@@ -2204,6 +2204,10 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
     private static string Relative(string path) =>
         path.Replace(Directory.GetParent(SrcRoot)!.FullName + Path.DirectorySeparatorChar, "");
 
+    private static IEnumerable<string> FindSourceFiles(string pattern) =>
+        Directory.GetFiles(SrcRoot, pattern, SearchOption.AllDirectories)
+            .Where(f => !f.Contains("obj") && !f.Contains("bin") && !f.Contains("/Migrations/") && !f.Contains("Test"));
+
     private static IEnumerable<string> FindCsFiles() =>
         Directory.GetFiles(SrcRoot, "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.Contains("obj") && !f.Contains("bin") && !f.Contains("/Migrations/"));
