@@ -53,13 +53,12 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
     }
 
     /// <inheritdoc />
-    public Task<WebhookValidationResult> ValidateAndParseAsync(
+    public async Task<WebhookValidationResult> ValidateAndParseAsync(
         string payload,
         string signature,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(payload))
-            return Task.FromResult(WebhookValidationResult.Failure("Empty payload"));
+        if (string.IsNullOrEmpty(payload)) return WebhookValidationResult.Failure("Empty payload");
 
         try
         {
@@ -71,7 +70,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
 
             if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(type))
             {
-                return Task.FromResult(WebhookValidationResult.Failure("Missing id or type in payload"));
+                return WebhookValidationResult.Failure("Missing id or type in payload");
             }
 
             var webhookEvent = new PaymentWebhookEvent
@@ -83,12 +82,12 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
                 RawPayload = payload
             };
 
-            return Task.FromResult(WebhookValidationResult.Success(webhookEvent));
+            return WebhookValidationResult.Success(webhookEvent);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to parse Stripe webhook payload");
-            return Task.FromResult(WebhookValidationResult.Failure($"Invalid payload: {ex.Message}"));
+            return WebhookValidationResult.Failure($"Invalid payload: {ex.Message}");
         }
     }
 
