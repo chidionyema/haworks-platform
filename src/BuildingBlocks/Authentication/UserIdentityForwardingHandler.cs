@@ -40,6 +40,6 @@ public sealed class UserIdentityForwardingHandler : DelegatingHandler
                 request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {serviceToken}");
         }
 
-        return await base.SendAsync(request, ct).ConfigureAwait(false);
+        return await base.SendAsync(request, ct);
     }
 }

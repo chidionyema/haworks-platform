@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
+#pragma warning disable HWK082 // DLQ replay endpoint has manual error handling
 namespace Haworks.BuildingBlocks.Messaging;
 
 /// <summary>

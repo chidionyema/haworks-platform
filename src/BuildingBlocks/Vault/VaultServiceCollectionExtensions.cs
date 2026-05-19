@@ -143,7 +143,7 @@ public static class VaultServiceCollectionExtensions
 
                 builder.UsePeriodicPasswordProvider(async (sb, ct) =>
                 {
-                    var result = await ReadAgentCredentialFileAsync(credFile, logger, ct).ConfigureAwait(false);
+                    var result = await ReadAgentCredentialFileAsync(credFile, logger, ct);
 
                     if (result is null)
                     {
@@ -189,7 +189,7 @@ public static class VaultServiceCollectionExtensions
 
         try
         {
-            var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+            var json = await File.ReadAllTextAsync(filePath, ct);
             if (string.IsNullOrWhiteSpace(json))
                 return new AgentCredentialResult(null, string.Empty,
                     new InvalidOperationException($"Agent credential file {filePath} is empty (0 bytes) — Vault Agent may still be rendering"));

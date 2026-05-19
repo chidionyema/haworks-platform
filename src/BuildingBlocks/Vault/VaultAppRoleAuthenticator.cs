@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Polly;
 
+#pragma warning disable HWK050 // Vault client API does not expose CancellationToken on all overloads
 namespace Haworks.BuildingBlocks.Vault;
 
 /// <summary>
@@ -67,10 +68,10 @@ public sealed class VaultAppRoleAuthenticator : IVaultAppRoleAuthenticator
                     var r = await http.PostAsJsonAsync(
                         "/v1/auth/approle/login",
                         new { role_id = roleId, secret_id = secretId },
-                        cancellationToken).ConfigureAwait(false);
+                        cancellationToken);
                     r.EnsureSuccessStatusCode();
                     return r;
-                }).ConfigureAwait(false);
+                });
             }
             catch (Exception ex)
             {
@@ -80,7 +81,7 @@ public sealed class VaultAppRoleAuthenticator : IVaultAppRoleAuthenticator
                 throw;
             }
 
-            var text = await resp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var text = await resp.Content.ReadAsStringAsync(cancellationToken);
             using var doc = JsonDocument.Parse(text);
             var auth = doc.RootElement.GetProperty("auth");
             var token = auth.GetProperty("client_token").GetString()

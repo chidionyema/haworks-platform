@@ -111,7 +111,7 @@ public sealed class VaultClientFactory : IVaultClientFactory, IDisposable
         if (_cachedUnwrappedSecretId is not null)
             return _cachedUnwrappedSecretId;
 
-        if (!await _unwrapGate.WaitAsync(TimeSpan.FromSeconds(60), ct).ConfigureAwait(false))
+        if (!await _unwrapGate.WaitAsync(TimeSpan.FromSeconds(60), ct))
             throw new TimeoutException("Vault unwrap gate timed out after 60s");
         try
         {

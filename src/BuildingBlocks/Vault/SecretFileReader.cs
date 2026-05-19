@@ -22,11 +22,11 @@ public class SecretFileReader : ISecretFileReader
     {
         var roleTask = ReadFileWithHmacAsync(roleIdPath, hmacKeyPath, requireHmacValidation, ct);
         var secretTask = ReadFileWithHmacAsync(secretIdPath, hmacKeyPath, requireHmacValidation, ct);
-        await Task.WhenAll(roleTask, secretTask).ConfigureAwait(false);
+        await Task.WhenAll(roleTask, secretTask);
 
         // Await completed tasks instead of using .Result to avoid potential deadlocks
-        var (roleId, roleHmacOk) = await roleTask.ConfigureAwait(false);
-        var (secretId, secretHmacOk) = await secretTask.ConfigureAwait(false);
+        var (roleId, roleHmacOk) = await roleTask;
+        var (secretId, secretHmacOk) = await secretTask;
 
         return new VaultDiskSecrets(roleId, secretId, roleHmacOk && secretHmacOk);
     }

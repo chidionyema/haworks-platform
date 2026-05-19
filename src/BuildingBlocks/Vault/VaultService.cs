@@ -140,7 +140,7 @@ public class VaultService : IVaultService
         // Serialize first-time init under _clientGate to prevent concurrent
         // GetDatabaseCredentialsAsync/GetKvSecretAsync calls (which now
         // self-initialize) from racing two AppRole logins.
-        if (!await _clientGate.WaitAsync(TimeSpan.FromSeconds(60), ct).ConfigureAwait(false))
+        if (!await _clientGate.WaitAsync(TimeSpan.FromSeconds(60), ct))
             throw new TimeoutException("Vault client gate timed out after 60s");
         try
         {
@@ -180,7 +180,7 @@ public class VaultService : IVaultService
         if (_client is not null && DateTime.UtcNow + s_clientRefreshHeadroom < _clientExpiresAtUtc)
             return _client;
 
-        if (!await _clientGate.WaitAsync(TimeSpan.FromSeconds(60), ct).ConfigureAwait(false))
+        if (!await _clientGate.WaitAsync(TimeSpan.FromSeconds(60), ct))
             throw new TimeoutException("Vault client gate timed out after 60s");
         try
         {
@@ -391,7 +391,7 @@ public class VaultService : IVaultService
                 _telemetry.TrackException(ex);
 
                 var errorJitterMs = jitterRng.Next(0, 10000);
-                await Task.Delay(TimeSpan.FromMinutes(1).Add(TimeSpan.FromMilliseconds(errorJitterMs)), stoppingToken).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMinutes(1).Add(TimeSpan.FromMilliseconds(errorJitterMs)), stoppingToken);
             }
         }
     }
@@ -438,7 +438,7 @@ public class VaultService : IVaultService
 
         try
         {
-            await _client.V1.Auth.Token.RevokeSelfAsync().ConfigureAwait(false);
+            await _client.V1.Auth.Token.RevokeSelfAsync();
             _logger.LogInformation("[VaultService] Token revoked via auth/token/revoke-self");
         }
         catch (Exception ex)

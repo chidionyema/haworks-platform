@@ -40,7 +40,7 @@ public sealed class VaultCredentialProvider : IDisposable, IVaultCredentialProvi
             return _cached.Value;
         }
 
-        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
+        await _semaphore.WaitAsync(ct);
         try
         {
             // Double-check after acquiring lock
@@ -53,7 +53,7 @@ public sealed class VaultCredentialProvider : IDisposable, IVaultCredentialProvi
             {
                 var secret = await _vaultClient.V1.Secrets.Database
                     .GetStaticCredentialsAsync(roleName)
-                    .ConfigureAwait(false);
+                    ;
 
                 var username = secret.Data.Username;
                 var password = secret.Data.Password;

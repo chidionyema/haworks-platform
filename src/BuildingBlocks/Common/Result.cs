@@ -53,7 +53,7 @@ public class Result<T> : Result
         IsSuccess ? Result.Success(mapper(Value)) : Result.Failure<TNew>(Error);
 
     public async Task<Result<TNew>> BindAsync<TNew>(Func<T, Task<Result<TNew>>> binder, CancellationToken ct = default) =>
-        IsSuccess ? await binder(Value).ConfigureAwait(false) : Result.Failure<TNew>(Error);
+        IsSuccess ? await binder(Value) : Result.Failure<TNew>(Error);
 
     public TResult Match<TResult>(Func<T, TResult> onSuccess, Func<Error, TResult> onFailure) =>
         IsSuccess ? onSuccess(Value) : onFailure(Error);

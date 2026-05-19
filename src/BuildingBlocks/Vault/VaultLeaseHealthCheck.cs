@@ -35,7 +35,7 @@ public sealed class VaultLeaseHealthCheck : IHealthCheck
             {
                 // No credentials fetched yet — attempt a fetch
                 await _credentialProvider.GetDatabaseCredentialsAsync(_roleName, cancellationToken)
-                    .ConfigureAwait(false);
+                    ;
 
                 return HealthCheckResult.Healthy(
                     $"Vault credentials for role '{_roleName}' fetched successfully on first check.");
