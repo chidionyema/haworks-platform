@@ -29,7 +29,6 @@ public sealed class AdminController(
     ILogger<AdminController> logger) : ControllerBase
 {
     private const string DefaultCurrency = "USD";
-{
     /// <summary>
     /// T2.5's event-flow demo entry point. Begins a transaction on the
     /// payments DbContext, publishes a <see cref="DemoOutboxEvent"/> via
