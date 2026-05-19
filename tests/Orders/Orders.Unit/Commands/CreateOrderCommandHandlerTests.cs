@@ -2,8 +2,8 @@ using Haworks.Orders.Application.Commands;
 using Haworks.Orders.Domain;
 using Haworks.Orders.Domain.Interfaces;
 using Haworks.BuildingBlocks.Testing;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.Contracts.Orders;
+using MassTransit;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit.Abstractions;
@@ -14,13 +14,13 @@ namespace Haworks.Orders.UnitTests.Commands;
 public class CreateOrderCommandHandlerTests : TestBase
 {
     private readonly Mock<IOrderRepository> _orderRepositoryMock;
-    private readonly Mock<IDomainEventPublisher> _eventPublisherMock;
+    private readonly Mock<IPublishEndpoint> _eventPublisherMock;
     private readonly CreateOrderCommandHandler _handler;
 
     public CreateOrderCommandHandlerTests(ITestOutputHelper output) : base(output)
     {
         _orderRepositoryMock = MockRepository.Create<IOrderRepository>();
-        _eventPublisherMock = MockRepository.Create<IDomainEventPublisher>();
+        _eventPublisherMock = MockRepository.Create<IPublishEndpoint>();
         var loggerMock = new Mock<ILogger<CreateOrderCommandHandler>>();
 
         _handler = new CreateOrderCommandHandler(
@@ -54,7 +54,7 @@ public class CreateOrderCommandHandlerTests : TestBase
             .Returns(Task.CompletedTask);
 
         _eventPublisherMock
-            .Setup(x => x.PublishAsync(It.IsAny<OrderCreatedEvent>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.Publish(It.IsAny<OrderCreatedEvent>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         _orderRepositoryMock
@@ -78,7 +78,7 @@ public class CreateOrderCommandHandlerTests : TestBase
                 It.IsAny<CancellationToken>()),
             Times.Once);
         _eventPublisherMock.Verify(
-            x => x.PublishAsync(
+            x => x.Publish(
                 It.Is<OrderCreatedEvent>(e =>
                     e.CustomerEmail == command.CustomerEmail &&
                     e.TotalAmount == command.TotalAmount),

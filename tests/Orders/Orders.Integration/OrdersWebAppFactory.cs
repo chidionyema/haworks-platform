@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Xunit;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 using Haworks.Orders.Application.Consumers;
@@ -83,7 +82,6 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
                 mt.AddConsumer<RefundCompletedConsumer>();
                 mt.AddConsumer<RefundCancelledConsumer>();
             });
-            services.AddDomainEventPublisher();
 
             // [Authorize]-decorated endpoints need an authentication scheme.
             // BuildingBlocks.Testing's TestAuthenticationHandler is a no-op

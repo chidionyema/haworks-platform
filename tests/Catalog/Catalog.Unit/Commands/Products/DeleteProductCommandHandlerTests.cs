@@ -1,6 +1,6 @@
 using Haworks.BuildingBlocks.Common;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.Catalog.Application.Commands;
+using MassTransit;
 using Haworks.Catalog.Application.Interfaces;
 using Haworks.Catalog.Domain;
 using Haworks.Catalog.Domain.Interfaces;
@@ -18,14 +18,14 @@ public class DeleteProductCommandHandlerTests : TestBase
 {
     private readonly Mock<IProductRepository> _productRepositoryMock;
     private readonly Mock<IProductCacheReader> _productCacheMock;
-    private readonly Mock<IDomainEventPublisher> _eventPublisherMock;
+    private readonly Mock<IPublishEndpoint> _eventPublisherMock;
     private readonly DeleteProductCommandHandler _handler;
 
     public DeleteProductCommandHandlerTests(ITestOutputHelper output) : base(output)
     {
         _productRepositoryMock = MockRepository.Create<IProductRepository>();
         _productCacheMock = new Mock<IProductCacheReader>();
-        _eventPublisherMock = new Mock<IDomainEventPublisher>();
+        _eventPublisherMock = new Mock<IPublishEndpoint>();
         var loggerMock = new Mock<ILogger<DeleteProductCommandHandler>>();
 
         _handler = new DeleteProductCommandHandler(
@@ -57,7 +57,7 @@ public class DeleteProductCommandHandlerTests : TestBase
 
         Assert.True(result.IsSuccess);
         _eventPublisherMock.Verify(
-            x => x.PublishAsync(
+            x => x.Publish(
                 It.Is<ProductCacheInvalidatedEvent>(e =>
                     e.ProductId == product.Id &&
                     e.Reason == "deleted"),

@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Vault;
 using Haworks.Location.Application.Interfaces;
 using Haworks.Location.Infrastructure.Persistence;

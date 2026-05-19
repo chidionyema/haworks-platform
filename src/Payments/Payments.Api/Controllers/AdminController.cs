@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Middleware;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Domain;

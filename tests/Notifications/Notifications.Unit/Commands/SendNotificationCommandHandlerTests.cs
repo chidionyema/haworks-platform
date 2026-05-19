@@ -8,7 +8,7 @@ using Haworks.Notifications.Application.Preferences;
 using Haworks.Notifications.Application.Suppression;
 using Haworks.Notifications.Domain.Entities;
 using Haworks.Notifications.Domain.Enums;
-using Haworks.BuildingBlocks.Messaging;
+using MassTransit;
 
 namespace Haworks.Notifications.Unit.Commands;
 
@@ -21,7 +21,7 @@ public sealed class SendNotificationCommandHandlerTests
     private readonly Mock<IIdempotencyKeyGenerator> _idempotencyKeyGenerator = new();
     private readonly Mock<IPreferencesService> _preferencesService = new();
     private readonly Mock<ISuppressionService> _suppressionService = new();
-    private readonly Mock<IDomainEventPublisher> _eventPublisher = new();
+    private readonly Mock<IPublishEndpoint> _eventPublisher = new();
     private readonly SendNotificationCommandHandler _sut;
 
     public SendNotificationCommandHandlerTests()
@@ -53,7 +53,7 @@ public sealed class SendNotificationCommandHandlerTests
         var saveCalledAt = -1;
         var sequence = 0;
         _eventPublisher
-            .Setup(p => p.PublishAsync(It.IsAny<NotificationCreatedEvent>(), It.IsAny<CancellationToken>()))
+            .Setup(p => p.Publish(It.IsAny<NotificationCreatedEvent>(), It.IsAny<CancellationToken>()))
             .Callback(() => publishCalledAt = ++sequence)
             .Returns(Task.CompletedTask);
         _repository
@@ -77,7 +77,7 @@ public sealed class SendNotificationCommandHandlerTests
         publishCalledAt.Should().BeGreaterThan(0);
         saveCalledAt.Should().BeGreaterThan(publishCalledAt, "publish must occur before save (outbox guarantee)");
 
-        _eventPublisher.Verify(p => p.PublishAsync(
+        _eventPublisher.Verify(p => p.Publish(
             It.Is<NotificationCreatedEvent>(e => e.NotificationId == added.Id && e.IdempotencyKey == DeterministicKey),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -105,7 +105,7 @@ public sealed class SendNotificationCommandHandlerTests
             s => s.IsSuppressedAsync(It.IsAny<string>(), It.IsAny<NotificationChannel>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _eventPublisher.Verify(
-            p => p.PublishAsync(It.IsAny<NotificationCreatedEvent>(), It.IsAny<CancellationToken>()),
+            p => p.Publish(It.IsAny<NotificationCreatedEvent>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _repository.Verify(r => r.Add(It.IsAny<Notification>()), Times.Never);
     }
@@ -141,7 +141,7 @@ public sealed class SendNotificationCommandHandlerTests
             s => s.IsSuppressedAsync(It.IsAny<string>(), It.IsAny<NotificationChannel>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _eventPublisher.Verify(
-            p => p.PublishAsync(It.IsAny<NotificationCreatedEvent>(), It.IsAny<CancellationToken>()),
+            p => p.Publish(It.IsAny<NotificationCreatedEvent>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -168,7 +168,7 @@ public sealed class SendNotificationCommandHandlerTests
         added.Should().NotBeNull();
         added!.Status.Should().Be(NotificationStatus.Suppressed);
         _eventPublisher.Verify(
-            p => p.PublishAsync(It.IsAny<NotificationCreatedEvent>(), It.IsAny<CancellationToken>()),
+            p => p.Publish(It.IsAny<NotificationCreatedEvent>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -190,7 +190,7 @@ public sealed class SendNotificationCommandHandlerTests
             p => p.IsAllowedAsync(It.IsAny<string>(), It.IsAny<NotificationChannel>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _eventPublisher.Verify(
-            p => p.PublishAsync(It.IsAny<NotificationCreatedEvent>(), It.IsAny<CancellationToken>()),
+            p => p.Publish(It.IsAny<NotificationCreatedEvent>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

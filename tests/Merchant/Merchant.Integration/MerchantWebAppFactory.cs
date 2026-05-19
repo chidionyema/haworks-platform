@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 using Haworks.Merchant.Infrastructure.Persistence;
@@ -53,7 +52,6 @@ public sealed class MerchantWebAppFactory : WebApplicationFactory<Program>, IAsy
             {
                 // Merchant service might have consumers, but for now we are testing API flows.
             });
-            services.AddDomainEventPublisher();
 
             services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
         });

@@ -1,6 +1,6 @@
 using Haworks.BuildingBlocks.Common;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.Catalog.Application.Commands;
+using MassTransit;
 using Haworks.Catalog.Application.DTOs;
 using Haworks.Catalog.Application.Interfaces;
 using Haworks.Catalog.Domain;
@@ -20,7 +20,7 @@ public class UpdateProductCommandHandlerTests : TestBase
     private readonly Mock<IProductRepository> _productRepositoryMock;
     private readonly Mock<ICategoryRepository> _categoryRepositoryMock;
     private readonly Mock<IProductCacheReader> _productCacheMock;
-    private readonly Mock<IDomainEventPublisher> _eventPublisherMock;
+    private readonly Mock<IPublishEndpoint> _eventPublisherMock;
     private readonly UpdateProductCommandHandler _handler;
 
     public UpdateProductCommandHandlerTests(ITestOutputHelper output) : base(output)
@@ -28,7 +28,7 @@ public class UpdateProductCommandHandlerTests : TestBase
         _productRepositoryMock = MockRepository.Create<IProductRepository>();
         _categoryRepositoryMock = MockRepository.Create<ICategoryRepository>();
         _productCacheMock = new Mock<IProductCacheReader>();
-        _eventPublisherMock = new Mock<IDomainEventPublisher>();
+        _eventPublisherMock = new Mock<IPublishEndpoint>();
 
         var loggerMock = new Mock<ILogger<UpdateProductCommandHandler>>();
 
@@ -80,7 +80,7 @@ public class UpdateProductCommandHandlerTests : TestBase
         Assert.Equal("New Name", result.Value.Name);
         Assert.True(product.IsListed);
         _eventPublisherMock.Verify(
-            x => x.PublishAsync(
+            x => x.Publish(
                 It.Is<ProductCacheInvalidatedEvent>(e =>
                     e.ProductId == product.Id &&
                     e.Reason == "updated"),

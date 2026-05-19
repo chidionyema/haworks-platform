@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.BuildingBlocks.Resilience;
 using Haworks.BuildingBlocks.Testing.Authentication;
@@ -125,7 +124,6 @@ public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
                     });
             });
 
-            services.AddDomainEventPublisher();
             services.AddSingleton<ITelemetryService>(_ => NullTelemetryService.Instance);
             services.AddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
 

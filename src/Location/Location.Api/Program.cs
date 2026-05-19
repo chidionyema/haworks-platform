@@ -50,8 +50,7 @@ app.MigrateDatabase<LocationDbContext>();
 var migrateForced = builder.Configuration.GetValue("MigrateDatabase", false);
 if (!app.Environment.IsEnvironment("Test") || migrateForced)
 {
-    var startupRunner = app.Services.GetRequiredService<StartupTaskRunner>();
-
+    _ = app.Services.GetRequiredService<StartupTaskRunner>();
 }
 
 app.MapDefaultEndpoints();

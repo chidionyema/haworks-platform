@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 using Haworks.Catalog.Application.Consumers;
@@ -329,11 +328,6 @@ public sealed class SagaCompensationFixture : WebApplicationFactory<Program>, IA
                 mt.AddConsumer<StockReleaseRequestedConsumer>();
             });
 
-            // catalog's consumer + saga both need IDomainEventPublisher to
-            // wrap the harness's IPublishEndpoint. Catalog AddInfrastructure's
-            // call to AddDomainEventPublisher() bailed early on Test env, so
-            // do it here.
-            services.AddDomainEventPublisher();
         });
     }
 

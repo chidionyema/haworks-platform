@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Testing;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
@@ -121,8 +120,6 @@ public class NotificationsWebAppFactory : WebApplicationFactory<Program>, IAsync
             {
                 mt.AddConsumer<NotificationRequestConsumer>();
             });
-
-            services.AddDomainEventPublisher();
 
             // [Authorize]-decorated endpoints need an auth scheme. Tests use
             // the no-op TestAuthenticationHandler.
