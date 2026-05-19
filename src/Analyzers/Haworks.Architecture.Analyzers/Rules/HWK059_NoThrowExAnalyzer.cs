@@ -11,7 +11,7 @@ namespace Haworks.Architecture.Analyzers.Rules;
 public sealed class HWK059_NoThrowExAnalyzer : DiagnosticAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        ImmutableArray.Create(Diagnostics.NoThrowEx);
+        ImmutableArray.Create(Diagnostics.NoThrowOriginalException);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -35,7 +35,7 @@ public sealed class HWK059_NoThrowExAnalyzer : DiagnosticAnalyzer
         if (catchVarName != null && id.Identifier.Text == catchVarName)
         {
             context.ReportDiagnostic(Diagnostic.Create(
-                Diagnostics.NoThrowEx, throwStatement.GetLocation(), id.Identifier.Text));
+                Diagnostics.NoThrowOriginalException, throwStatement.GetLocation(), id.Identifier.Text));
         }
     }
 }

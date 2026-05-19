@@ -53,7 +53,6 @@ public sealed class HWK055_NoUnvalidatedUserUrlsAnalyzer : DiagnosticAnalyzer
             return;
 
         var firstArg = invocation.ArgumentList.Arguments[0].Expression;
-        var argText = firstArg.ToString().ToLowerInvariant();
 
         // Check if the URL argument is a user-controllable variable
         if (firstArg is IdentifierNameSyntax id)
