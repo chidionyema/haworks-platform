@@ -171,7 +171,17 @@ public sealed class NotificationRequestConsumer(
                 break;
         }
 
-        // MassTransit EF Outbox commits automatically
+        // Persist the terminal status written by the channel gateway (MarkSent /
+        // MarkFailed / RecordAttempt). In production the MassTransit EF Outbox
+        // wraps the consumer scope and commits on success, but the outbox is not
+        // registered under ASPNETCORE_ENVIRONMENT=Test (the outbox guard in
+        // DependencyInjection.cs is conditioned on !env.IsEnvironment("Test")).
+        // An explicit SaveChangesAsync here is correct in both paths: the outbox
+        // only starts its own transaction if no ambient transaction exists, so
+        // calling SaveChanges before the outbox commit is safe — the outbox
+        // commits the same DbContext in the same scope, picking up any unflushed
+        // changes that remain.
+        await repository.SaveChangesAsync(ct);
 
         logger.LogInformation(
             "Notification {NotificationId} dispatch complete: status={Status}, providerMessageId={ProviderMessageId}",

@@ -33,10 +33,10 @@ public class StripePayoutGateway : IPayoutGateway
         return account.Id;
     }
 
-    public async Task DeleteConnectedAccountAsync(string providerId, CancellationToken ct = default)
+    public Task DeleteConnectedAccountAsync(string providerId, CancellationToken ct = default)
     {
         var service = new AccountService(_client);
-        await service.DeleteAsync(providerId, cancellationToken: ct);
+        return service.DeleteAsync(providerId, cancellationToken: ct);
     }
 
     public async Task<string> CreateAccountOnboardingLinkAsync(string providerId, string returnUrl, string refreshUrl, CancellationToken ct = default)

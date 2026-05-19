@@ -21,6 +21,7 @@ internal sealed class PayPalCheckoutService(
     IOptions<BrandOptions> brandOptions,
     ILogger<PayPalCheckoutService> logger) : ICheckoutSessionService, ISubscriptionService
 {
+    private const string DefaultCurrency = "USD";
     private readonly IAsyncPolicy _resiliencePolicy =
         resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
     private readonly BrandOptions _brand = brandOptions.Value;
@@ -52,7 +53,7 @@ internal sealed class PayPalCheckoutService(
 
             var currency = !string.IsNullOrEmpty(request.Currency)
                 ? request.Currency.ToUpperInvariant()
-                : request.LineItems.Count > 0 ? request.LineItems[0].Currency?.ToUpperInvariant() ?? "USD" : "USD";
+                : request.LineItems.Count > 0 ? request.LineItems[0].Currency?.ToUpperInvariant() ?? DefaultCurrency : DefaultCurrency;
 
             var orderRequest = new PayPalOrderRequest
             {
@@ -199,7 +200,7 @@ internal sealed class PayPalCheckoutService(
                 TransactionId = order.PurchaseUnits?.FirstOrDefault()?.Payments?.Captures?.FirstOrDefault()?.Id ?? order.Id,
                 CustomerId = order.Payer?.PayerId,
                 AmountTotal = (long)Math.Round(amountTotal * CheckoutConstants.CentMultiplier),
-                Currency = order.PurchaseUnits?.FirstOrDefault()?.Amount?.CurrencyCode ?? "USD",
+                Currency = order.PurchaseUnits?.FirstOrDefault()?.Amount?.CurrencyCode ?? DefaultCurrency,
                 Provider = PaymentProvider.PayPal,
                 Metadata = new Dictionary<string, string>
                 {
@@ -230,7 +231,10 @@ internal sealed class PayPalCheckoutService(
             var error = JsonSerializer.Deserialize<PayPalErrorResponse>(responseBody, PayPalJsonOptions.Default);
             return error?.Message ?? error?.Details?.FirstOrDefault()?.Description;
         }
-        catch { return null; }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static void ValidateRedirectUrl(string? url, string paramName)

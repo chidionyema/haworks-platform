@@ -25,6 +25,7 @@ internal sealed class PayPalSubscriptionManager(
     ILogger<PayPalSubscriptionManager> logger,
     ITelemetryService telemetry) : ISubscriptionManager
 {
+    private const string DefaultCurrency = "USD";
     private readonly IAsyncPolicy _resiliencePolicy = 
         resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
 
@@ -232,7 +233,7 @@ internal sealed class PayPalSubscriptionManager(
         }
 
         _ = long.TryParse(subscriptionEvent.Metadata.GetValueOrDefault("amount_cents"), out var amount);
-        var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", "USD");
+        var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency);
 
         await eventPublisher.PublishAsync(new SubscriptionRenewedEvent
         {

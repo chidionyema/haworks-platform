@@ -114,7 +114,7 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
 
         builder.ConfigureTestServices(services =>
         {
-            var httpClient = new HttpClient();
+            var httpClient = new HttpClient(new AlwaysOkHandler());
             var mockFactory = new Mock<IHttpClientFactory>();
             mockFactory.Setup(_ => _.CreateClient(It.IsAny<string>())).Returns(httpClient);
             
@@ -123,5 +123,12 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
                 .AddScheme<AuthenticationSchemeOptions, WebhooksTestAuthHandler>(
                     TestAuthenticationHandler.SchemeName, _ => { });
         });
+    }
+
+    private sealed class AlwaysOkHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
     }
 }

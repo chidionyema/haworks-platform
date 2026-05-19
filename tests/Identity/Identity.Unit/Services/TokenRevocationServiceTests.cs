@@ -374,13 +374,16 @@ public sealed class TokenRevocationServiceTests : TestBase
     {
         private readonly ConcurrentDictionary<string, object?> _store = new();
 
-        public ValueTask<T?> GetOrCreateAsync<T>(
+        public async ValueTask<T?> GetOrCreateAsync<T>(
             string key,
             Func<CancellationToken, Task<T?>> factory,
             HybridCacheOptions? options = null,
             CancellationToken ct = default) where T : class
         {
-            throw new NotImplementedException();
+            if (_store.TryGetValue(key, out var existing)) return (T?)existing;
+            var value = await factory(ct);
+            _store[key] = value;
+            return value;
         }
 
         public ValueTask<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class

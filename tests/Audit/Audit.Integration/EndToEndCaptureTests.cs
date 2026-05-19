@@ -12,7 +12,8 @@ using Xunit;
 
 namespace Haworks.Audit.Integration;
 
-public sealed class EndToEndCaptureTests : IClassFixture<AuditWebAppFactory>
+[Collection("AuditIntegration")]
+public sealed class EndToEndCaptureTests
 {
     private readonly AuditWebAppFactory _factory;
 

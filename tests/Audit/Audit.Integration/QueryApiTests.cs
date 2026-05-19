@@ -17,7 +17,7 @@ using Xunit;
 namespace Haworks.Audit.Integration;
 
 [Collection("AuditIntegration")]
-public class QueryApiTests : IClassFixture<AuditWebAppFactory>
+public class QueryApiTests
 {
     private readonly AuditWebAppFactory _factory;
 
@@ -26,22 +26,7 @@ public class QueryApiTests : IClassFixture<AuditWebAppFactory>
         _factory = factory;
     }
 
-    private HttpClient CreateClient()
-    {
-        return _factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureTestServices(services =>
-            {
-                services.AddAuthentication(options => 
-                {
-                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
-                    options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
-                })
-                .AddScheme<AuthenticationSchemeOptions, AuditTestAuthHandler>(
-                    TestAuthenticationHandler.SchemeName, _ => { });
-            });
-        }).CreateClient();
-    }
+    private HttpClient CreateClient() => _factory.CreateClient();
 
     [Fact]
     public async Task ListEvents_ShouldReturnEvents()

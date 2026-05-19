@@ -15,7 +15,10 @@ namespace Haworks.Payouts.Api.Controllers;
 public class LedgerController(IMediator mediator) : ControllerBase
 {
     [HttpGet("balance/{ownerId}")]
-    public async Task<IActionResult> GetBalance(Guid ownerId, [FromQuery] AccountType type, [FromQuery] string currency = "USD")
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetBalance(Guid ownerId, [FromQuery] AccountType type, CancellationToken ct, [FromQuery] string currency = "USD")
     {
         var userId = HttpContext.GetForwardedUserId();
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
@@ -31,7 +34,7 @@ public class LedgerController(IMediator mediator) : ControllerBase
             return Forbid();
         }
 
-        var balance = await mediator.Send(new GetBalanceQuery(ownerId, type, currency));
+        var balance = await mediator.Send(new GetBalanceQuery(ownerId, type, currency), ct);
         return Ok(new { Balance = balance, Currency = currency });
     }
 }
@@ -46,7 +49,10 @@ public class LedgerController(IMediator mediator) : ControllerBase
 [Authorize(Roles = "Admin,Service")]
 public sealed class DemoLedgerController(IPayoutsDbContext db) : ControllerBase
 {
+    private const string DefaultCurrency = "USD";
+
     [HttpPost("simulate")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> SimulateTransaction(
         [FromBody] LedgerSimulationRequest request,
         CancellationToken ct)
@@ -56,7 +62,7 @@ public sealed class DemoLedgerController(IPayoutsDbContext db) : ControllerBase
 
         // Find or create seller account
         var account = Haworks.Payouts.Domain.Aggregates.LedgerAccount.Create(
-            sellerId, Haworks.Payouts.Domain.Enums.AccountType.SellerPayable, request.Currency ?? "USD");
+            sellerId, Haworks.Payouts.Domain.Enums.AccountType.SellerPayable, request.Currency ?? DefaultCurrency);
 
         db.LedgerAccounts.Add(account);
 

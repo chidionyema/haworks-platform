@@ -1,12 +1,16 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Moq;
 using Xunit;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
+using Haworks.Scheduler.Api.Infrastructure;
+using Haworks.Scheduler.Infrastructure.Persistence;
 using Hangfire;
 
 namespace Haworks.Scheduler.Integration;
@@ -22,10 +26,21 @@ public class SchedulerWebAppFactory : WebApplicationFactory<Program>, IAsyncLife
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Test");
         Environment.SetEnvironmentVariable("ConnectionStrings__scheduler", ConnString);
         Environment.SetEnvironmentVariable("RabbitMq__Host", "localhost");
+        Environment.SetEnvironmentVariable("Vault__Enabled", "false");
 
-        // AddPlatformAuthentication requires JwksOptions to be present at host startup.
-        // Values are test-grade placeholders; the real JWT pipeline is bypassed by TestAuthenticationHandler.
         JwtTestDefaults.SetTestEnvironmentVariables();
+
+        // Force host build so Services are available, then create schema
+        _ = Services;
+        await EnsureSchemaAsync();
+    }
+
+    public async Task EnsureSchemaAsync()
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
+        await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS scheduler;");
+        await db.Database.EnsureCreatedAsync();
     }
 
     public new Task DisposeAsync() => Task.CompletedTask;
@@ -47,6 +62,12 @@ public class SchedulerWebAppFactory : WebApplicationFactory<Program>, IAsyncLife
             var mockBackgroundJobClient = new Mock<IBackgroundJobClient>();
             services.AddSingleton(mockBackgroundJobClient.Object);
             services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
+
+            // Remove the LeaseBootstrapStartupTask — it queries VaultLeases
+            // at startup before EnsureCreatedAsync can create the schema.
+            var descriptor = services.SingleOrDefault(d =>
+                d.ImplementationType == typeof(LeaseBootstrapStartupTask));
+            if (descriptor != null) services.Remove(descriptor);
         });
     }
 }

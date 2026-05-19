@@ -3,6 +3,7 @@ using Haworks.Payouts.Application.Sellers.Commands.RegisterSeller;
 using Haworks.BuildingBlocks.Extensions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Haworks.Payouts.Api.Controllers;
@@ -13,7 +14,10 @@ namespace Haworks.Payouts.Api.Controllers;
 public class SellersController(IMediator mediator) : ControllerBase
 {
     [HttpPost]
-    public async Task<IActionResult> Register(RegisterSellerCommand command)
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Register(RegisterSellerCommand command, CancellationToken ct)
     {
         var userId = HttpContext.GetForwardedUserId();
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
@@ -22,14 +26,19 @@ public class SellersController(IMediator mediator) : ControllerBase
         if (!Guid.TryParse(userId, out var parsedUserId) || parsedUserId != command.SellerId)
             return Forbid();
 
-        return Ok(new { ProfileId = await mediator.Send(command) });
+        return Ok(new { ProfileId = await mediator.Send(command, ct) });
     }
 
     [HttpPost("{sellerId}/onboarding-link")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetOnboardingLink(
         Guid sellerId,
         [FromQuery] string returnUrl,
-        [FromQuery] string refreshUrl)
+        [FromQuery] string refreshUrl,
+        CancellationToken ct)
     {
         var userId = HttpContext.GetForwardedUserId();
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
@@ -41,7 +50,7 @@ public class SellersController(IMediator mediator) : ControllerBase
         if (!IsValidRedirectUrl(returnUrl) || !IsValidRedirectUrl(refreshUrl))
             return BadRequest("Invalid redirect URL. Only HTTPS URLs on allowed domains are accepted.");
 
-        return Ok(new { Url = await mediator.Send(new GetOnboardingLinkCommand(sellerId, returnUrl, refreshUrl)) });
+        return Ok(new { Url = await mediator.Send(new GetOnboardingLinkCommand(sellerId, returnUrl, refreshUrl), ct) });
     }
 
     private static bool IsValidRedirectUrl(string url)

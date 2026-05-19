@@ -70,6 +70,7 @@ public sealed class TwilioSmsProvider : ISmsProvider
         }
         catch (Exception ex) when (ex is TaskCanceledException or OperationCanceledException)
         {
+            _logger.LogWarning(ex, "Twilio request timed out or was cancelled for recipient {Recipient}", recipient);
             return ProviderSendResult.Retryable("Twilio request timed out or was cancelled.");
         }
         catch (Exception ex)

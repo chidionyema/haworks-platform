@@ -14,13 +14,13 @@ namespace Haworks.Architecture.Analyzers.Rules;
 /// Only exempts query commands (Get*, List*, Search*, Validate*).
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
-public sealed class HWK052_FinancialCommandMustHaveIdempotencyKeyAnalyzer : DiagnosticAnalyzer
+public sealed class HWK070_FinancialCommandMustHaveIdempotencyKeyAnalyzer : DiagnosticAnalyzer
 {
     private static readonly string[] QueryPrefixes =
         { "Get", "List", "Search", "Find", "Validate", "Check", "Count", "Exists", "Calculate" };
 
     private static readonly DiagnosticDescriptor Rule = new(
-        id: "HWK052",
+        id: "HWK070",
         title: "Commands must have an IdempotencyKey property",
         messageFormat: "Command '{0}' lacks an IdempotencyKey — network retries will create duplicate side effects",
         category: "Haworks.Architecture",

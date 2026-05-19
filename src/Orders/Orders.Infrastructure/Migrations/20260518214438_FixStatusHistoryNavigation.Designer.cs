@@ -9,10 +9,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Haworks.Orders.Infrastructure.Persistence.Migrations
+namespace Haworks.Orders.Infrastructure.Migrations
 {
     [DbContext(typeof(OrderDbContext))]
-    [Migration("20260518202148_FixStatusHistoryNavigation")]
+    [Migration("20260518214438_FixStatusHistoryNavigation")]
     partial class FixStatusHistoryNavigation
     {
         /// <inheritdoc />
@@ -156,12 +156,6 @@ namespace Haworks.Orders.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
-
-                    b.Property<uint>("xmin")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
 
                     b.HasKey("Id");
 

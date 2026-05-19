@@ -151,7 +151,10 @@ public class AuditExportWorker : BackgroundService
                 await using (var writer = new StreamWriter(tempFile))
                 await using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
                 {
-                    var query = db.AuditEvents.AsNoTracking()
+                    using var queryScope = _serviceProvider.CreateScope();
+                    var queryDb = queryScope.ServiceProvider.GetRequiredService<AuditDbContext>();
+
+                    var query = queryDb.AuditEvents.AsNoTracking()
                         .Where(e => e.OccurredAt >= request.From && e.OccurredAt <= request.To);
 
                     if (!string.IsNullOrEmpty(request.EntityId))
@@ -212,6 +215,7 @@ public class AuditExportWorker : BackgroundService
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Export job {JobId} failed", jobId);
             job.Status = AuditExportStatus.Failed;
             job.Error = ex.Message;
         }

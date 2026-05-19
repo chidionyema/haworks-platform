@@ -24,6 +24,7 @@ public sealed class StripeSubscriptionManager(
     ILogger<StripeSubscriptionManager> logger,
     ITelemetryService telemetry) : ISubscriptionManager
 {
+    private const string DefaultCurrency = "USD";
     private readonly IAsyncPolicy _resiliencePolicy = 
         resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.Stripe);
 
@@ -215,7 +216,7 @@ public sealed class StripeSubscriptionManager(
         }
 
         _ = long.TryParse(subscriptionEvent.Metadata.GetValueOrDefault("amount_cents"), out var amount);
-        var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", "USD");
+        var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency);
 
         await eventPublisher.PublishAsync(new SubscriptionRenewedEvent
         {

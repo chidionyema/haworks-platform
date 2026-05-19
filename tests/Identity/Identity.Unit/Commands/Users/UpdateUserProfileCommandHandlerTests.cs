@@ -49,7 +49,6 @@ public class UpdateUserProfileCommandHandlerTests : TestBase
     public async Task Handle_WithExistingProfile_UpdatesProfile()
     {
         var userId = Guid.NewGuid().ToString();
-        var user = new User { Id = userId, UserName = "testuser" };
         var existingProfile = UserProfile.Create(userId);
 
         _userProfileRepositoryMock

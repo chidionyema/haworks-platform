@@ -64,17 +64,17 @@ public class UserEmailServiceTests
     private sealed class FakeHybridCache : IHybridCache
     {
         private readonly ConcurrentDictionary<string, object?> _store = new();
-        public ValueTask<T?> GetOrCreateAsync<T>(string key, Func<CancellationToken, Task<T?>> factory, HybridCacheOptions? options = null, CancellationToken ct = default) where T : class
+        public async ValueTask<T?> GetOrCreateAsync<T>(string key, Func<CancellationToken, Task<T?>> factory, HybridCacheOptions? options = null, CancellationToken ct = default) where T : class
         {
-            if (_store.TryGetValue(key, out var existing)) return new ValueTask<T?>((T?)existing);
-            var value = factory(ct).GetAwaiter().GetResult();
+            if (_store.TryGetValue(key, out var existing)) return (T?)existing;
+            var value = await factory(ct);
             _store[key] = value;
-            return new ValueTask<T?>(value);
+            return value;
         }
-        public ValueTask<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => throw new NotImplementedException();
-        public ValueTask SetAsync<T>(string key, T value, HybridCacheOptions? options = null, CancellationToken ct = default) where T : class => throw new NotImplementedException();
+        public ValueTask<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => throw new NotSupportedException();
+        public ValueTask SetAsync<T>(string key, T value, HybridCacheOptions? options = null, CancellationToken ct = default) where T : class => throw new NotSupportedException();
         public ValueTask RemoveAsync(string key, CancellationToken ct = default) { _store.TryRemove(key, out _); return ValueTask.CompletedTask; }
-        public ValueTask RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => throw new NotImplementedException();
+        public ValueTask RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => throw new NotSupportedException();
         public bool Contains(string key) => _store.ContainsKey(key);
         public void SetRaw(string key, object value) => _store[key] = value;
     }

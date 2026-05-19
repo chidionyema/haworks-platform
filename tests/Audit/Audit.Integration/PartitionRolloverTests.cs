@@ -7,7 +7,7 @@ using FluentAssertions;
 namespace Haworks.Audit.Integration;
 
 [Collection("AuditIntegration")]
-public class PartitionRolloverTests : IClassFixture<AuditWebAppFactory>
+public class PartitionRolloverTests
 {
     private readonly AuditWebAppFactory _factory;
 

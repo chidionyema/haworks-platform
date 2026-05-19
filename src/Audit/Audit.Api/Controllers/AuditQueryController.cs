@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Haworks.Audit.Application.Queries;
 using Haworks.Audit.Api.Models;
@@ -18,6 +19,7 @@ public class AuditQueryController : ControllerBase
     }
 
     [HttpGet]
+    [ProducesResponseType(typeof(AuditPageResponse<AuditEventDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<AuditPageResponse<AuditEventDto>>> ListEvents(
         [FromQuery] string? entityType,
         [FromQuery] string? entityId,
@@ -39,6 +41,8 @@ public class AuditQueryController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(AuditEventDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<AuditEventDto>> GetEvent(Guid id, [FromQuery] DateTimeOffset occurredAt, CancellationToken ct)
     {
         var e = await _queryService.GetByIdAsync(id, occurredAt, ct);

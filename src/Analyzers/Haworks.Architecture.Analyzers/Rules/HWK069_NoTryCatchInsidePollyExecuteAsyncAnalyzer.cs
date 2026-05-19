@@ -13,10 +13,10 @@ namespace Haworks.Architecture.Analyzers.Rules;
 /// it can't retry 429/503 errors because the exception was swallowed.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
-public sealed class HWK051_NoTryCatchInsidePollyExecuteAsyncAnalyzer : DiagnosticAnalyzer
+public sealed class HWK069_NoTryCatchInsidePollyExecuteAsyncAnalyzer : DiagnosticAnalyzer
 {
     private static readonly DiagnosticDescriptor Rule = new(
-        id: "HWK051",
+        id: "HWK069",
         title: "Do not catch exceptions inside Polly ExecuteAsync",
         messageFormat: "try/catch inside Polly ExecuteAsync swallows exceptions that Polly needs for retry decisions",
         category: "Haworks.Architecture",

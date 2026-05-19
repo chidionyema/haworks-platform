@@ -14,13 +14,13 @@ namespace Haworks.Architecture.Analyzers.Rules;
 /// FirstOrDefault without filtering by EntryType/AccountType picks randomly.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
-public sealed class HWK054_NoFirstOrDefaultWithoutFilterOnLedgerAnalyzer : DiagnosticAnalyzer
+public sealed class HWK071_NoFirstOrDefaultWithoutFilterOnLedgerAnalyzer : DiagnosticAnalyzer
 {
     private static readonly string[] LedgerTableNames =
         { "LedgerEntries", "LedgerAccounts", "Payments", "Refunds", "Transactions" };
 
     private static readonly DiagnosticDescriptor Rule = new(
-        id: "HWK054",
+        id: "HWK071",
         title: "FirstOrDefaultAsync on financial tables must have explicit type/status filter",
         messageFormat: "'{0}' on financial table without explicit Where filter — non-deterministic row selection in multi-entry tables",
         category: "Haworks.Architecture",
