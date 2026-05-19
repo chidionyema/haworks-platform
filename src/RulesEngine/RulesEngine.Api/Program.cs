@@ -83,12 +83,13 @@ builder.Services.AddSwaggerGen();
 var app = builder.Build();
 
 // ── Migrate + seed fraud rules on startup ─────────────────────────────────────
+app.MigrateDatabase<RulesDbContext>();
+
 if (!app.Environment.IsEnvironment("Test"))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<RulesDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<RulesDbContext>>();
-    await db.Database.MigrateWithRetryAsync(logger);
 
     // Seed fraud rules if none exist
     if (!await db.Set<Rule>().AnyAsync(r => r.Name.StartsWith("fraud:")))

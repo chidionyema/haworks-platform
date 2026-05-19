@@ -89,32 +89,9 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 
 var app = builder.Build();
 
-if (!app.Environment.IsEnvironment("Test"))
-{
-    var startupRunner = app.Services.GetRequiredService<StartupTaskRunner>();
-
-    // Retry Vault bootstrap in the background if the pre-build attempt failed
-    startupRunner.AddTask(async (sp, ct) =>
-    {
-        var config = sp.GetRequiredService<IConfiguration>();
-        if (string.IsNullOrEmpty(config["PaymentProviders:Stripe:SecretKey"]) && config.GetValue<bool>("Vault:Enabled"))
-        {
-            var vaultLogger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("VaultBootstrap");
-            vaultLogger.LogInformation("Retrying Vault bootstrap in background...");
-            // Note: can't re-inject into IConfiguration post-build easily,
-            // but the VaultService renewal loop will handle credential rotation
-        }
-        await Task.CompletedTask;
-    });
-
-    startupRunner.AddTask(async (sp, ct) =>
-    {
-        using var scope = sp.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<Haworks.Payments.Infrastructure.PaymentDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        await db.Database.MigrateWithRetryAsync(logger, ct);
-    });
-}
+// Migrations run synchronously before app.Run() so the schema exists
+// before MassTransit or any other hosted service starts querying it.
+app.MigrateDatabase<Haworks.Payments.Infrastructure.PaymentDbContext>();
 
 app.MapDefaultEndpoints();
 

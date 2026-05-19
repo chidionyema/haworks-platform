@@ -4,7 +4,6 @@ using Haworks.BuildingBlocks.Extensions;
 using Haworks.BuildingBlocks.Messaging;
 using MassTransit;
 using Haworks.BuildingBlocks.Persistence;
-using Haworks.BuildingBlocks.Startup;
 using Haworks.Media.Api.Infrastructure;
 using Haworks.Media.Api.Infrastructure.Processing;
 using Haworks.Media.Api.Infrastructure.Workers;
@@ -174,9 +173,6 @@ if (!builder.Environment.IsEnvironment("Test"))
 
 builder.Services.AddDomainEventPublisher();
 
-// ── Startup task runner (EF migrations with retry) ──
-builder.Services.AddStartupTaskRunner();
-
 // ── API ──
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -185,18 +181,7 @@ builder.Services.AddSwaggerGen();
 // ────────────────────────────────────────────────────────────────
 var app = builder.Build();
 
-// ── EF migration on startup (skipped in Test environment) ──
-if (!app.Environment.IsEnvironment("Test"))
-{
-    var startupRunner = app.Services.GetRequiredService<StartupTaskRunner>();
-    startupRunner.AddTask(async (sp, ct) =>
-    {
-        using var scope = sp.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MediaDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        await db.Database.MigrateWithRetryAsync(logger, ct);
-    });
-}
+app.MigrateDatabase<MediaDbContext>();
 
 // ── Middleware pipeline ──
 app.MapDefaultEndpoints();   // /health, /health/ready, /health/live, correlation ID

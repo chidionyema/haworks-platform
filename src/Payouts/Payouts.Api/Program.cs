@@ -6,8 +6,6 @@ using Haworks.Payouts.Infrastructure.Persistence;
 using Haworks.BuildingBlocks.Authentication;
 using Haworks.BuildingBlocks.Extensions;
 using Haworks.BuildingBlocks.Persistence;
-using Haworks.BuildingBlocks.Startup;
-using Microsoft.EntityFrameworkCore;
 using MediatR;
 using Hangfire;
 using Serilog;
@@ -19,7 +17,6 @@ builder.Services.AddHealthChecks()
 builder.Host.UseSerilog((context, loggerConfiguration) => loggerConfiguration.ReadFrom.Configuration(context.Configuration));
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddStartupTaskRunner();
 
 builder.Services.AddJwksAuthentication(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
@@ -29,17 +26,9 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
-if (!app.Environment.IsEnvironment("Test"))
-{
-    var startupRunner = app.Services.GetRequiredService<StartupTaskRunner>();
-    startupRunner.AddTask(async (sp, ct) =>
-    {
-        using var scope = sp.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PayoutsDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        await db.Database.MigrateWithRetryAsync(logger, ct);
-    });
-}
+
+app.MigrateDatabase<PayoutsDbContext>();
+
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.UseHttpsRedirection();
 app.UseAuthentication();

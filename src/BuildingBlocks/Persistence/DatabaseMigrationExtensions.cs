@@ -1,5 +1,8 @@
+using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
@@ -37,6 +40,24 @@ public static class DatabaseMigrationExtensions
         {
             await database.MigrateAsync(innerCt);
         }, ct);
+    }
+
+    /// <summary>
+    /// Runs EF migrations synchronously before <c>app.Run()</c>, guaranteeing
+    /// the schema exists before MassTransit or any other hosted service starts.
+    /// Skipped in Test environments (tests manage their own DB lifecycle).
+    /// </summary>
+    public static void MigrateDatabase<TContext>(this WebApplication app)
+        where TContext : DbContext
+    {
+        if (app.Environment.IsEnvironment("Test")) return;
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<TContext>>();
+        var policy = BuildPolicy(logger);
+        policy.ExecuteAsync(async ct => await db.Database.MigrateAsync(ct), CancellationToken.None)
+            .GetAwaiter().GetResult();
     }
 
     private static AsyncRetryPolicy BuildPolicy(ILogger logger) =>

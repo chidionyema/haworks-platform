@@ -3,8 +3,6 @@ using Haworks.Scheduler.Infrastructure;
 using Haworks.Scheduler.Infrastructure.Persistence;
 using Haworks.BuildingBlocks.Extensions;
 using Haworks.BuildingBlocks.Persistence;
-using Haworks.BuildingBlocks.Startup;
-using Microsoft.EntityFrameworkCore;
 using Hangfire;
 using Hangfire.Dashboard;
 using Serilog;
@@ -21,7 +19,6 @@ builder.Host.UseSerilog((context, loggerConfiguration) => loggerConfiguration
 // Add layers
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
-builder.Services.AddStartupTaskRunner();
 builder.Services.AddHostedService<Haworks.Scheduler.Api.Infrastructure.LeaseBootstrapStartupTask>();
 
 builder.Services.AddPlatformAuthentication(builder.Configuration);
@@ -34,17 +31,7 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-if (!app.Environment.IsEnvironment("Test"))
-{
-    var startupRunner = app.Services.GetRequiredService<StartupTaskRunner>();
-    startupRunner.AddTask(async (sp, ct) =>
-    {
-        using var scope = sp.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        await db.Database.MigrateWithRetryAsync(logger, ct);
-    });
-}
+app.MigrateDatabase<SchedulerDbContext>();
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())

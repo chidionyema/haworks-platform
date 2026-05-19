@@ -2,7 +2,6 @@ using Haworks.BuildingBlocks.Extensions;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Startup;
 using Haworks.BuildingBlocks.Vault;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
@@ -145,6 +144,8 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 
 var app = builder.Build();
 
+app.MigrateDatabase<Haworks.Identity.Infrastructure.AppIdentityDbContext>();
+
 if (!app.Environment.IsEnvironment("Test"))
 {
     var startupRunner = app.Services.GetRequiredService<StartupTaskRunner>();
@@ -162,15 +163,6 @@ if (!app.Environment.IsEnvironment("Test"))
             // but the VaultService renewal loop will handle credential rotation
         }
         await Task.CompletedTask;
-    });
-
-    // 1. Apply EF migrations (creates tables in 'identity' schema)
-    startupRunner.AddTask(async (sp, ct) =>
-    {
-        using var scope = sp.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<Haworks.Identity.Infrastructure.AppIdentityDbContext>();
-        var migrateLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        await db.Database.MigrateWithRetryAsync(migrateLogger, ct);
     });
 
     // 2. Seed canonical roles. RegisterCommand assigns new users to

@@ -2,11 +2,9 @@ using Haworks.BuildingBlocks.Authentication;
 using Haworks.BuildingBlocks.Extensions;
 using Haworks.BuildingBlocks.Middleware;
 using Haworks.BuildingBlocks.Persistence;
-using Haworks.BuildingBlocks.Startup;
 using Haworks.Location.Application;
 using Haworks.Location.Infrastructure;
 using Haworks.Location.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,7 +17,6 @@ builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 
 // Application: MediatR + Validators
 builder.Services.AddApplication();
-builder.Services.AddStartupTaskRunner();
 
 builder.Services.AddGrpc();
 
@@ -45,18 +42,7 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-var migrateForced = builder.Configuration.GetValue("MigrateDatabase", false);
-if (!app.Environment.IsEnvironment("Test") || migrateForced)
-{
-    var startupRunner = app.Services.GetRequiredService<StartupTaskRunner>();
-    startupRunner.AddTask(async (sp, ct) =>
-    {
-        using var scope = sp.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<LocationDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        await db.Database.MigrateWithRetryAsync(logger, ct);
-    });
-}
+app.MigrateDatabase<LocationDbContext>();
 
 app.MapDefaultEndpoints();
 

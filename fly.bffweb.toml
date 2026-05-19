@@ -29,6 +29,8 @@ primary_region = "iad"
   "Services__payments-svc__http__0"  = "http://haworks-payments.internal:8080"
   "Services__checkout-svc__http__0"  = "http://haworks-checkout.internal:8080"
   "Services__search-svc__http__0"    = "http://haworks-search.internal:8080"
+  "Services__payouts-svc__http__0"   = "http://haworks-payouts.internal:8080"
+  "Services__privacy-svc__http__0"   = "http://haworks-privacy.internal:8080"
 
   # OpenTelemetry resource identity. Fly's [env] is static (no ${VAR}
   # interpolation), so the OTLP endpoint must be set out-of-band via:

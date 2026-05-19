@@ -7,7 +7,6 @@ using Haworks.BuildingBlocks.Vault;
 using Haworks.Notifications.Application;
 using Haworks.Notifications.Infrastructure;
 using Haworks.Notifications.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
@@ -105,14 +104,9 @@ if (!app.Environment.IsEnvironment("Test"))
         await Task.CompletedTask;
     });
 
-    startupRunner.AddTask(async (sp, ct) =>
-    {
-        using var scope = sp.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        await db.Database.MigrateWithRetryAsync(logger, ct);
-    });
 }
+
+app.MigrateDatabase<NotificationsDbContext>();
 
 app.MapDefaultEndpoints();
 
