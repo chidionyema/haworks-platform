@@ -15,7 +15,6 @@ namespace Haworks.RulesEngine.Api.Infrastructure;
 public sealed class FraudCheckConsumer(
     RulesDbContext db,
     IRulesEvaluator evaluator,
-    IPublishEndpoint publisher,
     ILogger<FraudCheckConsumer> logger) : IConsumer<FraudCheckRequestedEvent>
 {
     private static readonly Meter Meter = new("Haworks.RulesEngine", "1.0.0");
@@ -66,7 +65,7 @@ public sealed class FraudCheckConsumer(
                 "Fraud check FAILED for order {OrderId} (score={Score}, rules={Rules})",
                 msg.OrderId, riskScore, string.Join(", ", triggeredRules));
 
-            await publisher.Publish(new FraudCheckFailedEvent
+            await context.Publish(new FraudCheckFailedEvent
             {
                 SagaId = msg.SagaId,
                 OrderId = msg.OrderId,
@@ -81,7 +80,7 @@ public sealed class FraudCheckConsumer(
                 "Fraud check PASSED for order {OrderId} (score={Score})",
                 msg.OrderId, riskScore);
 
-            await publisher.Publish(new FraudCheckPassedEvent
+            await context.Publish(new FraudCheckPassedEvent
             {
                 SagaId = msg.SagaId,
                 OrderId = msg.OrderId,

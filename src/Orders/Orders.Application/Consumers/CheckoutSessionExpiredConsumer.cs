@@ -14,7 +14,6 @@ namespace Haworks.Orders.Application.Consumers;
 /// </summary>
 public sealed class CheckoutSessionExpiredConsumer(
     IOrderRepository orders,
-    IPublishEndpoint eventPublisher,
     ILogger<CheckoutSessionExpiredConsumer> logger
 ) : IConsumer<CheckoutSessionExpiredEvent>
 {
@@ -56,7 +55,7 @@ public sealed class CheckoutSessionExpiredConsumer(
 
         // Publish stock release requested event for catalog-svc.
         // Outbox writes the message row in the same EF transaction.
-        await eventPublisher.Publish(new StockReleaseRequestedEvent
+        await context.Publish(new StockReleaseRequestedEvent
         {
             OrderId = order.Id,
             SagaId = order.SagaId,

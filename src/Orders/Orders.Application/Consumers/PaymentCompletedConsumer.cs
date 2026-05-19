@@ -26,7 +26,6 @@ namespace Haworks.Orders.Application.Consumers;
 /// </summary>
 public sealed class PaymentCompletedConsumer(
     IOrderRepository orders,
-    IPublishEndpoint eventPublisher,
     ILogger<PaymentCompletedConsumer> logger
 ) : IConsumer<PaymentCompletedEvent>
 {
@@ -67,7 +66,7 @@ public sealed class PaymentCompletedConsumer(
         // the same EF transaction as the state change (production outbox
         // semantics). In tests with the in-memory harness the publish goes
         // straight to the bus — same observable behavior.
-        await eventPublisher.Publish(new OrderCompletedEvent
+        await context.Publish(new OrderCompletedEvent
         {
             OrderId = order.Id,
             CustomerId = TryParseGuid(order.UserId),

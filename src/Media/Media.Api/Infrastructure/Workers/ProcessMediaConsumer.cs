@@ -12,7 +12,6 @@ namespace Haworks.Media.Api.Infrastructure.Workers;
 /// </summary>
 public sealed class ProcessMediaConsumer(
     MediaProcessingOrchestrator orchestrator,
-    IPublishEndpoint publisher,
     IServiceScopeFactory scopeFactory,
     ILogger<ProcessMediaConsumer> logger) : IConsumer<ProcessMediaCommand>
 {
@@ -42,7 +41,7 @@ public sealed class ProcessMediaConsumer(
 
         if (variants.Count > 0)
         {
-            await publisher.Publish(new MediaProcessingCompletedEvent
+            await context.Publish(new MediaProcessingCompletedEvent
             {
                 MediaId = msg.MediaId,
                 OwnerId = msg.OwnerId,
