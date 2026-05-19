@@ -9,23 +9,16 @@ public static class MessagingServiceCollectionExtensions
         this IRabbitMqBusFactoryConfigurator cfg,
         IBusRegistrationContext context)
     {
-        // Retry: 3 immediate attempts (transient blips)
-        cfg.UseMessageRetry(r =>
-        {
-            r.Incremental(
-                retryLimit: 3,
-                initialInterval: TimeSpan.FromSeconds(1),
-                intervalIncrement: TimeSpan.FromSeconds(2));
-
-            // Wire retry observer so every failed attempt is logged
-            r.ConnectRetryObserver(context.GetRequiredService<DiagnosticRetryObserver>());
-        });
-
-        // Redelivery: 3 delayed attempts (service outages)
-        cfg.UseDelayedRedelivery(r => r.Intervals(
-            TimeSpan.FromMinutes(1),
-            TimeSpan.FromMinutes(5),
-            TimeSpan.FromMinutes(30)));
+        // IMPORTANT: No bus-level UseMessageRetry.
+        // Every consumer MUST have a ConsumerDefinition that inherits
+        // BoundedContextConsumerDefinition (for consumers) or
+        // BoundedContextSagaDefinition (for sagas). These provide
+        // endpoint-level retry OUTSIDE the outbox scope.
+        //
+        // Consumers without definitions (BFF bridges, GlobalFaultConsumer,
+        // Identity, Search, Realtime) currently have NO retry. This is
+        // tracked in docs/backlog/masstransit-deep-cleanup.md as
+        // Workstream 5: all consumers must have definitions.
 
         // Observability: log consume faults + receive faults
         cfg.ConnectConsumeObserver(context.GetRequiredService<DiagnosticConsumeObserver>());

@@ -69,6 +69,11 @@ public abstract class BoundedContextSagaDefinition<TSaga, TDbContext>
             r.Handle<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>();
         });
 
+        endpointConfigurator.UseDelayedRedelivery(r => r.Intervals(
+            TimeSpan.FromMinutes(1),
+            TimeSpan.FromMinutes(5),
+            TimeSpan.FromMinutes(30)));
+
         endpointConfigurator.UseEntityFrameworkOutbox<TDbContext>(context);
     }
 }
