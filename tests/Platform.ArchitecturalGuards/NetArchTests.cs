@@ -74,7 +74,7 @@ public sealed class NetArchTests
     {
         var domainTypes = Types.InAssembly(typeof(Haworks.Payments.Domain.Payment).Assembly)
             .That()
-            .HaveNameEndingWith("State")
+            .HaveNameEndingWith("State", StringComparison.Ordinal)
             .Or()
             .Inherit(typeof(Haworks.BuildingBlocks.Persistence.AuditableEntity))
             .GetTypes();
@@ -112,9 +112,9 @@ public sealed class NetArchTests
     {
         var types = Types.InAssembly(typeof(Haworks.Payments.Application.DependencyInjection).Assembly)
             .That()
-            .HaveNameEndingWith("Handler")
+            .HaveNameEndingWith("Handler", StringComparison.Ordinal)
             .Or()
-            .HaveNameEndingWith("Consumer")
+            .HaveNameEndingWith("Consumer", StringComparison.Ordinal)
             .GetTypes();
 
         foreach (var type in types)

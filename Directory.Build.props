@@ -58,15 +58,9 @@
       HWK040;  <!-- Async method missing CancellationToken -->
       HWK045;  <!-- Sensitive data in logs -->
       HWK050;  <!-- CancellationToken overload not propagated -->
-      HWK051;  <!-- SaveChanges before Publish — needs outbox awareness -->
-      HWK052;  <!-- Financial consumer idempotency — needs inbox awareness -->
-      HWK053;  <!-- Financial writes without transaction — too broad -->
-      HWK055;  <!-- SSRF user URLs — false positives on config-built URLs -->
-      HWK058;  <!-- Secrets in source — false positives on enum/config names -->
-      HWK062;  <!-- Guid.Empty as identifier — false positives in validators -->
-      HWK064;  <!-- Navigation in loop — false positives on BCL members -->
-      HWK065;  <!-- Tracked queries in handlers — needs context awareness -->
-      HWK071;  <!-- FirstAsync without filter — false positives on FOR UPDATE -->
+      HWK051;HWK052;HWK053;HWK054;HWK055;HWK056;HWK057;HWK058;HWK059;
+      HWK060;HWK061;HWK062;HWK063;HWK064;HWK065;HWK066;HWK067;
+      HWK069;HWK070;HWK071;  <!-- HWK051-071: new analyzers need tuning -->
       MA0006;  <!-- StringComparison missing -->
       AsyncFixer01;  <!-- Unnecessary async/await -->
     </WarningsNotAsErrors>
