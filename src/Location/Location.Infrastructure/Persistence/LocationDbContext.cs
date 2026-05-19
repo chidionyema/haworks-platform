@@ -78,11 +78,8 @@ public class LocationDbContext : DbContext, ILocationDbContext
 
             entity.HasIndex(a => a.Geohash);
 
-            // Optimistic concurrency via PostgreSQL xmin system column
-            entity.Property<uint>("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
+            // xmin concurrency token removed — broken under Npgsql 9 (OID mismatch).
+            // Concurrency handled by domain guards + pessimistic locks.
         });
 
         // MassTransit Outbox entities
