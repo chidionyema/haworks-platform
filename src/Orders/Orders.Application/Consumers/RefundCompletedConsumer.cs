@@ -33,10 +33,6 @@ public sealed class RefundCompletedConsumer(
 
         if (order.MarkRefunded())
         {
-            // SaveChanges persists the MarkRefunded state change. In production
-            // the EF outbox filter commits this automatically; in tests (no outbox)
-            // this call is what persists the row.
-            await orderRepository.SaveChangesAsync(context.CancellationToken);
             logger.LogInformation("Order {OrderId} status updated to Refunded", msg.OrderId);
         }
     }

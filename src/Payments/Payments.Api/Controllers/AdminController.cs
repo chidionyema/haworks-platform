@@ -53,8 +53,8 @@ public sealed class AdminController(
 
         // Same publish pattern catalog UpdateProductCommandHandler uses
         // (and which IS observed working end-to-end against real outbox + RabbitMQ):
-        // IDomainEventPublisher.PublishAsync goes through MT's IPublishEndpoint
-        // with an (object)-cast for runtime type resolution, then SaveChanges
+        // IPublishEndpoint.Publish goes through MT's outbox pipeline with an
+        // (object)-cast for runtime type resolution, then SaveChanges
         // commits the OutboxMessage row atomically.
         await eventPublisher.Publish(demoEvent, ct);
         await db.SaveChangesAsync(ct);

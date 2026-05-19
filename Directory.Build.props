@@ -60,7 +60,9 @@
       HWK050;  <!-- CancellationToken overload not propagated -->
       HWK051;HWK052;HWK053;HWK054;HWK055;HWK056;HWK057;HWK058;HWK059;
       HWK060;HWK061;HWK062;HWK063;HWK064;HWK065;HWK066;HWK067;HWK068;
-      HWK069;HWK070;HWK071;  <!-- HWK051-071: new analyzers need tuning -->
+      HWK069;HWK070;HWK071;  <!-- HWK051-071: need tuning -->
+      HWK072;HWK073;HWK074;HWK075;HWK076;HWK077;HWK078;HWK079;
+      HWK080;HWK081;HWK082;HWK083;HWK084;  <!-- HWK072-084: need tuning -->
       MA0006;  <!-- StringComparison missing -->
       AsyncFixer01;  <!-- Unnecessary async/await -->
     </WarningsNotAsErrors>

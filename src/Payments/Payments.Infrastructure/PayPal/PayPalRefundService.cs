@@ -1,6 +1,7 @@
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.BuildingBlocks.Telemetry;
+using MassTransit;
 using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Infrastructure.Options;
@@ -18,7 +19,7 @@ namespace Haworks.Payments.Infrastructure.PayPal;
 internal sealed class PayPalRefundService(
     IPayPalClientFactory clientFactory,
     IPaymentRepository paymentRepository,
-    IDomainEventPublisher eventPublisher,
+    IPublishEndpoint eventPublisher,
     IResiliencePolicyFactory resiliencePolicyFactory,
     ILogger<PayPalRefundService> logger,
     ITelemetryService telemetry) : IRefundService
@@ -125,7 +126,7 @@ internal sealed class PayPalRefundService(
 
         if (payment != null && status == RefundStatus.Succeeded)
         {
-            await eventPublisher.PublishAsync(new RefundIssuedEvent
+            await eventPublisher.Publish(new RefundIssuedEvent
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,

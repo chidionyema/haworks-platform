@@ -153,7 +153,7 @@ public sealed class PaymentSessionRequestedConsumer(
         var provider = "demo-mock";
 
         // 1. Create session immediately
-        await eventPublisher.PublishAsync(new PaymentSessionCreatedEvent
+        await eventPublisher.Publish(new PaymentSessionCreatedEvent
         {
             OrderId = evt.OrderId,
             SagaId = evt.SagaId,

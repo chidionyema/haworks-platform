@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Vault;
 using Haworks.Catalog.Application.Consumers;
 using Haworks.Catalog.Application.Interfaces;
