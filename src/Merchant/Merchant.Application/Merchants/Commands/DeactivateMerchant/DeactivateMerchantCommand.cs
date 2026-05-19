@@ -33,12 +33,11 @@ public sealed class DeactivateMerchantCommandHandler : IRequestHandler<Deactivat
             return Result.Failure(Error.Forbidden("Merchant.Forbidden", "You are not authorized to deactivate this merchant."));
 
         merchant.Deactivate(request.UserId.ToString());
-        await _context.SaveChangesAsync(cancellationToken);
-
         await _publishEndpoint.Publish(new MerchantDeactivatedEvent
         {
             MerchantId = merchant.Id
         }, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
     }

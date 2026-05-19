@@ -68,11 +68,6 @@ public sealed class CatalogDbContext : DbContext
             entity.HasIndex(c => c.Name).IsUnique().HasDatabaseName("IX_Categories_Name");
 
             // Optimistic concurrency via Postgres xmin system column
-            entity.Property<uint>("xmin")
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
         });
 
         modelBuilder.Entity<Product>(entity =>
@@ -95,11 +90,6 @@ public sealed class CatalogDbContext : DbContext
             // UPDATE ... WHERE xmin = N — the loser throws
             // DbUpdateConcurrencyException and the caller retries against
             // the already-decremented stock count.
-            entity.Property<uint>("xmin")
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
 
             entity.HasOne(p => p.Category)
                 .WithMany(c => c.Products)
@@ -131,11 +121,6 @@ public sealed class CatalogDbContext : DbContext
             entity.HasIndex(r => r.UserId).HasDatabaseName("IX_ProductReviews_UserId");
 
             // Optimistic concurrency via Postgres xmin system column
-            entity.Property<uint>("xmin")
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
         });
 
                 modelBuilder.Entity<ProductMetadata>(entity =>
@@ -190,11 +175,6 @@ public sealed class CatalogDbContext : DbContext
             entity.Property(r => r.RowVersion).HasDefaultValueSql("'\\x0000000000000000'::bytea");
 
             // Optimistic concurrency via Postgres xmin system column
-            entity.Property<uint>("xmin")
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
 
             entity.HasIndex(r => r.OrderId).HasDatabaseName("IX_StockReservations_OrderId").IsUnique();
             entity.HasIndex(r => r.SagaId).HasDatabaseName("IX_StockReservations_SagaId");

@@ -30,12 +30,11 @@ public sealed class ApproveMerchantCommandHandler : IRequestHandler<ApproveMerch
             return Result.Failure(Error.NotFound("Merchant.NotFound", "Merchant not found."));
 
         merchant.Activate(request.ApprovedBy);
-        await _context.SaveChangesAsync(cancellationToken);
-
         await _publishEndpoint.Publish(new MerchantActivatedEvent
         {
             MerchantId = merchant.Id
         }, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
     }

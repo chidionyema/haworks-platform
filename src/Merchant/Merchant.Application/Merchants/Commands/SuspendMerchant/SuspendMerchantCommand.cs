@@ -41,12 +41,11 @@ public sealed class SuspendMerchantCommandHandler : IRequestHandler<SuspendMerch
             return Result.Failure(Error.NotFound("Merchant.NotFound", "Merchant not found."));
 
         merchant.Suspend(request.SuspendedBy, request.Reason);
-        await _context.SaveChangesAsync(cancellationToken);
-
         await _publishEndpoint.Publish(new MerchantSuspendedEvent
         {
             MerchantId = merchant.Id
         }, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
     }
