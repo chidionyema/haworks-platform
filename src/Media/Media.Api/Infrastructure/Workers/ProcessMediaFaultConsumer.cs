@@ -9,7 +9,6 @@ namespace Haworks.Media.Api.Infrastructure.Workers;
 /// services know the file is clean but processing didn't complete.
 /// </summary>
 public sealed class ProcessMediaFaultConsumer(
-    IPublishEndpoint publisher,
     ILogger<ProcessMediaFaultConsumer> logger) : IConsumer<Fault<ProcessMediaCommand>>
 {
     public Task Consume(ConsumeContext<Fault<ProcessMediaCommand>> context)
@@ -20,7 +19,7 @@ public sealed class ProcessMediaFaultConsumer(
 
         logger.LogError("Media processing permanently failed for {MediaId}: {Reason}", cmd.MediaId, reason);
 
-        return publisher.Publish(new MediaProcessingFailedEvent
+        return context.Publish(new MediaProcessingFailedEvent
         {
             MediaId = cmd.MediaId,
             OwnerId = cmd.OwnerId,

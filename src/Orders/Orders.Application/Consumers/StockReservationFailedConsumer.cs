@@ -13,7 +13,6 @@ namespace Haworks.Orders.Application.Consumers;
 /// </summary>
 public sealed class StockReservationFailedConsumer(
     IOrderRepository orders,
-    IPublishEndpoint eventPublisher,
     ILogger<StockReservationFailedConsumer> logger
 ) : IConsumer<StockReservationFailedEvent>
 {
@@ -40,7 +39,7 @@ public sealed class StockReservationFailedConsumer(
             return;
         }
 
-        await eventPublisher.Publish(new OrderAbandonedEvent
+        await context.Publish(new OrderAbandonedEvent
         {
             OrderId = order.Id,
             SagaId = order.SagaId,

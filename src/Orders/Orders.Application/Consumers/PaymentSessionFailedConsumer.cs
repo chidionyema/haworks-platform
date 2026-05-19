@@ -13,7 +13,6 @@ namespace Haworks.Orders.Application.Consumers;
 /// </summary>
 public sealed class PaymentSessionFailedConsumer(
     IOrderRepository orders,
-    IPublishEndpoint eventPublisher,
     ILogger<PaymentSessionFailedConsumer> logger
 ) : IConsumer<PaymentSessionFailedEvent>
 {
@@ -40,7 +39,7 @@ public sealed class PaymentSessionFailedConsumer(
             return;
         }
 
-        await eventPublisher.Publish(new OrderAbandonedEvent
+        await context.Publish(new OrderAbandonedEvent
         {
             OrderId = order.Id,
             SagaId = order.SagaId,

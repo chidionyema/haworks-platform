@@ -12,7 +12,6 @@ namespace Haworks.Orders.Application.Consumers;
 /// </summary>
 public sealed class PrivacyErasureRequestedConsumer(
     IOrderRepository orders,
-    IPublishEndpoint eventPublisher,
     ILogger<PrivacyErasureRequestedConsumer> logger
 ) : IConsumer<PrivacyErasureRequested>
 {
@@ -46,7 +45,7 @@ public sealed class PrivacyErasureRequestedConsumer(
 
         logger.LogInformation("Anonymised {Count} orders for UserId={UserId}", totalAnonymised, msg.UserId);
 
-        await eventPublisher.Publish(new PrivacyErasureCompleted
+        await context.Publish(new PrivacyErasureCompleted
         {
             RequestId = msg.RequestId,
             UserId = msg.UserId,

@@ -109,6 +109,9 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
                 ["ConnectionStrings:rabbitmq"] = RabbitMqConnectionString,
                 ["Vault:Enabled"] = "false",
                 ["Kafka:Enabled"] = "false",
+                ["JwksOptions:Issuer"] = "https://test-issuer.invalid",
+                ["JwksOptions:Audience"] = "test-audience",
+                ["JwksOptions:JwksUri"] = "https://test-issuer.invalid/.well-known/jwks",
             });
         });
 
