@@ -64,6 +64,10 @@ public static class ServiceDefaults
         // when AddHttpMessageHandler<T>() resolves it.
         builder.Services.AddCorrelationId();
 
+        // Platform-wide saga persistence auditing. Services that use (sp, options) =>
+        // in AddDbContext should call options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>())
+        builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.Diagnostics.ISaveChangesInterceptor, Haworks.BuildingBlocks.Messaging.SagaPersistenceInterceptor>();
+
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
             // Turn on resilience by default

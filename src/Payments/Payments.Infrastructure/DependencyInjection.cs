@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;

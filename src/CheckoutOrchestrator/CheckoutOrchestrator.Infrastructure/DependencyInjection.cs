@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -52,6 +53,7 @@ public static class DependencyInjection
                 });
             }
             options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+                options.AddPlatformInterceptors(sp);
         });
 
         services.AddScoped<Haworks.CheckoutOrchestrator.Application.Interfaces.ICheckoutDbContext>(sp => sp.GetRequiredService<CheckoutDbContext>());

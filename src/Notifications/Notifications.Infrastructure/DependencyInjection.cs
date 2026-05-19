@@ -60,6 +60,7 @@ public static partial class DependencyInjection
                 options.UseNpgsql(sp.GetRequiredService<Npgsql.NpgsqlDataSource>(), npgsqlOptions =>
                 {
                     npgsqlOptions.MigrationsAssembly(typeof(NotificationsDbContext).Assembly.FullName);
+                options.AddPlatformInterceptors(sp);
                     npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "notifications");
                 });
             }

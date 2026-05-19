@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Messaging;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +41,7 @@ public static class DependencyInjection
                 options.UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>(), npgsql =>
                 {
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "orders");
+                options.AddPlatformInterceptors(sp);
                     // EF retry-on-failure mitigates the macOS Docker / Npgsql 9
                     // EOF stream flake first observed in payments-svc Phase 3 — see
                     // docs/runbooks/payments-integration-docker-flake.md.

@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.Payouts.Application.Common.Interfaces;
 using Haworks.Payouts.Infrastructure.Gateways;
@@ -18,9 +19,10 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("payouts");
-        services.AddDbContext<PayoutsDbContext>(options =>
+        services.AddDbContext<PayoutsDbContext>((sp, options) =>
         {
             options.UseNpgsql(connectionString);
+            options.AddPlatformInterceptors(sp);
             options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
         });
         services.AddScoped<IPayoutsDbContext>(provider => provider.GetRequiredService<PayoutsDbContext>());

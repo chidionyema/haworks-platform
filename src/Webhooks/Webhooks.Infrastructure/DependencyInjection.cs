@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using Hangfire;
 using Hangfire.PostgreSql;
 using Haworks.Webhooks.Application.Interfaces;
@@ -19,11 +20,12 @@ public static class DependencyInjection
     {
         var connectionString = configuration.GetConnectionString("webhooks");
 
-        services.AddDbContext<WebhooksDbContext>(options =>
+        services.AddDbContext<WebhooksDbContext>((sp, options) =>
         {
             options.UseNpgsql(connectionString, npgsqlOptions =>
             {
                 npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "webhooks");
+            options.AddPlatformInterceptors(sp);
             });
             options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
         });

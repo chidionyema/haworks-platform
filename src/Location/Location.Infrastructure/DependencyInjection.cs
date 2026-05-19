@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Vault;
 using Haworks.Location.Application.Interfaces;
@@ -40,6 +41,7 @@ public static class DependencyInjection
                 options.UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>(), npgsql =>
                 {
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "location");
+                options.AddPlatformInterceptors(sp);
                     // Enable NetTopologySuite for PostGIS support
                     npgsql.UseNetTopologySuite();
                 });

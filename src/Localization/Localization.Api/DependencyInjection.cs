@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using Haworks.Localization.Api.Application;
 using Haworks.Localization.Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -15,8 +16,9 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("localization")
             ?? throw new InvalidOperationException("ConnectionStrings:localization is required");
 
-        services.AddDbContext<LocalizationDbContext>(options =>
+        services.AddDbContext<LocalizationDbContext>((sp, options) =>
             options.UseNpgsql(connectionString));
+            options.AddPlatformInterceptors(sp);
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
         

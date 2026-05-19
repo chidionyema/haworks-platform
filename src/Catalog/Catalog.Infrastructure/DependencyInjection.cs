@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Messaging;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -59,6 +60,7 @@ public static class DependencyInjection
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "catalog"));
             }
             options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+                options.AddPlatformInterceptors(sp);
         });
 
         services.AddScoped<IProductRepository, ProductRepository>();

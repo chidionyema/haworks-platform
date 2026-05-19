@@ -1,7 +1,6 @@
 using Haworks.CheckoutOrchestrator.Application.Interfaces;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -34,9 +33,6 @@ public class CheckoutDbContext : DbContext, ICheckoutDbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);
-        var interceptor = _loggerFactory?.CreateLogger<Haworks.BuildingBlocks.Messaging.SagaPersistenceInterceptor>();
-        if (interceptor != null)
-            optionsBuilder.AddInterceptors(new Haworks.BuildingBlocks.Messaging.SagaPersistenceInterceptor(interceptor));
         optionsBuilder.UseLoggerFactory(_loggerFactory);
         if (_environment.IsDevelopment()) optionsBuilder.EnableSensitiveDataLogging();
     }

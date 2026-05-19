@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Messaging;
 using FluentValidation;
 using Haworks.Pricing.Application.Interfaces;
@@ -30,10 +31,11 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:pricing is missing.");
 
-        services.AddDbContext<PricingDbContext>(options =>
+        services.AddDbContext<PricingDbContext>((sp, options) =>
         {
             options.UseNpgsql(connectionString, npgsql =>
                 npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "pricing"));
+            options.AddPlatformInterceptors(sp);
         });
 
         // Repositories

@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.Privacy.Application.Common.Interfaces;
 using Haworks.Privacy.Application.Requests.Sagas;
@@ -22,9 +23,10 @@ public static class DependencyInjection
     {
         var connectionString = configuration.GetConnectionString("privacy");
 
-        services.AddDbContext<PrivacyDbContext>(options =>
+        services.AddDbContext<PrivacyDbContext>((sp, options) =>
         {
             options.UseNpgsql(connectionString);
+            options.AddPlatformInterceptors(sp);
             options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
         });
 

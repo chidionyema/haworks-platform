@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.Scheduler.Application.Common.Interfaces;
 using Haworks.Scheduler.Application.Jobs;
@@ -20,8 +21,9 @@ public static class DependencyInjection
     {
         var connectionString = configuration.GetConnectionString("scheduler");
 
-        services.AddDbContext<SchedulerDbContext>(options =>
+        services.AddDbContext<SchedulerDbContext>((sp, options) =>
             options.UseNpgsql(connectionString));
+            options.AddPlatformInterceptors(sp);
 
         services.AddScoped<IEventScheduler, HangfireEventScheduler>();
         services.AddScoped<ILeaseRepository, LeaseRepository>();

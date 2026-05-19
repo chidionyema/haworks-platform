@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Authentication;
@@ -51,6 +52,7 @@ public static class DependencyInjection
             if (vaultEnabled)
             {
                 options.UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>());
+                options.AddPlatformInterceptors(sp);
             }
             else
             {
