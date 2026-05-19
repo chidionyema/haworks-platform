@@ -1323,7 +1323,7 @@ public class DemoController : ControllerBase
         var client = _httpClientFactory.CreateClient(BackendClients.Payments);
 
         // Phase 1: Seed a completed payment for the demo
-        var seedResp = await client.PostAsJsonAsync("/demo/seed-completed-payment", new
+        var seedResp = await client.PostAsJsonAsync("/admin/demo/seed-completed-payment", new
         {
             amountCents = request.AmountCents,
             currency = request.Currency ?? DefaultCurrency,

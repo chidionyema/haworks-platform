@@ -28,12 +28,20 @@ public class PrivacyRequestsController : ControllerBase
     public async Task<IActionResult> Initiate(InitiatePrivacyRequestCommand command, CancellationToken ct = default)
     {
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+
+        // Service-to-service calls (sub=bff-service) use the UserId from the request body
+        if (User.IsInRole("Service") && command.UserId != Guid.Empty)
+        {
+            var id = await _mediator.Send(command, ct);
+            return Ok(new { RequestId = id });
+        }
+
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
             return Unauthorized();
 
         var secureCommand = command with { UserId = userId };
-        var id = await _mediator.Send(secureCommand, ct);
-        return Ok(new { RequestId = id });
+        var result = await _mediator.Send(secureCommand, ct);
+        return Ok(new { RequestId = result });
     }
 
     /// <summary>
