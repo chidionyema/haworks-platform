@@ -78,13 +78,7 @@ public abstract class BoundedContextSagaDefinition<TSaga, TDbContext>
             TimeSpan.FromMinutes(5),
             TimeSpan.FromMinutes(30)));
 
-        // UseInMemoryOutbox REPLACES the bus-level EF outbox on this endpoint.
-        // Without this, the bus-level AddEntityFrameworkOutbox wraps the saga
-        // endpoint with an inbox filter that intercepts messages BEFORE the
-        // saga state machine executes — causing the saga to never fire.
-        // UseInMemoryOutbox is a lightweight replacement that buffers outgoing
-        // messages until the saga's SaveChanges succeeds, without adding
-        // a competing EF transaction.
-        endpointConfigurator.UseInMemoryOutbox(context);
+        // No outbox on saga endpoints. The saga repository handles its own
+        // persistence via EntityFrameworkRepository + UsePostgres().
     }
 }
