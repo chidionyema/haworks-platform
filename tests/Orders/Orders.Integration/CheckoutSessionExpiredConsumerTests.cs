@@ -20,7 +20,6 @@ public sealed class CheckoutSessionExpiredConsumerTests(OrdersWebAppFactory fact
 
     public async Task InitializeAsync()
     {
-        await factory.EnsureSchemaAsync();
         var harness = _services.GetRequiredService<ITestHarness>();
         await harness.Start();
     }

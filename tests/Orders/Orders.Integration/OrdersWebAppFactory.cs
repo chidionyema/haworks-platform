@@ -33,6 +33,11 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
         Environment.SetEnvironmentVariable("ConnectionStrings__orders", ConnectionString);
         Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", "amqp://guest:guest@localhost:5672/");
         Environment.SetEnvironmentVariable("Vault__Enabled", "false");
+
+        // Migrate BEFORE any test accesses Services (which boots the host).
+        // The EF Outbox filter writes to OutboxMessage/InboxState on the first
+        // consumed message — tables must exist before consumers start.
+        await EnsureSchemaAsync();
     }
 
     async Task IAsyncLifetime.DisposeAsync()
@@ -57,14 +62,7 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
 
         builder.ConfigureTestServices(services =>
         {
-            // BusOutboxDeliveryService polls orders.OutboxState on a 1-second
-            // timer starting immediately when the host boots (which happens when
-            // CreateClient() is called in the test class constructor — before
-            // InitializeAsync runs MigrateAsync). This races with schema creation
-            // and produces "relation orders.OutboxState does not exist" errors that
-            // fault ProcessMessageBatch and prevent consumer processing.
-            // Remove it: the test harness delivers messages directly in-process;
-            // no outbox delivery service is needed.
+            // Remove BusOutboxDeliveryService — the test harness delivers in-process.
             var outboxDelivery = services
                 .Where(d => d.ServiceType == typeof(IHostedService) &&
                             (d.ImplementationType?.Name == "BusOutboxDeliveryService" ||
@@ -81,6 +79,7 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
                 mt.AddConsumer<CheckoutSessionExpiredConsumer>();
                 mt.AddConsumer<RefundCompletedConsumer>();
                 mt.AddConsumer<RefundCancelledConsumer>();
+                mt.AddConsumer<PrivacyErasureRequestedConsumer>();
             });
 
             // [Authorize]-decorated endpoints need an authentication scheme.

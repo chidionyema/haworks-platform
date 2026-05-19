@@ -32,7 +32,6 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
 
     public async Task InitializeAsync()
     {
-        await _factory.EnsureSchemaAsync();
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         harness.TestTimeout = TimeSpan.FromSeconds(30);
         harness.TestInactivityTimeout = TimeSpan.FromSeconds(10);
