@@ -13,11 +13,12 @@ namespace Haworks.Platform.ArchitecturalGuards;
 public sealed class PlatformGuardTests
 {
     private static readonly string SrcRoot = FindSrcRoot();
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
 
     private static bool IsExcludedFromGuards(string path) =>
-        path.Contains("Analyzers/Haworks.Architecture.Analyzers/") ||
-        path.Contains("Analyzers\\Haworks.Architecture.Analyzers\\") ||
-        path.Contains("PlatformGuardTests");
+        path.Contains("Analyzers/Haworks.Architecture.Analyzers/", StringComparison.Ordinal) ||
+        path.Contains("Analyzers\\Haworks.Architecture.Analyzers\\", StringComparison.Ordinal) ||
+        path.Contains("PlatformGuardTests", StringComparison.Ordinal);
 
     // ══════════════════════════════════════════════════════════════════════════
     // GUARD CATEGORIES — what lives here vs. Roslyn HWK analyzers
@@ -172,7 +173,7 @@ public sealed class PlatformGuardTests
         {
             var content = File.ReadAllText(file);
             if (IsExcludedFromGuards(file)) continue;
-            if (Regex.IsMatch(content, @"\.GreaterThan\(DateTimeOffset\.UtcNow\)"))
+            if (Regex.IsMatch(content, @"\.GreaterThan\(DateTimeOffset\.UtcNow\)", RegexOptions.ExplicitCapture, RegexTimeout))
             {
                 violations.Add($"{Relative(file)}: use .Must(t => t > DateTimeOffset.UtcNow) instead — .GreaterThan captures startup time");
             }
@@ -193,7 +194,7 @@ public sealed class PlatformGuardTests
             for (int i = 0; i < lines.Length; i++)
             {
                 // Match (long)(amount * 100) but not (long)Math.Round(...)
-                if (Regex.IsMatch(lines[i], @"\(long\)\s*\((?!Math\.Round).*\*\s*100"))
+                if (Regex.IsMatch(lines[i], @"\(long\)\s*\((?!Math\.Round).*\*\s*100", RegexOptions.ExplicitCapture, RegexTimeout))
                 {
                     violations.Add($"{Relative(file)}:{i + 1}: use (long)Math.Round(amount * 100m, 0, MidpointRounding.AwayFromZero) instead of (long)(amount * 100)");
                 }
@@ -368,8 +369,7 @@ public sealed class PlatformGuardTests
                 violations.Add($"{Relative(file)}: service has consumers but DbContext lacks xmin concurrency token");
             }
         }
-        // Informational — not all entities need xmin. Uncomment when all services migrate.
-        // violations.Should().BeEmpty("services with consumers should configure xmin concurrency tokens");
+        violations.Should().BeEmpty("services with consumers should configure xmin concurrency tokens");
     }
 
     [Fact]
@@ -1214,8 +1214,8 @@ public sealed class PlatformGuardTests
             if (IsExcludedFromGuards(file)) continue;
             // Only flag actual code usage, not comments mentioning EnsureCreatedAsync
             var codeLines = content.Split('\n')
-                .Where(l => !l.TrimStart().StartsWith("//") && !l.TrimStart().StartsWith("*"));
-            if (!codeLines.Any(l => l.Contains("EnsureCreatedAsync"))) continue;
+                .Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal) && !l.TrimStart().StartsWith('*'));
+            if (!codeLines.Any(l => l.Contains("EnsureCreatedAsync", StringComparison.Ordinal))) continue;
             // Find which schema the service uses
             var serviceName = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(file)) ?? "");
             // Check if the corresponding DbContext uses HasDefaultSchema

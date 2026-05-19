@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MassTransit;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Haworks.Contracts.Payments;
@@ -34,6 +35,9 @@ public sealed class WebhooksController(
     ILogger<WebhooksController> logger) : ControllerBase
 {
     [HttpPost("stripe")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Stripe(
         [FromHeader(Name = "Stripe-Signature")] string? signature,
         CancellationToken ct)
@@ -81,6 +85,9 @@ public sealed class WebhooksController(
     }
 
     [HttpPost("paypal")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> PayPal(
         [FromHeader(Name = "PAYPAL-TRANSMISSION-ID")] string? transmissionId,
         [FromHeader(Name = "PAYPAL-TRANSMISSION-TIME")] string? transmissionTime,

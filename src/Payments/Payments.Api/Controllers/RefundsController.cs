@@ -3,6 +3,7 @@ using Haworks.Payments.Application.Queries.Refunds;
 using Haworks.BuildingBlocks.Extensions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Haworks.Payments.Api.Controllers;
@@ -13,6 +14,8 @@ namespace Haworks.Payments.Api.Controllers;
 public sealed class RefundsController(IMediator mediator) : ControllerBase
 {
     [HttpPost]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create(
         [FromBody] CreateRefundRequest body, 
         CancellationToken ct)
@@ -30,6 +33,8 @@ public sealed class RefundsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetStatus(Guid id, CancellationToken ct)
     {
         var result = await mediator.Send(new GetRefundSagaStateQuery(id), ct);

@@ -20,17 +20,17 @@ public sealed class SuppressionRepository : ISuppressionRepository
     }
 
     /// <inheritdoc />
-    public Task<bool> ExistsAsync(string recipientHash, NotificationChannel channel)
+    public Task<bool> ExistsAsync(string recipientHash, NotificationChannel channel, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(recipientHash);
 
         return _dbContext.SuppressionList
             .AsNoTracking()
-            .AnyAsync(s => s.RecipientHash == recipientHash && s.Channel == channel);
+            .AnyAsync(s => s.RecipientHash == recipientHash && s.Channel == channel, ct);
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(Haworks.Notifications.Domain.Entities.Suppression suppression)
+    public async Task AddAsync(Haworks.Notifications.Domain.Entities.Suppression suppression, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(suppression);
 
@@ -41,16 +41,13 @@ public sealed class SuppressionRepository : ISuppressionRepository
         var alreadyExists = await _dbContext.SuppressionList
             .AsNoTracking()
             .AnyAsync(s => s.RecipientHash == suppression.RecipientHash
-                        && s.Channel == suppression.Channel)
+                        && s.Channel == suppression.Channel, ct)
             .ConfigureAwait(false);
 
-        if (alreadyExists)
+        if (!alreadyExists)
         {
-            return;
+            _dbContext.SuppressionList.Add(suppression);
+            await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
         }
-
-        // Add to change tracker without saving — the caller's SaveChangesAsync
-        // commits both the suppression and any other pending changes atomically.
-        _dbContext.SuppressionList.Add(suppression);
     }
 }

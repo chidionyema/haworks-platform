@@ -36,6 +36,7 @@ namespace Haworks.BffWeb.Api.Controllers;
 [Route("api/demo")]
 public class DemoController : ControllerBase
 {
+    private const string DefaultCurrency = "USD";
     private readonly IDemoHubNotifier _notifier;
     private readonly DemoStateStore _stateStore;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -1314,6 +1315,8 @@ public class DemoController : ControllerBase
     /// Returns the refundId so the frontend can poll state and receive SignalR events.
     /// </summary>
     [HttpPost("refund/start")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> StartRefundDemo(
         [FromBody] RefundDemoRequest request,
         [FromHeader(Name = "X-Demo-Session")] string? sessionId,
@@ -1325,7 +1328,7 @@ public class DemoController : ControllerBase
         var seedResp = await client.PostAsJsonAsync("/demo/seed-completed-payment", new
         {
             amountCents = request.AmountCents,
-            currency = request.Currency ?? "USD",
+            currency = request.Currency ?? DefaultCurrency,
         }, ct);
 
         if (!seedResp.IsSuccessStatusCode)
@@ -1339,7 +1342,7 @@ public class DemoController : ControllerBase
         {
             paymentId,
             amount = request.RefundAmountCents,
-            currency = request.Currency ?? "USD",
+            currency = request.Currency ?? DefaultCurrency,
             reason = request.Reason ?? "Demo refund",
             requestedBy = "demo-user",
         }, ct);
@@ -1366,6 +1369,8 @@ public class DemoController : ControllerBase
     /// Polls the refund saga state from payments-svc.
     /// </summary>
     [HttpGet("refund/{refundId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetRefundStatus(Guid refundId, CancellationToken ct)
     {
         var client = _httpClientFactory.CreateClient(BackendClients.Payments);
@@ -1381,6 +1386,8 @@ public class DemoController : ControllerBase
     // ── Double-Entry Ledger Demo ────────────────────────────────────
 
     [HttpPost("ledger/simulate")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SimulateLedger(
         [FromBody] LedgerDemoRequest request,
         [FromHeader(Name = "X-Demo-Session")] string? sessionId,
@@ -1390,7 +1397,7 @@ public class DemoController : ControllerBase
         using var resp = await client.PostAsJsonAsync("/demo/ledger/simulate", new
         {
             amountCents = request.AmountCents,
-            currency = request.Currency ?? "USD",
+            currency = request.Currency ?? DefaultCurrency,
         }, ct);
 
         if (!resp.IsSuccessStatusCode)
@@ -1403,6 +1410,8 @@ public class DemoController : ControllerBase
     // ── GDPR Erasure Demo ───────────────────────────────────────────
 
     [HttpPost("erasure/start")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> StartErasureDemo(
         [FromHeader(Name = "X-Demo-Session")] string? sessionId,
         CancellationToken ct)
@@ -1432,6 +1441,8 @@ public class DemoController : ControllerBase
     }
 
     [HttpGet("erasure/{requestId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetErasureStatus(Guid requestId, CancellationToken ct)
     {
         var client = _httpClientFactory.CreateClient(BackendClients.Privacy);
@@ -1447,6 +1458,8 @@ public class DemoController : ControllerBase
     // ── CDC Search Demo ─────────────────────────────────────────────
 
     [HttpGet("search")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DemoSearch(
         [FromQuery] string q,
         CancellationToken ct)

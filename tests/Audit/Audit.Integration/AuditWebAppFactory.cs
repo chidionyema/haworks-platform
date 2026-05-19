@@ -35,6 +35,14 @@ public class AuditWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("ConnectionStrings__s3", "http://localhost:9000");
         Environment.SetEnvironmentVariable("Vault__Enabled", "false");
 
+        // Create schema BEFORE host build — PartitionRolloverService runs at
+        // startup and needs the schema to exist before it creates partitions.
+        await using var conn = new Npgsql.NpgsqlConnection(ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "CREATE SCHEMA IF NOT EXISTS audit;";
+        await cmd.ExecuteNonQueryAsync();
+
         // Force the host to build so Services are available for migration
         _ = Services;
         await EnsureSchemaAsync();
@@ -47,7 +55,26 @@ public class AuditWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // Audit uses partitioned tables created by migrations (not EF model).
         // MigrateAsync runs the actual migration SQL including PARTITION BY RANGE.
         // CreateTablesAsync/EnsureCreatedAsync can't handle partitioned tables.
+        await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS audit;");
         await db.Database.MigrateAsync();
+
+        // The migration creates monthly partitions but may not cover the current
+        // month in a fresh test database. Add a DEFAULT partition as a catch-all
+        // so inserts always succeed.
+        await db.Database.ExecuteSqlRawAsync("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_inherits
+                    JOIN pg_class c ON c.oid = inhrelid
+                    WHERE inhparent = 'audit.audit_events'::regclass
+                      AND c.relname = 'audit_events_default'
+                ) THEN
+                    CREATE TABLE audit.audit_events_default
+                    PARTITION OF audit.audit_events DEFAULT;
+                END IF;
+            END $$;
+            """);
     }
 
     async Task IAsyncLifetime.DisposeAsync()

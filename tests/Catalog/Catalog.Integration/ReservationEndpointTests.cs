@@ -50,7 +50,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
     [Fact]
     public async Task CreateReservation_returns_201_when_stock_available()
     {
-        var (categoryId, productId) = await CreateProductAsync(initialStock: 10);
+        var (_, productId) = await CreateProductAsync(initialStock: 10);
 
         var resp = await _client.PostAsJsonAsync("/api/checkout/reservations", new
         {

@@ -20,7 +20,7 @@ public sealed class PreferencesRepository : IPreferencesRepository
     }
 
     /// <inheritdoc />
-    public Task<NotificationPreference?> GetAsync(string userId, string category, NotificationChannel channel)
+    public Task<NotificationPreference?> GetAsync(string userId, string category, NotificationChannel channel, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         ArgumentException.ThrowIfNullOrWhiteSpace(category);
@@ -29,18 +29,18 @@ public sealed class PreferencesRepository : IPreferencesRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.UserId == userId
                                    && p.Category == category
-                                   && p.Channel == channel);
+                                   && p.Channel == channel, ct);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<NotificationPreference>> GetAllForUserAsync(string userId)
+    public async Task<IReadOnlyList<NotificationPreference>> GetAllForUserAsync(string userId, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
         var rows = await _dbContext.NotificationPreferences
             .AsNoTracking()
             .Where(p => p.UserId == userId)
-            .ToListAsync()
+            .ToListAsync(ct)
             .ConfigureAwait(false);
 
         return rows;
@@ -73,15 +73,17 @@ public sealed class PreferencesRepository : IPreferencesRepository
     }
 
     /// <inheritdoc />
-    public Task<int> GetSendCountAsync(string bucketKey, DateTime windowStart)
+    public async Task<int> GetSendCountAsync(string bucketKey, DateTime windowStart, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bucketKey);
 
-        return _dbContext.RateLimitBuckets
+        var sum = await _dbContext.RateLimitBuckets
             .AsNoTracking()
             .Where(b => b.BucketKey == bucketKey && b.WindowStart >= windowStart)
-            .SumAsync(b => (int?)b.Count)
-            .ContinueWith(t => t.Result ?? 0, TaskScheduler.Default);
+            .SumAsync(b => (int?)b.Count, ct)
+            .ConfigureAwait(false);
+            
+        return sum ?? 0;
     }
 
     private static void CopyMutableFields(NotificationPreference from, NotificationPreference onto)

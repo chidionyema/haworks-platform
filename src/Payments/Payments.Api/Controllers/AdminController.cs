@@ -5,6 +5,7 @@ using Haworks.Payments.Domain;
 using Haworks.Payments.Infrastructure;
 using MassTransit;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,6 +29,7 @@ public sealed class AdminController(
     IDomainEventPublisher eventPublisher,
     ILogger<AdminController> logger) : ControllerBase
 {
+    private const string DefaultCurrency = "USD";
     /// <summary>
     /// T2.5's event-flow demo entry point. Begins a transaction on the
     /// payments DbContext, publishes a <see cref="DemoOutboxEvent"/> via
@@ -40,6 +42,7 @@ public sealed class AdminController(
     /// the persisted -> consumed lifecycle.
     /// </summary>
     [HttpPost("demo-event")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
     public async Task<IActionResult> PublishDemoEvent(
         [FromBody] DemoEventRequest request,
         CancellationToken ct)
@@ -76,6 +79,7 @@ public sealed class AdminController(
     /// so BffWeb can immediately create a refund against it.
     /// </summary>
     [HttpPost("demo/seed-completed-payment")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> SeedCompletedPayment(
         [FromBody] SeedPaymentRequest request,
         CancellationToken ct)
@@ -85,7 +89,7 @@ public sealed class AdminController(
             userId: "demo-user",
             amount: request.AmountCents / 100m,
             tax: 0m,
-            currency: request.Currency ?? "USD",
+            currency: request.Currency ?? DefaultCurrency,
             provider: PaymentProvider.Stripe,
             sagaId: Guid.NewGuid());
 
@@ -107,6 +111,7 @@ public sealed class AdminController(
     /// 1s tick.
     /// </summary>
     [HttpPost("relay-pause")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public IActionResult PauseRelay()
     {
         RelayPauseGate.Pause();
@@ -116,6 +121,7 @@ public sealed class AdminController(
 
     /// <summary>Resume relay; queued OutboxMessage rows drain on the next tick.</summary>
     [HttpPost("relay-resume")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public IActionResult ResumeRelay()
     {
         RelayPauseGate.Resume();
@@ -129,6 +135,7 @@ public sealed class AdminController(
     /// payments DB — no synthetic counters.
     /// </summary>
     [HttpGet("relay-status")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> RelayStatus(CancellationToken ct)
     {
         var queued = await db.Set<MassTransit.EntityFrameworkCoreIntegration.OutboxMessage>()

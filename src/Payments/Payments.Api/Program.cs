@@ -51,8 +51,7 @@ if (builder.Configuration.GetValue("Vault:Enabled", false)
     }
     catch (Exception ex)
     {
-        bootstrapLogger.LogCritical(ex, "Vault bootstrap failed — service will start with fallback config. " +
-            "Vault secrets will NOT be available until next successful restart.");
+        bootstrapLogger.LogCritical(ex, "Vault bootstrap failed — service will start with fallback config. Vault secrets will NOT be available until next successful restart.");
         // Don't crash — let the service boot and serve health checks.
         // /health/ready will reflect degraded state via the startup task runner.
     }

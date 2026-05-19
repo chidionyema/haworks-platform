@@ -5,6 +5,6 @@ namespace Haworks.Notifications.Application.Suppression;
 
 public interface ISuppressionRepository
 {
-    Task<bool> ExistsAsync(string recipientHash, NotificationChannel channel);
-    Task AddAsync(Domain.Entities.Suppression suppression);
+    Task<bool> ExistsAsync(string recipientHash, NotificationChannel channel, CancellationToken ct = default);
+    Task AddAsync(Domain.Entities.Suppression suppression, CancellationToken ct = default);
 }

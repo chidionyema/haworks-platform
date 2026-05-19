@@ -66,7 +66,7 @@ public class LeaseWatcherJobTests
     public async Task ExecuteAsync_rotates_database_credential_successfully()
     {
         var lease = VaultLease.Create("catalog", "catalog-role", "database", TimeSpan.FromMilliseconds(1));
-        Thread.Sleep(2); // ensure NeedsRotation is true
+        await Task.Delay(10); // ensure NeedsRotation is true
 
         _repoMock.Setup(r => r.GetStaleRotatingLeasesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<VaultLease>());
@@ -104,7 +104,7 @@ public class LeaseWatcherJobTests
     public async Task ExecuteAsync_handles_vault_failure_gracefully()
     {
         var lease = VaultLease.Create("catalog", "catalog-role", "database", TimeSpan.FromMilliseconds(1));
-        Thread.Sleep(2);
+        await Task.Delay(10);
 
         _repoMock.Setup(r => r.GetStaleRotatingLeasesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<VaultLease>());
@@ -134,7 +134,7 @@ public class LeaseWatcherJobTests
     public async Task ExecuteAsync_kv_type_marks_rotated_without_vault_call()
     {
         var lease = VaultLease.Create("identity", "identity-role", "kv", TimeSpan.FromMilliseconds(1));
-        Thread.Sleep(2);
+        await Task.Delay(10);
 
         _repoMock.Setup(r => r.GetStaleRotatingLeasesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<VaultLease>());

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Haworks.Payments.Application.Commands.Subscriptions;
 using Haworks.Payments.Application.Queries.Subscriptions;
@@ -14,6 +15,8 @@ namespace Haworks.Payments.Api.Controllers;
 public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
 {
     [HttpGet("status")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetStatus(CancellationToken ct)
     {
         var userId = HttpContext.GetForwardedUserId();
@@ -27,6 +30,9 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpPost("create-checkout-session")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateCheckoutSession(
         [FromBody] CreateSubscriptionCheckoutRequest body, CancellationToken ct)
     {
@@ -48,6 +54,9 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpPost("cancel")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Cancel(
         [FromBody] CancelSubscriptionRequest body, CancellationToken ct)
     {
@@ -62,6 +71,9 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpPost("resume")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Resume(
         [FromBody] ResumeSubscriptionRequest body, CancellationToken ct)
     {

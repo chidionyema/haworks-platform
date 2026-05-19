@@ -133,20 +133,20 @@ public class VaultLeaseTests
     }
 
     [Fact]
-    public void NeedsRotation_returns_true_when_past_threshold()
+    public async Task NeedsRotation_returns_true_when_past_threshold()
     {
         // Create a lease with a very short TTL so we immediately exceed 80%
         var lease = VaultLease.Create("svc", "role", "database", TimeSpan.FromMilliseconds(1));
-        Thread.Sleep(2); // ensure time has passed
+        await Task.Delay(10); // ensure time has passed
 
         lease.NeedsRotation().Should().BeTrue();
     }
 
     [Fact]
-    public void NeedsRotation_with_custom_threshold()
+    public async Task NeedsRotation_with_custom_threshold()
     {
         var lease = VaultLease.Create("svc", "role", "database", TimeSpan.FromMilliseconds(1));
-        Thread.Sleep(2);
+        await Task.Delay(10);
 
         lease.NeedsRotation(thresholdPercent: 0.1).Should().BeTrue();
     }
