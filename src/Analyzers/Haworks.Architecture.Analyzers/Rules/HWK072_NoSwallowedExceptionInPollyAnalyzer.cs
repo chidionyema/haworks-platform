@@ -32,7 +32,7 @@ public sealed class HWK072_NoSwallowedExceptionInPollyAnalyzer : DiagnosticAnaly
         }
 
         var containingNamespace = methodSymbol.ContainingNamespace?.ToDisplayString();
-        if (containingNamespace == null || !containingNamespace.StartsWith("Polly"))
+        if (containingNamespace == null || !containingNamespace.StartsWith("Polly", System.StringComparison.Ordinal))
         {
             return;
         }

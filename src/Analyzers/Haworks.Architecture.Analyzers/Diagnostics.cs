@@ -578,7 +578,8 @@ public static class Diagnostics
         messageFormat: "Command '{0}' has no corresponding AbstractValidator<{0}> — all mutating commands must be validated",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        customTags: new[] { WellKnownDiagnosticTags.CompilationEnd });
 
     // ─── Financial Precision (HWK084) ───
 

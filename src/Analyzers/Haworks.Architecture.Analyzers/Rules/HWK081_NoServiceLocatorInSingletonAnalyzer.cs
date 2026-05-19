@@ -46,7 +46,7 @@ public sealed class HWK081_NoServiceLocatorInSingletonAnalyzer : DiagnosticAnaly
         var typeName = containingType.Name;
         var ns = containingType.ContainingNamespace?.ToDisplayString() ?? "";
         bool isServiceProvider = (typeName == "IServiceProvider" || typeName == "ServiceProvider") &&
-                                 ns.StartsWith("System");
+                                 ns.StartsWith("System", System.StringComparison.Ordinal);
         bool isServiceScopeFactory = typeName == "IServiceScopeFactory" || typeName == "IServiceScope";
         bool isExtensions = typeName == "ServiceProviderServiceExtensions";
 

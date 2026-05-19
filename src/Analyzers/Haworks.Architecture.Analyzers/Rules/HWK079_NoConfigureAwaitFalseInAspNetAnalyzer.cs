@@ -46,7 +46,7 @@ public sealed class HWK079_NoConfigureAwaitFalseInAspNetAnalyzer : DiagnosticAna
         // Only flag in ASP.NET projects (check for Controller/ControllerBase types or assembly refs)
         var compilation = context.SemanticModel.Compilation;
         bool isAspNetProject = compilation.ReferencedAssemblyNames
-            .Any(a => a.Name.StartsWith("Microsoft.AspNetCore"));
+            .Any(a => a.Name.StartsWith("Microsoft.AspNetCore", System.StringComparison.Ordinal));
 
         // Also check if ASP.NET types exist in compilation (handles source stubs in tests)
         if (!isAspNetProject)

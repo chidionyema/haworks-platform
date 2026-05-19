@@ -27,7 +27,7 @@ public sealed class HWK073_NoSideEffectsInPollyRetryAnalyzer : DiagnosticAnalyze
 
         if (semanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol methodSymbol ||
             methodSymbol.Name != "ExecuteAsync" ||
-            methodSymbol.ContainingNamespace?.ToDisplayString().StartsWith("Polly") != true)
+            methodSymbol.ContainingNamespace?.ToDisplayString().StartsWith("Polly", System.StringComparison.Ordinal) != true)
         {
             return;
         }
@@ -46,7 +46,7 @@ public sealed class HWK073_NoSideEffectsInPollyRetryAnalyzer : DiagnosticAnalyze
 
                 bool isDbWrite = innerName == "SaveChangesAsync" || innerName == "SaveChanges";
                 bool isPublish = innerName.Contains("Publish") || innerName.Contains("Send");
-                bool isMassTransitOrMediatR = innerNamespace.StartsWith("MassTransit") || innerNamespace.StartsWith("MediatR");
+                bool isMassTransitOrMediatR = innerNamespace.StartsWith("MassTransit", System.StringComparison.Ordinal) || innerNamespace.StartsWith("MediatR", System.StringComparison.Ordinal);
 
                 if (isDbWrite || (isPublish && isMassTransitOrMediatR))
                 {

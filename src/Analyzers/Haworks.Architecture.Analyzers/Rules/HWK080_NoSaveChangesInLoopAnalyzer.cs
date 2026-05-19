@@ -34,7 +34,7 @@ public sealed class HWK080_NoSaveChangesInLoopAnalyzer : DiagnosticAnalyzer
         if (method.Name != "SaveChangesAsync" && method.Name != "SaveChanges") return;
 
         var containingNamespace = method.ContainingType?.ContainingNamespace?.ToDisplayString() ?? "";
-        if (!containingNamespace.StartsWith("Microsoft.EntityFrameworkCore")) return;
+        if (!containingNamespace.StartsWith("Microsoft.EntityFrameworkCore", System.StringComparison.Ordinal)) return;
 
         // Walk ancestors to find enclosing loop
         foreach (var ancestor in invocation.Ancestors())

@@ -44,7 +44,7 @@ public sealed class HWK082_NoHttpCallWithoutResiliencePolicyAnalyzer : Diagnosti
         if (typeName != "HttpClient") return;
 
         var typeNs = method.ContainingType?.ContainingNamespace?.ToDisplayString() ?? "";
-        if (!typeNs.StartsWith("System.Net.Http")) return;
+        if (!typeNs.StartsWith("System.Net.Http", System.StringComparison.Ordinal)) return;
 
         // Check if this call is inside a Polly ExecuteAsync lambda
         if (IsInsidePollyExecute(invocation, context.SemanticModel, context.CancellationToken))
@@ -52,8 +52,8 @@ public sealed class HWK082_NoHttpCallWithoutResiliencePolicyAnalyzer : Diagnosti
 
         // Allow in test classes
         var classDecl = invocation.Ancestors().OfType<ClassDeclarationSyntax>().FirstOrDefault();
-        if (classDecl?.Identifier.Text.EndsWith("Tests") == true ||
-            classDecl?.Identifier.Text.EndsWith("Test") == true)
+        if (classDecl?.Identifier.Text.EndsWith("Tests", System.StringComparison.Ordinal) == true ||
+            classDecl?.Identifier.Text.EndsWith("Test", System.StringComparison.Ordinal) == true)
             return;
 
         context.ReportDiagnostic(Diagnostic.Create(
@@ -73,7 +73,7 @@ public sealed class HWK082_NoHttpCallWithoutResiliencePolicyAnalyzer : Diagnosti
                 {
                     if (model.GetSymbolInfo(parentInvocation, ct).Symbol is IMethodSymbol parentMethod &&
                         parentMethod.Name == "ExecuteAsync" &&
-                        parentMethod.ContainingNamespace?.ToDisplayString().StartsWith("Polly") == true)
+                        parentMethod.ContainingNamespace?.ToDisplayString().StartsWith("Polly", System.StringComparison.Ordinal) == true)
                     {
                         return true;
                     }

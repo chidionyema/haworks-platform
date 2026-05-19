@@ -2,8 +2,6 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Haworks.Architecture.Analyzers.Rules;
@@ -34,11 +32,13 @@ public sealed class HWK083_NoCommandWithoutValidatorAnalyzer : DiagnosticAnalyze
     private static void OnCompilationStart(CompilationStartAnalysisContext context)
     {
         var validatorTypes = new HashSet<string>();
+        var commandTypes = new List<(INamedTypeSymbol Symbol, Location Location)>();
 
-        // First pass: collect all AbstractValidator<T> type arguments
         context.RegisterSymbolAction(ctx =>
         {
             var namedType = (INamedTypeSymbol)ctx.Symbol;
+
+            // Collect validators
             var baseType = namedType.BaseType;
             while (baseType != null)
             {
@@ -50,37 +50,36 @@ public sealed class HWK083_NoCommandWithoutValidatorAnalyzer : DiagnosticAnalyze
                 }
                 baseType = baseType.BaseType;
             }
+
+            // Collect commands
+            var name = namedType.Name;
+            if (!name.EndsWith("Command", System.StringComparison.Ordinal)) return;
+            if (QueryPrefixes.Any(p => name.StartsWith(p, System.StringComparison.Ordinal))) return;
+
+            bool implementsIRequest = namedType.AllInterfaces.Any(i =>
+                i.Name == "IRequest" || i.Name == "ICommand");
+            if (!implementsIRequest) return;
+
+            var location = namedType.Locations.FirstOrDefault();
+            if (location != null)
+            {
+                lock (commandTypes)
+                {
+                    commandTypes.Add((namedType, location));
+                }
+            }
         }, SymbolKind.NamedType);
 
-        // Second pass: check commands
         context.RegisterCompilationEndAction(compilationCtx =>
         {
-            foreach (var tree in compilationCtx.Compilation.SyntaxTrees)
+            foreach (var (command, location) in commandTypes)
             {
-                var model = compilationCtx.Compilation.GetSemanticModel(tree);
-                var root = tree.GetRoot(compilationCtx.CancellationToken);
-
-                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+                if (!validatorTypes.Contains(command.Name))
                 {
-                    var symbol = model.GetDeclaredSymbol(typeDecl, compilationCtx.CancellationToken);
-                    if (symbol is not INamedTypeSymbol namedType) continue;
-
-                    var name = namedType.Name;
-                    if (!name.EndsWith("Command")) continue;
-                    if (QueryPrefixes.Any(p => name.StartsWith(p))) continue;
-
-                    // Must implement IRequest (MediatR)
-                    bool implementsIRequest = namedType.AllInterfaces.Any(i =>
-                        i.Name == "IRequest" || i.Name == "ICommand");
-                    if (!implementsIRequest) continue;
-
-                    if (!validatorTypes.Contains(name))
-                    {
-                        compilationCtx.ReportDiagnostic(Diagnostic.Create(
-                            Diagnostics.NoCommandWithoutValidator,
-                            typeDecl.Identifier.GetLocation(),
-                            name));
-                    }
+                    compilationCtx.ReportDiagnostic(Diagnostic.Create(
+                        Diagnostics.NoCommandWithoutValidator,
+                        location,
+                        command.Name));
                 }
             }
         });

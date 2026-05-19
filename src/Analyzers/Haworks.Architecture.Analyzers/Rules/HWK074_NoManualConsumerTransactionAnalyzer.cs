@@ -29,7 +29,7 @@ public sealed class HWK074_NoManualConsumerTransactionAnalyzer : DiagnosticAnaly
         if (classSymbol == null) return;
 
         bool implementsConsumer = classSymbol.AllInterfaces.Any(i =>
-            i.ContainingNamespace?.ToDisplayString().StartsWith("MassTransit") == true &&
+            i.ContainingNamespace?.ToDisplayString().StartsWith("MassTransit", System.StringComparison.Ordinal) == true &&
             i.Name == "IConsumer");
 
         if (!implementsConsumer) return;

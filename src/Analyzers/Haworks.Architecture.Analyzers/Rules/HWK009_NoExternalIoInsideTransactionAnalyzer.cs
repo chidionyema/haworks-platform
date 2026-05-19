@@ -113,8 +113,8 @@ public sealed class HWK009_NoExternalIoInsideTransactionAnalyzer : DiagnosticAna
             return true;
 
         // Known external SDK namespaces — any async method is likely I/O
-        if (ExternalIoNamespacePrefixes.Any(prefix => typeNamespace.StartsWith(prefix))
-            && method.Name.EndsWith("Async"))
+        if (ExternalIoNamespacePrefixes.Any(prefix => typeNamespace.StartsWith(prefix, System.StringComparison.Ordinal))
+            && method.Name.EndsWith("Async", System.StringComparison.Ordinal))
             return true;
 
         // Interface methods on gateway/client types (IPayoutGateway, IStripeClient, etc.)
@@ -122,7 +122,7 @@ public sealed class HWK009_NoExternalIoInsideTransactionAnalyzer : DiagnosticAna
         {
             var name = typeName;
             if ((name.Contains("Gateway") || name.Contains("Client") || name.Contains("Provider"))
-                && method.Name.EndsWith("Async"))
+                && method.Name.EndsWith("Async", System.StringComparison.Ordinal))
                 return true;
         }
 

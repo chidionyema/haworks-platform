@@ -112,18 +112,18 @@ public sealed class HWK075_NoDbWriteExternalIoDbWriteSandwichAnalyzer : Diagnost
             return CallKind.ExternalIo;
 
         // Known external SDK namespaces
-        if ((typeNamespace.StartsWith("System.Net.Http") ||
-             typeNamespace.StartsWith("Stripe") ||
-             typeNamespace.StartsWith("PayPal") ||
-             typeNamespace.StartsWith("Amazon.S3"))
-            && method.Name.EndsWith("Async"))
+        if ((typeNamespace.StartsWith("System.Net.Http", System.StringComparison.Ordinal) ||
+             typeNamespace.StartsWith("Stripe", System.StringComparison.Ordinal) ||
+             typeNamespace.StartsWith("PayPal", System.StringComparison.Ordinal) ||
+             typeNamespace.StartsWith("Amazon.S3", System.StringComparison.Ordinal))
+            && method.Name.EndsWith("Async", System.StringComparison.Ordinal))
             return CallKind.ExternalIo;
 
         // Interface gateway/client types
         if (method.ContainingType?.TypeKind == TypeKind.Interface)
         {
             if ((typeName.Contains("Gateway") || typeName.Contains("Client") || typeName.Contains("Provider"))
-                && method.Name.EndsWith("Async"))
+                && method.Name.EndsWith("Async", System.StringComparison.Ordinal))
                 return CallKind.ExternalIo;
         }
 
