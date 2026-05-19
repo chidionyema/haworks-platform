@@ -39,6 +39,7 @@ public class SchedulerWebAppFactory : WebApplicationFactory<Program>, IAsyncLife
     {
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
+        await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS scheduler;");
         await db.Database.EnsureCreatedAsync();
     }
 
