@@ -121,50 +121,67 @@ if [[ "$ready" != "1" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 1: capture init keys (only present on first-ever boot).
+# Step 1: obtain a working Vault token.
+#
+# Priority:
+#   1. VAULT_CI_TOKEN env on the vault machine (set by a prior run)
+#   2. root_token from .init.json (first-ever boot only — token gets revoked
+#      after we create the CI token, so this path only fires once)
 # ---------------------------------------------------------------------------
-log "checking for /vault/data/.init.json..."
-init_json=$(fly_ssh 'sh -c "cat /vault/data/.init.json 2>/dev/null || echo NOFILE"')
 root_token=""
-if [[ "$init_json" != "NOFILE" ]] && echo "$init_json" | jq -e '.unseal_keys_b64' >/dev/null 2>&1; then
-  unseal_key=$(echo "$init_json" | jq -r '.unseal_keys_b64[0]')
-  root_token=$(echo "$init_json" | jq -r '.root_token')
-  if [[ -n "$unseal_key" && "$unseal_key" != "null" ]]; then
-    log "creating CI deployer policy and token..."
-    fly_ssh "sh -c \"cat <<EOF > /tmp/ci-policy.hcl
+
+# Fast path: CI token already exists from a prior run.
+log "checking for existing VAULT_CI_TOKEN..."
+ci_token_env=$(fly_ssh 'sh -c "printenv VAULT_CI_TOKEN 2>/dev/null || echo NOTSET"' | head -1)
+if [[ -n "$ci_token_env" && "$ci_token_env" != "NOTSET" && "$ci_token_env" != "null" ]]; then
+  # Verify the token is still valid (not expired/revoked)
+  if fly_ssh "sh -c \"curl -fsS -H 'X-Vault-Token: $ci_token_env' http://[::1]:8200/v1/auth/token/lookup-self\"" >/dev/null 2>&1; then
+    root_token="$ci_token_env"
+    mask "$root_token"
+    log "using existing VAULT_CI_TOKEN (valid)"
+  else
+    log "VAULT_CI_TOKEN exists but is invalid — will try .init.json"
+  fi
+fi
+
+# Slow path: first-ever boot, .init.json has the root token.
+if [[ -z "$root_token" ]]; then
+  log "checking for /vault/data/.init.json..."
+  init_json=$(fly_ssh 'sh -c "cat /vault/data/.init.json 2>/dev/null || echo NOFILE"')
+  if [[ "$init_json" != "NOFILE" ]] && echo "$init_json" | jq -e '.root_token' >/dev/null 2>&1; then
+    init_root=$(echo "$init_json" | jq -r '.root_token')
+    unseal_key=$(echo "$init_json" | jq -r '.unseal_keys_b64[0]')
+
+    # Verify the root token is still valid (it gets revoked after first use)
+    if fly_ssh "sh -c \"curl -fsS -H 'X-Vault-Token: $init_root' http://[::1]:8200/v1/auth/token/lookup-self\"" >/dev/null 2>&1; then
+      log "creating CI deployer policy and token..."
+      fly_ssh "sh -c \"cat <<EOF > /tmp/ci-policy.hcl
 path \\\"auth/approle/role/*/role-id\\\" { capabilities = [\\\"read\\\"] }
 path \\\"auth/approle/role/*/secret-id\\\" { capabilities = [\\\"update\\\"] }
 EOF
-curl -fsS -X PUT -H 'X-Vault-Token: $root_token' --data-binary @/tmp/ci-policy.hcl http://[::1]:8200/v1/sys/policies/acl/ci-deployer\"" >/dev/null
+curl -fsS -X PUT -H 'X-Vault-Token: $init_root' --data-binary @/tmp/ci-policy.hcl http://[::1]:8200/v1/sys/policies/acl/ci-deployer\"" >/dev/null
 
-    ci_token_json=$(fly_ssh "sh -c \"curl -fsS -X POST -H 'X-Vault-Token: $root_token' -d '{\\\"policies\\\": [\\\"ci-deployer\\\"], \\\"period\\\": \\\"720h\\\"}' http://[::1]:8200/v1/auth/token/create\"")
-    ci_token=$(echo "$ci_token_json" | jq -r '.auth.client_token')
+      ci_token_json=$(fly_ssh "sh -c \"curl -fsS -X POST -H 'X-Vault-Token: $init_root' -d '{\\\"policies\\\": [\\\"ci-deployer\\\"], \\\"period\\\": \\\"720h\\\"}' http://[::1]:8200/v1/auth/token/create\"")
+      ci_token=$(echo "$ci_token_json" | jq -r '.auth.client_token')
 
-    mask "$unseal_key"
-    mask "$ci_token"
-    log "staging VAULT_UNSEAL_KEY + VAULT_CI_TOKEN on $VAULT_APP (clearing stale VAULT_ROOT_TOKEN_PROD)"
-    flyctl secrets set --stage -a "$VAULT_APP" \
-      "VAULT_UNSEAL_KEY=$unseal_key" \
-      "VAULT_CI_TOKEN=$ci_token" >/dev/null
-    # Remove the bootstrap-era root token secret. It was revoked server-side
-    # but leaving the stale value in Fly secrets confuses operators during
-    # incident response. unset is idempotent (no-op if already absent).
-    flyctl secrets unset --stage -a "$VAULT_APP" VAULT_ROOT_TOKEN_PROD 2>/dev/null || true
+      mask "$unseal_key"
+      mask "$ci_token"
+      log "staging VAULT_UNSEAL_KEY + VAULT_CI_TOKEN on $VAULT_APP"
+      flyctl secrets set --stage -a "$VAULT_APP" \
+        "VAULT_UNSEAL_KEY=$unseal_key" \
+        "VAULT_CI_TOKEN=$ci_token" >/dev/null
+      flyctl secrets unset --stage -a "$VAULT_APP" VAULT_ROOT_TOKEN_PROD 2>/dev/null || true
 
-    log "revoking root token..."
-    fly_ssh "sh -c \"curl -fsS -X POST -H 'X-Vault-Token: $root_token' http://[::1]:8200/v1/auth/token/revoke-self\"" >/dev/null || true
+      log "revoking root token..."
+      fly_ssh "sh -c \"curl -fsS -X POST -H 'X-Vault-Token: $init_root' http://[::1]:8200/v1/auth/token/revoke-self\"" >/dev/null || true
 
-    root_token="$ci_token"
+      root_token="$ci_token"
+    else
+      log ".init.json root token is revoked (already captured in a prior run)"
+    fi
+  else
+    log "no .init.json on disk"
   fi
-else
-  log "no .init.json on disk (already captured in a prior run, or vault is sealed)"
-fi
-
-# Need a root token or CI token. Prefer the one we just captured; fall back to env.
-if [[ -z "$root_token" ]]; then
-  log "no token in this run's context — fetching VAULT_CI_TOKEN from vault env"
-  root_token=$(fly_ssh 'sh -c "printenv VAULT_CI_TOKEN"' | head -1)
-  [[ -n "$root_token" ]] && mask "$root_token"
 fi
 
 if [[ -z "$root_token" || "$root_token" == "null" ]]; then
