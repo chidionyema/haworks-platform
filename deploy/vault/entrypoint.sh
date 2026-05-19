@@ -1,151 +1,159 @@
 #!/bin/sh
-# Vault prod-mode entrypoint. Three states the container can be in:
+# Vault entrypoint with Transit auto-unseal.
 #
-#  1. UNINITIALIZED — first ever run, /vault/data is empty. Run
-#     `vault operator init` to generate one unseal key + a root token,
-#     persist them to /vault/data/.init.json so bootstrap.sh can capture
-#     and stage them as Fly secrets.
+# Architecture (single Fly machine):
+#   1. Start a dev-mode "transit vault" on :8100 (never seals, no persistence)
+#   2. Ensure the transit vault has a "transit/autounseal" key
+#   3. Start the production vault on :8200 with seal "transit" config
+#   4. Prod vault auto-unseals via the transit endpoint — zero operator action
+#   5. On first-ever boot: `vault operator init -recovery-shares=1`
+#   6. Run seed.sh to configure AppRole + policies + DB roles
 #
-#  2. SEALED — vault has been initialized but the master key isn't loaded
-#     into memory (always the case after a restart). Unseal using the
-#     VAULT_UNSEAL_KEY env (set as a Fly secret by bootstrap.sh after the
-#     first init), or fall back to the .init.json on disk for the
-#     between-init-and-bootstrap-capture window.
-#
-#  3. UNSEALED — ready for clients. Run seed.sh once to make sure the
-#     AppRole + policy + KV mounts are configured. seed.sh is idempotent;
-#     re-running it on every boot is fine and keeps the demo's seed
-#     contract documented in code.
-#
-# Vault's state lives on the Fly volume mounted at /vault/data, so the
-# init keys are computed exactly once per cluster lifetime. Restarts /
-# redeploys / OOMs all return to the same persisted state.
+# No Shamir keys. No unseal race. No CI timing issues.
 set -e
 
 export VAULT_ADDR="http://127.0.0.1:8200"
+TRANSIT_ADDR="http://127.0.0.1:8100"
+TRANSIT_TOKEN="transit-autounseal-token"
 
-# Start vault in the background. -log-level=warn keeps the container log
-# focused on operational events; vault is chatty at info.
-vault server -config=/vault/config/vault.hcl -log-level=warn &
-VAULT_PID=$!
+# ── Step 1: Start transit vault (dev mode) ─────────────────────────
+echo "[entrypoint] starting transit vault on :8100..."
+VAULT_DEV_ROOT_TOKEN_ID="$TRANSIT_TOKEN" \
+VAULT_DEV_LISTEN_ADDRESS="127.0.0.1:8100" \
+  vault server -dev -dev-no-store-token -log-level=error &
+TRANSIT_PID=$!
 
-# Wait for the API to come up. `vault status` returns 0 if unsealed,
-# 2 if sealed — both mean the listener is responsive.
-echo "[entrypoint] waiting for vault listener..."
-for i in $(seq 1 30); do
-  if vault status >/dev/null 2>&1 || [ "$?" -eq 2 ]; then
-    echo "[entrypoint] vault is responsive"
+# Wait for transit vault to be ready
+for i in $(seq 1 15); do
+  if curl -fsS -o /dev/null "$TRANSIT_ADDR/v1/sys/health" 2>/dev/null; then
+    echo "[entrypoint] transit vault ready"
     break
   fi
   sleep 1
 done
 
-# State 1 → 2: initialize on empty volume.
+# ── Step 2: Ensure transit key exists ──────────────────────────────
+# Enable transit engine (idempotent)
+curl -fsS -X POST -H "X-Vault-Token: $TRANSIT_TOKEN" \
+  -d '{"type": "transit"}' \
+  "$TRANSIT_ADDR/v1/sys/mounts/transit" 2>/dev/null || true
+
+# Create the autounseal key (idempotent — "already exists" returns 204)
+curl -fsS -X POST -H "X-Vault-Token: $TRANSIT_TOKEN" \
+  -d '{"type": "aes256-gcm96"}' \
+  "$TRANSIT_ADDR/v1/transit/keys/autounseal" 2>/dev/null || true
+
+echo "[entrypoint] transit autounseal key ready"
+
+# ── Step 3: Start production vault ─────────────────────────────────
+export VAULT_SEAL_TRANSIT_TOKEN="$TRANSIT_TOKEN"
+
+echo "[entrypoint] starting production vault on :8200..."
+vault server -config=/vault/config/vault.hcl -log-level=warn &
+VAULT_PID=$!
+
+# Wait for prod vault listener
+echo "[entrypoint] waiting for production vault..."
+for i in $(seq 1 30); do
+  if vault status >/dev/null 2>&1 || [ "$?" -eq 2 ]; then
+    echo "[entrypoint] production vault is responsive"
+    break
+  fi
+  sleep 1
+done
+
+# ── Step 4: Initialize or migrate ──────────────────────────────────
 INIT_FILE=/vault/data/.init.json
-if vault status -format=json | jq -e '.initialized == false' >/dev/null 2>&1; then
-  echo "[entrypoint] vault is uninitialized — running operator init"
-  # Single-key shamir for initial launch. Upgrade path:
-  #   1. Schedule a maintenance window
-  #   2. vault operator rekey -init -key-shares=5 -key-threshold=3
-  #   3. Distribute shares to separate operators/escrow
-  #   4. OR migrate to cloud KMS auto-unseal (seal stanza in vault.hcl)
-  # See: https://developer.hashicorp.com/vault/tutorials/operations/rekeying-and-rotating
-  vault operator init -key-shares=1 -key-threshold=1 -format=json > "$INIT_FILE"
+MIGRATION_DONE="/vault/data/.transit-migration-done"
+
+if vault status -format=json 2>/dev/null | jq -e '.initialized == false' >/dev/null 2>&1; then
+  # Fresh install — init directly with transit seal (recovery keys, not unseal keys)
+  echo "[entrypoint] vault is uninitialized — running operator init with recovery keys"
+  vault operator init -recovery-shares=1 -recovery-threshold=1 -format=json > "$INIT_FILE"
   chmod 600 "$INIT_FILE"
-  echo "[entrypoint] operator init complete; keys stashed at $INIT_FILE"
+  touch "$MIGRATION_DONE"
+  echo "[entrypoint] operator init complete (auto-unseal active)"
+
+elif [ ! -f "$MIGRATION_DONE" ]; then
+  # Existing Shamir-sealed vault needs one-time migration to transit seal.
+  # `vault operator unseal -migrate` re-encrypts the master key with the
+  # transit backend. Requires the old Shamir unseal key one last time.
+  echo "[entrypoint] migrating from Shamir to Transit seal..."
+
+  # Get the Shamir key from env or .init.json
+  shamir_key=""
+  if [ -n "${VAULT_UNSEAL_KEY:-}" ]; then
+    shamir_key="$VAULT_UNSEAL_KEY"
+  elif [ -f "$INIT_FILE" ]; then
+    shamir_key=$(jq -r '.unseal_keys_b64[0]' "$INIT_FILE" 2>/dev/null)
+  fi
+
+  if [ -n "$shamir_key" ] && [ "$shamir_key" != "null" ]; then
+    if vault operator unseal -migrate "$shamir_key" >/dev/null 2>&1; then
+      touch "$MIGRATION_DONE"
+      echo "[entrypoint] seal migration complete — Shamir → Transit"
+    else
+      echo "[entrypoint] ERROR: seal migration failed — falling back to Shamir unseal"
+      vault operator unseal "$shamir_key" >/dev/null 2>&1 || true
+    fi
+  else
+    echo "[entrypoint] ERROR: no Shamir key for migration — vault may remain sealed"
+  fi
+else
+  echo "[entrypoint] transit auto-unseal active (migration already done)"
 fi
 
-# State 2 → 3: unseal with fallback.
-# Try env var first, then .init.json on disk. If the env var key is stale
-# (e.g. Raft storage was reinitialized), fall back to .init.json automatically.
-try_unseal() {
-  local key="$1"
-  local source="$2"
-  if vault operator unseal "$key" >/dev/null 2>&1; then
-    echo "[entrypoint] vault unsealed (source: $source)"
-    return 0
+# ── Step 5: Verify unsealed ────────────────────────────────────────
+for i in $(seq 1 10); do
+  if vault status -format=json 2>/dev/null | jq -e '.sealed == false' >/dev/null 2>&1; then
+    echo "[entrypoint] vault is unsealed"
+    break
   fi
-  echo "[entrypoint] WARN: unseal failed with $source key — trying next source"
-  return 1
-}
+  sleep 2
+done
 
 if vault status -format=json 2>/dev/null | jq -e '.sealed == true' >/dev/null 2>&1; then
-  unsealed=false
-
-  # Attempt 1: env var (Fly secret, set by bootstrap.sh)
-  if [ -n "${VAULT_UNSEAL_KEY:-}" ]; then
-    if try_unseal "$VAULT_UNSEAL_KEY" "VAULT_UNSEAL_KEY env"; then
-      unsealed=true
-    fi
-  fi
-
-  # Attempt 2: .init.json on disk (written by operator init on first boot)
-  if [ "$unsealed" = "false" ] && [ -f "$INIT_FILE" ]; then
-    disk_key=$(jq -r '.unseal_keys_b64[0]' "$INIT_FILE" 2>/dev/null)
-    if [ -n "$disk_key" ] && [ "$disk_key" != "null" ]; then
-      if try_unseal "$disk_key" ".init.json"; then
-        unsealed=true
-        echo "[entrypoint] NOTE: VAULT_UNSEAL_KEY env is stale — update Fly secret to match .init.json"
-      fi
-    fi
-  fi
-
-  if [ "$unsealed" = "false" ]; then
-    echo "[entrypoint] ERROR: vault remains sealed — no valid unseal key found"
-    echo "[entrypoint]        check VAULT_UNSEAL_KEY secret or /vault/data/.init.json"
-    # Don't exit — keep the process running so operators can SSH in to fix
-  fi
+  echo "[entrypoint] ERROR: vault still sealed — check transit vault on :8100"
+  wait "$VAULT_PID"
+  exit 1
 fi
 
-# State 3: run seed if we have a token. Same precedence: env var first
-# (set by bootstrap.sh after first init), then the .init.json fallback.
+# ── Step 6: Seed (AppRole, policies, DB roles) ─────────────────────
 seed_token() {
+  # On first boot: root token from .init.json. On subsequent: VAULT_ROOT_TOKEN_PROD env.
   if [ -n "${VAULT_ROOT_TOKEN_PROD:-}" ]; then
     echo "$VAULT_ROOT_TOKEN_PROD"
     return 0
   fi
   if [ -f "$INIT_FILE" ]; then
-    jq -r '.root_token' "$INIT_FILE"
+    jq -r '.root_token' "$INIT_FILE" 2>/dev/null
     return 0
   fi
   return 1
 }
-if vault status -format=json | jq -e '.sealed == false' >/dev/null 2>&1; then
-  if TOKEN="$(seed_token)" && [ -n "$TOKEN" ]; then
-    # Rotate audit log on startup. The 1GB Fly volume can fill up if the
-    # audit log grows unbounded. Keep the previous run's log as .prev for
-    # post-incident review; discard anything older.
-    #
-    # If the audit device is already enabled, we must disable it first so
-    # Vault closes the file descriptor — otherwise the renamed file keeps
-    # receiving writes via the old fd.
-    AUDIT_LOG="/vault/data/audit.log"
-    if [ -f "$AUDIT_LOG" ]; then
-      if VAULT_TOKEN="$TOKEN" vault audit list -format=json 2>/dev/null | jq -e '."file/"' >/dev/null 2>&1; then
-        VAULT_TOKEN="$TOKEN" vault audit disable file 2>/dev/null || true
-      fi
-      rm -f "${AUDIT_LOG}.prev"
-      mv "$AUDIT_LOG" "${AUDIT_LOG}.prev"
-      echo "[entrypoint] rotated audit log ($(wc -c < "${AUDIT_LOG}.prev" | tr -d ' ') bytes → .prev)"
-    fi
 
-    # Enable audit logging to a file on the persistent volume.
-    # Required for compliance + post-incident review: every authenticated
-    # Vault op (login, kv read, dynamic creds issuance, secret-id wrap)
-    # gets a tamper-evident HMAC'd line.
-    echo "[entrypoint] enabling audit log at $AUDIT_LOG"
-    VAULT_TOKEN="$TOKEN" vault audit enable file file_path="$AUDIT_LOG" >/dev/null 2>&1 || true
-
-    echo "[entrypoint] running seed.sh"
-    if VAULT_TOKEN="$TOKEN" /usr/local/bin/seed.sh; then
-      echo "[entrypoint] seed complete"
-    else
-      echo "[entrypoint] WARN: seed.sh failed (vault still serving)"
+if TOKEN="$(seed_token)" && [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ]; then
+  # Rotate audit log
+  AUDIT_LOG="/vault/data/audit.log"
+  if [ -f "$AUDIT_LOG" ]; then
+    if VAULT_TOKEN="$TOKEN" vault audit list -format=json 2>/dev/null | jq -e '."file/"' >/dev/null 2>&1; then
+      VAULT_TOKEN="$TOKEN" vault audit disable file 2>/dev/null || true
     fi
-  else
-    echo "[entrypoint] WARN: no root token — skipping seed"
+    rm -f "${AUDIT_LOG}.prev"
+    mv "$AUDIT_LOG" "${AUDIT_LOG}.prev"
+    echo "[entrypoint] rotated audit log"
   fi
+  VAULT_TOKEN="$TOKEN" vault audit enable file file_path="$AUDIT_LOG" >/dev/null 2>&1 || true
+
+  echo "[entrypoint] running seed.sh"
+  if VAULT_TOKEN="$TOKEN" /usr/local/bin/seed.sh; then
+    echo "[entrypoint] seed complete — vault is fully ready"
+  else
+    echo "[entrypoint] WARN: seed.sh failed (vault still serving)"
+  fi
+else
+  echo "[entrypoint] WARN: no token — skipping seed"
 fi
 
-# Stay attached to vault.
+# Stay attached to prod vault (transit vault runs as background child).
 wait "$VAULT_PID"

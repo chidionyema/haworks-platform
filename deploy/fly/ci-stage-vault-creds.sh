@@ -102,21 +102,22 @@ fi
 # return 503 from auth/approle endpoints. /v1/sys/health returns 200
 # only when initialized + unsealed + active (default behavior).
 # ---------------------------------------------------------------------------
+# Wait for vault to be ready. With Transit auto-unseal this should be
+# fast (~10s: transit vault boots → prod vault boots → auto-unseals).
+# Keep a generous timeout for cold starts / first-time seal migration.
 log "waiting for vault to be unsealed + active on $VAULT_APP..."
 ready=0
-# 90 attempts × 2s = 3 minutes. The entrypoint's fallback unseal can take
-# 30-40s (try env key → fail → try .init.json → succeed → seed). On cold
-# start the machine itself takes 5-10s to boot. 3 minutes covers the worst case.
-for i in $(seq 1 90); do
+for i in $(seq 1 60); do
   if fly_ssh 'sh -c "curl -fsS -o /dev/null http://[::1]:8200/v1/sys/health"' >/dev/null 2>&1; then
     ready=1
     log "vault is unsealed + active (attempt $i)"
     break
   fi
-  sleep 2
+  sleep 3
 done
 if [[ "$ready" != "1" ]]; then
-  log "ERROR: vault never reached active+unsealed within 180s — check the vault entrypoint log."
+  log "ERROR: vault never reached active+unsealed within 180s"
+  log "       check: flyctl logs --app $VAULT_APP"
   exit 1
 fi
 
