@@ -67,9 +67,6 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
             entity.HasIndex(p => p.ProviderSessionId);
 
             // C1: Concurrency protection — prevents double-completion from parallel webhooks
-            entity.Property<uint>("xmin")
-                .HasColumnName("xmin").HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
         });
 
         modelBuilder.Entity<Subscription>(entity =>
@@ -132,9 +129,6 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
 
             // Concurrency protection (XC-01/RS-01)
             entity.Property(s => s.Version).IsConcurrencyToken();
-            entity.Property<uint>("xmin")
-                .HasColumnName("xmin").HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
         });
 
         modelBuilder.Entity<SubscriptionSagaState>(entity =>
@@ -155,9 +149,6 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
 
             // Concurrency protection (XC-01/RS-02/SS-05)
             entity.Property(s => s.Version).IsConcurrencyToken();
-            entity.Property<uint>("xmin")
-                .HasColumnName("xmin").HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
         });
 
         modelBuilder.AddInboxStateEntity();

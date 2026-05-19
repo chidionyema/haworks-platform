@@ -43,3 +43,4 @@ public sealed class DiagnosticConsumeObserver(ILogger<DiagnosticConsumeObserver>
         return Task.CompletedTask;
     }
 }
+

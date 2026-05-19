@@ -65,11 +65,6 @@ public class CheckoutDbContext : DbContext, ICheckoutDbContext
             // own write-time check, xmin covers raw EF saves outside the
             // MT pipeline (e.g., REST status queries that read+write).
             entity.Property(s => s.Version).IsConcurrencyToken();
-            entity.Property<uint>("xmin")
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
 
             entity.HasIndex(s => s.OrderId).IsUnique().HasDatabaseName("IX_CheckoutSagas_OrderId");
             entity.HasIndex(s => s.IdempotencyKey).IsUnique().HasFilter("\"IdempotencyKey\" IS NOT NULL").HasDatabaseName("IX_CheckoutSagas_IdempotencyKey");
