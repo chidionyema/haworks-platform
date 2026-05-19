@@ -62,6 +62,8 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpPost("resume")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Resume(
         [FromBody] ResumeSubscriptionRequest body, CancellationToken ct)
     {
