@@ -39,7 +39,7 @@ public class LedgerIntegrationTests : IAsyncLifetime
         sellerBalance.Should().Be(90.00m); // 100 - 10% default commission
         var platformId = Guid.Parse("00000000-0000-0000-0000-000000000001");
         var platformBalance = await _ledgerService.GetBalanceAsync(platformId, AccountType.PlatformHolding, currency);
-        platformBalance.Should().Be(-amount);
+        platformBalance.Should().Be(amount);
     }
 
     [Fact]

@@ -46,6 +46,8 @@ public sealed class TestAuthenticationHandler(
             new Claim(ClaimTypes.Role, "User"),
             new Claim(ClaimTypes.Role, "Admin"),
             new Claim(ClaimTypes.Role, "ContentUploader"),
+            new Claim(ClaimTypes.Role, "audit-admin"),
+            new Claim(ClaimTypes.Role, "audit-reader"),
             new Claim("permission", "upload_content"),
             new Claim("permission", "manage_content"),
         };

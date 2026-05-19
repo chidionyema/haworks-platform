@@ -12,7 +12,6 @@
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Moq" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
-    <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../../src/Scheduler/Scheduler.Api/Scheduler.Api.csproj" />

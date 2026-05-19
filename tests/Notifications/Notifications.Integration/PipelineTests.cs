@@ -65,19 +65,7 @@ public sealed class PipelineTests(NotificationsWebAppFactory factory)
         resp.EnsureSuccessStatusCode();
         var notificationId = await ExtractIdAsync(resp);
 
-        // Belt-and-braces republish in case the outbox-driven publish from the
-        // POST hasn't reached the consumer yet.
-        await harness.Bus.Publish(new NotificationCreatedEvent
-        {
-            NotificationId = notificationId,
-            TemplateId = "tpl-dispatch",
-            Channel = NotificationChannel.Email,
-            Priority = NotificationPriority.Normal,
-            UserId = null,
-            Recipient = recipient,
-            IdempotencyKey = "harness-republish-" + Guid.NewGuid().ToString("N"),
-        });
-
+        // The outbox-driven publish from the POST will deliver the event reliably.
         await PollUntilStatusAsync(scopedFactory, notificationId, NotificationStatus.Sent, TimeSpan.FromSeconds(30));
 
         await using var scope = scopedFactory.Services.CreateAsyncScope();

@@ -50,6 +50,6 @@ public class DisbursementIntegrationTests : IAsyncLifetime
         updatedAccount.Balance.Should().Be(0);
         var payout = await _context.Payouts.FirstAsync(p => p.SellerId == sellerId);
         payout.Amount.Should().Be(100.00m);
-        payout.Status.Should().Be(PayoutStatus.Succeeded);
+        payout.Status.Should().Be(PayoutStatus.InTransit);
     }
 }

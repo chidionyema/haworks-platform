@@ -86,10 +86,7 @@ public class AuditWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 AuditMassTransit.RegisterConsumers(mt);
             });
 
-            // Only add test auth if the scheme isn't already registered
-            // (production AddJwksAuthentication may have already set a default).
-            try { services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth(); }
-            catch (InvalidOperationException) { /* scheme already exists */ }
+            services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
         });
     }
 }
