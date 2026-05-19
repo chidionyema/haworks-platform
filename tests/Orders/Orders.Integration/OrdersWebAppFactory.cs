@@ -62,13 +62,17 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
 
         builder.ConfigureTestServices(services =>
         {
-            // Remove BusOutboxDeliveryService — the test harness delivers in-process.
-            var outboxDelivery = services
+            // Remove outbox-related hosted services — the test harness uses
+            // in-memory transport and doesn't need outbox delivery/cleanup.
+            var outboxServices = services
                 .Where(d => d.ServiceType == typeof(IHostedService) &&
-                            (d.ImplementationType?.Name == "BusOutboxDeliveryService" ||
-                             d.ImplementationType?.FullName?.Contains("BusOutboxDelivery") == true))
+                            d.ImplementationType?.FullName != null &&
+                            (d.ImplementationType.FullName.Contains("BusOutboxDelivery") ||
+                             d.ImplementationType.FullName.Contains("InboxCleanup") ||
+                             d.ImplementationType.FullName.Contains("OutboxCleanup") ||
+                             d.ImplementationType.FullName.Contains("OutboxDelivery")))
                 .ToList();
-            foreach (var d in outboxDelivery)
+            foreach (var d in outboxServices)
                 services.Remove(d);
 
             services.AddMassTransitTestHarness(mt =>
