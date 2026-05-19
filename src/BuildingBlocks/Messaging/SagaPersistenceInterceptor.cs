@@ -32,7 +32,7 @@ public sealed class SagaPersistenceInterceptor : SaveChangesInterceptor
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        Console.Error.WriteLine($"INTERCEPTOR_PROBE: SavingChangesAsync fired on {eventData.Context?.GetType().Name ?? "null"}");
+        Serilog.Log.Warning("INTERCEPTOR_PROBE: SavingChangesAsync fired on {ContextType}", eventData.Context?.GetType().Name ?? "null");
         if (eventData.Context is null) return ValueTask.FromResult(result);
 
         var context = eventData.Context;
@@ -46,7 +46,7 @@ public sealed class SagaPersistenceInterceptor : SaveChangesInterceptor
             if (entry.State == EntityState.Added)
             {
                 var currentState = entry.CurrentValues["CurrentState"]?.ToString() ?? "unknown";
-                _logger.LogInformation(
+                _logger.LogWarning(
                     "SAGA INSERT: {SagaType} CorrelationId={CorrelationId}, InitialState={State}, Table={Table}",
                     entry.Metadata.ClrType.Name,
                     correlationId,
@@ -58,7 +58,7 @@ public sealed class SagaPersistenceInterceptor : SaveChangesInterceptor
                 var previousState = entry.OriginalValues["CurrentState"]?.ToString() ?? "unknown";
                 var currentState = entry.CurrentValues["CurrentState"]?.ToString() ?? "unknown";
 
-                _logger.LogInformation(
+                _logger.LogWarning(
                     "SAGA TRANSITION: {SagaType} CorrelationId={CorrelationId}, {PreviousState} -> {CurrentState}, Table={Table}",
                     entry.Metadata.ClrType.Name,
                     correlationId,
@@ -112,7 +112,7 @@ public sealed class SagaPersistenceInterceptor : SaveChangesInterceptor
             }
             else
             {
-                _logger.LogInformation(
+                _logger.LogWarning(
                     "SAGA PERSISTED: {SagaType} CorrelationId={CorrelationId}, RowsAffected={Rows}",
                     entry.Metadata.ClrType.Name,
                     correlationId,
