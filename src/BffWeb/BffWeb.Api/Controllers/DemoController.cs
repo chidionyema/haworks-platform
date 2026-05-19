@@ -36,6 +36,7 @@ namespace Haworks.BffWeb.Api.Controllers;
 [Route("api/demo")]
 public class DemoController : ControllerBase
 {
+    private const string DefaultCurrency = "USD";
     private readonly IDemoHubNotifier _notifier;
     private readonly DemoStateStore _stateStore;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -1325,7 +1326,7 @@ public class DemoController : ControllerBase
         var seedResp = await client.PostAsJsonAsync("/demo/seed-completed-payment", new
         {
             amountCents = request.AmountCents,
-            currency = request.Currency ?? "USD",
+            currency = request.Currency ?? DefaultCurrency,
         }, ct);
 
         if (!seedResp.IsSuccessStatusCode)
@@ -1339,7 +1340,7 @@ public class DemoController : ControllerBase
         {
             paymentId,
             amount = request.RefundAmountCents,
-            currency = request.Currency ?? "USD",
+            currency = request.Currency ?? DefaultCurrency,
             reason = request.Reason ?? "Demo refund",
             requestedBy = "demo-user",
         }, ct);
@@ -1390,7 +1391,7 @@ public class DemoController : ControllerBase
         using var resp = await client.PostAsJsonAsync("/demo/ledger/simulate", new
         {
             amountCents = request.AmountCents,
-            currency = request.Currency ?? "USD",
+            currency = request.Currency ?? DefaultCurrency,
         }, ct);
 
         if (!resp.IsSuccessStatusCode)

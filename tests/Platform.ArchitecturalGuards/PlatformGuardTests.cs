@@ -13,6 +13,7 @@ namespace Haworks.Platform.ArchitecturalGuards;
 public sealed class PlatformGuardTests
 {
     private static readonly string SrcRoot = FindSrcRoot();
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
 
     private static bool IsExcludedFromGuards(string path) =>
         path.Contains("Analyzers/Haworks.Architecture.Analyzers/") ||
@@ -172,7 +173,7 @@ public sealed class PlatformGuardTests
         {
             var content = File.ReadAllText(file);
             if (IsExcludedFromGuards(file)) continue;
-            if (Regex.IsMatch(content, @"\.GreaterThan\(DateTimeOffset\.UtcNow\)"))
+            if (Regex.IsMatch(content, @"\.GreaterThan\(DateTimeOffset\.UtcNow\)", RegexOptions.None, RegexTimeout))
             {
                 violations.Add($"{Relative(file)}: use .Must(t => t > DateTimeOffset.UtcNow) instead — .GreaterThan captures startup time");
             }
@@ -193,7 +194,7 @@ public sealed class PlatformGuardTests
             for (int i = 0; i < lines.Length; i++)
             {
                 // Match (long)(amount * 100) but not (long)Math.Round(...)
-                if (Regex.IsMatch(lines[i], @"\(long\)\s*\((?!Math\.Round).*\*\s*100"))
+                if (Regex.IsMatch(lines[i], @"\(long\)\s*\((?!Math\.Round).*\*\s*100", RegexOptions.None, RegexTimeout))
                 {
                     violations.Add($"{Relative(file)}:{i + 1}: use (long)Math.Round(amount * 100m, 0, MidpointRounding.AwayFromZero) instead of (long)(amount * 100)");
                 }
