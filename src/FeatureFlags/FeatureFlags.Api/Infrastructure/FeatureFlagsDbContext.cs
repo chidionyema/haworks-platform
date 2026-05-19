@@ -29,12 +29,7 @@ public class FeatureFlagsDbContext : DbContext
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.Name).IsUnique();
 
-            // xmin concurrency token
-            entity.Property(x => x.RowVersion)
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
+            // Concurrency handled by domain guards + pessimistic locks.
         });
 
         modelBuilder.Entity<FeatureFlagRule>(entity =>

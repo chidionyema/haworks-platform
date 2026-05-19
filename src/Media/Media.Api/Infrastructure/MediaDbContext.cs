@@ -36,10 +36,7 @@ public class MediaDbContext : DbContext
             entity.Property(e => e.UpdatedAt);
             entity.Property(e => e.UpdatedBy).HasMaxLength(128);
 
-            entity.Property<uint>("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
+            // Concurrency handled by domain guards + pessimistic locks.
         });
 
         modelBuilder.Entity<MediaMetadata>(entity =>

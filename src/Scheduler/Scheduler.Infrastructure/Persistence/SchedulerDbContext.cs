@@ -24,9 +24,7 @@ public class SchedulerDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
 
-            // xmin concurrency token (Postgres optimistic concurrency)
-            entity.Property(e => e.xmin)
-                .IsRowVersion();
+            // Concurrency handled by domain guards + pessimistic locks.
 
             entity.Property(e => e.ServiceName).IsRequired().HasMaxLength(128);
             entity.Property(e => e.RoleName).IsRequired().HasMaxLength(128);

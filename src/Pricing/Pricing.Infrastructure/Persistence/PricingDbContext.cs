@@ -30,11 +30,7 @@ public sealed class PricingDbContext : DbContext
             e.Property(x => x.DiscountValue).HasColumnType("numeric(18,4)");
             e.Property(x => x.SellerTimezone).HasMaxLength(64);
             e.Property(x => x.RowVersion).HasDefaultValueSql("'\\x0000000000000000'::bytea");
-            e.Property<uint>("xmin")
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
+            // Concurrency handled by domain guards + pessimistic locks.
             e.HasMany(x => x.TieredPrices).WithOne().HasForeignKey(t => t.PriceRuleId);
             e.HasIndex(x => new { x.ProductId, x.IsActive, x.IsDeleted });
             e.HasIndex(x => new { x.CategoryId, x.IsActive, x.IsDeleted });
@@ -46,11 +42,7 @@ public sealed class PricingDbContext : DbContext
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.UnitPrice).HasColumnType("numeric(18,4)");
-            e.Property<uint>("xmin")
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
+            // Concurrency handled by domain guards + pessimistic locks.
         });
 
         // PromotionCode
@@ -62,11 +54,7 @@ public sealed class PricingDbContext : DbContext
             e.Property(x => x.MinimumOrderAmount).HasColumnType("numeric(18,4)");
             e.Property(x => x.SellerTimezone).HasMaxLength(64);
             e.Property(x => x.RowVersion).HasDefaultValueSql("'\\x0000000000000000'::bytea");
-            e.Property<uint>("xmin")
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
+            // Concurrency handled by domain guards + pessimistic locks.
             e.HasIndex(x => x.Code).IsUnique();
             e.HasMany(x => x.Redemptions).WithOne().HasForeignKey(r => r.PromotionCodeId);
             e.HasQueryFilter(x => !x.IsDeleted);
@@ -94,11 +82,7 @@ public sealed class PricingDbContext : DbContext
             e.Property(x => x.CountyRate).HasColumnType("numeric(8,6)");
             e.Property(x => x.LocalRate).HasColumnType("numeric(8,6)");
             e.Property(x => x.Notes).HasMaxLength(512);
-            e.Property<uint>("xmin")
-                .HasColumnName("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
+            // Concurrency handled by domain guards + pessimistic locks.
             e.HasIndex(x => new { x.CountryCode, x.StateCode, x.EffectiveFrom });
         });
 

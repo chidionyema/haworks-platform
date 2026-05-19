@@ -27,10 +27,7 @@ public class MerchantDbContext : DbContext, IMerchantDbContext
             entity.HasIndex(e => e.OwnerId).IsUnique();
             entity.HasIndex(e => e.Slug).IsUnique();
 
-            entity.Property<uint>("xmin")
-                .HasColumnType("xid")
-                .ValueGeneratedOnAddOrUpdate()
-                .IsConcurrencyToken();
+            // Concurrency handled by domain guards + pessimistic locks.
 
             entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
             entity.Property(e => e.Slug).HasMaxLength(100).IsRequired();

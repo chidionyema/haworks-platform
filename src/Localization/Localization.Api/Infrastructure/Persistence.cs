@@ -39,10 +39,6 @@ public class TranslationConfiguration : IEntityTypeConfiguration<Translation>
         builder.Property(t => t.UpdatedBy).HasMaxLength(256);
         builder.Property(t => t.UpdatedAt);
 
-        // Optimistic concurrency via PostgreSQL xmin system column
-        builder.Property<uint>("xmin")
-            .HasColumnType("xid")
-            .ValueGeneratedOnAddOrUpdate()
-            .IsConcurrencyToken();
+        // Concurrency handled by domain guards + pessimistic locks.
     }
 }
