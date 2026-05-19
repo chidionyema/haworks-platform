@@ -31,7 +31,9 @@ public class CdcFanOutWorkerTests
         _db = new WebhooksDbContext(options);
 
         var services = new ServiceCollection();
-        services.AddScoped<IWebhooksDbContext>(_ => _db);
+#pragma warning disable HWK063 // Test uses singleton DbContext intentionally
+        services.AddSingleton<IWebhooksDbContext>(_db);
+#pragma warning restore HWK063
         _serviceProvider = services.BuildServiceProvider();
     }
 
