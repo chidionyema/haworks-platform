@@ -81,6 +81,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 {
                     var msg = ctx.Message;
                     var sagaState = ctx.Saga;
+                    System.Console.Error.WriteLine($"SAGA_INITIALLY: SagaId={ctx.Saga.CorrelationId}, OrderId={msg.OrderId}");
                     Console.WriteLine($"SAGA_DEBUG: Initially fired — SagaId={ctx.Saga.CorrelationId}, OrderId={msg.OrderId}, Currency={msg.Currency}");
                     sagaState.OrderId = msg.OrderId;
                     sagaState.UserId = msg.UserId;
