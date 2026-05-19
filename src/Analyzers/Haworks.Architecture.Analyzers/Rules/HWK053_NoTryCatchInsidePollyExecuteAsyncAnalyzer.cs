@@ -8,15 +8,15 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace Haworks.Architecture.Analyzers.Rules;
 
 /// <summary>
-/// HWK051: Detects try/catch blocks INSIDE Polly ExecuteAsync delegates.
+/// HWK053: Detects try/catch blocks INSIDE Polly ExecuteAsync delegates.
 /// When you catch exceptions inside the retry block, Polly never sees them —
 /// it can't retry 429/503 errors because the exception was swallowed.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
-public sealed class HWK051_NoTryCatchInsidePollyExecuteAsyncAnalyzer : DiagnosticAnalyzer
+public sealed class HWK053_NoTryCatchInsidePollyExecuteAsyncAnalyzer : DiagnosticAnalyzer
 {
     private static readonly DiagnosticDescriptor Rule = new(
-        id: "HWK051",
+        id: "HWK053",
         title: "Do not catch exceptions inside Polly ExecuteAsync",
         messageFormat: "try/catch inside Polly ExecuteAsync swallows exceptions that Polly needs for retry decisions",
         category: "Haworks.Architecture",
