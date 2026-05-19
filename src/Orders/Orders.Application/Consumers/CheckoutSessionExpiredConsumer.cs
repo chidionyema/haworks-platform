@@ -44,9 +44,8 @@ public sealed class CheckoutSessionExpiredConsumer(
             return;
         }
 
-        // Use tracked entity + domain method instead of ExecuteUpdateAsync so
-        // that the order update and outbox message commit in a single EF
-        // transaction (MassTransit outbox).
+        // Use tracked entity + domain method so the order update and outbox
+        // message commit in a single EF transaction (MassTransit outbox).
         var wasMarked = order.MarkExpired("checkout_session_expired");
 
         if (!wasMarked)
