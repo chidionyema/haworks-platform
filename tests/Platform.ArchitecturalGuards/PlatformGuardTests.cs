@@ -3231,4 +3231,23 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
             $"external API calls inside outbox transactions must not increase beyond baseline ({baseline}) — see HWK009/HWK075 analyzers");
     }
 
+
+    [Fact]
+    public void Command_handlers_must_not_inject_IBus()
+    {
+        // IBus is a singleton that always bypasses the EF outbox.
+        // Command handlers must use IPublishEndpoint (scoped, outbox-aware).
+        var violations = new List<string>();
+        foreach (var file in FindSourceFiles("*Command*.cs"))
+        {
+            var content = File.ReadAllText(file);
+            if (IsExcludedFromGuards(file)) continue;
+
+            if (Regex.IsMatch(content, @"IBus") && !content.Contains("// IBus-ok"))
+            {
+                violations.Add($"{Relative(file)}: injects IBus — use IPublishEndpoint instead (IBus bypasses outbox)");
+            }
+        }
+        violations.Should().BeEmpty("command handlers must use IPublishEndpoint, not IBus (IBus bypasses the EF outbox)");
+    }
 }

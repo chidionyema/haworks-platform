@@ -58,6 +58,17 @@ public abstract class BoundedContextSagaDefinition<TSaga, TDbContext>
         ISagaConfigurator<TSaga> sagaConfigurator,
         IRegistrationContext context)
     {
+        // Retry MUST be outermost — each retry gets a fresh DI scope + clean
+        // DbContext. If retry sits inside the outbox scope, the DbContext
+        // change tracker is poisoned from the failed attempt and every retry
+        // throws a tracking conflict (InvalidOperationException).
+        endpointConfigurator.UseMessageRetry(r =>
+        {
+            r.Interval(5, TimeSpan.FromMilliseconds(500));
+            r.Handle<Microsoft.EntityFrameworkCore.DbUpdateException>();
+            r.Handle<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>();
+        });
+
         endpointConfigurator.UseEntityFrameworkOutbox<TDbContext>(context);
     }
 }

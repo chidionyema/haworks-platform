@@ -28,20 +28,10 @@ internal sealed class StartCheckoutCommandHandler(
 {
     public async Task<Result<StartCheckoutResponse>> Handle(StartCheckoutCommand request, CancellationToken ct)
     {
-        // H7 — Idempotency: return existing saga if one matches this key
-        if (!string.IsNullOrEmpty(request.IdempotencyKey))
-        {
-            var existing = await db.CheckoutSagas
-                .AsNoTracking()
-                .Where(s => s.IdempotencyKey == request.IdempotencyKey)
-                .Select(s => new { s.CorrelationId, s.OrderId })
-                .FirstOrDefaultAsync(ct);
-
-            if (existing is not null)
-            {
-                return Result.Success(new StartCheckoutResponse(existing.CorrelationId, existing.OrderId));
-            }
-        }
+        // Idempotency is handled by MassTransit's InboxState — not by querying
+        // saga state tables. Querying sagas here poisons the DbContext change
+        // tracker and causes tracking conflicts when the saga consumer tries
+        // to Add the new instance (same scoped DbContext).
 
         var sagaId = request.SagaId == Guid.Empty ? Guid.NewGuid() : request.SagaId;
         var orderId = request.OrderId == Guid.Empty ? Guid.NewGuid() : request.OrderId;
