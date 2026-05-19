@@ -47,10 +47,6 @@ public sealed class WebhooksDbContext(DbContextOptions<WebhooksDbContext> option
             entity.HasIndex(e => e.EventId);
             entity.HasIndex(e => new { e.SubscriptionId, e.CreatedAt });
             entity.HasIndex(e => new { e.SubscriptionId, e.EventId }).IsUnique();
-            // xmin concurrency token — PostgreSQL only (not available on InMemory/SQLite providers)
-            if (Database.ProviderName?.Contains("Npgsql") == true)
-            {
-            }
         });
 
         modelBuilder.Entity<WebhookDeliveryAttempt>(entity =>
