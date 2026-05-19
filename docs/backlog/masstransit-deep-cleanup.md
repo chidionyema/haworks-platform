@@ -148,3 +148,33 @@ This cleanup is complete when:
 3. **Understand your tools before building on them.** The retry-inside-outbox ordering, the IPublishEndpoint scoping, the xmin OID mismatch — all documented in MassTransit/Npgsql changelogs. We shipped without reading them.
 
 4. **Architecture guards aren't optional for payment systems.** The guards we added today would have caught all 6 bugs at compile time or CI time. The cost of adding them: 1 hour. The cost of not having them: 8+ hours of debugging + 1,910 lost messages.
+
+---
+
+## Workstream 7: Consumer Definition Coverage (ADDED 2026-05-19)
+
+Every consumer MUST have a `ConsumerDefinition` inheriting `BoundedContextConsumerDefinition`.
+No bus-level retry. No dual retry paths. One mechanism, one place.
+
+**Consumers currently WITHOUT definitions:**
+
+| Service | Consumer | Risk |
+|---------|----------|------|
+| BffWeb | PaymentSessionCreatedConsumer | MEDIUM — SignalR bridge |
+| BffWeb | StockReservedSagaBridge + 4 other bridges | MEDIUM — SignalR |
+| BffWeb | DemoOutboxEventConsumer | LOW — demo only |
+| BffWeb | ProductCacheInvalidatedBridge | MEDIUM — cache |
+| BffWeb | VaultRotationStageBridge | LOW — demo only |
+| All services | GlobalFaultConsumer | HIGH — fault handling |
+| Identity | PrivacyErasureRequestedConsumer | HIGH — GDPR |
+| Identity | JwtKeyRotatedConsumer | HIGH — security |
+| Catalog | StockReleaseFaultConsumer | HIGH — compensation |
+| Search | ProductCacheInvalidatedConsumer | MEDIUM — search |
+| Search | CategoryUpdatedConsumer | MEDIUM — search |
+| Realtime | OrderStatusChangedConsumer | MEDIUM — notifications |
+| Shipping | GlobalFaultConsumer | HIGH |
+| RulesEngine | GlobalFaultConsumer | HIGH |
+
+**These consumers currently have ZERO retry.** A transient DB failure = immediate dead letter.
+
+**Fix**: Create a `ConsumerDefinition` for each, inheriting `BoundedContextConsumerDefinition<TConsumer, TDbContext>`. For consumers that don't use a DbContext (BFF bridges), create a `BoundedContextLightConsumerDefinition` that adds retry without EF outbox.
