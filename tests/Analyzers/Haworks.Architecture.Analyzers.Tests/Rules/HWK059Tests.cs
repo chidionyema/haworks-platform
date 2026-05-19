@@ -24,7 +24,7 @@ public class HWK059Tests
             }
             """;
         var expected = CSharpAnalyzerVerifier<HWK059_NoThrowExAnalyzer>
-            .Diagnostic(Diagnostics.NoThrowEx)
+            .Diagnostic(Diagnostics.NoThrowOriginalException)
             .WithLocation(0)
             .WithArguments("ex");
         await CSharpAnalyzerVerifier<HWK059_NoThrowExAnalyzer>

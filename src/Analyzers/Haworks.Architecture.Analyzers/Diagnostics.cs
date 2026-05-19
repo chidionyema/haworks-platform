@@ -459,4 +459,33 @@ public static class Diagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // ─── Resilience & Outbox Integrity (HWK072-074) ───
+
+    public static readonly DiagnosticDescriptor SwallowedPollyException = new(
+        id: "HWK072",
+        title: "Exception Swallowed Inside Polly Execution Block",
+        messageFormat: "Catch block inside Polly ExecuteAsync delegate returns a value instead of throwing. Polly requires exceptions to trigger retries.",
+        category: "Resilience",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Catching exceptions inside Polly delegates and returning objects prevents the resilience policy from tracking failures or executing retries.");
+
+    public static readonly DiagnosticDescriptor SideEffectsInPollyRetry = new(
+        id: "HWK073",
+        title: "Database Update or Event Publish Inside Polly Gateway Loop",
+        messageFormat: "Method '{0}' is invoked inside a Polly resilience block. Move DB writes and event publishing outside the retry loop to prevent dual-writes.",
+        category: "OutboxIntegrity",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Only external network I/O should exist inside a resilience retry loop. Mixing event publication or DB writes causes duplicate side-effects during retries.");
+
+    public static readonly DiagnosticDescriptor CompetingConsumerTransaction = new(
+        id: "HWK074",
+        title: "Manual Transaction Opened Inside MassTransit Consumer",
+        messageFormat: "Manual transaction method '{0}' called inside an active MassTransit Consumer. The framework Inbox/Outbox middleware manages transactions automatically.",
+        category: "OutboxIntegrity",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Opening manual database transactions inside MassTransit consumers configured with the EF Core Outbox splits the unit-of-work scope and risks transaction drift.");
 }
