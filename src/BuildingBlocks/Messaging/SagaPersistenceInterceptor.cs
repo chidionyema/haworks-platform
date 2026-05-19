@@ -32,7 +32,8 @@ public sealed class SagaPersistenceInterceptor : SaveChangesInterceptor
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        Serilog.Log.Warning("INTERCEPTOR_PROBE: SavingChangesAsync fired on {ContextType}", eventData.Context?.GetType().Name ?? "null");
+        var entries = eventData.Context?.ChangeTracker.Entries().Select(e => $"{e.Metadata.GetTableName()}:{e.State}").ToList() ?? new();
+        Serilog.Log.Warning("INTERCEPTOR_PROBE: SaveChanges on {ContextType}, Entities=[{Entities}]", eventData.Context?.GetType().Name ?? "null", string.Join(", ", entries));
         if (eventData.Context is null) return ValueTask.FromResult(result);
 
         var context = eventData.Context;
