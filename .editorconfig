@@ -122,3 +122,18 @@ dotnet_diagnostic.HWK069.severity = warning
 dotnet_diagnostic.HWK070.severity = warning
 dotnet_diagnostic.HWK071.severity = warning
 
+# New analyzers (HWK072-084) — need false-positive tuning before promotion to error.
+dotnet_diagnostic.HWK072.severity = warning
+dotnet_diagnostic.HWK073.severity = warning
+dotnet_diagnostic.HWK074.severity = warning
+dotnet_diagnostic.HWK075.severity = warning
+dotnet_diagnostic.HWK076.severity = warning
+dotnet_diagnostic.HWK077.severity = warning
+dotnet_diagnostic.HWK078.severity = warning
+dotnet_diagnostic.HWK079.severity = warning
+dotnet_diagnostic.HWK080.severity = warning
+dotnet_diagnostic.HWK081.severity = warning
+dotnet_diagnostic.HWK082.severity = warning
+dotnet_diagnostic.HWK083.severity = warning
+dotnet_diagnostic.HWK084.severity = warning
+

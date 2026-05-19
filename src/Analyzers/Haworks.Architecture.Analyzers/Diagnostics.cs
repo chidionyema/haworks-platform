@@ -579,7 +579,7 @@ public static class Diagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        customTags: new[] { WellKnownDiagnosticTags.CompilationEnd });
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     // ─── Financial Precision (HWK084) ───
 

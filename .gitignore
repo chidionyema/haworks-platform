@@ -75,4 +75,4 @@ vault-snapshots/
 
 # IDE
 *.code-workspace
-.claude/worktrees/
+# .claude/worktrees/
