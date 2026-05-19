@@ -55,25 +55,45 @@ if vault status -format=json | jq -e '.initialized == false' >/dev/null 2>&1; th
   echo "[entrypoint] operator init complete; keys stashed at $INIT_FILE"
 fi
 
-# State 2 → 3: unseal.
-unseal_key() {
-  if [ -n "${VAULT_UNSEAL_KEY:-}" ]; then
-    echo "$VAULT_UNSEAL_KEY"
+# State 2 → 3: unseal with fallback.
+# Try env var first, then .init.json on disk. If the env var key is stale
+# (e.g. Raft storage was reinitialized), fall back to .init.json automatically.
+try_unseal() {
+  local key="$1"
+  local source="$2"
+  if vault operator unseal "$key" >/dev/null 2>&1; then
+    echo "[entrypoint] vault unsealed (source: $source)"
     return 0
   fi
-  if [ -f "$INIT_FILE" ]; then
-    jq -r '.unseal_keys_b64[0]' "$INIT_FILE"
-    return 0
-  fi
+  echo "[entrypoint] WARN: unseal failed with $source key — trying next source"
   return 1
 }
+
 if vault status -format=json | jq -e '.sealed == true' >/dev/null 2>&1; then
-  if KEY="$(unseal_key)" && [ -n "$KEY" ]; then
-    vault operator unseal "$KEY" >/dev/null
-    echo "[entrypoint] vault unsealed"
-  else
-    echo "[entrypoint] WARN: no unseal key available — vault remains sealed"
-    echo "[entrypoint]       set VAULT_UNSEAL_KEY (Fly secret) to auto-unseal"
+  unsealed=false
+
+  # Attempt 1: env var (Fly secret, set by bootstrap.sh)
+  if [ -n "${VAULT_UNSEAL_KEY:-}" ]; then
+    if try_unseal "$VAULT_UNSEAL_KEY" "VAULT_UNSEAL_KEY env"; then
+      unsealed=true
+    fi
+  fi
+
+  # Attempt 2: .init.json on disk (written by operator init on first boot)
+  if [ "$unsealed" = "false" ] && [ -f "$INIT_FILE" ]; then
+    disk_key=$(jq -r '.unseal_keys_b64[0]' "$INIT_FILE" 2>/dev/null)
+    if [ -n "$disk_key" ] && [ "$disk_key" != "null" ]; then
+      if try_unseal "$disk_key" ".init.json"; then
+        unsealed=true
+        echo "[entrypoint] NOTE: VAULT_UNSEAL_KEY env is stale — update Fly secret to match .init.json"
+      fi
+    fi
+  fi
+
+  if [ "$unsealed" = "false" ]; then
+    echo "[entrypoint] ERROR: vault remains sealed — no valid unseal key found"
+    echo "[entrypoint]        check VAULT_UNSEAL_KEY secret or /vault/data/.init.json"
+    # Don't exit — keep the process running so operators can SSH in to fix
   fi
 fi
 
