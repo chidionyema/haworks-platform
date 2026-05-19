@@ -639,7 +639,7 @@ services:
   # CDC PIPELINE (Kafka + Debezium)
   # ===========================================================================
   kafka:
-    image: bitnami/kafka:3.7
+    image: bitnami/kafka:3.9
     container_name: rw-kafka
     ports:
       - "9092:9092"
