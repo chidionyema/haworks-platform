@@ -215,7 +215,7 @@ public sealed class PlatformGuardTests
             // Only flag if the file has BOTH GetByIdAsync (non-tracked pattern) AND a tracked variant exists in the same repo
             // Skip if the repo's GetByIdAsync is already tracked (no AsNoTracking) — that's fine
             if (content.Contains("GetByIdAsync") &&
-                content.Contains("GetByIdTrackedAsync") == false &&
+                !content.Contains("GetByIdTrackedAsync") &&
                 (content.Contains(".MarkRefunded") || content.Contains(".RevertToPaid")) &&
                 content.Contains("SaveChangesAsync"))
             {
