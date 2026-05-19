@@ -69,6 +69,8 @@ public abstract class BoundedContextSagaDefinition<TSaga, TDbContext>
             r.Interval(5, TimeSpan.FromMilliseconds(500));
             r.Handle<Microsoft.EntityFrameworkCore.DbUpdateException>();
             r.Handle<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>();
+            var retryObs = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<DiagnosticRetryObserver>(context);
+            if (retryObs != null) r.ConnectRetryObserver(retryObs);
         });
 
         endpointConfigurator.UseDelayedRedelivery(r => r.Intervals(
