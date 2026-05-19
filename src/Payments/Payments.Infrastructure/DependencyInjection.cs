@@ -152,8 +152,6 @@ public static class DependencyInjection
         services.AddHostedService<RefundTimeoutWatcher>();
         services.AddHostedService<SubscriptionRenewalWatcher>();
 
-        services.AddDomainEventPublisher();
-
         if (env.IsEnvironment("Test"))
         {
             return services;

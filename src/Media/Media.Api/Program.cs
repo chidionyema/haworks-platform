@@ -172,8 +172,6 @@ if (!builder.Environment.IsEnvironment("Test"))
     });
 }
 
-builder.Services.AddDomainEventPublisher();
-
 // ── Startup task runner (EF migrations with retry) ──
 builder.Services.AddStartupTaskRunner();
 

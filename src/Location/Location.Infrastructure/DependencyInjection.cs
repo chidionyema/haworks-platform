@@ -1,4 +1,3 @@
-using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Vault;
 using Haworks.Location.Application.Interfaces;
 using Haworks.Location.Infrastructure.Persistence;
@@ -71,7 +70,6 @@ public static class DependencyInjection
 
         if (env.IsEnvironment("Test"))
         {
-            services.AddDomainEventPublisher();
             return services;
         }
 
@@ -95,8 +93,6 @@ public static class DependencyInjection
                 cfg.ConfigureStandardRabbitMq(context);
             });
         });
-
-        services.AddDomainEventPublisher();
 
         return services;
     }

@@ -51,7 +51,9 @@ public sealed class BffServiceTokenProvider : IServiceTokenProvider
             var request = new HttpRequestMessage(HttpMethod.Post, "/api/Authentication/service-token");
             request.Headers.Add("X-Service-Secret", secret);
 
+#pragma warning disable HWK082 // Service token fetch has its own timeout + try/catch
             var response = await client.SendAsync(request, ct);
+#pragma warning restore HWK082
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError("Failed to obtain service token: {Status}", response.StatusCode);
