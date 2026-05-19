@@ -83,7 +83,7 @@ public class PartitionRolloverService : BackgroundService
         try
         {
             #pragma warning disable EF1002
-            await db.Database.ExecuteSqlRawAsync(sql, Array.Empty<object>());
+            await db.Database.ExecuteSqlRawAsync(sql, ct);
             #pragma warning restore EF1002
             _logger.LogInformation("Ensured partition {PartitionName} exists", partitionName);
         }

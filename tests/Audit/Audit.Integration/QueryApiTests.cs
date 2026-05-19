@@ -17,7 +17,7 @@ using Xunit;
 namespace Haworks.Audit.Integration;
 
 [Collection("AuditIntegration")]
-public class QueryApiTests : IClassFixture<AuditWebAppFactory>
+public class QueryApiTests
 {
     private readonly AuditWebAppFactory _factory;
 

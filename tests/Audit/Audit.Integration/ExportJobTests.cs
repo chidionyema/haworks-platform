@@ -17,7 +17,7 @@ using Xunit;
 namespace Haworks.Audit.Integration;
 
 [Collection("AuditIntegration")]
-public class ExportJobTests : IClassFixture<AuditWebAppFactory>
+public class ExportJobTests
 {
     private readonly AuditWebAppFactory _factory;
 

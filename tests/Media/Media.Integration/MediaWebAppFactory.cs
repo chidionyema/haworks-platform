@@ -26,7 +26,7 @@ public sealed class MediaWebAppFactory : WebApplicationFactory<Program>, IAsyncL
 
     public bool VirusScanShouldFail { get; set; }
     public string LocalstackUrl => _localstackUrl;
-    public string Bucket => BucketName;
+    public static string Bucket => BucketName;
 
     public async Task InitializeAsync()
     {

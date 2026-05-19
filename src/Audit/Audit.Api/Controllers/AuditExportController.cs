@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Haworks.Audit.Application.Export;
 
@@ -21,6 +22,8 @@ public class AuditExportController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "audit-admin")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> EnqueueExport([FromBody] AuditExportRequest request, CancellationToken ct)
     {
         var validationResult = await _validator.ValidateAsync(request, ct);
@@ -34,6 +37,8 @@ public class AuditExportController : ControllerBase
 
     [HttpGet("{jobId:guid}")]
     [Authorize(Roles = "audit-reader")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetExportStatus(Guid jobId, CancellationToken ct)
     {
         var snapshot = await _exportService.GetStatusAsync(jobId, ct);

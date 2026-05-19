@@ -141,7 +141,7 @@ public sealed class AuditWriter : IAuditWriter, IAsyncDisposable
             }
             catch
             {
-                try { await writer.CloseAsync(); } catch (Exception) { /* close failure is non-fatal during error handling */ }
+                try { await writer.CloseAsync(); } catch (Exception ex) { _logger.LogTrace(ex, "AuditWriter: close failure is non-fatal during error handling"); }
                 throw;
             }
         }
@@ -184,7 +184,11 @@ public sealed class AuditWriter : IAuditWriter, IAsyncDisposable
         {
             await _workerTask;
         }
-        catch (Exception) { /* worker task cancellation is non-fatal during dispose */ }
+        catch (OperationCanceledException) { /* worker task cancellation is expected */ }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AuditWriter: unexpected error during worker task completion in DisposeAsync");
+        }
         _cts.Dispose();
     }
 }
