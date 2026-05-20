@@ -70,7 +70,7 @@ public sealed class ProductsController(
     public async Task<IActionResult> Create([FromBody] CreateProductCommand command, CancellationToken ct)
     {
         var result = await mediator.Send(command, ct);
-        return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value : Guid.Empty });
+        return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value : Guid.NewGuid() });
     }
 
     [HttpPut("{id:guid}")]

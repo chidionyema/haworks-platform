@@ -52,7 +52,7 @@ public class OrderDbContext : DbContext
             entity.HasKey(o => o.Id);
 
             entity.Property(o => o.UserId).HasMaxLength(450).IsRequired();
-            entity.Property(o => o.SagaId).IsRequired();
+            entity.Property(o => o.SagaId).HasColumnType("uuid").IsRequired();
             entity.Property(o => o.IdempotencyKey).HasMaxLength(200).IsRequired();
             entity.Property(o => o.CustomerEmail).HasMaxLength(254).IsRequired();
             entity.Property(o => o.TotalAmount).HasColumnType("numeric(18,2)").IsRequired();
@@ -153,8 +153,10 @@ public class OrderDbContext : DbContext
         // are detected as Modified by EF's snapshot tracker (the
         // collection was not loaded, so EF has no baseline). Fix
         // them to Added before save.
-        foreach (var entry in ChangeTracker.Entries<OrderStatusHistory>()
-            .Where(e => e.State == EntityState.Modified))
+        var modifiedHistories = ChangeTracker.Entries<OrderStatusHistory>()
+            .Where(e => e.State == EntityState.Modified);
+
+        foreach (var entry in modifiedHistories)
         {
             entry.State = EntityState.Added;
         }

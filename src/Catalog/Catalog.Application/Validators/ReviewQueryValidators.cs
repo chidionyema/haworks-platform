@@ -7,8 +7,8 @@ internal sealed class GetProductReviewQueryValidator : AbstractValidator<GetProd
 {
     public GetProductReviewQueryValidator()
     {
-        RuleFor(x => x.ProductId).NotEqual(Guid.Empty);
-        RuleFor(x => x.ReviewId).NotEqual(Guid.Empty);
+        RuleFor(x => x.ProductId).NotEmpty();
+        RuleFor(x => x.ReviewId).NotEmpty();
     }
 }
 
@@ -16,7 +16,7 @@ internal sealed class GetProductReviewsQueryValidator : AbstractValidator<GetPro
 {
     public GetProductReviewsQueryValidator()
     {
-        RuleFor(x => x.ProductId).NotEqual(Guid.Empty);
+        RuleFor(x => x.ProductId).NotEmpty();
         RuleFor(x => x.Skip).GreaterThanOrEqualTo(0);
         RuleFor(x => x.Take).InclusiveBetween(1, 100);
     }

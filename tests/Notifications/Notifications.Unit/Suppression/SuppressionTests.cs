@@ -112,7 +112,7 @@ public class SuppressionTests
     public async Task AddAsync_PersistsHashedRecipient()
     {
         Haworks.Notifications.Domain.Entities.Suppression? captured = null;
-        _repo.Setup(r => r.AddAsync(It.IsAny<Haworks.Notifications.Domain.Entities.Suppression>()))
+        _repo.Setup(r => r.AddAsync(It.IsAny<Haworks.Notifications.Domain.Entities.Suppression>(), It.IsAny<CancellationToken>()))
              .Callback<Haworks.Notifications.Domain.Entities.Suppression>(s => captured = s)
              .Returns(Task.CompletedTask);
 
@@ -133,7 +133,7 @@ public class SuppressionTests
     {
         // The repository's AddAsync is documented as idempotent — duplicate
         // adds are silently ignored. Service must not double-validate or throw.
-        _repo.SetupSequence(r => r.AddAsync(It.IsAny<Haworks.Notifications.Domain.Entities.Suppression>()))
+        _repo.SetupSequence(r => r.AddAsync(It.IsAny<Haworks.Notifications.Domain.Entities.Suppression>(), It.IsAny<CancellationToken>()))
              .Returns(Task.CompletedTask)
              .Returns(Task.CompletedTask);
 
@@ -142,7 +142,7 @@ public class SuppressionTests
         await sut.AddAsync("u@example.com", NotificationChannel.Email, "complaint", null, CancellationToken.None);
         await sut.AddAsync("u@example.com", NotificationChannel.Email, "complaint", null, CancellationToken.None);
 
-        _repo.Verify(r => r.AddAsync(It.IsAny<Haworks.Notifications.Domain.Entities.Suppression>()), Times.Exactly(2));
+        _repo.Verify(r => r.AddAsync(It.IsAny<Haworks.Notifications.Domain.Entities.Suppression>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Theory]

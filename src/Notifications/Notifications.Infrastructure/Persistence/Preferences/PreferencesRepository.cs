@@ -33,14 +33,14 @@ public sealed class PreferencesRepository : IPreferencesRepository
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<NotificationPreference>> GetAllForUserAsync(string userId)
+    public async Task<IReadOnlyList<NotificationPreference>> GetAllForUserAsync(string userId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
         var rows = await _dbContext.NotificationPreferences
             .AsNoTracking()
             .Where(p => p.UserId == userId)
-            .ToListAsync()
+            .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return rows;
@@ -73,15 +73,14 @@ public sealed class PreferencesRepository : IPreferencesRepository
     }
 
     /// <inheritdoc />
-    public Task<int> GetSendCountAsync(string bucketKey, DateTime windowStart)
+    public async Task<int> GetSendCountAsync(string bucketKey, DateTime windowStart)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bucketKey);
 
-        return _dbContext.RateLimitBuckets
+        return (await _dbContext.RateLimitBuckets
             .AsNoTracking()
             .Where(b => b.BucketKey == bucketKey && b.WindowStart >= windowStart)
-            .SumAsync(b => (int?)b.Count)
-            .ContinueWith(t => t.Result ?? 0, TaskScheduler.Default);
+            .SumAsync(b => (int?)b.Count)) ?? 0;
     }
 
     private static void CopyMutableFields(NotificationPreference from, NotificationPreference onto)

@@ -43,7 +43,8 @@ public sealed class StockReleaseRequestedConsumer(
             return;
         }
 
-        foreach (var item in evt.Items)
+        var items = evt.Items;
+        foreach (var item in items)
         {
             var product = await products.GetByIdTrackedAsync(item.ProductId, context.CancellationToken);
             if (product is null)

@@ -7,7 +7,7 @@ internal sealed class UpdateCategoryCommandValidator : AbstractValidator<UpdateC
 {
     public UpdateCategoryCommandValidator()
     {
-        RuleFor(x => x.CategoryId).NotEqual(Guid.Empty);
+        RuleFor(x => x.CategoryId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
     }
 }

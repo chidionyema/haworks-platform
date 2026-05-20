@@ -6,7 +6,7 @@ internal sealed class GetBalanceQueryValidator : AbstractValidator<GetBalanceQue
 {
     public GetBalanceQueryValidator()
     {
-        RuleFor(x => x.OwnerId).NotEqual(Guid.Empty);
+        RuleFor(x => x.OwnerId).NotEmpty();
         RuleFor(x => x.Currency).NotEmpty().MaximumLength(3);
         RuleFor(x => x.Type).IsInEnum();
     }

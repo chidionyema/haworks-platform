@@ -15,8 +15,9 @@ public class LocationHydrationService(LocationDbContext dbContext)
     public override async Task<AddressList> GetAddresses(AddressRequest request, ServerCallContext context)
     {
         var guids = request.LocationIds
-            .Select(id => Guid.TryParse(id, out var g) ? g : Guid.Empty)
-            .Where(g => g != Guid.Empty)
+            .Select(id => Guid.TryParse(id, out var g) ? (Guid?)g : null)
+            .Where(g => g.HasValue)
+            .Select(g => g!.Value)
             .ToList();
 
         if (guids.Count == 0)

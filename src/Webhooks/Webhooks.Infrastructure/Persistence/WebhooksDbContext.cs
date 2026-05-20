@@ -16,11 +16,11 @@ public sealed class WebhooksDbContext(DbContextOptions<WebhooksDbContext> option
         {
             entity.ToTable("webhook_subscriptions");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.PartnerId).IsRequired();
-            entity.Property(e => e.Url).IsRequired();
-            entity.Property(e => e.Secret).IsRequired();
-            entity.Property(e => e.SecretHash).IsRequired();
-            entity.Property(e => e.SecretPreview).IsRequired();
+            entity.Property(e => e.PartnerId).HasColumnType("uuid").IsRequired();
+            entity.Property(e => e.Url).HasMaxLength(1000).IsRequired();
+            entity.Property(e => e.Secret).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.SecretHash).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.SecretPreview).HasMaxLength(50).IsRequired();
             entity.Property(e => e.Events).IsRequired();
 
             entity.HasIndex(e => e.PartnerId).HasFilter("\"DeletedAt\" IS NULL");

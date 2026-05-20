@@ -167,7 +167,7 @@ public sealed class CatalogDbContext : DbContext
             entity.Property(r => r.OrderId);
             entity.Property(r => r.SagaId);
             entity.Property(r => r.UserId).HasMaxLength(450).IsRequired();
-            entity.Property(r => r.Status).IsRequired();
+            entity.Property(r => r.Status).HasMaxLength(50).IsRequired();
             entity.Property(r => r.ExpiresAt).IsRequired();
             entity.Property(r => r.ConfirmedAt);
             entity.Property(r => r.ExpiredAt);

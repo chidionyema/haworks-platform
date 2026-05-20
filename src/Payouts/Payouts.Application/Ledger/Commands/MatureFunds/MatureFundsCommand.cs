@@ -63,6 +63,7 @@ public class MatureFundsCommandHandler : IRequestHandler<MatureFundsCommand>
             // M6 Fix: Unique referenceId per maturity batch (prevents constraint violation on 2nd run)
             var batchRef = $"MATURITY:{DateTimeOffset.UtcNow:yyyyMMddHHmmss}";
 
+            var entriesDbSet = _context.LedgerEntries;
             var maturedCount = 0;
             foreach (var pendingAccount in pendingAccounts)
             {
@@ -79,7 +80,7 @@ public class MatureFundsCommandHandler : IRequestHandler<MatureFundsCommand>
                 payableAccount.UpdateBalance(amount, EntryType.Credit);
 
                 var transactionId = Guid.NewGuid();
-                _context.LedgerEntries.AddRange(
+                entriesDbSet.AddRange(
                     LedgerEntry.Create(pendingAccount.Id, transactionId, amount, EntryType.Debit, "Funds matured", $"{batchRef}:{pendingAccount.Id}"),
                     LedgerEntry.Create(payableAccount.Id, transactionId, amount, EntryType.Credit, "Funds matured", $"{batchRef}:{payableAccount.Id}"));
                 maturedCount++;

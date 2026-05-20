@@ -7,7 +7,7 @@ internal sealed class CreateProductReviewCommandValidator : AbstractValidator<Cr
 {
     public CreateProductReviewCommandValidator()
     {
-        RuleFor(x => x.ProductId).NotEqual(Guid.Empty);
+        RuleFor(x => x.ProductId).NotEmpty();
         RuleFor(x => x.UserId).NotEmpty();
         RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Content).NotEmpty().MinimumLength(10).MaximumLength(5000);
