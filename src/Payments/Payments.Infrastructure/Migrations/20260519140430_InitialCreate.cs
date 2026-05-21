@@ -108,8 +108,6 @@ namespace Haworks.Payments.Infrastructure.Migrations
                     FailureDetail = table.Column<string>(type: "text", nullable: true),
                     FailureCategory = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     RefundTimeoutTokenId = table.Column<Guid>(type: "uuid", nullable: true),
-                    ReviewEscalationTokenId = table.Column<Guid>(type: "uuid", nullable: true),
-                    RetryCount = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
