@@ -34,7 +34,7 @@ namespace Haworks.Privacy.Infrastructure.Migrations
                 name: "IX_SagaTransitionAudit_SagaType_CorrelationId",
                 schema: "privacy",
                 table: "SagaTransitionAudit",
-                columns: new[] { "SagaType", "CorrelationId" });
+                columns: ["SagaType", "CorrelationId"]);
         }
 
         /// <inheritdoc />

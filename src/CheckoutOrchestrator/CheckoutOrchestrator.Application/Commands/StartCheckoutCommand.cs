@@ -40,10 +40,10 @@ internal sealed class StartCheckoutCommandHandler(
         // Guid.NewGuid() is used only when no IdempotencyKey is present (rare path).
         var sagaId = request.SagaId != Guid.Empty
             ? request.SagaId
-            : new Guid(MD5.HashData(Encoding.UTF8.GetBytes(
+            : new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(
                 !string.IsNullOrEmpty(request.IdempotencyKey)
                     ? request.IdempotencyKey
-                    : Guid.NewGuid().ToString("N"))));
+                    : Guid.NewGuid().ToString("N"))).AsSpan(0, 16));
         var orderId = request.OrderId == Guid.Empty ? Guid.NewGuid() : request.OrderId;
 
         using var activity = CheckoutActivities.Source.StartActivity("checkout.saga.start");
