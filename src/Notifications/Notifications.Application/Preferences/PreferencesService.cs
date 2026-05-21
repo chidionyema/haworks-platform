@@ -45,7 +45,7 @@ public sealed class PreferencesService : IPreferencesService
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         ArgumentException.ThrowIfNullOrWhiteSpace(category);
 
-        var rows = await _repository.GetAllForUserAsync(userId).ConfigureAwait(false);
+        var rows = await _repository.GetAllForUserAsync(userId, ct).ConfigureAwait(false);
         if (rows is null || rows.Count == 0)
         {
             // No preferences configured — default allow.

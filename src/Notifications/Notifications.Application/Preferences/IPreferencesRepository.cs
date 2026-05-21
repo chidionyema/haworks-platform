@@ -16,7 +16,7 @@ public interface IPreferencesRepository
     /// pick up both the per-(category, channel) entry and the global
     /// (category = "*") entry in a single round trip.
     /// </summary>
-    Task<IReadOnlyList<NotificationPreference>> GetAllForUserAsync(string userId);
+    Task<IReadOnlyList<NotificationPreference>> GetAllForUserAsync(string userId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Inserts or updates a preference row. Composite PK is

@@ -187,7 +187,7 @@ public sealed class DemoIdempotencyController(
                 {
                     requestIndex = i,
                     isWinner = false,
-                    orderId = Guid.Empty,
+                    orderId = Guid.NewGuid(),
                     durationMs = sw.ElapsedMilliseconds,
                 };
             }

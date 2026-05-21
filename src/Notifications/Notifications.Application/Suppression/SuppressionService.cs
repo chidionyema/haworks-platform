@@ -49,7 +49,7 @@ public sealed class SuppressionService : ISuppressionService
 
         var suppression = SuppressionFactory.Create(hash, channel, reason, sourceEventId);
 
-        await _repository.AddAsync(suppression).ConfigureAwait(false);
+        await _repository.AddAsync(suppression, ct).ConfigureAwait(false);
 
         _logger.LogInformation(
             "Recipient suppressed. Channel: {Channel}, Reason: {Reason}, RecipientHash: {RecipientHash}",

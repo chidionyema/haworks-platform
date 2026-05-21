@@ -6,7 +6,7 @@ internal sealed class DeactivateMerchantCommandValidator : AbstractValidator<Dea
 {
     public DeactivateMerchantCommandValidator()
     {
-        RuleFor(x => x.MerchantId).NotEqual(Guid.Empty);
-        RuleFor(x => x.UserId).NotEqual(Guid.Empty);
+        RuleFor(x => x.MerchantId).NotEmpty();
+        RuleFor(x => x.UserId).NotEmpty();
     }
 }

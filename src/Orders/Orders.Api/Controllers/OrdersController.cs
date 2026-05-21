@@ -75,6 +75,6 @@ public sealed class OrdersController(IMediator mediator) : ControllerBase
 
         var safeCommand = command with { UserId = userId };
         var result = await mediator.Send(safeCommand, ct);
-        return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value : Guid.Empty });
+        return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value : Guid.NewGuid() });
     }
 }

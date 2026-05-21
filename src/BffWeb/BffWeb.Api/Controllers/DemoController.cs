@@ -192,7 +192,7 @@ public class DemoController : ControllerBase
             var root = doc.RootElement;
 
             var currentState = root.TryGetProperty("currentState", out var s) ? s.GetString() : null;
-            var orderIdEl = root.TryGetProperty("orderId", out var o) ? o.GetGuid() : Guid.Empty;
+            var orderIdEl = root.TryGetProperty("orderId", out var o) ? o.GetGuid() : Guid.NewGuid();
             var failureReason = root.TryGetProperty("failureReason", out var f) && f.ValueKind != JsonValueKind.Null
                 ? f.GetString() : null;
             var paymentUrl = root.TryGetProperty("paymentCheckoutUrl", out var u) && u.ValueKind != JsonValueKind.Null
@@ -1427,7 +1427,7 @@ public class DemoController : ControllerBase
         return Ok(new
         {
             sessionId,
-            requestId = body.TryGetProperty("requestId", out var rid) ? rid.GetGuid() : Guid.Empty,
+            requestId = body.TryGetProperty("requestId", out var rid) ? rid.GetGuid() : Guid.NewGuid(),
             status = "Processing",
             _metadata = BuildMetadata(("privacy-svc", resp)),
         });

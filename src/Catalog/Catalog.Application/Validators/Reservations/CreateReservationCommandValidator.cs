@@ -14,7 +14,7 @@ public sealed class CreateReservationCommandValidator : AbstractValidator<Create
             .WithMessage("At least one reservation item is required.");
         RuleForEach(x => x.Items).ChildRules(item =>
         {
-            item.RuleFor(i => i.ProductId).NotEqual(Guid.Empty);
+            item.RuleFor(i => i.ProductId).NotEmpty();
             item.RuleFor(i => i.Quantity).GreaterThan(0);
         });
     }

@@ -6,6 +6,6 @@ internal sealed class RotateWebhookSubscriptionSecretCommandValidator : Abstract
 {
     public RotateWebhookSubscriptionSecretCommandValidator()
     {
-        RuleFor(x => x.Id).NotEqual(Guid.Empty);
+        RuleFor(x => x.Id).NotEmpty();
     }
 }

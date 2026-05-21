@@ -115,7 +115,7 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
             entity.ToTable("RefundSagas");
             entity.HasKey(s => s.CorrelationId);
 
-            entity.Property(s => s.OrderId).IsRequired();
+            entity.Property(p => p.OrderId).HasColumnType("uuid").IsRequired();
             entity.Property(s => s.PaymentId).IsRequired();
             entity.Property(s => s.RefundId).IsRequired();
             entity.Property(s => s.Amount).HasColumnType("numeric(18,2)").IsRequired();
@@ -181,7 +181,8 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
 
     private void OnBeforeSaving()
     {
-        foreach (var entry in ChangeTracker.Entries<AuditableEntity>())
+        var auditableEntries = ChangeTracker.Entries<AuditableEntity>();
+        foreach (var entry in auditableEntries)
         {
             if (entry.State == EntityState.Added)
             {

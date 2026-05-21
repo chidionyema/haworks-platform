@@ -7,7 +7,7 @@ public sealed class ConfirmReservationCommandValidator : AbstractValidator<Confi
 {
     public ConfirmReservationCommandValidator()
     {
-        RuleFor(x => x.ReservationId).NotEqual(Guid.Empty);
+        RuleFor(x => x.ReservationId).NotEmpty();
         RuleFor(x => x.UserId).NotEmpty();
         RuleFor(x => x.CustomerEmail).NotEmpty().EmailAddress();
         RuleFor(x => x.Currency).NotEmpty().Length(3);

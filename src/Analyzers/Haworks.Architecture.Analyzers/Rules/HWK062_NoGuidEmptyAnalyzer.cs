@@ -29,7 +29,7 @@ public sealed class HWK062_NoGuidEmptyAnalyzer : DiagnosticAnalyzer
         if (receiver is not ("Guid" or "System.Guid"))
             return;
 
-        // Allow in comparisons (== Guid.Empty, != Guid.Empty) — that's a valid check
+        // Allow in comparisons (== default, != default) — that's a valid check
         if (ma.Parent is BinaryExpressionSyntax bin &&
             bin.Kind() is SyntaxKind.EqualsExpression or SyntaxKind.NotEqualsExpression)
             return;

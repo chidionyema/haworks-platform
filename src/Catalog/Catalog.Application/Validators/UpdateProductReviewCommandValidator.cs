@@ -7,8 +7,8 @@ internal sealed class UpdateProductReviewCommandValidator : AbstractValidator<Up
 {
     public UpdateProductReviewCommandValidator()
     {
-        RuleFor(x => x.ProductId).NotEqual(Guid.Empty);
-        RuleFor(x => x.ReviewId).NotEqual(Guid.Empty);
+        RuleFor(x => x.ProductId).NotEmpty();
+        RuleFor(x => x.ReviewId).NotEmpty();
         RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Content).NotEmpty().MinimumLength(10).MaximumLength(5000);
         RuleFor(x => x.Rating).InclusiveBetween(1, 5);

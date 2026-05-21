@@ -6,7 +6,7 @@ internal sealed class GetMerchantByIdQueryValidator : AbstractValidator<GetMerch
 {
     public GetMerchantByIdQueryValidator()
     {
-        RuleFor(x => x.MerchantId).NotEqual(Guid.Empty);
+        RuleFor(x => x.MerchantId).NotEmpty();
     }
 }
 
@@ -14,7 +14,7 @@ internal sealed class GetMerchantByOwnerQueryValidator : AbstractValidator<GetMe
 {
     public GetMerchantByOwnerQueryValidator()
     {
-        RuleFor(x => x.OwnerId).NotEqual(Guid.Empty);
+        RuleFor(x => x.OwnerId).NotEmpty();
     }
 }
 
