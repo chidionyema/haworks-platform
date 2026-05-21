@@ -12,6 +12,12 @@
       CA1051; <!-- Visible instance fields -->
       CA1014; <!-- CLS compliant -->
       CS0105; <!-- Duplicate using -->
+      HWK081; <!-- GetRequiredService — legitimate in test factories/setup -->
+      HWK082; <!-- HttpClient not in Polly — tests call in-process test server -->
+      HWK062; <!-- Guid.Empty as identifier — deliberate in test assertions -->
+      HWK077; <!-- ToListAsync without Take — tests load small datasets -->
+      S2699;  <!-- No assertion — integration tests assert via DB state -->
+      S2925;  <!-- Thread.Sleep in test — acceptable for timing tests -->
     </NoWarn>
   </PropertyGroup>
 

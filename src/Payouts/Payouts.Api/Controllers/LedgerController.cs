@@ -67,15 +67,16 @@ public sealed class DemoLedgerController(IPayoutsDbContext db) : ControllerBase
         db.LedgerAccounts.Add(account);
 
         // Credit: payment received
-        account.UpdateBalance(request.AmountCents / 100m, Haworks.Payouts.Domain.Enums.EntryType.Credit);
+        var paymentAmount = Math.Round(request.AmountCents / 100m, 2, MidpointRounding.ToEven);
+        account.UpdateBalance(paymentAmount, Haworks.Payouts.Domain.Enums.EntryType.Credit);
         var creditEntry = Haworks.Payouts.Domain.Aggregates.LedgerEntry.Create(
-            account.Id, txId, request.AmountCents / 100m,
+            account.Id, txId, paymentAmount,
             Haworks.Payouts.Domain.Enums.EntryType.Credit,
             "Payment received", $"ORDER:{Guid.NewGuid():N}");
         db.LedgerEntries.Add(creditEntry);
 
         // Debit: platform commission (10%)
-        var commission = request.AmountCents / 100m * 0.10m;
+        var commission = Math.Round(paymentAmount * 0.10m, 2, MidpointRounding.ToEven);
         account.UpdateBalance(commission, Haworks.Payouts.Domain.Enums.EntryType.Debit);
         var debitEntry = Haworks.Payouts.Domain.Aggregates.LedgerEntry.Create(
             account.Id, txId, commission,
@@ -92,7 +93,7 @@ public sealed class DemoLedgerController(IPayoutsDbContext db) : ControllerBase
             balance = account.Balance,
             entries = new[]
             {
-                new { type = "credit", amount = request.AmountCents / 100m, description = creditEntry.Description, reference = creditEntry.ReferenceId },
+                new { type = "credit", amount = paymentAmount, description = creditEntry.Description, reference = creditEntry.ReferenceId },
                 new { type = "debit", amount = commission, description = debitEntry.Description, reference = debitEntry.ReferenceId },
             },
             invariant = "Sum of all entries = 0 (credit - debit balanced)",

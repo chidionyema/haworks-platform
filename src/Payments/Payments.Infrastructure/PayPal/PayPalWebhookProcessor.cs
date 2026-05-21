@@ -206,7 +206,7 @@ internal sealed class PayPalWebhookProcessor(
             Provider = PaymentProvider.PayPal, 
             Mode = SessionMode.Payment,
             Currency = currency,
-            AmountTotal = (long)(decimal.Parse(amount) * CheckoutConstants.CentMultiplier) 
+            AmountTotal = (long)Math.Round(decimal.Parse(amount) * CheckoutConstants.CentMultiplier, 0, MidpointRounding.ToEven)
         };
 
         await paymentProcessor.HandleCompletedSessionAsync(sessionEvent, ct);

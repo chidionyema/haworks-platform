@@ -130,10 +130,10 @@ dotnet_diagnostic.HWK075.severity = warning
 dotnet_diagnostic.HWK076.severity = warning
 dotnet_diagnostic.HWK077.severity = warning
 dotnet_diagnostic.HWK078.severity = warning
-dotnet_diagnostic.HWK079.severity = warning
+dotnet_diagnostic.HWK079.severity = none          # Duplicate of MA0004 — ConfigureAwait not needed in ASP.NET Core
 dotnet_diagnostic.HWK080.severity = warning
 dotnet_diagnostic.HWK081.severity = warning
 dotnet_diagnostic.HWK082.severity = warning
 dotnet_diagnostic.HWK083.severity = warning
-dotnet_diagnostic.HWK084.severity = warning
+dotnet_diagnostic.HWK084.severity = error          # Unrounded decimal math in financial code — money bug
 

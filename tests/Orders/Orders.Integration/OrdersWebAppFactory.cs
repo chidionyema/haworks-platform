@@ -12,7 +12,6 @@ using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 using Haworks.Orders.Application.Consumers;
 using Haworks.Orders.Infrastructure;
-using Haworks.Orders.Infrastructure.Messaging;
 
 namespace Haworks.Orders.Integration;
 
@@ -66,20 +65,25 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
         {
             services.AddMassTransitTestHarness(mt =>
             {
-                mt.AddConsumer<PaymentCompletedConsumer, OrdersConsumerDefinition<PaymentCompletedConsumer>>();
-                mt.AddConsumer<PaymentSessionFailedConsumer, OrdersConsumerDefinition<PaymentSessionFailedConsumer>>();
-                mt.AddConsumer<StockReservationFailedConsumer, OrdersConsumerDefinition<StockReservationFailedConsumer>>();
-                mt.AddConsumer<CheckoutSessionExpiredConsumer, OrdersConsumerDefinition<CheckoutSessionExpiredConsumer>>();
-                mt.AddConsumer<RefundCompletedConsumer, OrdersConsumerDefinition<RefundCompletedConsumer>>();
-                mt.AddConsumer<RefundCancelledConsumer, OrdersConsumerDefinition<RefundCancelledConsumer>>();
-                mt.AddConsumer<PrivacyErasureRequestedConsumer, OrdersConsumerDefinition<PrivacyErasureRequestedConsumer>>();
+                mt.AddConsumer<PaymentCompletedConsumer>();
+                mt.AddConsumer<PaymentSessionFailedConsumer>();
+                mt.AddConsumer<StockReservationFailedConsumer>();
+                mt.AddConsumer<CheckoutSessionExpiredConsumer>();
+                mt.AddConsumer<RefundCompletedConsumer>();
+                mt.AddConsumer<RefundCancelledConsumer>();
+                mt.AddConsumer<PrivacyErasureRequestedConsumer>();
 
-                mt.AddEntityFrameworkOutbox<OrderDbContext>(o =>
+                // Consumers rely on EF outbox for SaveChanges in production.
+                // In tests we use UseInMemoryOutbox (publishes go to the harness bus,
+                // not to outbox tables) + a scoped filter that flushes the DbContext.
+                mt.AddConfigureEndpointsCallback((ctx, _, cfg) =>
                 {
-                    o.UsePostgres();
-                    o.QueryDelay = TimeSpan.FromSeconds(1);
+                    cfg.UseInMemoryOutbox(ctx);
+                    cfg.UseConsumeFilter(typeof(TestSaveChangesFilter<>), ctx);
                 });
             });
+
+            services.AddScoped(typeof(TestSaveChangesFilter<>));
 
             // [Authorize]-decorated endpoints need an authentication scheme.
             // BuildingBlocks.Testing's TestAuthenticationHandler is a no-op
@@ -94,4 +98,22 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
         var db = scope.ServiceProvider.GetRequiredService<Haworks.Orders.Infrastructure.OrderDbContext>();
         await db.Database.MigrateAsync();
     }
+}
+
+/// <summary>
+/// Test-only consume filter that calls SaveChangesAsync on OrderDbContext
+/// after the consumer completes. In production, the EF outbox handles this.
+/// In tests, we use UseInMemoryOutbox (publishes go straight to bus) plus
+/// this filter (entities get persisted).
+/// </summary>
+internal sealed class TestSaveChangesFilter<T>(OrderDbContext db) : IFilter<ConsumeContext<T>>
+    where T : class
+{
+    public async Task Send(ConsumeContext<T> context, IPipe<ConsumeContext<T>> next)
+    {
+        await next.Send(context);
+        await db.SaveChangesAsync(context.CancellationToken);
+    }
+
+    public void Probe(ProbeContext context) => context.CreateScope("test-save");
 }

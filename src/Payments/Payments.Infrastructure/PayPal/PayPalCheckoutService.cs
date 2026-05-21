@@ -214,7 +214,7 @@ internal sealed class PayPalCheckoutService(
     public Task<bool> ExpireSessionAsync(string sessionId, CancellationToken ct = default) => Task.FromResult(true);
 
     private static string FormatAmount(long amountCents) => 
-        (amountCents / CheckoutConstants.CentMultiplier).ToString("F2");
+        Math.Round(amountCents / CheckoutConstants.CentMultiplier, 2, MidpointRounding.ToEven).ToString("F2");
 
     private static SessionStatus MapOrderStatus(string? status) => status?.ToUpperInvariant() switch
     {

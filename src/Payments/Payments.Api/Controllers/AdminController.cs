@@ -84,7 +84,7 @@ public sealed class AdminController(
         var payment = Payment.Create(
             orderId: Guid.NewGuid(),
             userId: "demo-user",
-            amount: request.AmountCents / 100m,
+            amount: Math.Round(request.AmountCents / 100m, 2, MidpointRounding.ToEven),
             tax: 0m,
             currency: request.Currency ?? DefaultCurrency,
             provider: PaymentProvider.Stripe,

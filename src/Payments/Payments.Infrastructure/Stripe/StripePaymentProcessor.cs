@@ -106,7 +106,7 @@ internal sealed class StripePaymentProcessor(
         }
 
         // 4b. Amount validation
-        decimal actualPaid = sessionEvent.AmountTotal / CentMultiplier;
+        decimal actualPaid = Math.Round(sessionEvent.AmountTotal / CentMultiplier, 2, MidpointRounding.ToEven);
         decimal expectedTotal = payment.Amount + payment.Tax;
 
         if (PaymentValidationHelper.HasAmountMismatch(actualPaid, expectedTotal))

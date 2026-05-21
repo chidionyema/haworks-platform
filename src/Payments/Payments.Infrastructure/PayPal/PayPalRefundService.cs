@@ -69,7 +69,7 @@ internal sealed class PayPalRefundService(
                     refundReq.Amount = new PayPalRefundAmount
                     {
                         CurrencyCode = request.Currency ?? DefaultCurrency,
-                        Value = (request.AmountCents.Value / CheckoutConstants.CentMultiplier).ToString("F2")
+                        Value = Math.Round(request.AmountCents.Value / CheckoutConstants.CentMultiplier, 2, MidpointRounding.ToEven).ToString("F2")
                     };
                 }
 
@@ -131,7 +131,7 @@ internal sealed class PayPalRefundService(
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
                 RefundId = refund!.Id!,
-                AmountCents = request.AmountCents ?? (long)(payment.Amount * CheckoutConstants.CentMultiplier),
+                AmountCents = request.AmountCents ?? (long)Math.Round(payment.Amount * CheckoutConstants.CentMultiplier, 0, MidpointRounding.ToEven),
                 Currency = payment.Currency,
                 Provider = PaymentProvider.PayPal,
                 Reason = request.Reason
@@ -171,7 +171,7 @@ internal sealed class PayPalRefundService(
             { 
                 RefundId = refund!.Id!, 
                 Status = MapRefundStatus(refund.Status), 
-                AmountCents = (long)(decimal.Parse(refund.Amount?.Value ?? "0") * CheckoutConstants.CentMultiplier),
+                AmountCents = (long)Math.Round(decimal.Parse(refund.Amount?.Value ?? "0") * CheckoutConstants.CentMultiplier, 0, MidpointRounding.ToEven),
                 Provider = PaymentProvider.PayPal 
             };
         }
