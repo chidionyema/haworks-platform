@@ -25,9 +25,8 @@ if [ -d /vault/data/raft ] || [ -f /vault/data/.transit-migration-done ]; then
   # Check if vault can start with existing data by doing a quick probe
   vault server -config=/vault/config/vault.hcl -log-level=error &
   probe_pid=$!
-  sleep 3
-  vault status >/dev/null 2>&1
-  rc=$?
+  sleep 5
+  rc=0; vault status >/dev/null 2>&1 || rc=$?
   if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
     # Vault couldn't start (likely seal mismatch) — wipe and re-init
     echo "[entrypoint] vault failed to start with existing data — wiping for re-init"
