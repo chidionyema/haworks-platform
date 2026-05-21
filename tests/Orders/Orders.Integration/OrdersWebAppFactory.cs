@@ -11,6 +11,8 @@ using Xunit;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 using Haworks.Orders.Application.Consumers;
+using Haworks.Orders.Infrastructure;
+using Haworks.Orders.Infrastructure.Messaging;
 
 namespace Haworks.Orders.Integration;
 
@@ -62,28 +64,21 @@ public sealed class OrdersWebAppFactory : WebApplicationFactory<Program>, IAsync
 
         builder.ConfigureTestServices(services =>
         {
-            // Remove outbox-related hosted services — the test harness uses
-            // in-memory transport and doesn't need outbox delivery/cleanup.
-            var outboxServices = services
-                .Where(d => d.ServiceType == typeof(IHostedService) &&
-                            d.ImplementationType?.FullName != null &&
-                            (d.ImplementationType.FullName.Contains("BusOutboxDelivery") ||
-                             d.ImplementationType.FullName.Contains("InboxCleanup") ||
-                             d.ImplementationType.FullName.Contains("OutboxCleanup") ||
-                             d.ImplementationType.FullName.Contains("OutboxDelivery")))
-                .ToList();
-            foreach (var d in outboxServices)
-                services.Remove(d);
-
             services.AddMassTransitTestHarness(mt =>
             {
-                mt.AddConsumer<PaymentCompletedConsumer>();
-                mt.AddConsumer<PaymentSessionFailedConsumer>();
-                mt.AddConsumer<StockReservationFailedConsumer>();
-                mt.AddConsumer<CheckoutSessionExpiredConsumer>();
-                mt.AddConsumer<RefundCompletedConsumer>();
-                mt.AddConsumer<RefundCancelledConsumer>();
-                mt.AddConsumer<PrivacyErasureRequestedConsumer>();
+                mt.AddConsumer<PaymentCompletedConsumer, OrdersConsumerDefinition<PaymentCompletedConsumer>>();
+                mt.AddConsumer<PaymentSessionFailedConsumer, OrdersConsumerDefinition<PaymentSessionFailedConsumer>>();
+                mt.AddConsumer<StockReservationFailedConsumer, OrdersConsumerDefinition<StockReservationFailedConsumer>>();
+                mt.AddConsumer<CheckoutSessionExpiredConsumer, OrdersConsumerDefinition<CheckoutSessionExpiredConsumer>>();
+                mt.AddConsumer<RefundCompletedConsumer, OrdersConsumerDefinition<RefundCompletedConsumer>>();
+                mt.AddConsumer<RefundCancelledConsumer, OrdersConsumerDefinition<RefundCancelledConsumer>>();
+                mt.AddConsumer<PrivacyErasureRequestedConsumer, OrdersConsumerDefinition<PrivacyErasureRequestedConsumer>>();
+
+                mt.AddEntityFrameworkOutbox<OrderDbContext>(o =>
+                {
+                    o.UsePostgres();
+                    o.QueryDelay = TimeSpan.FromSeconds(1);
+                });
             });
 
             // [Authorize]-decorated endpoints need an authentication scheme.

@@ -16,6 +16,7 @@ using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 using Haworks.Webhooks.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Moq;
 
 namespace Haworks.Webhooks.Integration;
@@ -120,8 +121,11 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
             var httpClient = new HttpClient(new AlwaysOkHandler());
             var mockFactory = new Mock<IHttpClientFactory>();
             mockFactory.Setup(_ => _.CreateClient(It.IsAny<string>())).Returns(httpClient);
-            
-            services.AddSingleton(mockFactory.Object);
+
+            // RemoveAll ensures the mock replaces the DefaultHttpClientFactory
+            // registered by AddHttpClient(). Without this, DI resolves the real factory.
+            services.RemoveAll<IHttpClientFactory>();
+            services.AddSingleton<IHttpClientFactory>(mockFactory.Object);
             services.AddAuthentication(TestAuthenticationHandler.SchemeName)
                 .AddScheme<AuthenticationSchemeOptions, WebhooksTestAuthHandler>(
                     TestAuthenticationHandler.SchemeName, _ => { });
