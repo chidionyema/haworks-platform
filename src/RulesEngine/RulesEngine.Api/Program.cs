@@ -22,7 +22,7 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
         .Enrich.FromLogContext());
 
 // ── Persistence ───────────────────────────────────────────────────────────────
-builder.Services.AddDbContext<RulesDbContext>(options =>
+builder.Services.AddDbContext<RulesDbContext>((sp, options) =>
 {
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("rules")
@@ -30,6 +30,7 @@ builder.Services.AddDbContext<RulesDbContext>(options =>
             ?? throw new InvalidOperationException("ConnectionStrings:rules is missing."),
         npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "rules"));
     options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+    options.AddPlatformInterceptors(sp);
 });
 
 // ── Health checks ─────────────────────────────────────────────────────────────

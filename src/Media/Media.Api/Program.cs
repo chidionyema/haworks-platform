@@ -34,8 +34,11 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException(
         "No database connection string. Expected 'ConnectionStrings:DefaultConnection'.");
 
-builder.Services.AddDbContext<MediaDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.AddDbContext<MediaDbContext>((sp, options) =>
+{
+    options.UseNpgsql(connectionString);
+    options.AddPlatformInterceptors(sp);
+});
 
 // ── Health checks ──
 builder.Services.AddHealthChecks()

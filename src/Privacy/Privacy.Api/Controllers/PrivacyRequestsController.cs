@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Logging;
 
 namespace Haworks.Privacy.Api.Controllers;
 
@@ -16,10 +17,12 @@ namespace Haworks.Privacy.Api.Controllers;
 public class PrivacyRequestsController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly ILogger<PrivacyRequestsController> _logger;
 
-    public PrivacyRequestsController(IMediator mediator)
+    public PrivacyRequestsController(IMediator mediator, ILogger<PrivacyRequestsController> logger)
     {
         _mediator = mediator;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -29,9 +32,34 @@ public class PrivacyRequestsController : ControllerBase
     {
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
 
-        // Service-to-service calls (sub=bff-service) use the UserId from the request body
+        // Service-to-service calls (sub=bff-service) use the UserId from the request body.
+        // SECURITY NOTE: The "Service" role is necessary but not sufficient — we also require
+        // the privacy:erase scope/claim to reduce the blast radius if a service token is
+        // compromised. If claim infrastructure is not yet available, this check is documented
+        // here as a required control and the initiating service identity is audit-logged.
+        // TODO: enforce privacy:erase claim once claim infrastructure is provisioned (PLATFORM-SEC-12).
         if (User.IsInRole("Service") && command.UserId != Guid.Empty)
         {
+            var initiatingService = User.FindFirst("sub")?.Value ?? "unknown-service";
+            var hasEraseScope = User.HasClaim("scope", "privacy:erase")
+                             || User.HasClaim("privacy:erase", "true");
+
+            if (!hasEraseScope)
+            {
+                // Audit-log the missing claim so the security team can track callers
+                // that haven't yet been updated to include the privacy:erase scope.
+                _logger.LogWarning(
+                    "IDOR risk: privacy erasure initiated by service {InitiatingService} without privacy:erase scope. " +
+                    "UserId={UserId}. Proceeding (enforcement pending PLATFORM-SEC-12).",
+                    initiatingService, command.UserId);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Privacy erasure initiated by service {InitiatingService} with privacy:erase scope. UserId={UserId}",
+                    initiatingService, command.UserId);
+            }
+
             var id = await _mediator.Send(command, ct);
             return Ok(new { RequestId = id });
         }

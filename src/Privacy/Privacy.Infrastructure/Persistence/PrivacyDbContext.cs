@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Privacy.Application.Common.Interfaces;
 using Haworks.Privacy.Domain.Aggregates;
 using Haworks.Privacy.Application.Requests.Sagas;
@@ -12,6 +13,7 @@ public class PrivacyDbContext : DbContext, IPrivacyDbContext
 
     public DbSet<PrivacyRequest> PrivacyRequests => Set<PrivacyRequest>();
     public DbSet<PrivacyRequestStep> PrivacyRequestSteps => Set<PrivacyRequestStep>();
+    public DbSet<SagaTransitionAuditEntry> SagaTransitionAudit => Set<SagaTransitionAuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -43,6 +45,26 @@ public class PrivacyDbContext : DbContext, IPrivacyDbContext
             entity.Property(e => e.CurrentState).HasMaxLength(64);
             entity.Property(e => e.UserId).IsRequired();
             entity.Property(e => e.Version).IsConcurrencyToken();
+
+            // H9: per-service completion timestamps for GDPR audit trail
+            entity.Property(e => e.IdentityCompletedAt);
+            entity.Property(e => e.OrdersCompletedAt);
+            entity.Property(e => e.PaymentsCompletedAt);
+
+            // C2: comma-separated failed services
+            entity.Property(e => e.FailedServices).HasMaxLength(256);
+
+            // FailedServicesSet is a computed property — not persisted
+            entity.Ignore(e => e.FailedServicesSet);
+        });
+
+        builder.Entity<SagaTransitionAuditEntry>(e =>
+        {
+            e.ToTable("SagaTransitionAudit");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).UseIdentityAlwaysColumn();
+            e.Property(x => x.InitiatedBy).HasMaxLength(450);
+            e.HasIndex(x => new { x.SagaType, x.CorrelationId });
         });
     }
 }

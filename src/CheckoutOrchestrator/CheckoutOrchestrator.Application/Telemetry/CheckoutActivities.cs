@@ -16,4 +16,6 @@ public static class CheckoutActivities
     public static readonly Meter Meter = new(SourceName, "1.0.0");
     public static readonly Counter<long> CheckoutStuckInReview = Meter.CreateCounter<long>("checkout.saga.stuck_in_review", description: "Checkout sagas stuck in RequiresReview state");
     public static readonly Counter<long> CheckoutAbandoned = Meter.CreateCounter<long>("checkout.saga.abandoned", description: "Checkout sagas abandoned due to payment expiry");
+    public static readonly Counter<long> CheckoutStuckInitiated = Meter.CreateCounter<long>("checkout.saga.stuck_initiated", description: "Checkout sagas stuck in Initiated state — stock reservation never arrived");
+    public static readonly Counter<long> CheckoutStuckAwaitingPayment = Meter.CreateCounter<long>("checkout.saga.stuck_awaiting_payment", description: "Checkout sagas stuck in StockReserved/StockReservationRequested state — payment session never arrived");
 }

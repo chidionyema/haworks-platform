@@ -2,6 +2,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.BuildingBlocks.CurrentUser;
@@ -34,6 +35,7 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
     public DbSet<WebhookEvent> WebhookEvents => Set<WebhookEvent>();
     public DbSet<RefundSagaState> RefundSagas => Set<RefundSagaState>();
     public DbSet<SubscriptionSagaState> SubscriptionSagas => Set<SubscriptionSagaState>();
+    public DbSet<SagaTransitionAuditEntry> SagaTransitionAudit => Set<SagaTransitionAuditEntry>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -122,6 +124,7 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
             entity.Property(s => s.ProviderRefundId).HasMaxLength(500);
             entity.Property(s => s.CurrentState).HasMaxLength(100);
             entity.Property(s => s.FailureCategory).HasConversion<string>().HasMaxLength(50);
+            entity.Property(s => s.RequestedBy).HasMaxLength(200);
 
             entity.HasIndex(s => s.OrderId);
             entity.HasIndex(s => s.PaymentId);
@@ -140,8 +143,10 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
             entity.Property(s => s.UserId).HasMaxLength(100).IsRequired();
             entity.Property(s => s.PlanId).HasMaxLength(100).IsRequired();
             entity.Property(s => s.Provider).HasMaxLength(20).HasDefaultValue("Stripe");
-            entity.Property(s => s.Currency).HasMaxLength(3).IsRequired();
-            entity.Property(s => s.Amount).HasColumnType("numeric(18,2)").IsRequired();
+            // Amount and Currency properties have been removed from SubscriptionSagaState —
+            // they were never populated by the saga and are not used for orchestration.
+            // The DB columns are intentionally left in place (no migration needed) so
+            // existing rows are not affected and the schema change is backward-compatible.
             entity.Property(s => s.CurrentState).HasMaxLength(100);
 
             entity.HasIndex(s => s.ProviderSubscriptionId);
@@ -149,6 +154,15 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
 
             // Concurrency protection (XC-01/RS-02/SS-05)
             entity.Property(s => s.Version).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<SagaTransitionAuditEntry>(e =>
+        {
+            e.ToTable("SagaTransitionAudit");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).UseIdentityAlwaysColumn();
+            e.Property(x => x.InitiatedBy).HasMaxLength(450);
+            e.HasIndex(x => new { x.SagaType, x.CorrelationId });
         });
 
         modelBuilder.AddInboxStateEntity();

@@ -7,7 +7,15 @@ public interface ISubscriptionManager
     Task<SubscriptionStatusResult> GetStatusAsync(string userId, CancellationToken ct = default);
     Task<bool> CancelAsync(string subscriptionId, bool immediate = false, CancellationToken ct = default);
     Task<bool> ResumeAsync(string subscriptionId, CancellationToken ct = default);
-    Task HandleSubscriptionEventAsync(SubscriptionEvent subscriptionEvent, CancellationToken ct = default);
+    Task<SubscriptionEventResult> HandleSubscriptionEventAsync(SubscriptionEvent subscriptionEvent, CancellationToken ct = default);
+}
+
+public record SubscriptionEventResult
+{
+    public string? UserId { get; init; }
+    public long AmountCents { get; init; }
+    public string Currency { get; init; } = "USD";
+    public DateTime? PeriodEnd { get; init; }
 }
 
 public record SubscriptionStatusResult

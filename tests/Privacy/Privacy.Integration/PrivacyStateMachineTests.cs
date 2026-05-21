@@ -63,25 +63,25 @@ public sealed class PrivacyStateMachineTests : IAsyncLifetime
         await Task.Delay(500);
         await PublishErasureCompletedAsync(requestId, userId, "payments-svc");
 
-        // SetCompletedWhenFinalized() removes the row once finalized.
+        // H9: SetCompletedWhenFinalized() is NOT called — the row is retained for the GDPR
+        //     audit trail. The saga must reach the Completed state.
         await PollUntilAsync(() =>
-        {
-            var state = SagaStateOrNull(requestId);
-            return string.Equals(state, "Completed", StringComparison.Ordinal) || string.Equals(state, "Final", StringComparison.Ordinal) || state is null;
-        }, TimeSpan.FromSeconds(15));
+            string.Equals(SagaStateOrNull(requestId), "Completed", StringComparison.Ordinal),
+            TimeSpan.FromSeconds(15));
 
         // The saga must have published PrivacyErasureRequested on initiation.
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         harness.Published.Select<PrivacyErasureRequested>()
             .Any(p => p.Context.Message.RequestId == requestId).Should().BeTrue();
 
-        // Row may be deleted (finalized). If still present, must be Completed/Final.
+        // Row must be present and in Completed state with all timestamps set.
         var leftover = await ReadSagaAsync(requestId);
-        if (leftover is not null)
-        {
-            leftover.CurrentState.Should().BeOneOf("Completed", "Final");
-            leftover.CompletedAt.Should().NotBeNull();
-        }
+        leftover.Should().NotBeNull("saga row must be retained for GDPR audit trail");
+        leftover!.CurrentState.Should().Be("Completed");
+        leftover.CompletedAt.Should().NotBeNull();
+        leftover.IdentityCompletedAt.Should().NotBeNull();
+        leftover.OrdersCompletedAt.Should().NotBeNull();
+        leftover.PaymentsCompletedAt.Should().NotBeNull();
     }
 
     // ----------------------------------------------------------------
@@ -130,34 +130,61 @@ public sealed class PrivacyStateMachineTests : IAsyncLifetime
         await PublishErasureCompletedAsync(requestId, userId, "orders-svc");
 
         await PollUntilAsync(() =>
-        {
-            var state = SagaStateOrNull(requestId);
-            return string.Equals(state, "Completed", StringComparison.Ordinal) || string.Equals(state, "Final", StringComparison.Ordinal) || state is null;
-        }, TimeSpan.FromSeconds(15));
+            string.Equals(SagaStateOrNull(requestId), "Completed", StringComparison.Ordinal),
+            TimeSpan.FromSeconds(15));
 
         var leftover = await ReadSagaAsync(requestId);
-        if (leftover is not null)
-        {
-            leftover.CurrentState.Should().BeOneOf("Completed", "Final");
-        }
+        leftover.Should().NotBeNull("saga row must be retained for GDPR audit trail");
+        leftover!.CurrentState.Should().Be("Completed");
     }
 
     // ----------------------------------------------------------------
-    // 4. ErasureFailed => Failed
+    // 4. C2: single ErasureFailed stays Processing; all-fail => Failed
     // ----------------------------------------------------------------
     [Fact]
-    public async Task ErasureFailed_TransitionsToFailed()
+    public async Task ErasureFailed_SingleService_StaysProcessing()
     {
         var (requestId, userId) = await PublishInitiateAsync();
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(requestId), "Processing", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
+        // Only one service fails — other two are still in-flight.
         await PublishAsync(new PrivacyErasureFailed { RequestId = requestId, UserId = userId, ServiceName = "orders-svc", ErrorMessage = "DB connection lost" });
+
+        // Allow time for the event to be processed.
+        await PollUntilAsync(async () =>
+        {
+            var s = await ReadSagaAsync(requestId);
+            return s?.FailedServices?.Contains("orders-svc") == true;
+        }, TimeSpan.FromSeconds(10));
+
+        var saga = await ReadSagaAsync(requestId);
+        saga.Should().NotBeNull();
+        // Still waiting on identity-svc and payments-svc — must NOT be Failed yet.
+        saga!.CurrentState.Should().Be("Processing");
+        saga.FailedServices.Should().Contain("orders-svc");
+    }
+
+    [Fact]
+    public async Task ErasureFailed_AllThreeServices_TransitionsToFailed()
+    {
+        var (requestId, userId) = await PublishInitiateAsync();
+        await PollUntilAsync(() => string.Equals(SagaStateOrNull(requestId), "Processing", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
+
+        // All three services fail (stagger to avoid concurrency conflicts).
+        await PublishAsync(new PrivacyErasureFailed { RequestId = requestId, UserId = userId, ServiceName = "identity-svc", ErrorMessage = "crash" });
+        await Task.Delay(500);
+        await PublishAsync(new PrivacyErasureFailed { RequestId = requestId, UserId = userId, ServiceName = "orders-svc", ErrorMessage = "DB connection lost" });
+        await Task.Delay(500);
+        await PublishAsync(new PrivacyErasureFailed { RequestId = requestId, UserId = userId, ServiceName = "payments-svc", ErrorMessage = "timeout" });
 
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(requestId), "Failed", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         var saga = await ReadSagaAsync(requestId);
         saga.Should().NotBeNull();
         saga!.CurrentState.Should().Be("Failed");
+        saga.FailedServices.Should().Contain("identity-svc");
+        saga.FailedServices.Should().Contain("orders-svc");
+        saga.FailedServices.Should().Contain("payments-svc");
     }
 
     // ----------------------------------------------------------------
@@ -225,10 +252,8 @@ public sealed class PrivacyStateMachineTests : IAsyncLifetime
         await PublishErasureCompletedAsync(requestId, userId, "payments-svc");
 
         await PollUntilAsync(() =>
-        {
-            var state = SagaStateOrNull(requestId);
-            return string.Equals(state, "Completed", StringComparison.Ordinal) || string.Equals(state, "Final", StringComparison.Ordinal) || state is null;
-        }, TimeSpan.FromSeconds(15));
+            string.Equals(SagaStateOrNull(requestId), "Completed", StringComparison.Ordinal),
+            TimeSpan.FromSeconds(15));
 
         // Send a duplicate — should not throw or create a new saga instance.
         await PublishErasureCompletedAsync(requestId, userId, "identity-svc");
@@ -238,17 +263,15 @@ public sealed class PrivacyStateMachineTests : IAsyncLifetime
             await PollUntilAsync(async () =>
             {
                 var s = await ReadSagaAsync(requestId);
-                return s is not null && !string.Equals(s.CurrentState, "Completed", StringComparison.Ordinal) && !string.Equals(s.CurrentState, "Final", StringComparison.Ordinal);
+                return s is not null && !string.Equals(s.CurrentState, "Completed", StringComparison.Ordinal);
             }, TimeSpan.FromSeconds(2));
         }
         catch (TimeoutException) { /* expected — duplicate was correctly discarded */ }
 
-        // Saga should still be finalized (row gone or Completed/Final).
+        // H9: row must be retained and still Completed.
         var saga = await ReadSagaAsync(requestId);
-        if (saga is not null)
-        {
-            saga.CurrentState.Should().BeOneOf("Completed", "Final");
-        }
+        saga.Should().NotBeNull("saga row must be retained for GDPR audit trail");
+        saga!.CurrentState.Should().Be("Completed");
     }
 
     // ----------------------------------------------------------------
@@ -285,11 +308,10 @@ public sealed class PrivacyStateMachineTests : IAsyncLifetime
         }
         catch (TimeoutException) { /* expected — late failure was correctly discarded */ }
 
+        // H9: row must be retained and still Completed.
         var saga = await ReadSagaAsync(requestId);
-        if (saga is not null)
-        {
-            saga.CurrentState.Should().BeOneOf("Completed", "Final");
-        }
+        saga.Should().NotBeNull("saga row must be retained for GDPR audit trail");
+        saga!.CurrentState.Should().Be("Completed");
     }
 
     // ----------------------------------------------------------------
@@ -301,7 +323,12 @@ public sealed class PrivacyStateMachineTests : IAsyncLifetime
         var (requestId, userId) = await PublishInitiateAsync();
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(requestId), "Processing", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
+        // Fail all three services to reach the Failed state (C2 requires all services accounted for).
         await PublishAsync(new PrivacyErasureFailed { RequestId = requestId, UserId = userId, ServiceName = "identity-svc", ErrorMessage = "crash" });
+        await Task.Delay(500);
+        await PublishAsync(new PrivacyErasureFailed { RequestId = requestId, UserId = userId, ServiceName = "orders-svc", ErrorMessage = "crash" });
+        await Task.Delay(500);
+        await PublishAsync(new PrivacyErasureFailed { RequestId = requestId, UserId = userId, ServiceName = "payments-svc", ErrorMessage = "crash" });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(requestId), "Failed", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
         // Publish completion after failure — should be discarded.
@@ -384,16 +411,13 @@ public sealed class PrivacyStateMachineTests : IAsyncLifetime
         await PublishErasureCompletedAsync(requestId, userId, "payments-svc");
 
         await PollUntilAsync(() =>
-        {
-            var state = SagaStateOrNull(requestId);
-            return string.Equals(state, "Completed", StringComparison.Ordinal) || string.Equals(state, "Final", StringComparison.Ordinal) || state is null;
-        }, TimeSpan.FromSeconds(15));
+            string.Equals(SagaStateOrNull(requestId), "Completed", StringComparison.Ordinal),
+            TimeSpan.FromSeconds(15));
 
+        // H9: row must be retained (no SetCompletedWhenFinalized).
         var resumed = await ReadSagaAsync(requestId);
-        if (resumed is not null)
-        {
-            resumed.CurrentState.Should().BeOneOf("Completed", "Final");
-        }
+        resumed.Should().NotBeNull("saga row must be retained for GDPR audit trail");
+        resumed!.CurrentState.Should().Be("Completed");
     }
 
     // ================================================================

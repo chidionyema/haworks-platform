@@ -88,7 +88,15 @@ public sealed class GlobalFaultConsumer : IConsumer<Fault>
 
     private async Task DetectPoisonAsync(string messageId, string consumerType)
     {
-        if (_cache is null) return;
+        if (_cache is null)
+        {
+            _logger.LogWarning(
+                "Poison message detection is disabled: IDistributedCache is not registered. " +
+                "MessageId={MessageId} failure will not be counted. " +
+                "Register a distributed cache (e.g. Redis) to enable poison detection.",
+                messageId);
+            return;
+        }
 
         var key = $"dlq:fail:{messageId}";
         try
@@ -96,6 +104,14 @@ public sealed class GlobalFaultConsumer : IConsumer<Fault>
             var raw = await _cache.GetStringAsync(key);
             var count = raw is null ? 0 : int.Parse(raw);
             count++;
+
+            // RACE CONDITION NOTE: the read-increment-write here is non-atomic.
+            // Two concurrent fault handlers for the same MessageId could both read
+            // the same count and write the same incremented value, causing an
+            // under-count of up to N-1 increments. This is intentionally accepted:
+            // the poison threshold is approximate (best-effort detection). The
+            // only consequence is a delayed poison alert, not a missed remediation.
+            // If exact counting is required, replace with a Redis INCR command.
 
             await _cache.SetStringAsync(key, count.ToString(),
                 new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(7) });

@@ -1,3 +1,4 @@
+using Haworks.CheckoutOrchestrator.Application.Telemetry;
 using Haworks.CheckoutOrchestrator.Domain;
 using Haworks.Contracts.Checkout;
 using MassTransit;
@@ -144,5 +145,7 @@ public sealed class PaymentExpiryWatcher : BackgroundService
                     saga.CorrelationId);
             }
         }
+
+        CheckoutActivities.CheckoutAbandoned.Add(stuck.Count);
     }
 }

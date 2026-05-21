@@ -99,11 +99,21 @@ public sealed class ErasureStalledWatcher : BackgroundService
 
         var deadline = DateTime.UtcNow - StalledDeadline;
 
+        // C2: include Stalled sagas — the watcher re-drives any service not yet completed.
+        // Select the full completion flags so we can publish targeted re-requests.
         var stuck = await db.Set<PrivacyRequestState>()
-            .Where(s => s.CurrentState == "Processing" && s.CreatedAt < deadline)
+            .Where(s => (s.CurrentState == "Processing" || s.CurrentState == "Stalled")
+                        && s.CreatedAt < deadline)
             .OrderBy(s => s.CreatedAt)
             .Take(MaxPublishesPerTick)
-            .Select(s => new { s.CorrelationId, s.UserId })
+            .Select(s => new
+            {
+                s.CorrelationId,
+                s.UserId,
+                s.IdentityCompleted,
+                s.OrdersCompleted,
+                s.PaymentsCompleted
+            })
             .ToListAsync(ct);
 
         if (stuck.Count == 0) return;
@@ -114,9 +124,22 @@ public sealed class ErasureStalledWatcher : BackgroundService
 
         foreach (var saga in stuck)
         {
+            // C2: only re-publish for services that haven't reported completion yet.
+            // A service that already completed must not be re-triggered.
+            var pendingServices = new List<string>(3);
+            if (!saga.IdentityCompleted) pendingServices.Add("identity-svc");
+            if (!saga.OrdersCompleted)   pendingServices.Add("orders-svc");
+            if (!saga.PaymentsCompleted) pendingServices.Add("payments-svc");
+
+            if (pendingServices.Count == 0)
+            {
+                // All services completed — watcher is racing the saga; skip.
+                continue;
+            }
+
             _logger.LogWarning(
-                "ErasureStalledWatcher: stalled erasure request {RequestId} for user {UserId}",
-                saga.CorrelationId, saga.UserId);
+                "ErasureStalledWatcher: stalled erasure request {RequestId} for user {UserId} — pending: {Pending}",
+                saga.CorrelationId, saga.UserId, string.Join(", ", pendingServices));
 
             try
             {

@@ -20,8 +20,11 @@ var connectionString = builder.Configuration.GetConnectionString("shipping")
     ?? builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:shipping is missing.");
 
-builder.Services.AddDbContext<ShippingDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.AddDbContext<ShippingDbContext>((sp, options) =>
+{
+    options.UseNpgsql(connectionString);
+    options.AddPlatformInterceptors(sp);
+});
 
 builder.Services.AddHealthChecks()
     .AddDbHealthCheck<ShippingDbContext>();

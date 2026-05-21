@@ -56,6 +56,7 @@ public static class MessagingServiceCollectionExtensions
         services.AddSingleton<DiagnosticReceiveObserver>();
         services.AddSingleton<DiagnosticRetryObserver>();
         services.AddSingleton<SagaPersistenceInterceptor>();
+        services.AddSingleton(typeof(SagaTransitionAuditObserver<>));
         return services;
     }
 }

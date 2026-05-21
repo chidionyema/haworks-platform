@@ -3,6 +3,7 @@ using System;
 using Haworks.Privacy.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Haworks.Privacy.Infrastructure.Migrations
 {
     [DbContext(typeof(PrivacyDbContext))]
-    partial class PrivacyDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260521094317_AddSagaTransitionAudit")]
+    partial class AddSagaTransitionAudit
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -76,27 +79,14 @@ namespace Haworks.Privacy.Infrastructure.Migrations
                     b.Property<Guid?>("ErasureTimeoutTokenId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("FailedServices")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
                     b.Property<bool>("IdentityCompleted")
                         .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("IdentityCompletedAt")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("OrdersCompleted")
                         .HasColumnType("boolean");
 
-                    b.Property<DateTime?>("OrdersCompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<bool>("PaymentsCompleted")
                         .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("PaymentsCompletedAt")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("RequestType")
                         .IsRequired()

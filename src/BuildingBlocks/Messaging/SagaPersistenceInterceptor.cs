@@ -13,9 +13,9 @@ namespace Haworks.BuildingBlocks.Messaging;
 /// 1. State transitions: logs "Saga X transitioned from Initial to Initiated"
 /// 2. Persistence proof: logs INSERT/UPDATE with row count
 /// 3. Inbox/saga split detection: warns when inbox commits but saga doesn't
-/// 4. Audit trail: writes SagaAuditEntry to the same transaction
 ///
-/// Runs inside the EF transaction — audit records are ACID with saga state.
+/// Audit trail writes are handled by SagaTransitionAuditObserver (IStateMachineObserver),
+/// NOT by this interceptor. Interceptors must not mutate the change tracker during SaveChanges.
 /// Registered via AddPlatformInterceptors(sp) on all 14 DbContexts.
 /// </summary>
 public sealed class SagaPersistenceInterceptor : SaveChangesInterceptor
@@ -45,7 +45,7 @@ public sealed class SagaPersistenceInterceptor : SaveChangesInterceptor
             if (entry.State == EntityState.Added)
             {
                 var currentState = entry.CurrentValues["CurrentState"]?.ToString() ?? "unknown";
-                _logger.LogWarning(
+                _logger.LogInformation(
                     "SAGA INSERT: {SagaType} CorrelationId={CorrelationId}, InitialState={State}, Table={Table}",
                     entry.Metadata.ClrType.Name,
                     correlationId,
@@ -57,7 +57,7 @@ public sealed class SagaPersistenceInterceptor : SaveChangesInterceptor
                 var previousState = entry.OriginalValues["CurrentState"]?.ToString() ?? "unknown";
                 var currentState = entry.CurrentValues["CurrentState"]?.ToString() ?? "unknown";
 
-                _logger.LogWarning(
+                _logger.LogInformation(
                     "SAGA TRANSITION: {SagaType} CorrelationId={CorrelationId}, {PreviousState} -> {CurrentState}, Table={Table}",
                     entry.Metadata.ClrType.Name,
                     correlationId,
@@ -111,7 +111,7 @@ public sealed class SagaPersistenceInterceptor : SaveChangesInterceptor
             }
             else
             {
-                _logger.LogWarning(
+                _logger.LogInformation(
                     "SAGA PERSISTED: {SagaType} CorrelationId={CorrelationId}, RowsAffected={Rows}",
                     entry.Metadata.ClrType.Name,
                     correlationId,

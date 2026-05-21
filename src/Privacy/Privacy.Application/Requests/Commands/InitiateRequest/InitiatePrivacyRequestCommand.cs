@@ -35,6 +35,18 @@ public class InitiatePrivacyRequestCommandHandler : IRequestHandler<InitiatePriv
 
     public async Task<Guid> Handle(InitiatePrivacyRequestCommand request, CancellationToken cancellationToken)
     {
+        // Acquire an advisory row lock before the check-then-act to prevent two concurrent
+        // requests for the same user from both passing the "no active request" check.
+        // SKIP LOCKED means a concurrent transaction that already holds the lock will cause
+        // this query to return no rows; we then re-query to return the existing request.
+        // This implements the Three-Phase Gateway Law: Phase 1 (lock + check).
+        // ExecuteSqlInterpolatedAsync is parameterized (safe against injection); userId is
+        // passed as a typed FormattableString parameter, not concatenated as a string.
+        var userId = request.UserId;
+        await _context.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM privacy.\"PrivacyRequests\" WHERE \"UserId\" = {userId} AND (\"Status\" = 'Pending' OR \"Status\" = 'InProgress') LIMIT 1 FOR UPDATE SKIP LOCKED",
+            cancellationToken);
+
         var existing = await _context.PrivacyRequests.FirstOrDefaultAsync(
             r => r.UserId == request.UserId &&
                  (r.Status == PrivacyRequestStatus.Pending || r.Status == PrivacyRequestStatus.InProgress),

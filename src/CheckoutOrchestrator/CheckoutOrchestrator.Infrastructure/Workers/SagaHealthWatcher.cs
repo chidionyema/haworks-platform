@@ -15,6 +15,7 @@ public sealed class SagaHealthWatcher : BackgroundService
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan StuckThreshold = TimeSpan.FromHours(1);
+    private static readonly TimeSpan EarlyStuckThreshold = TimeSpan.FromMinutes(5);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SagaHealthWatcher> _logger;
@@ -79,6 +80,13 @@ public sealed class SagaHealthWatcher : BackgroundService
         await using var scope = _scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<CheckoutDbContext>();
 
+        await CheckRequiresReviewAsync(db, ct);
+        await CheckStuckInitiatedAsync(db, ct);
+        await CheckStuckAwaitingPaymentAsync(db, ct);
+    }
+
+    private async Task CheckRequiresReviewAsync(CheckoutDbContext db, CancellationToken ct)
+    {
         var deadline = DateTime.UtcNow - StuckThreshold;
 
         var stuck = await db.CheckoutSagas
@@ -92,6 +100,44 @@ public sealed class SagaHealthWatcher : BackgroundService
             _logger.LogCritical(
                 "Checkout saga {SagaId} stuck in RequiresReview for order {OrderId} since {CreatedAt}",
                 saga.CorrelationId, saga.OrderId, saga.CreatedAt);
+        }
+    }
+
+    private async Task CheckStuckInitiatedAsync(CheckoutDbContext db, CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow - EarlyStuckThreshold;
+
+        var stuck = await db.CheckoutSagas
+            .Where(s => s.CurrentState == "Initiated" && s.CreatedAt < deadline)
+            .Select(s => new { s.CorrelationId, s.OrderId, s.CreatedAt })
+            .ToListAsync(ct);
+
+        foreach (var saga in stuck)
+        {
+            CheckoutActivities.CheckoutStuckInitiated.Add(1);
+            _logger.LogWarning(
+                "Checkout saga {SagaId} stuck in Initiated for order {OrderId} since {CreatedAt} — stock reservation never arrived",
+                saga.CorrelationId, saga.OrderId, saga.CreatedAt);
+        }
+    }
+
+    private async Task CheckStuckAwaitingPaymentAsync(CheckoutDbContext db, CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow - EarlyStuckThreshold;
+
+        var stuck = await db.CheckoutSagas
+            .Where(s =>
+                (s.CurrentState == "StockReservedState" || s.CurrentState == "Initiated") &&
+                s.CreatedAt < deadline)
+            .Select(s => new { s.CorrelationId, s.OrderId, s.CurrentState, s.CreatedAt })
+            .ToListAsync(ct);
+
+        foreach (var saga in stuck)
+        {
+            CheckoutActivities.CheckoutStuckAwaitingPayment.Add(1);
+            _logger.LogWarning(
+                "Checkout saga {SagaId} stuck in {State} for order {OrderId} since {CreatedAt} — payment session never arrived",
+                saga.CorrelationId, saga.CurrentState, saga.OrderId, saga.CreatedAt);
         }
     }
 }

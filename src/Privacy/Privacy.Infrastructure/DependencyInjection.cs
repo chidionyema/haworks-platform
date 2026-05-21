@@ -31,6 +31,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IPrivacyDbContext>(provider => provider.GetRequiredService<PrivacyDbContext>());
+        services.AddScoped<ISagaStateRepository, SagaStateRepository>();
 
         if (env.IsEnvironment("Test"))
         {

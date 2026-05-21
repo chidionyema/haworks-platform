@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Contracts.Privacy;
 using Haworks.Privacy.Application.Telemetry;
 using MassTransit;
@@ -9,9 +10,14 @@ public class PrivacyRequestStateMachine : MassTransitStateMachine<PrivacyRequest
 {
     private readonly ILogger<PrivacyRequestStateMachine> _logger;
 
-    public PrivacyRequestStateMachine(ILogger<PrivacyRequestStateMachine> logger)
+    // All three services must report back before the saga is considered fully covered.
+    private static readonly IReadOnlySet<string> AllServices =
+        new HashSet<string> { "identity-svc", "orders-svc", "payments-svc" };
+
+    public PrivacyRequestStateMachine(ILogger<PrivacyRequestStateMachine> logger, SagaTransitionAuditObserver<PrivacyRequestState>? auditObserver = null)
     {
         _logger = logger;
+        if (auditObserver != null) ConnectStateObserver(auditObserver);
         InstanceState(x => x.CurrentState);
 
         // PR-02: 7-day timeout for GDPR compliance
@@ -47,26 +53,7 @@ public class PrivacyRequestStateMachine : MassTransitStateMachine<PrivacyRequest
 
         During(Processing,
             When(ErasureCompleted)
-                .Then(context =>
-                {
-                    switch (context.Message.ServiceName)
-                    {
-                        case "identity-svc":
-                            context.Saga.IdentityCompleted = true;
-                            break;
-                        case "orders-svc":
-                            context.Saga.OrdersCompleted = true;
-                            break;
-                        case "payments-svc": // PR-01: track payments erasure
-                            context.Saga.PaymentsCompleted = true;
-                            break;
-                        default:
-                            _logger.LogWarning("Privacy saga received ErasureCompleted for unknown service: {ServiceName}",
-                                context.Message.ServiceName); // PR-07
-                            break;
-                    }
-                })
-                // PR-01: require all 3 services before completing
+                .Then(context => RecordCompletion(context.Saga, context.Message.ServiceName))
                 .If(context => context.Saga.IdentityCompleted
                             && context.Saga.OrdersCompleted
                             && context.Saga.PaymentsCompleted,
@@ -79,29 +66,33 @@ public class PrivacyRequestStateMachine : MassTransitStateMachine<PrivacyRequest
                             EmitSpan(ctx.Saga.CorrelationId, ctx.Saga.UserId, "erasure_completed");
                         })
                         .Unschedule(ErasureTimeoutSchedule)
-                        .TransitionTo(Completed)
-                        .Finalize()), // PR-04
+                        .TransitionTo(Completed)),
 
-            // PR-03: handle erasure failures
+            // C2: accumulate failures; only move to Failed once all services have failed
             When(ErasureFailed)
-                .Then(context =>
-                {
-                    _logger.LogError("Privacy erasure failed for service {ServiceName}, request {RequestId}: {Error}",
-                        context.Message.ServiceName, context.Message.RequestId, context.Message.ErrorMessage);
-                    EmitSpan(context.Saga.CorrelationId, context.Saga.UserId, "erasure_failed");
-                    PrivacyActivities.ErasureFailed.Add(1);
-                })
-                .Unschedule(ErasureTimeoutSchedule)
-                .PublishAsync(context => context.Init<PrivacyErasureFailedNotification>(new PrivacyErasureFailedNotification
-                {
-                    RequestId = context.Message.RequestId,
-                    UserId = context.Message.UserId,
-                    ServiceName = context.Message.ServiceName,
-                    ErrorMessage = context.Message.ErrorMessage
-                }))
-                .TransitionTo(Failed),
+                .Then(context => RecordFailure(context.Saga, context.Message.ServiceName,
+                    context.Message.ErrorMessage))
+                .If(context => AllServicesAccountedFor(context.Saga),
+                    binder => binder
+                        .Then(ctx =>
+                        {
+                            _logger.LogError(
+                                "Privacy erasure fully failed for request {RequestId} — all services failed or completed: {FailedServices}",
+                                ctx.Saga.CorrelationId, ctx.Saga.FailedServices);
+                            EmitSpan(ctx.Saga.CorrelationId, ctx.Saga.UserId, "erasure_failed");
+                            PrivacyActivities.ErasureFailed.Add(1);
+                        })
+                        .Unschedule(ErasureTimeoutSchedule)
+                        .PublishAsync(ctx => ctx.Init<PrivacyErasureFailedNotification>(new PrivacyErasureFailedNotification
+                        {
+                            RequestId = ctx.Message.RequestId,
+                            UserId = ctx.Message.UserId,
+                            ServiceName = ctx.Message.ServiceName,
+                            ErrorMessage = ctx.Message.ErrorMessage
+                        }))
+                        .TransitionTo(Failed)),
 
-            // PR-02: handle timeout
+            // PR-02: handle timeout — move to Stalled (watcher will re-drive incomplete services)
             When(ErasureTimeoutSchedule.Received)
                 .Then(context =>
                 {
@@ -113,15 +104,53 @@ public class PrivacyRequestStateMachine : MassTransitStateMachine<PrivacyRequest
                 .TransitionTo(Stalled)
         );
 
-        // Idempotency: late-arriving or duplicate events on a finalized saga
-        // (Completed / Failed / Stalled) silently no-op rather than throwing.
-        // MT's inbox dedupes most replays; this catches the rare case where
-        // the same event arrives via two paths or after the saga has moved on.
+        // H10: while Stalled, services may still complete — if all finish, transition to Completed
+        During(Stalled,
+            When(ErasureCompleted)
+                .Then(context => RecordCompletion(context.Saga, context.Message.ServiceName))
+                .If(context => context.Saga.IdentityCompleted
+                            && context.Saga.OrdersCompleted
+                            && context.Saga.PaymentsCompleted,
+                    binder => binder
+                        .Then(ctx =>
+                        {
+                            ctx.Saga.CompletedAt = DateTime.UtcNow;
+                            _logger.LogInformation(
+                                "Privacy erasure completed (from Stalled) for user {UserId}, request {RequestId}",
+                                ctx.Saga.UserId, ctx.Saga.CorrelationId);
+                            EmitSpan(ctx.Saga.CorrelationId, ctx.Saga.UserId, "erasure_completed");
+                        })
+                        .TransitionTo(Completed)),
+
+            // C2: failures while stalled also accumulate
+            When(ErasureFailed)
+                .Then(context => RecordFailure(context.Saga, context.Message.ServiceName,
+                    context.Message.ErrorMessage))
+                .If(context => AllServicesAccountedFor(context.Saga),
+                    binder => binder
+                        .Then(ctx =>
+                        {
+                            _logger.LogError(
+                                "Privacy erasure fully failed (from Stalled) for request {RequestId}",
+                                ctx.Saga.CorrelationId);
+                            EmitSpan(ctx.Saga.CorrelationId, ctx.Saga.UserId, "erasure_failed");
+                            PrivacyActivities.ErasureFailed.Add(1);
+                        })
+                        .PublishAsync(ctx => ctx.Init<PrivacyErasureFailedNotification>(new PrivacyErasureFailedNotification
+                        {
+                            RequestId = ctx.Message.RequestId,
+                            UserId = ctx.Message.UserId,
+                            ServiceName = ctx.Message.ServiceName,
+                            ErrorMessage = ctx.Message.ErrorMessage
+                        }))
+                        .TransitionTo(Failed))
+        );
+
+        // Idempotency: late-arriving or duplicate events on a finalized saga silently no-op.
         DuringAny(
             When(ErasureCompleted)
                 .If(ctx => string.Equals(ctx.Saga.CurrentState, nameof(Completed), StringComparison.Ordinal)
-                        || string.Equals(ctx.Saga.CurrentState, nameof(Failed), StringComparison.Ordinal)
-                        || string.Equals(ctx.Saga.CurrentState, nameof(Stalled), StringComparison.Ordinal),
+                        || string.Equals(ctx.Saga.CurrentState, nameof(Failed), StringComparison.Ordinal),
                     binder => binder.Then(ctx =>
                         _logger.LogInformation(
                             "Ignoring late ErasureCompleted for request {RequestId} in state {State}",
@@ -134,7 +163,9 @@ public class PrivacyRequestStateMachine : MassTransitStateMachine<PrivacyRequest
                             "Ignoring late ErasureFailed for request {RequestId} in state {State}",
                             ctx.Saga.CorrelationId, ctx.Saga.CurrentState))));
 
-        SetCompletedWhenFinalized(); // PR-04
+        // H9: do NOT call SetCompletedWhenFinalized() — the saga row must be retained for the
+        //     GDPR audit trail. CompletedAt, IdentityCompletedAt, OrdersCompletedAt, and
+        //     PaymentsCompletedAt timestamps serve as the immutable evidence of erasure.
     }
 
     public State Processing { get; private set; } = null!;
@@ -147,6 +178,56 @@ public class PrivacyRequestStateMachine : MassTransitStateMachine<PrivacyRequest
     public Event<PrivacyErasureFailed> ErasureFailed { get; private set; } = null!; // PR-03
 
     public Schedule<PrivacyRequestState, PrivacyErasureTimedOut> ErasureTimeoutSchedule { get; private set; } = null!; // PR-02
+
+    // ---------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------
+
+    private void RecordCompletion(PrivacyRequestState saga, string serviceName)
+    {
+        var now = DateTime.UtcNow;
+        switch (serviceName)
+        {
+            case "identity-svc":
+                saga.IdentityCompleted = true;
+                saga.IdentityCompletedAt ??= now;
+                break;
+            case "orders-svc":
+                saga.OrdersCompleted = true;
+                saga.OrdersCompletedAt ??= now;
+                break;
+            case "payments-svc":
+                saga.PaymentsCompleted = true;
+                saga.PaymentsCompletedAt ??= now;
+                break;
+            default:
+                _logger.LogWarning("Privacy saga received ErasureCompleted for unknown service: {ServiceName}",
+                    serviceName); // PR-07
+                break;
+        }
+    }
+
+    private void RecordFailure(PrivacyRequestState saga, string serviceName, string errorMessage)
+    {
+        _logger.LogError(
+            "Privacy erasure failed for service {ServiceName}, request {RequestId}: {Error}",
+            serviceName, saga.CorrelationId, errorMessage);
+
+        var failed = new HashSet<string>(saga.FailedServicesSet) { serviceName };
+        saga.FailedServices = string.Join(',', failed);
+    }
+
+    /// <summary>
+    /// Returns true when every service has either completed or failed, meaning
+    /// there is no service still in-flight that could recover the erasure.
+    /// </summary>
+    private static bool AllServicesAccountedFor(PrivacyRequestState saga)
+    {
+        var failed = saga.FailedServicesSet;
+        return (saga.IdentityCompleted  || failed.Contains("identity-svc"))
+            && (saga.OrdersCompleted    || failed.Contains("orders-svc"))
+            && (saga.PaymentsCompleted  || failed.Contains("payments-svc"));
+    }
 
     /// <summary>
     /// Emits a discrete <c>privacy.saga.transition</c> span on key state

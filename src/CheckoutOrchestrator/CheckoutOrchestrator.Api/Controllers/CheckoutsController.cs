@@ -61,4 +61,28 @@ public sealed class CheckoutsController(IMediator mediator) : ControllerBase
         var result = await mediator.Send(new GetCheckoutSagaByOrderIdQuery(orderId, userId, isAdmin), ct);
         return result.ToActionResult();
     }
+
+    [HttpGet]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> List(
+        [FromQuery] string? state,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] int limit = 50,
+        [FromQuery] int offset = 0,
+        CancellationToken ct = default)
+    {
+        var result = await mediator.Send(
+            new ListCheckoutSagasQuery(state, from, to, limit, offset), ct);
+        return result.ToActionResult();
+    }
+
+    [HttpGet("{sagaId:guid}/audit")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAudit(Guid sagaId, CancellationToken ct)
+    {
+        var result = await mediator.Send(new GetCheckoutSagaAuditQuery(sagaId), ct);
+        return result.ToActionResult();
+    }
 }

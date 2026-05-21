@@ -1,14 +1,24 @@
 using MassTransit;
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Application.Telemetry;
 using Haworks.Contracts.Payments;
 
 namespace Haworks.Payments.Application.Sagas;
 
+// CONCURRENCY GUARD NOTE:
+// Duplicate concurrent refund sagas for the same refund are prevented by two layers:
+//   1. API layer: the IdempotencyKey on the RefundRequest endpoint ensures the HTTP
+//      caller cannot issue the same refund twice (unique constraint on IdempotencyJournal).
+//   2. Domain layer: Payment.RecordRefund uses a concurrency token (Version) so a
+//      second saga instance for the same PaymentId will hit DbUpdateConcurrencyException
+//      and be nacked/retried, effectively serialising concurrent attempts.
+// No additional unique-index guard is needed in the saga repository itself.
 public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
 {
-    public RefundSaga()
+    public RefundSaga(SagaTransitionAuditObserver<RefundSagaState>? auditObserver = null)
     {
+        if (auditObserver != null) ConnectStateObserver(auditObserver);
         InstanceState(s => s.CurrentState);
 
         Schedule(
@@ -39,7 +49,9 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     saga.Currency = msg.Currency;
                     saga.Reason = msg.Reason ?? "";
                     saga.Provider = msg.Provider ?? "Stripe";
+                    saga.RequestedBy = msg.RequestedBy;
                     saga.CreatedAt = DateTime.UtcNow;
+                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Initial", "Requested");
                 })
                 .PublishAsync(ctx => ctx.Init<ProviderRefundInitiationRequestedEvent>(new ProviderRefundInitiationRequestedEvent
                 {
@@ -60,6 +72,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                 .Then(ctx =>
                 {
                     ctx.Saga.ProviderRefundId = ctx.Message.ProviderRefundId;
+                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Requested", "AwaitingProviderConfirmation");
                 })
                 .TransitionTo(AwaitingProviderConfirmation),
             When(ProviderRefundFailed)
@@ -84,6 +97,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                 .Then(ctx =>
                 {
                     // Optionally update amount refunded if it differs
+                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "AwaitingProviderConfirmation", "Refunded");
                 })
                 .Unschedule(RefundTimeoutSchedule)
                 .PublishAsync(ctx => ctx.Init<RefundCompletedEvent>(new RefundCompletedEvent
@@ -211,5 +225,19 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
         activity?.SetTag("saga.id", sagaId);
         activity?.SetTag("order.id", orderId);
         activity?.SetTag("compensate.reason", reason);
+    }
+
+    /// <summary>
+    /// Emits a discrete <c>refund.saga.transition</c> span for each
+    /// happy-path state advancement. Tags carry the from/to state names
+    /// and correlation ids so Tempo can reconstruct the full refund lifecycle.
+    /// </summary>
+    private static void EmitTransitionSpan(Guid sagaId, Guid orderId, string fromState, string toState)
+    {
+        using var activity = PaymentsActivities.Source.StartActivity("refund.saga.transition");
+        activity?.SetTag("saga.id", sagaId);
+        activity?.SetTag("order.id", orderId);
+        activity?.SetTag("from_state", fromState);
+        activity?.SetTag("to_state", toState);
     }
 }
