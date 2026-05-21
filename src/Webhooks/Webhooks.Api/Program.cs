@@ -2,11 +2,9 @@ using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Authentication;
 using Haworks.BuildingBlocks.Extensions;
 using Haworks.BuildingBlocks.Startup;
-using Haworks.Webhooks.Api.Controllers;
 using Haworks.Webhooks.Application;
 using Haworks.Webhooks.Infrastructure;
 using Haworks.Webhooks.Infrastructure.Messaging;
-using Haworks.Webhooks.Infrastructure.Workers;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Haworks.Webhooks.Infrastructure.Persistence;
@@ -25,27 +23,13 @@ builder.Services.AddApplication();
 builder.Services.AddWebhooksInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddStartupTaskRunner();
 
-// CDC via Kafka (Debezium) — enabled when ConnectionStrings:kafka is configured.
-// When Kafka is not available, CDC events flow through MassTransit/RabbitMQ
-// via ProductCacheInvalidatedEvent and CategoryUpdatedEvent published by Catalog.
-var kafkaConn = builder.Configuration.GetConnectionString("kafka");
-if (!builder.Environment.IsEnvironment("Test") && !string.IsNullOrEmpty(kafkaConn))
-{
-    builder.AddKafkaConsumer<string, string>("kafka", consumerBuilder =>
-    {
-        consumerBuilder.Config.GroupId = "webhooks-svc-cdc";
-        consumerBuilder.Config.AutoOffsetReset = Confluent.Kafka.AutoOffsetReset.Earliest;
-    });
-    builder.Services.AddHostedService<CdcFanOutWorker>();
-}
-
-// MassTransit for Domain Events
+// MassTransit for Domain Events — fan-out to Svix
 builder.Services.AddMassTransitDiagnostics();
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<Haworks.BuildingBlocks.Messaging.GlobalFaultConsumer>();
     x.AddConsumer<EventFanOutConsumer>();
-    
+
     x.UsingRabbitMq((context, cfg) =>
     {
         cfg.Host(builder.Configuration.GetConnectionString("rabbitmq"));
@@ -58,7 +42,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks()
-    .AddDbHealthCheck<Haworks.Webhooks.Infrastructure.Persistence.WebhooksDbContext>();
+    .AddDbHealthCheck<WebhooksDbContext>();
 
 var app = builder.Build();
 

@@ -1,13 +1,12 @@
 using Haworks.BuildingBlocks.Persistence;
-using Hangfire;
-using Hangfire.PostgreSql;
 using Haworks.Webhooks.Application.Interfaces;
 using Haworks.Webhooks.Infrastructure.Persistence;
-using Haworks.Webhooks.Infrastructure.Hangfire;
+using Haworks.Webhooks.Infrastructure.Svix;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Svix;
 
 namespace Haworks.Webhooks.Infrastructure;
 
@@ -32,36 +31,16 @@ public static class DependencyInjection
 
         services.AddScoped<IWebhooksDbContext>(sp => sp.GetRequiredService<WebhooksDbContext>());
 
-        // Hangfire for durable retries (skip in Test — Hangfire creates tables that block EnsureCreatedAsync)
-        if (!env.IsEnvironment("Test"))
-        {
-            services.AddHangfire(config => config
-                .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-                .UseSimpleAssemblyNameTypeSerializer()
-                .UseRecommendedSerializerSettings()
-                .UsePostgreSqlStorage(options =>
-                    options.UseNpgsqlConnection(connectionString),
-                    new PostgreSqlStorageOptions
-                    {
-                        SchemaName = "webhooks_jobs"
-                    }));
+        // Svix — all webhook dispatch, retry, signing, SSRF protection delegated to Svix server.
+        // Both Svix:ServerUrl and Svix:AuthToken MUST be provided via configuration (env vars, Vault, etc.).
+        var svixServerUrl = configuration["Svix:ServerUrl"]
+            ?? throw new InvalidOperationException("Svix:ServerUrl is required. Set via configuration or environment variable Svix__ServerUrl.");
+        var svixAuthToken = configuration["Svix:AuthToken"] ?? "";
+        services.AddSingleton(new SvixClient(svixAuthToken, new SvixOptions(svixServerUrl)));
+        services.AddScoped<IWebhookDispatcher, SvixWebhookForwarder>();
 
-            services.AddHangfireServer();
-        }
-
-        services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
-        
+        // HttpClient for subscription URL validation (kept for SubscriptionHandlers)
         services.AddHttpClient("WebhookValidator")
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            {
-                AllowAutoRedirect = false,
-            })
-            .ConfigureHttpClient((sp, c) =>
-            {
-                var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
-                c.Timeout = TimeSpan.FromSeconds(t.WebhooksDispatchSeconds);
-            });
-        services.AddHttpClient("WebhookDispatcher")
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
                 AllowAutoRedirect = false,

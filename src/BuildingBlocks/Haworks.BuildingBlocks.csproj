@@ -49,6 +49,8 @@
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.Console" />
+    <!-- PostHog: event analytics + feature flags (replaces Analytics + FeatureFlags services) -->
+    <PackageReference Include="PostHog" />
   </ItemGroup>
 
   <PropertyGroup>

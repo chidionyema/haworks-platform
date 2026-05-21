@@ -7,8 +7,6 @@ namespace Haworks.Webhooks.Application.Interfaces;
 public interface IWebhooksDbContext
 {
     DbSet<WebhookSubscription> Subscriptions { get; }
-    DbSet<WebhookDelivery> Deliveries { get; }
-    DbSet<WebhookDeliveryAttempt> DeliveryAttempts { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     EntityEntry<TEntity> Entry<TEntity>(TEntity entity) where TEntity : class;

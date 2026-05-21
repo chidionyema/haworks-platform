@@ -3027,10 +3027,10 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
     {
         // Services that register MassTransit consumers MUST configure AddEntityFrameworkOutbox
         // to guarantee exactly-once processing and atomic event publishing.
-        // Excluded: read-only projections (Search, BffWeb, Realtime, Analytics) and
+        // Excluded: read-only projections (Search, BffWeb, Realtime) and
         // Audit (append-only, idempotent by message_id unique index).
         var readOnlyServices = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { "Search", "BffWeb", "Realtime", "Analytics", "Audit" };
+            { "Search", "BffWeb", "Realtime", "Audit" };
 
         var violations = new List<string>();
         foreach (var file in FindDependencyInjectionFiles()

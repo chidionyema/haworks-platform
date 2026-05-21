@@ -10,7 +10,9 @@
   <ItemGroup Label="Core .NET">
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
@@ -71,6 +73,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="9.3.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
     <PackageVersion Include="System.Linq.Dynamic.Core" Version="1.7.2" />
     <PackageVersion Include="NetTopologySuite" Version="2.5.0" />
@@ -78,6 +81,7 @@
     <PackageVersion Include="CsvHelper" Version="33.1.0" />
     <PackageVersion Include="nClam" Version="7.0.0" />
     <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageVersion Include="EasyPost-Official" Version="6.8.0" />
     <PackageVersion Include="Elastic.Clients.Elasticsearch" Version="8.17.0" />
     <PackageVersion Include="Stripe.net" Version="44.10.0" />
     <PackageVersion Include="SendGrid" Version="9.29.3" />
@@ -87,6 +91,7 @@
     <PackageVersion Include="Scriban" Version="7.0.0" />
     <PackageVersion Include="FluentValidation" Version="11.10.0" />
     <PackageVersion Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageVersion Include="Svix" Version="1.94.0" />
     <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.15" />
     <PackageVersion Include="Hangfire.Core" Version="1.8.15" />
     <PackageVersion Include="Hangfire.PostgreSql" Version="1.20.10" />
@@ -120,7 +125,7 @@
 
   <ItemGroup Label="Testing">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.abstractions" Version="2.0.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageVersion Include="Xunit.SkippableFact" Version="1.4.13" />
@@ -139,7 +144,12 @@
     <PackageVersion Include="Testcontainers.Redis" Version="4.0.0" />
     <PackageVersion Include="Testcontainers" Version="4.0.0" />
     <PackageVersion Include="MassTransit.TestFramework" Version="8.3.4" />
+    <PackageVersion Include="MassTransit.Testing" Version="8.3.4" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+  </ItemGroup>
+
+  <ItemGroup Label="Analytics">
+    <PackageVersion Include="PostHog" Version="2.7.1" />
   </ItemGroup>
 
   <ItemGroup Label="Analyzers">

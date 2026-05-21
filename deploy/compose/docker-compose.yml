@@ -305,6 +305,23 @@ services:
     ports:
       - "8081:8081"
 
+  posthog:
+    image: posthog/posthog:latest
+    container_name: rw-posthog
+    ports:
+      - "8100:8000"
+    environment:
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/posthog"
+      REDIS_URL: "redis://redis:6379"
+      SECRET_KEY: "change-me-in-production"
+      SITE_URL: "http://localhost:8100"
+      DISABLE_SECURE_SSL_REDIRECT: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: rw-pgadmin
@@ -705,6 +722,19 @@ services:
         done
         echo "All connectors registered."
 
+  svix-server:
+    image: svix/svix-server:latest
+    container_name: rw-svix-server
+    ports:
+      - "8071:8071"
+    environment:
+      SVIX_DB_DSN: "postgresql://postgres:postgres@postgres:5432/svix"
+      SVIX_JWT_SECRET: "change-me-in-production"
+      SVIX_QUEUE_TYPE: "memory"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   webhooks-svc:
     build:
       context: ../..
@@ -717,8 +747,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
+      svix-server:
+        condition: service_started
     environment:
       <<: *otel-env
       OTEL_SERVICE_NAME: webhooks
@@ -727,8 +757,8 @@ services:
       ConnectionStrings__webhooks: Host=postgres;Port=5432;Database=webhooks;Username=postgres;Password=postgres
       ConnectionStrings__rabbitmq: amqp://guest:guest@rabbitmq:5672/
       Vault__Enabled: "false"
-      Kafka__BootstrapServers: kafka:9092
-      Kafka__GroupId: webhooks-svc-cdc
+      Svix__ServerUrl: http://svix-server:8071
+      Svix__AuthToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdml4LXNlcnZlciIsInN1YiI6Im9yZ18yM3JiOFlkR3FNVDBxSXpwZ0d3ZEtJMVZ1ZWoiLCJpYXQiOjE3MTYxMjAwMDAsImV4cCI6MjAzMTQ4MDAwMCwibmJmIjoxNzE2MTIwMDAwfQ.placeholder-dev-token"
       Authentication__Jwks__JwksUri: http://identity-svc:8080/.well-known/jwks.json
       Authentication__Jwks__Issuer: http://localhost
       Authentication__Jwks__Audience: haworks-dev

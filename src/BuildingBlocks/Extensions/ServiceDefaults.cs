@@ -128,8 +128,6 @@ public static class ServiceDefaults
                     .AddMeter("Haworks.Privacy")
                     .AddMeter("Haworks.MediatR")
                     // Wave 3 Meters
-                    .AddMeter("Haworks.FeatureFlags")
-                    .AddMeter("Haworks.Analytics")
                     .AddMeter("Haworks.Localization")
                     .AddMeter("Haworks.Media")
                     .AddMeter("Haworks.Realtime")
@@ -164,8 +162,6 @@ public static class ServiceDefaults
                     .AddSource("Haworks.Privacy")
                     .AddSource("Haworks.MediatR")
                     // Wave 3 Sources
-                    .AddSource("Haworks.FeatureFlags")
-                    .AddSource("Haworks.Analytics")
                     .AddSource("Haworks.Localization")
                     .AddSource("Haworks.Media")
                     .AddSource("Haworks.Realtime")

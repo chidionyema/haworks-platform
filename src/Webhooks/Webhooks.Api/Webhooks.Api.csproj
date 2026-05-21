@@ -17,6 +17,5 @@
     </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" />
     <PackageReference Include="Serilog.AspNetCore" />
-    <PackageReference Include="Aspire.Confluent.Kafka" />
   </ItemGroup>
 </Project>
