@@ -9,13 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace Haworks.Payments.Api.Controllers;
 
 [ApiController]
-<<<<<<< HEAD
-[Route("api/refunds")]
-[Authorize(Roles = "Admin,Service")]
-=======
 [Route("api/v{version:apiVersion}/refunds")]
-[Authorize(Roles = "Admin")]
->>>>>>> f0915ee9 (feat: API versioning — /api/v1/ prefix on all 36 controllers)
+[Authorize(Roles = "Admin,Service")]
 public sealed class RefundsController(IMediator mediator) : ControllerBase
 {
     [HttpPost]
