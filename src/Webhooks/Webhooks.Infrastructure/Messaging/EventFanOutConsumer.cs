@@ -1,18 +1,21 @@
 using Haworks.Contracts.Orders;
 using Haworks.Contracts.Payments;
-using Haworks.Webhooks.Domain;
 using Haworks.Webhooks.Application.Interfaces;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
-using Hangfire;
 using Microsoft.Extensions.Logging;
 
 namespace Haworks.Webhooks.Infrastructure.Messaging;
 
+/// <summary>
+/// MassTransit consumer that receives platform domain events and forwards them
+/// to partner webhook endpoints via Svix. Resolves active subscriptions from
+/// the local DB, then delegates all dispatch/retry/signing to Svix.
+/// </summary>
 public sealed class EventFanOutConsumer(
     IWebhooksDbContext db,
-    IBackgroundJobClient jobClient,
+    IWebhookDispatcher dispatcher,
     ILogger<EventFanOutConsumer> logger) :
     IConsumer<OrderCreatedEvent>,
     IConsumer<OrderCompletedEvent>,
@@ -28,40 +31,35 @@ public sealed class EventFanOutConsumer(
 
     private async Task FanOutAsync<T>(ConsumeContext<T> context, string externalEventName, T data) where T : class
     {
-        // Idempotency: unique index on (SubscriptionId, EventId) in WebhooksDbContext prevents duplicate delivery
         var eventId = context.MessageId?.ToString() ?? Guid.NewGuid().ToString();
-        
-        // 1. Resolve subscriptions
+
+        // Resolve active subscriptions that listen for this event type
         var subscriptions = await db.Subscriptions
+            .AsNoTracking()
             .Where(s => s.IsActive && s.DeletedAt == null && s.Events.Contains(externalEventName))
             .ToListAsync(context.CancellationToken);
 
         if (subscriptions.Count == 0) return;
 
-        logger.LogInformation("Fanning out event {EventName} to {Count} subscriptions", externalEventName, subscriptions.Count);
+        logger.LogInformation(
+            "Fanning out event {EventName} to {Count} partners via Svix",
+            externalEventName, subscriptions.Count);
 
-        // 2. Prepare payload
+        // Prepare the canonical event payload
         var payload = JsonSerializer.Serialize(new
         {
             @event = externalEventName,
-            id = $"evt_{DateTime.UtcNow:yyyy-MM-ddTHH-mm-ss}_{eventId[..8]}",
+            id = eventId,
             deliveredAt = DateTime.UtcNow,
             data
         });
 
-        var deliveries = new List<WebhookDelivery>();
-        foreach (var sub in subscriptions)
+        // Forward to Svix for each partner — Svix handles retry, signing, SSRF, delivery tracking.
+        // Group by PartnerId to avoid duplicate Svix app-creation calls within the same fan-out.
+        var partnerIds = subscriptions.Select(s => s.PartnerId).Distinct();
+        foreach (var partnerId in partnerIds)
         {
-            var delivery = new WebhookDelivery(sub.Id, eventId, externalEventName, payload);
-            db.Deliveries.Add(delivery);
-            deliveries.Add(delivery);
-        }
-
-        // MassTransit EF Outbox commits automatically
-
-        foreach (var delivery in deliveries)
-        {
-            jobClient.Enqueue<IWebhookDispatcher>(x => x.DispatchAsync(delivery.Id, CancellationToken.None));
+            await dispatcher.ForwardAsync(partnerId, externalEventName, payload, eventId, context.CancellationToken);
         }
     }
 }

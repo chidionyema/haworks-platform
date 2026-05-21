@@ -17,6 +17,7 @@ SELECT 'CREATE DATABASE notifications' WHERE NOT EXISTS (SELECT FROM pg_database
 SELECT 'CREATE DATABASE audit'         WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'audit')\gexec
 SELECT 'CREATE DATABASE location'      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'location')\gexec
 SELECT 'CREATE DATABASE webhooks'      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'webhooks')\gexec
+SELECT 'CREATE DATABASE svix'          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'svix')\gexec
 SELECT 'CREATE DATABASE payouts'       WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'payouts')\gexec
 SELECT 'CREATE DATABASE scheduler'     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'scheduler')\gexec
 SELECT 'CREATE DATABASE privacy'       WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'privacy')\gexec
