@@ -1,9 +1,8 @@
-# Vault prod-mode config with Transit auto-unseal.
+# Vault prod-mode config with Shamir seal (auto-unsealed by entrypoint.sh).
 #
-# A lightweight dev-mode vault runs on port 8100 (same machine) as the
-# Transit seal backend. On every restart, prod vault calls the Transit
-# endpoint to decrypt its master key — no Shamir unseal keys, no operator
-# intervention, no timing races with CI.
+# The entrypoint reads the unseal key from /vault/data/.init.json (persisted
+# on the Fly volume) and auto-unseals on every restart. For a real production
+# deployment, add a `seal "awskms"` or `seal "gcpckms"` stanza instead.
 
 storage "raft" {
   path    = "/vault/data"
@@ -13,18 +12,6 @@ storage "raft" {
 listener "tcp" {
   address     = "[::]:8200"
   tls_disable = "true"
-}
-
-# Transit auto-unseal: the local dev-mode vault on :8100 provides the
-# encryption key. The TRANSIT_VAULT_TOKEN env is set by the entrypoint
-# after starting the transit vault.
-seal "transit" {
-  address         = "http://127.0.0.1:8100"
-  disable_renewal = "false"
-  key_name        = "autounseal"
-  mount_path      = "transit/"
-  tls_skip_verify = "true"
-  token           = "transit-autounseal-token"
 }
 
 api_addr      = "http://[::1]:8200"
