@@ -48,7 +48,7 @@ public sealed class StockReservationTimeoutWatcher : BackgroundService
                 await TickSafeAsync(stoppingToken);
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { /* graceful shutdown */ }
         catch (Exception ex)
         {
             _logger.LogCritical(ex, "Unhandled exception in {ServiceName}", nameof(StockReservationTimeoutWatcher));
@@ -68,7 +68,7 @@ public sealed class StockReservationTimeoutWatcher : BackgroundService
         {
             await TickAsync(stoppingToken);
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { /* graceful shutdown */ }
         catch (Exception ex)
         {
             _logger.LogError(ex, "StockReservationTimeoutWatcher tick failed; will retry next interval");
