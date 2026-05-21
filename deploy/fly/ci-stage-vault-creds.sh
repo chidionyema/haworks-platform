@@ -135,17 +135,20 @@ root_token=""
 log "checking for existing VAULT_CI_TOKEN..."
 ci_token_env=$(fly_ssh 'sh -c "printenv VAULT_CI_TOKEN 2>/dev/null || echo NOTSET"' | head -1)
 if [[ -n "$ci_token_env" && "$ci_token_env" != "NOTSET" && "$ci_token_env" != "null" ]]; then
-  # Verify the token is still valid (not expired/revoked)
-  if fly_ssh "sh -c \"curl -fsS -H 'X-Vault-Token: $ci_token_env' http://[::1]:8200/v1/auth/token/lookup-self\"" >/dev/null 2>&1; then
+  # Verify the token can actually read AppRole data (not just self-lookup).
+  # A stale token from a prior vault instance may pass lookup-self briefly
+  # but fail on the real AppRole endpoints we need.
+  first_svc=$(jq -r '.services[0].name' "$SERVICES_JSON")
+  if fly_ssh "sh -c \"curl -fsS -H 'X-Vault-Token: $ci_token_env' http://[::1]:8200/v1/auth/approle/role/haworks-$first_svc/role-id\"" >/dev/null 2>&1; then
     root_token="$ci_token_env"
     mask "$root_token"
-    log "using existing VAULT_CI_TOKEN (valid)"
+    log "using existing VAULT_CI_TOKEN (verified AppRole access)"
   else
-    log "VAULT_CI_TOKEN exists but is invalid — will try .init.json"
+    log "VAULT_CI_TOKEN exists but lacks AppRole access — will recreate from .init.json"
   fi
 fi
 
-# Slow path: first-ever boot, .init.json has the root token.
+# Slow path: .init.json has the root token (first boot or stale CI token).
 if [[ -z "$root_token" ]]; then
   log "checking for /vault/data/.init.json..."
   init_json=$(fly_ssh 'sh -c "cat /vault/data/.init.json 2>/dev/null || echo NOFILE"')
@@ -156,11 +159,10 @@ if [[ -z "$root_token" ]]; then
     # Verify the root token is still valid (it gets revoked after first use)
     if fly_ssh "sh -c \"curl -fsS -H 'X-Vault-Token: $init_root' http://[::1]:8200/v1/auth/token/lookup-self\"" >/dev/null 2>&1; then
       log "creating CI deployer policy and token..."
-      fly_ssh "sh -c \"cat <<EOF > /tmp/ci-policy.hcl
+      fly_ssh "sh -c \"VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=$init_root vault policy write ci-deployer - <<'POLICY'
 path \\\"auth/approle/role/*/role-id\\\" { capabilities = [\\\"read\\\"] }
 path \\\"auth/approle/role/*/secret-id\\\" { capabilities = [\\\"update\\\"] }
-EOF
-curl -fsS -X PUT -H 'X-Vault-Token: $init_root' --data-binary @/tmp/ci-policy.hcl http://[::1]:8200/v1/sys/policies/acl/ci-deployer\"" >/dev/null
+POLICY\"" >/dev/null
 
       ci_token_json=$(fly_ssh "sh -c \"curl -fsS -X POST -H 'X-Vault-Token: $init_root' -d '{\\\"policies\\\": [\\\"ci-deployer\\\"], \\\"period\\\": \\\"720h\\\"}' http://[::1]:8200/v1/auth/token/create\"")
       ci_token=$(echo "$ci_token_json" | jq -r '.auth.client_token')
