@@ -91,6 +91,7 @@
     <PackageVersion Include="Scriban" Version="7.0.0" />
     <PackageVersion Include="FluentValidation" Version="11.10.0" />
     <PackageVersion Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageVersion Include="Svix" Version="1.94.0" />
     <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.15" />
     <PackageVersion Include="Hangfire.Core" Version="1.8.15" />
     <PackageVersion Include="Hangfire.PostgreSql" Version="1.20.10" />

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using Haworks.Webhooks.Application.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -10,6 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Moq;
 using Xunit;
 using Haworks.BuildingBlocks.Testing;
 using Haworks.BuildingBlocks.Testing.Authentication;
@@ -69,9 +71,8 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
         Environment.SetEnvironmentVariable("ConnectionStrings__webhooks", ConnectionString);
         Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", RabbitMqConnectionString);
         Environment.SetEnvironmentVariable("Vault__Enabled", "false");
-        Environment.SetEnvironmentVariable("Kafka__Enabled", "false");
-        Environment.SetEnvironmentVariable("Kafka__BootstrapServers", "localhost:9092");
-        Environment.SetEnvironmentVariable("Kafka__GroupId", "webhooks-svc-cdc-test");
+        Environment.SetEnvironmentVariable("Svix__ServerUrl", "http://localhost:8071");
+        Environment.SetEnvironmentVariable("Svix__AuthToken", "test-token");
 
         // Force host build so Services are available, then apply schema
         _ = Services;
@@ -83,7 +84,7 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<WebhooksDbContext>();
         await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS webhooks;");
-        
+
         var creator = db.Database.GetService<IRelationalDatabaseCreator>();
         try { await creator.CreateTablesAsync(); }
         catch (Npgsql.PostgresException ex) when (string.Equals(ex.SqlState, "42P07", StringComparison.Ordinal)) { /* tables already exist */ }
@@ -107,7 +108,8 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
                 ["ConnectionStrings:webhooks"] = ConnectionString,
                 ["ConnectionStrings:rabbitmq"] = RabbitMqConnectionString,
                 ["Vault:Enabled"] = "false",
-                ["Kafka:Enabled"] = "false",
+                ["Svix:ServerUrl"] = "http://localhost:8071",
+                ["Svix:AuthToken"] = "test-token",
                 ["JwksOptions:Issuer"] = "https://test-issuer.invalid",
                 ["JwksOptions:Audience"] = "test-audience",
                 ["JwksOptions:JwksUri"] = "https://test-issuer.invalid/.well-known/jwks",
@@ -120,6 +122,10 @@ public class WebhooksWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
             // ValidateWebhookUrlAsync never makes real HTTP calls.
             services.AddHttpClient("WebhookValidator")
                 .ConfigurePrimaryHttpMessageHandler(() => new AlwaysOkHandler());
+
+            // Mock Svix dispatcher — integration tests validate subscription CRUD,
+            // not actual Svix API calls.
+            services.AddScoped<IWebhookDispatcher>(_ => new Mock<IWebhookDispatcher>().Object);
 
             services.AddAuthentication(TestAuthenticationHandler.SchemeName)
                 .AddScheme<AuthenticationSchemeOptions, WebhooksTestAuthHandler>(

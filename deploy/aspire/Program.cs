@@ -351,14 +351,14 @@ var webhooks = AddJwksConfig(builder.AddProject<Projects.Webhooks_Api>("webhooks
     .WithReference(webhooksDb)
     .WaitFor(rabbitmq)
     .WithReference(rabbitmq)
-    .WaitFor(kafka)
-    .WithReference(kafka)
     .WaitFor(identity)
     .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
     .WithEnvironment("Vault__Enabled",      "false")
     .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
     .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("webhooks"))
     .WithEnvironment("Vault__SecretIdPath", SecretIdPath("webhooks"))
+    .WithEnvironment("Svix__ServerUrl",     "http://localhost:8071")
+    .WithEnvironment("Svix__AuthToken",     "dev-token")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
 
 // --- payouts-svc -----------------------------------------------------------
