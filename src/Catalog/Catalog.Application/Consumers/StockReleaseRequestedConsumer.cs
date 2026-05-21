@@ -74,25 +74,15 @@ public sealed class StockReleaseRequestedConsumer(
         // of the platform. The OutboxMessage row commits in the same EF
         // transaction as the stock increments; on rollback the publish
         // is rolled back too.
-        try
+        await context.Publish(new StockReleasedEvent
         {
-            await context.Publish(new StockReleasedEvent
-            {
-                OrderId = evt.OrderId,
-                Items = evt.Items,
-                Reason = evt.Reason,
-            }, context.CancellationToken);
+            OrderId = evt.OrderId,
+            Items = evt.Items,
+            Reason = evt.Reason,
+        }, context.CancellationToken);
 
-            // MassTransit EF Outbox commits automatically
-            logger.LogInformation("Released stock for orderId={OrderId}; published StockReleasedEvent", evt.OrderId);
-        }
-        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
-        {
-            // Defense-in-depth: unique constraint violation means another
-            // consumer instance already released this stock.
-            logger.LogInformation(ex,
-                "Stock release for orderId={OrderId} hit unique constraint; idempotent skip",
-                evt.OrderId);
-        }
+        // MassTransit EF Outbox commits automatically. Do NOT catch
+        // DbUpdateException — it poisons the DbContext (Law #3).
+        logger.LogInformation("Released stock for orderId={OrderId}; published StockReleasedEvent", evt.OrderId);
     }
 }

@@ -30,8 +30,11 @@ builder.Services.AddStartupTaskRunner();
 // MassTransit + RabbitMQ — gated behind Test env to allow test harness override
 if (!builder.Environment.IsEnvironment("Test"))
 {
+    builder.Services.AddMassTransitDiagnostics();
+
     builder.Services.AddMassTransit(cfg =>
     {
+        cfg.SetKebabCaseEndpointNameFormatter();
         cfg.AddConsumer<Haworks.BuildingBlocks.Messaging.GlobalFaultConsumer>();
         AuditMassTransit.RegisterConsumers(cfg);
 
@@ -42,9 +45,7 @@ if (!builder.Environment.IsEnvironment("Test"))
 
         cfg.UsingRabbitMq((ctx, rabbit) =>
         {
-            var amqp = builder.Configuration.GetConnectionString("rabbitmq")
-                       ?? throw new InvalidOperationException("ConnectionStrings:rabbitmq is required");
-            rabbit.Host(amqp);
+            rabbit.ConfigureStandardHost(builder.Configuration);
             rabbit.ConfigureStandardRabbitMq(ctx);
         });
     });

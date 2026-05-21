@@ -102,6 +102,9 @@ namespace Haworks.CheckoutOrchestrator.Infrastructure.Migrations
                     b.Property<Guid?>("PaymentExpiryTokenId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("StockReservationTimeoutTokenId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("PaymentId")
                         .HasColumnType("uuid");
 

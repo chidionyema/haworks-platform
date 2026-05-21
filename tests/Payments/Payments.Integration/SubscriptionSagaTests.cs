@@ -49,7 +49,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         var providerSubId = $"sub_{Guid.NewGuid():N}";
         await PublishAsync(new SubscriptionStartedEvent
         {
-            SubscriptionId = providerSubId,
+            ProviderSubscriptionId = providerSubId,
             UserId = userId ?? "user_test",
             PlanId = planId ?? "plan_premium",
             Provider = PaymentProvider.Stripe,
@@ -146,7 +146,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
 
     private SubscriptionCancelledEvent BuildCancelEvent(string providerSubId) => new()
     {
-        SubscriptionId = providerSubId,
+        ProviderSubscriptionId = providerSubId,
         UserId = "user_test",
         Provider = PaymentProvider.Stripe,
         Reason = "user_requested"
@@ -211,7 +211,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         // Simulate the renewal timeout schedule firing by publishing the
         // scheduled message directly (the in-memory scheduler may not fire
         // TimeSpan.Zero delays deterministically).
-        await PublishAsync(new SubscriptionRenewalScheduled(sagaId));
+        await PublishAsync(new SubscriptionRenewalScheduled { SubscriptionId = sagaId });
 
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Renewing", StringComparison.Ordinal),
             TimeSpan.FromSeconds(15));
@@ -238,7 +238,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         var newPeriodEnd = DateTime.UtcNow.AddDays(30);
         await PublishAsync(new SubscriptionRenewedEvent
         {
-            SubscriptionId = providerSubId,
+            ProviderSubscriptionId = providerSubId,
             UserId = "user_test",
             Provider = PaymentProvider.Stripe,
             AmountCents = 999,
@@ -401,7 +401,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         var newPeriodEnd = DateTime.UtcNow.AddDays(30);
         await PublishAsync(new SubscriptionRenewedEvent
         {
-            SubscriptionId = providerSubId,
+            ProviderSubscriptionId = providerSubId,
             UserId = "user_test",
             Provider = PaymentProvider.Stripe,
             AmountCents = 999,
@@ -543,7 +543,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         // Publish a late renewal event — should not resurrect the saga.
         await PublishAsync(new SubscriptionRenewedEvent
         {
-            SubscriptionId = providerSubId,
+            ProviderSubscriptionId = providerSubId,
             UserId = "user_test",
             Provider = PaymentProvider.Stripe,
             AmountCents = 999,
@@ -594,7 +594,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
         var newPeriodEnd = DateTime.UtcNow.AddDays(30);
         await PublishAsync(new SubscriptionRenewedEvent
         {
-            SubscriptionId = providerSubId,
+            ProviderSubscriptionId = providerSubId,
             UserId = "user_test",
             Provider = PaymentProvider.Stripe,
             AmountCents = 999,

@@ -254,7 +254,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
-                RefundId = refund.Id,
+                ProviderRefundId = refund.Id,
                 AmountCents = refund.Amount,
                 Currency = charge.Currency,
                 Provider = Provider,

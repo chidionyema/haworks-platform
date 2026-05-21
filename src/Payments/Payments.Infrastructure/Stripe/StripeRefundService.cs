@@ -107,7 +107,7 @@ internal sealed class StripeRefundService(
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
-                RefundId = refund.Id,
+                ProviderRefundId = refund.Id,
                 AmountCents = refund.Amount,
                 Currency = payment.Currency,
                 Provider = PaymentProvider.Stripe,

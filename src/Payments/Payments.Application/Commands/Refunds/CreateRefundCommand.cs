@@ -35,7 +35,14 @@ public sealed class CreateRefundCommandHandler(
             return Result.Failure<Guid>(Error.Validation("Payment.NotCompleted", $"Payment must be completed before refund. Current status: {payment.Status}"));
         }
 
-        var refundId = Guid.NewGuid();
+        if (!string.Equals(request.Currency, payment.Currency, StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Failure<Guid>(Error.Validation("Refund.CurrencyMismatch", "Refund currency does not match payment currency"));
+        }
+
+        // Derive refundId deterministically from idempotency key so API retries
+        // produce the same refund ID (prevents duplicate refunds on network timeouts).
+        var refundId = GuidFromIdempotencyKey(request.IdempotencyKey);
 
         // Mutate domain state first — RecordRefund validates remaining amount
         // and throws if total would exceed payment amount.
@@ -81,5 +88,12 @@ public sealed class CreateRefundCommandHandler(
         logger.LogInformation("Refund {RefundId} requested for Payment {PaymentId}", refundId, payment.Id);
 
         return Result.Success(refundId);
+    }
+
+    private static Guid GuidFromIdempotencyKey(string key)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(key));
+        return new Guid(hash.AsSpan(0, 16));
     }
 }

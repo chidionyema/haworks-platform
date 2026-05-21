@@ -40,6 +40,8 @@ builder.Services.AddSingleton<IShippingProvider, EasyPostShippingProvider>();
 // ── MassTransit ──
 if (!builder.Environment.IsEnvironment("Test"))
 {
+    builder.Services.AddMassTransitDiagnostics();
+
     builder.Services.AddMassTransit(mt =>
     {
         mt.SetKebabCaseEndpointNameFormatter();
@@ -56,7 +58,7 @@ if (!builder.Environment.IsEnvironment("Test"))
         mt.UsingRabbitMq((context, cfg) =>
         {
             cfg.ConfigureStandardHost(builder.Configuration);
-            cfg.ConfigureEndpoints(context);
+            cfg.ConfigureStandardRabbitMq(context);
         });
     });
 }

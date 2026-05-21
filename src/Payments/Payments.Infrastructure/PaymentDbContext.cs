@@ -130,6 +130,9 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
             entity.HasIndex(s => s.PaymentId);
             entity.HasIndex(s => s.ProviderRefundId);
 
+            entity.Property(s => s.ReviewEscalationTokenId).HasColumnType("uuid");
+            entity.Property(s => s.RetryCount).HasDefaultValue(0);
+
             // Concurrency protection (XC-01/RS-01)
             entity.Property(s => s.Version).IsConcurrencyToken();
         });

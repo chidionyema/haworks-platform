@@ -130,7 +130,7 @@ internal sealed class PayPalRefundService(
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
-                RefundId = refund!.Id!,
+                ProviderRefundId = refund!.Id!,
                 AmountCents = request.AmountCents ?? (long)Math.Round(payment.Amount * CheckoutConstants.CentMultiplier, 0, MidpointRounding.ToEven),
                 Currency = payment.Currency,
                 Provider = PaymentProvider.PayPal,
@@ -167,9 +167,9 @@ internal sealed class PayPalRefundService(
             }
 
             var refund = await response.Content.ReadFromJsonAsync<PayPalRefundResponse>(PayPalJsonOptions.Default, ct);
-            return new RefundResult 
-            { 
-                RefundId = refund!.Id!, 
+            return new RefundResult
+            {
+                RefundId = refund!.Id!,
                 Status = MapRefundStatus(refund.Status), 
                 AmountCents = (long)Math.Round(decimal.Parse(refund.Amount?.Value ?? "0") * CheckoutConstants.CentMultiplier, 0, MidpointRounding.ToEven),
                 Provider = PaymentProvider.PayPal 

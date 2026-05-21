@@ -29,6 +29,15 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                 s.Received = r => r.CorrelateById(ctx => ctx.Message.RefundId);
             });
 
+        Schedule(
+            () => ReviewEscalationSchedule,
+            instance => instance.ReviewEscalationTokenId,
+            s =>
+            {
+                s.Delay = TimeSpan.FromHours(72);
+                s.Received = r => r.CorrelateById(ctx => ctx.Message.RefundId);
+            });
+
         Event(() => RefundRequested, e => e.CorrelateById(ctx => ctx.Message.RefundId));
         Event(() => ProviderRefundInitiated, e => e.CorrelateById(ctx => ctx.Message.RefundId));
         Event(() => ProviderRefundSucceeded, e => e.CorrelateById(ctx => ctx.Message.RefundId));
@@ -90,13 +99,44 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     FailureCategory = "ProviderRefundFailed",
                     FailureDetail = ctx.Saga.FailureDetail ?? "Unknown provider error"
                 }))
+                .Schedule(ReviewEscalationSchedule, ctx => ctx.Init<RefundReviewEscalatedEvent>(new RefundReviewEscalatedEvent
+                {
+                    RefundId = ctx.Saga.CorrelationId,
+                    OrderId = ctx.Saga.OrderId,
+                    HoursInReview = 72
+                }))
+                .TransitionTo(RequiresReview),
+            When(RefundTimeoutSchedule.Received)
+                .Unschedule(RefundTimeoutSchedule)
+                .Then(ctx =>
+                {
+                    ctx.Saga.FailureCategory = RefundFailureCategory.RefundTimedOut;
+                    ctx.Saga.FailureDetail = "provider_initiation_timeout";
+                    EmitCompensateSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "provider_initiation_timeout");
+                })
+                .PublishAsync(ctx => ctx.Init<RefundStalledEvent>(new RefundStalledEvent
+                {
+                    RefundId = ctx.Saga.CorrelationId,
+                    HoursSinceRequest = 24
+                }))
+                .Schedule(ReviewEscalationSchedule, ctx => ctx.Init<RefundReviewEscalatedEvent>(new RefundReviewEscalatedEvent
+                {
+                    RefundId = ctx.Saga.CorrelationId,
+                    OrderId = ctx.Saga.OrderId,
+                    HoursInReview = 72
+                }))
                 .TransitionTo(RequiresReview));
 
         During(AwaitingProviderConfirmation,
             When(ProviderRefundSucceeded)
                 .Then(ctx =>
                 {
-                    // Optionally update amount refunded if it differs
+                    if (ctx.Message.AmountRefunded != ctx.Saga.Amount)
+                    {
+                        ctx.Saga.FailureDetail =
+                            $"Partial refund: requested={ctx.Saga.Amount}, actual={ctx.Message.AmountRefunded}";
+                        ctx.Saga.Amount = ctx.Message.AmountRefunded;
+                    }
                     EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "AwaitingProviderConfirmation", "Refunded");
                 })
                 .Unschedule(RefundTimeoutSchedule)
@@ -125,8 +165,15 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     FailureCategory = "ProviderRefundFailed",
                     FailureDetail = ctx.Saga.FailureDetail ?? "Unknown provider confirmation error"
                 }))
+                .Schedule(ReviewEscalationSchedule, ctx => ctx.Init<RefundReviewEscalatedEvent>(new RefundReviewEscalatedEvent
+                {
+                    RefundId = ctx.Saga.CorrelationId,
+                    OrderId = ctx.Saga.OrderId,
+                    HoursInReview = 72
+                }))
                 .TransitionTo(RequiresReview),
             When(RefundTimeoutSchedule.Received)
+                .Unschedule(RefundTimeoutSchedule)
                 .Then(ctx =>
                 {
                     ctx.Saga.FailureCategory = RefundFailureCategory.RefundTimedOut;
@@ -138,37 +185,103 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     RefundId = ctx.Saga.CorrelationId,
                     HoursSinceRequest = 24
                 }))
+                .Schedule(ReviewEscalationSchedule, ctx => ctx.Init<RefundReviewEscalatedEvent>(new RefundReviewEscalatedEvent
+                {
+                    RefundId = ctx.Saga.CorrelationId,
+                    OrderId = ctx.Saga.OrderId,
+                    HoursInReview = 72
+                }))
                 .TransitionTo(RequiresReview));
 
         During(RequiresReview,
             When(RefundApprovedByOperator)
-                .Then(ctx =>
-                {
-                    ctx.Saga.FailureCategory = RefundFailureCategory.None;
-                    ctx.Saga.FailureDetail = null;
-                })
-                .PublishAsync(ctx => ctx.Init<ProviderRefundInitiationRequestedEvent>(new ProviderRefundInitiationRequestedEvent
+                .IfElse(ctx => ctx.Saga.RetryCount >= 3,
+                    exhausted => exhausted
+                        .Then(ctx =>
+                        {
+                            ctx.Saga.FailureCategory = RefundFailureCategory.RetriesExhausted;
+                            ctx.Saga.FailureDetail = $"Operator re-approved {ctx.Saga.RetryCount} times — max retries exceeded";
+                            EmitCompensateSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "refund_retries_exhausted");
+                        })
+                        .Unschedule(ReviewEscalationSchedule)
+                        .PublishAsync(ctx => ctx.Init<RefundCancelledEvent>(new RefundCancelledEvent
+                        {
+                            RefundId = ctx.Saga.CorrelationId,
+                            OrderId = ctx.Saga.OrderId,
+                            PaymentId = ctx.Saga.PaymentId,
+                            Amount = ctx.Saga.Amount,
+                            Reason = "retries_exhausted"
+                        }))
+                        .TransitionTo(Cancelled)
+                        .Finalize(),
+                    retry => retry
+                        .Then(ctx =>
+                        {
+                            ctx.Saga.RetryCount++;
+                            ctx.Saga.FailureCategory = RefundFailureCategory.None;
+                            ctx.Saga.FailureDetail = null;
+                        })
+                        .Unschedule(ReviewEscalationSchedule)
+                        .Unschedule(RefundTimeoutSchedule)
+                        .PublishAsync(ctx => ctx.Init<ProviderRefundInitiationRequestedEvent>(new ProviderRefundInitiationRequestedEvent
+                        {
+                            RefundId = ctx.Saga.CorrelationId,
+                            Provider = ctx.Saga.Provider,
+                            PaymentId = ctx.Saga.PaymentId,
+                            Amount = ctx.Saga.Amount,
+                            Currency = ctx.Saga.Currency
+                        }))
+                        .Schedule(RefundTimeoutSchedule, ctx => ctx.Init<RefundTimedOutEvent>(new RefundTimedOutEvent
+                        {
+                            RefundId = ctx.Saga.CorrelationId
+                        }), _ => TimeSpan.FromHours(24))
+                        .TransitionTo(AwaitingProviderConfirmation)),
+            // H13: ProviderRefundSucceeded arrives while in RequiresReview (timeout race).
+            // The provider actually refunded the money — honor it instead of dropping.
+            When(ProviderRefundSucceeded)
+                .Unschedule(ReviewEscalationSchedule)
+                .Unschedule(RefundTimeoutSchedule)
+                .PublishAsync(ctx => ctx.Init<RefundCompletedEvent>(new RefundCompletedEvent
                 {
                     RefundId = ctx.Saga.CorrelationId,
-                    Provider = ctx.Saga.Provider,
+                    OrderId = ctx.Saga.OrderId,
                     PaymentId = ctx.Saga.PaymentId,
                     Amount = ctx.Saga.Amount,
                     Currency = ctx.Saga.Currency
                 }))
-                .Schedule(RefundTimeoutSchedule, ctx => ctx.Init<RefundTimedOutEvent>(new RefundTimedOutEvent
+                .TransitionTo(Refunded)
+                .Finalize(),
+            // H4: 72-hour escalation timeout — auto-cancel if no operator action.
+            When(ReviewEscalationSchedule!.Received)
+                .Then(ctx =>
                 {
-                    RefundId = ctx.Saga.CorrelationId
-                }), _ => TimeSpan.FromHours(24))
-                .TransitionTo(AwaitingProviderConfirmation));
+                    ctx.Saga.FailureCategory = RefundFailureCategory.ReviewEscalationTimeout;
+                    ctx.Saga.FailureDetail = "No operator action within 72 hours";
+                    EmitCompensateSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "review_escalation_timeout");
+                })
+                .PublishAsync(ctx => ctx.Init<RefundReviewEscalatedEvent>(new RefundReviewEscalatedEvent
+                {
+                    RefundId = ctx.Saga.CorrelationId,
+                    OrderId = ctx.Saga.OrderId,
+                    HoursInReview = 72
+                }))
+                .PublishAsync(ctx => ctx.Init<RefundCancelledEvent>(new RefundCancelledEvent
+                {
+                    RefundId = ctx.Saga.CorrelationId,
+                    OrderId = ctx.Saga.OrderId,
+                    PaymentId = ctx.Saga.PaymentId,
+                    Amount = ctx.Saga.Amount,
+                    Reason = "review_escalation_timeout"
+                }))
+                .TransitionTo(Cancelled)
+                .Finalize());
 
         // Idempotency: late-arriving duplicate events on a finalized saga
-        // (Refunded / Cancelled) or a terminal-ish state (RequiresReview)
-        // silently no-op rather than throwing.
+        // (Refunded / Cancelled) silently no-op rather than throwing.
         DuringAny(
             When(ProviderRefundSucceeded)
                 .If(ctx => string.Equals(ctx.Saga.CurrentState, Refunded.Name, StringComparison.Ordinal)
-                        || string.Equals(ctx.Saga.CurrentState, Cancelled.Name, StringComparison.Ordinal)
-                        || string.Equals(ctx.Saga.CurrentState, RequiresReview.Name, StringComparison.Ordinal),
+                        || string.Equals(ctx.Saga.CurrentState, Cancelled.Name, StringComparison.Ordinal),
                     x => x),
             When(ProviderRefundFailed)
                 .If(ctx => string.Equals(ctx.Saga.CurrentState, RequiresReview.Name, StringComparison.Ordinal)
@@ -196,6 +309,8 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                         {
                             RefundId = ctx.Saga.CorrelationId,
                             OrderId = ctx.Saga.OrderId,
+                            PaymentId = ctx.Saga.PaymentId,
+                            Amount = ctx.Saga.Amount,
                             Reason = "Cancelled by operator"
                         }))
                         .TransitionTo(Cancelled)
@@ -218,6 +333,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
     public Event<RefundApprovedByOperatorEvent> RefundApprovedByOperator { get; private set; } = null!;
 
     public Schedule<RefundSagaState, RefundTimedOutEvent> RefundTimeoutSchedule { get; private set; } = null!;
+    public Schedule<RefundSagaState, RefundReviewEscalatedEvent> ReviewEscalationSchedule { get; private set; } = null!;
 
     private static void EmitCompensateSpan(Guid sagaId, Guid orderId, string reason)
     {

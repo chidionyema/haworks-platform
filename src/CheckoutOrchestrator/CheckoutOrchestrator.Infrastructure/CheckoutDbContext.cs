@@ -61,6 +61,7 @@ public class CheckoutDbContext : DbContext, ICheckoutDbContext
             entity.Property(s => s.PaymentSessionId).HasMaxLength(500);
             entity.Property(s => s.PaymentCheckoutUrl).HasMaxLength(2000);
             entity.Property(s => s.FailureReason).HasMaxLength(1000);
+            entity.Property(s => s.StockReservationTimeoutTokenId).HasColumnType("uuid");
 
             // MT optimistic concurrency on saga state. Both the Version
             // column AND the xmin shadow are wired — Version covers MT's

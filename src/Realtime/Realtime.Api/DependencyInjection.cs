@@ -59,7 +59,9 @@ public static class DependencyInjection
 
         services.AddMassTransit(x =>
             {
-                x.AddConsumer<OrderStatusChangedConsumer>();
+                x.SetKebabCaseEndpointNameFormatter();
+                x.AddConsumer<GlobalFaultConsumer>();
+                x.AddConsumer<OrderStatusChangedConsumer, Haworks.Realtime.Api.Infrastructure.Messaging.RealtimeConsumerDefinition<OrderStatusChangedConsumer>>();
 
                 x.UsingRabbitMq((context, cfg) =>
                 {

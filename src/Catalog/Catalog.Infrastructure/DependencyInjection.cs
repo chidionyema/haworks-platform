@@ -134,6 +134,7 @@ public static class DependencyInjection
             // Closes Phase 4: orchestrator publishes the request, this consumer
             // reserves stock and publishes StockReservedEvent (or Failed),
             // both routed through the outbox for atomicity.
+            mt.AddConsumer<GlobalFaultConsumer>();
             mt.AddConsumer<StockReservationRequestedConsumer, CatalogConsumerDefinition<StockReservationRequestedConsumer>>();
 
             // Compensation consumer for the saga's StockReleaseRequested.

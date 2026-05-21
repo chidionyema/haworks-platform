@@ -52,10 +52,12 @@ builder.Services.AddScoped<IRulesEvaluator, RulesEvaluator>();
 // ── MassTransit (fraud check consumer) ───────────────────────────────────────
 if (!builder.Environment.IsEnvironment("Test"))
 {
+    builder.Services.AddMassTransitDiagnostics();
+
     builder.Services.AddMassTransit(mt =>
     {
         mt.SetKebabCaseEndpointNameFormatter();
-        mt.AddConsumer<FraudCheckConsumer>();
+        mt.AddConsumer<FraudCheckConsumer, Haworks.RulesEngine.Api.Infrastructure.Messaging.RulesEngineConsumerDefinition<FraudCheckConsumer>>();
         mt.AddConsumer<GlobalFaultConsumer>();
 
         mt.AddEntityFrameworkOutbox<RulesDbContext>(o =>
@@ -69,7 +71,7 @@ if (!builder.Environment.IsEnvironment("Test"))
         mt.UsingRabbitMq((context, cfg) =>
         {
             cfg.ConfigureStandardHost(builder.Configuration);
-            cfg.ConfigureEndpoints(context);
+            cfg.ConfigureStandardRabbitMq(context);
         });
     });
 }
