@@ -14,7 +14,6 @@ FROM hashicorp/vault:1.18
 RUN apk add --no-cache bash curl jq
 
 COPY deploy/vault/vault.hcl         /vault/config/vault.hcl
-COPY deploy/vault/transit-vault.hcl /vault/config/transit-vault.hcl
 COPY deploy/vault/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY deploy/vault/seed.sh       /usr/local/bin/seed.sh
 COPY infra/vault/               /vault/manifests/
