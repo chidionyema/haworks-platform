@@ -41,7 +41,6 @@ public static class DependencyInjection
                 options.UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>(), npgsql =>
                 {
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "location");
-                options.AddPlatformInterceptors(sp);
                     // Enable NetTopologySuite for PostGIS support
                     npgsql.UseNetTopologySuite();
                 });
@@ -55,6 +54,7 @@ public static class DependencyInjection
                     npgsql.UseNetTopologySuite();
                 });
             }
+            options.AddPlatformInterceptors(sp);
         });
 
         services.AddScoped<ILocationDbContext>(sp => sp.GetRequiredService<LocationDbContext>());
@@ -91,10 +91,7 @@ public static class DependencyInjection
 
             mt.UsingRabbitMq((context, cfg) =>
             {
-                var rabbitConn = configuration.GetConnectionString("rabbitmq")
-                    ?? throw new InvalidOperationException("ConnectionStrings:rabbitmq is missing.");
-
-                cfg.Host(new Uri(rabbitConn));
+                cfg.ConfigureStandardHost(configuration);
                 cfg.ConfigureStandardRabbitMq(context);
             });
         });

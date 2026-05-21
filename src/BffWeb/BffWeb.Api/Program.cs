@@ -311,9 +311,7 @@ builder.Services.AddMassTransit(mt =>
 
         mt.UsingRabbitMq((context, cfg) =>
         {
-            var rabbitConn = builder.Configuration.GetConnectionString("rabbitmq")
-                ?? throw new InvalidOperationException("ConnectionStrings:rabbitmq is missing.");
-            cfg.Host(new Uri(rabbitConn));
+            cfg.ConfigureStandardHost(builder.Configuration);
             cfg.ConfigureStandardRabbitMq(context);
         });
     });

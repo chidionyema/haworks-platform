@@ -60,7 +60,6 @@ public static partial class DependencyInjection
                 options.UseNpgsql(sp.GetRequiredService<Npgsql.NpgsqlDataSource>(), npgsqlOptions =>
                 {
                     npgsqlOptions.MigrationsAssembly(typeof(NotificationsDbContext).Assembly.FullName);
-                options.AddPlatformInterceptors(sp);
                     npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "notifications");
                 });
             }
@@ -72,6 +71,7 @@ public static partial class DependencyInjection
                     npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "notifications");
                 });
             }
+            options.AddPlatformInterceptors(sp);
         });
 
         if (!env.IsEnvironment("Test"))
@@ -94,10 +94,7 @@ public static partial class DependencyInjection
 
                 x.UsingRabbitMq((context, cfg) =>
                 {
-                    var rabbitConn = configuration.GetConnectionString("RabbitMQ")
-                        ?? throw new InvalidOperationException("RabbitMQ connection string missing");
-
-                    cfg.Host(new Uri(rabbitConn));
+                    cfg.ConfigureStandardHost(configuration);
                     cfg.ConfigureStandardRabbitMq(context);
                 });
             });

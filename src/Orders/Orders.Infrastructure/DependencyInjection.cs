@@ -41,7 +41,6 @@ public static class DependencyInjection
                 options.UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>(), npgsql =>
                 {
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "orders");
-                options.AddPlatformInterceptors(sp);
                     // EF retry-on-failure mitigates the macOS Docker / Npgsql 9
                     // EOF stream flake first observed in payments-svc Phase 3 — see
                     // docs/runbooks/payments-integration-docker-flake.md.
@@ -59,6 +58,7 @@ public static class DependencyInjection
                     npgsql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromMilliseconds(500), errorCodesToAdd: null);
                 });
             }
+            options.AddPlatformInterceptors(sp);
         });
 
         services.AddScoped<IOrderRepository, OrderRepository>();
@@ -95,10 +95,7 @@ public static class DependencyInjection
 
             mt.UsingRabbitMq((context, cfg) =>
             {
-                var rabbitConn = configuration.GetConnectionString("rabbitmq")
-                    ?? throw new InvalidOperationException(
-                        "ConnectionStrings:rabbitmq is missing. Aspire injects it via WithReference(rabbitmq).");
-                cfg.Host(new Uri(rabbitConn));
+                cfg.ConfigureStandardHost(configuration);
                 cfg.ConfigureStandardRabbitMq(context);
             });
         });

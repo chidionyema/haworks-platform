@@ -65,10 +65,7 @@ public static class DependencyInjection
 
             x.UsingRabbitMq((context, cfg) =>
             {
-                var rabbitConn = configuration.GetConnectionString("rabbitmq")
-                    ?? throw new InvalidOperationException("ConnectionStrings:rabbitmq is missing.");
-
-                cfg.Host(new Uri(rabbitConn));
+                cfg.ConfigureStandardHost(configuration);
                 cfg.UseDelayedMessageScheduler();
                 cfg.ConfigureStandardRabbitMq(context);
             });

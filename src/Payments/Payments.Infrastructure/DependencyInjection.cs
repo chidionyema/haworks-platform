@@ -198,10 +198,7 @@ public static class DependencyInjection
 
             mt.UsingRabbitMq((context, cfg) =>
             {
-                var rabbitConn = configuration.GetConnectionString("rabbitmq")
-                    ?? throw new InvalidOperationException();
-
-                cfg.Host(new Uri(rabbitConn));
+                cfg.ConfigureStandardHost(configuration);
                 cfg.UseDelayedMessageScheduler();
                 cfg.UsePublishFilter(typeof(RelayPauseFilter<>), context);
                 cfg.ConfigureStandardRabbitMq(context);

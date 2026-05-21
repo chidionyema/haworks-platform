@@ -17,8 +17,10 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("ConnectionStrings:localization is required");
 
         services.AddDbContext<LocalizationDbContext>((sp, options) =>
-            options.UseNpgsql(connectionString));
+        {
+            options.UseNpgsql(connectionString);
             options.AddPlatformInterceptors(sp);
+        });
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
         
@@ -61,8 +63,7 @@ public static class DependencyInjection
 
                 mt.UsingRabbitMq((context, cfg) =>
                 {
-                    var rabbitConn = configuration.GetConnectionString("rabbitmq") ?? throw new InvalidOperationException("RabbitMq:Username is required");
-                    cfg.Host(new Uri(rabbitConn));
+                    cfg.ConfigureStandardHost(configuration);
                     cfg.ConfigureStandardRabbitMq(context);
                 });
             });

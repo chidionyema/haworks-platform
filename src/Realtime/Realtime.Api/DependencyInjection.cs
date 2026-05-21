@@ -63,10 +63,7 @@ public static class DependencyInjection
 
                 x.UsingRabbitMq((context, cfg) =>
                 {
-                    var rabbitConn = configuration.GetConnectionString("RabbitMQ")
-                        ?? throw new InvalidOperationException("RabbitMQ connection string is required.");
-
-                    cfg.Host(new Uri(rabbitConn));
+                    cfg.ConfigureStandardHost(configuration);
                     cfg.ConfigureStandardRabbitMq(context);
                 });
             });
