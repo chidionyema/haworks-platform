@@ -42,7 +42,7 @@ public sealed class AuthTests : IAsyncLifetime
     public async Task CreateReview_returns_401_when_called_without_bearer_token()
     {
         var client = CreateUnauthenticatedClient();
-        var resp = await client.PostAsync($"/api/products/{Guid.NewGuid()}/reviews", null);
+        var resp = await client.PostAsync($"/api/v1/products/{Guid.NewGuid()}/reviews", null);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -50,7 +50,7 @@ public sealed class AuthTests : IAsyncLifetime
     public async Task POST_product_returns_401_when_unauthenticated()
     {
         var client = CreateUnauthenticatedClient();
-        var resp = await client.PostAsJsonAsync("/api/products", new
+        var resp = await client.PostAsJsonAsync("/api/v1/products", new
         {
             name = "Unauth-product",
             description = "x",
@@ -65,7 +65,7 @@ public sealed class AuthTests : IAsyncLifetime
     public async Task DELETE_product_returns_401_when_unauthenticated()
     {
         var client = CreateUnauthenticatedClient();
-        var resp = await client.DeleteAsync($"/api/products/{Guid.NewGuid()}");
+        var resp = await client.DeleteAsync($"/api/v1/products/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -73,7 +73,7 @@ public sealed class AuthTests : IAsyncLifetime
     public async Task GET_products_returns_200_when_unauthenticated()
     {
         var client = CreateUnauthenticatedClient();
-        var resp = await client.GetAsync("/api/products");
+        var resp = await client.GetAsync("/api/v1/products");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -81,7 +81,7 @@ public sealed class AuthTests : IAsyncLifetime
     public async Task POST_category_returns_401_when_unauthenticated()
     {
         var client = CreateUnauthenticatedClient();
-        var resp = await client.PostAsJsonAsync("/api/categories", new
+        var resp = await client.PostAsJsonAsync("/api/v1/categories", new
         {
             name = "Unauth-cat",
             description = "x",

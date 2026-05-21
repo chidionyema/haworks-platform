@@ -52,7 +52,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
     {
         var (categoryId, productId) = await CreateProductAsync(initialStock: 10);
 
-        var resp = await _client.PostAsJsonAsync("/api/checkout/reservations", new
+        var resp = await _client.PostAsJsonAsync("/api/v1/checkout/reservations", new
         {
             items = new[]
             {
@@ -69,7 +69,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
         dto.ExpiresAt.Should().BeAfter(DateTimeOffset.UtcNow);
 
         // Stock decremented atomically by CreateReservationAsync.
-        var get = await _client.GetFromJsonAsync<ProductResponseDto>($"/api/products/{productId}");
+        var get = await _client.GetFromJsonAsync<ProductResponseDto>($"/api/v1/products/{productId}");
         get!.StockQuantity.Should().Be(7);
     }
 
@@ -78,7 +78,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
     {
         var (_, productId) = await CreateProductAsync(initialStock: 2);
 
-        var resp = await _client.PostAsJsonAsync("/api/checkout/reservations", new
+        var resp = await _client.PostAsJsonAsync("/api/v1/checkout/reservations", new
         {
             items = new[]
             {
@@ -89,7 +89,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
         resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
         // Failed create must not decrement stock — repository txn rolls back.
-        var get = await _client.GetFromJsonAsync<ProductResponseDto>($"/api/products/{productId}");
+        var get = await _client.GetFromJsonAsync<ProductResponseDto>($"/api/v1/products/{productId}");
         get!.StockQuantity.Should().Be(2);
     }
 
@@ -107,7 +107,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
 
         var key = $"key-{Guid.NewGuid():N}";
 
-        using var first = new HttpRequestMessage(HttpMethod.Post, "/api/checkout/reservations")
+        using var first = new HttpRequestMessage(HttpMethod.Post, "/api/v1/checkout/reservations")
         {
             Content = JsonContent.Create(new
             {
@@ -119,7 +119,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
         using var firstResp = await _client.SendAsync(first);
         firstResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        using var second = new HttpRequestMessage(HttpMethod.Post, "/api/checkout/reservations")
+        using var second = new HttpRequestMessage(HttpMethod.Post, "/api/v1/checkout/reservations")
         {
             Content = JsonContent.Create(new
             {
@@ -135,7 +135,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
 
         // And critically, the dup did NOT decrement stock a second time —
         // the middleware short-circuits before the handler runs.
-        var get = await _client.GetFromJsonAsync<ProductResponseDto>($"/api/products/{productId}");
+        var get = await _client.GetFromJsonAsync<ProductResponseDto>($"/api/v1/products/{productId}");
         get!.StockQuantity.Should().Be(9);
     }
 
@@ -150,7 +150,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
         var client = CreateAuthedClient(includeEmail: true);
 
         var resp = await client.PostAsJsonAsync(
-            $"/api/checkout/reservations/{reservation.Id}/confirm",
+            $"/api/v1/checkout/reservations/{reservation.Id}/confirm",
             new { totalAmount = 30m, currency = "USD" });
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -172,7 +172,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
 
         var client = CreateAuthedClient(includeEmail: true);
         var resp = await client.PostAsJsonAsync(
-            $"/api/checkout/reservations/{reservation.Id}/confirm",
+            $"/api/v1/checkout/reservations/{reservation.Id}/confirm",
             new { totalAmount = 30m, currency = "USD" });
 
         resp.StatusCode.Should().Be(HttpStatusCode.Gone);
@@ -184,7 +184,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
         var client = CreateAuthedClient(includeEmail: true);
 
         var resp = await client.PostAsJsonAsync(
-            $"/api/checkout/reservations/{Guid.NewGuid()}/confirm",
+            $"/api/v1/checkout/reservations/{Guid.NewGuid()}/confirm",
             new { totalAmount = 10m, currency = "USD" });
 
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -199,7 +199,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
         var client = CreateAuthedClient(includeEmail: true);
 
         var resp = await client.PostAsJsonAsync(
-            $"/api/checkout/reservations/{reservation.Id}/confirm",
+            $"/api/v1/checkout/reservations/{reservation.Id}/confirm",
             new { totalAmount = 30m, currency = "USD" });
 
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -210,12 +210,12 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
     private async Task<(Guid categoryId, Guid productId)> CreateProductAsync(int initialStock)
     {
         var catName = $"Cat-{Guid.NewGuid():N}";
-        var catResp = await _client.PostAsJsonAsync("/api/categories",
+        var catResp = await _client.PostAsJsonAsync("/api/v1/categories",
             new { name = catName, description = "x" });
         catResp.EnsureSuccessStatusCode();
         var categoryId = await catResp.Content.ReadFromJsonAsync<Guid>();
 
-        var prodResp = await _client.PostAsJsonAsync("/api/products", new
+        var prodResp = await _client.PostAsJsonAsync("/api/v1/products", new
         {
             name = $"P-{Guid.NewGuid():N}",
             description = "x",

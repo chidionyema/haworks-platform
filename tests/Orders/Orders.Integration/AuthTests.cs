@@ -37,7 +37,7 @@ public sealed class AuthTests
         }).CreateClient();
 
         // Act
-        var resp = await client.GetAsync($"/api/orders/{Guid.NewGuid()}");
+        var resp = await client.GetAsync($"/api/v1/orders/{Guid.NewGuid()}");
 
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);

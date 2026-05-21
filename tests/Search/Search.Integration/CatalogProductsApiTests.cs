@@ -57,7 +57,7 @@ public sealed class CatalogProductsApiTests : IDisposable
         var id = Guid.NewGuid();
         var categoryId = Guid.NewGuid();
         _wiremock
-            .Given(Request.Create().WithPath($"/api/products/{id}").UsingGet())
+            .Given(Request.Create().WithPath($"/api/v1/products/{id}").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")
@@ -88,7 +88,7 @@ public sealed class CatalogProductsApiTests : IDisposable
     {
         var id = Guid.NewGuid();
         _wiremock
-            .Given(Request.Create().WithPath($"/api/products/{id}").UsingGet())
+            .Given(Request.Create().WithPath($"/api/v1/products/{id}").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(500));
 
         var act = async () => await _client.GetProductAsync(id, default);
@@ -103,7 +103,7 @@ public sealed class CatalogProductsApiTests : IDisposable
     {
         var id = Guid.NewGuid();
         _wiremock
-            .Given(Request.Create().WithPath($"/api/products/{id}").UsingGet())
+            .Given(Request.Create().WithPath($"/api/v1/products/{id}").UsingGet())
             .RespondWith(Response.Create().WithStatusCode(404));
 
         var act = async () => await _client.GetProductAsync(id, default);
@@ -117,7 +117,7 @@ public sealed class CatalogProductsApiTests : IDisposable
     {
         // Page 1: skip=0&take=100, returns 100 items + Total=150.
         _wiremock
-            .Given(Request.Create().WithPath("/api/products")
+            .Given(Request.Create().WithPath("/api/v1/products")
                 .WithParam("skip", "0").WithParam("take", "100").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)
@@ -132,7 +132,7 @@ public sealed class CatalogProductsApiTests : IDisposable
 
         // Page 2: skip=100&take=100, returns 50 items.
         _wiremock
-            .Given(Request.Create().WithPath("/api/products")
+            .Given(Request.Create().WithPath("/api/v1/products")
                 .WithParam("skip", "100").WithParam("take", "100").UsingGet())
             .RespondWith(Response.Create()
                 .WithStatusCode(200)

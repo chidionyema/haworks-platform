@@ -42,7 +42,7 @@ public sealed class CheckoutAuthTests : IClassFixture<BffWebFactory>
         };
 
         // Act
-        var response = await client.PostAsJsonAsync("/api/checkout", payload);
+        var response = await client.PostAsJsonAsync("/api/v1/checkout", payload);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);

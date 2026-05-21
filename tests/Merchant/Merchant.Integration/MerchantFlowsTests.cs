@@ -47,7 +47,7 @@ public sealed class MerchantFlowsTests : IAsyncLifetime
         var command = new { OwnerId = ownerId, Name = name, Slug = slug };
 
         // Act
-        var createResp = await _client.PostAsJsonAsync("/api/merchants", command);
+        var createResp = await _client.PostAsJsonAsync("/api/v1/merchants", command);
         
         // Assert
         createResp.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -56,7 +56,7 @@ public sealed class MerchantFlowsTests : IAsyncLifetime
         createResult!.MerchantId.Should().NotBeEmpty();
 
         // Get by ID
-        var getResp = await _client.GetAsync($"/api/merchants/{createResult.MerchantId}");
+        var getResp = await _client.GetAsync($"/api/v1/merchants/{createResult.MerchantId}");
         getResp.StatusCode.Should().Be(HttpStatusCode.OK);
         var merchant = await getResp.Content.ReadFromJsonAsync<MerchantDto>();
         merchant.Should().NotBeNull();
@@ -76,7 +76,7 @@ public sealed class MerchantFlowsTests : IAsyncLifetime
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
 
         // Act
-        await _client.PostAsJsonAsync("/api/merchants", command);
+        await _client.PostAsJsonAsync("/api/v1/merchants", command);
 
         // Assert
         (await harness.Published.Any<MerchantCreatedEvent>(x => string.Equals(x.Context.Message.Slug, slug, StringComparison.Ordinal))).Should().BeTrue();

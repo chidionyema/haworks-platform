@@ -49,7 +49,7 @@ public sealed class IdempotencyMiddlewareTests(OrdersWebAppFactory factory) : IA
     {
         // No header → middleware no-ops. The handler runs and returns
         // whatever it would have (400/201/etc). Crucially: NOT 409.
-        var resp = await _client.PostAsync("/api/orders", MinimalOrderBody());
+        var resp = await _client.PostAsync("/api/v1/orders", MinimalOrderBody());
 
         resp.StatusCode.Should().NotBe(HttpStatusCode.Conflict);
     }
@@ -58,7 +58,7 @@ public sealed class IdempotencyMiddlewareTests(OrdersWebAppFactory factory) : IA
     public async Task Post_with_first_idempotency_key_passes_through_to_handler()
     {
         var key = FreshKey();
-        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/orders") { Content = MinimalOrderBody() };
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders") { Content = MinimalOrderBody() };
         req.Headers.Add("X-Idempotency-Key", key);
 
         var resp = await _client.SendAsync(req);
@@ -73,11 +73,11 @@ public sealed class IdempotencyMiddlewareTests(OrdersWebAppFactory factory) : IA
     {
         var key = FreshKey();
 
-        using var first = new HttpRequestMessage(HttpMethod.Post, "/api/orders") { Content = MinimalOrderBody() };
+        using var first = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders") { Content = MinimalOrderBody() };
         first.Headers.Add("X-Idempotency-Key", key);
         await _client.SendAsync(first);
 
-        using var second = new HttpRequestMessage(HttpMethod.Post, "/api/orders") { Content = MinimalOrderBody() };
+        using var second = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders") { Content = MinimalOrderBody() };
         second.Headers.Add("X-Idempotency-Key", key);
         var resp = await _client.SendAsync(second);
 
@@ -90,11 +90,11 @@ public sealed class IdempotencyMiddlewareTests(OrdersWebAppFactory factory) : IA
     {
         // Different keys for the same user are independent claims — the
         // store keys off SHA256(userId, path, clientKey) so each is unique.
-        using var first = new HttpRequestMessage(HttpMethod.Post, "/api/orders") { Content = MinimalOrderBody() };
+        using var first = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders") { Content = MinimalOrderBody() };
         first.Headers.Add("X-Idempotency-Key", FreshKey());
         var resp1 = await _client.SendAsync(first);
 
-        using var second = new HttpRequestMessage(HttpMethod.Post, "/api/orders") { Content = MinimalOrderBody() };
+        using var second = new HttpRequestMessage(HttpMethod.Post, "/api/v1/orders") { Content = MinimalOrderBody() };
         second.Headers.Add("X-Idempotency-Key", FreshKey());
         var resp2 = await _client.SendAsync(second);
 
@@ -109,12 +109,12 @@ public sealed class IdempotencyMiddlewareTests(OrdersWebAppFactory factory) : IA
         // GET requests pass through even when the header is present —
         // GETs should be naturally idempotent and don't need a claim.
         var key = FreshKey();
-        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/orders/{Guid.NewGuid()}");
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/orders/{Guid.NewGuid()}");
         req.Headers.Add("X-Idempotency-Key", key);
 
         var resp1 = await _client.SendAsync(req);
 
-        using var req2 = new HttpRequestMessage(HttpMethod.Get, $"/api/orders/{Guid.NewGuid()}");
+        using var req2 = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/orders/{Guid.NewGuid()}");
         req2.Headers.Add("X-Idempotency-Key", key);
         var resp2 = await _client.SendAsync(req2);
 

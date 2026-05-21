@@ -46,7 +46,7 @@ public class LocationE2ETests : IAsyncLifetime
             longitude = -0.1419
         };
 
-        var response = await _apiContext.PostAsync("/api/locations", new APIRequestContextOptions
+        var response = await _apiContext.PostAsync("/api/v1/locations", new APIRequestContextOptions
         {
             DataObject = locationCommand
         });

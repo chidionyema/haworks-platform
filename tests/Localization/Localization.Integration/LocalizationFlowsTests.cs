@@ -39,7 +39,7 @@ public class LocalizationFlowsTests : IAsyncLifetime
         await SeedTranslation(key, values);
 
         // Act
-        var response = await _client.GetAsync($"/api/translations/{key}?locale=en-US");
+        var response = await _client.GetAsync($"/api/v1/translations/{key}?locale=en-US");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -54,7 +54,7 @@ public class LocalizationFlowsTests : IAsyncLifetime
         var key = "non_existent_key";
 
         // Act
-        var response = await _client.GetAsync($"/api/translations/{key}?locale=en-US");
+        var response = await _client.GetAsync($"/api/v1/translations/{key}?locale=en-US");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -73,7 +73,7 @@ public class LocalizationFlowsTests : IAsyncLifetime
         await SeedTranslation(key, values);
 
         // Act
-        var response = await _client.GetAsync($"/api/translations/{key}?locale=de-DE");
+        var response = await _client.GetAsync($"/api/v1/translations/{key}?locale=de-DE");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);

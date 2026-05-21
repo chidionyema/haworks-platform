@@ -55,7 +55,7 @@ public sealed class UserIdentityForwardingTests : IClassFixture<BffWebFactory>
 
         // Act
         // SubscriptionsController [Authorize] will now pass due to TestAuth
-        var response = await client.GetAsync("/api/subscriptions/status");
+        var response = await client.GetAsync("/api/v1/subscriptions/status");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);

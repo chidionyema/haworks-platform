@@ -182,7 +182,7 @@ public sealed class CheckoutSessionExpiredConsumerTests(OrdersWebAppFactory fact
     private async Task<(Guid orderId, string userId)> CreateOrderAsync()
     {
         var userId = Guid.NewGuid().ToString();
-        var resp = await _client.PostAsJsonAsync("/api/orders", new
+        var resp = await _client.PostAsJsonAsync("/api/v1/orders", new
         {
             userId,
             customerEmail = "buyer@example.com",

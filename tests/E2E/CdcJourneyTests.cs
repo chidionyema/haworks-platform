@@ -41,20 +41,20 @@ public class CdcJourneyTests : IAsyncLifetime
 
         // 1. Auth setup
         var username = $"cdc_journey_{Guid.NewGuid():N}";
-        var registerResponse = await _apiContext.PostAsync("/api/Authentication/register", new()
+        var registerResponse = await _apiContext.PostAsync("/api/v1/Authentication/register", new()
         {
             DataObject = new { username, email = $"{username}@example.com", password = "Password123!" }
         });
         registerResponse.Status.Should().Be(201);
 
-        var csrfResponse = await _apiContext.GetAsync("/api/Authentication/csrf-token");
+        var csrfResponse = await _apiContext.GetAsync("/api/v1/Authentication/csrf-token");
         var csrfData = await csrfResponse.JsonAsync();
         var csrfToken = csrfData?.GetProperty("token").GetString();
         var csrfHeader = csrfData?.GetProperty("headerName").GetString();
         var headers = new Dictionary<string, string> { { csrfHeader!, csrfToken! } };
 
         // 2. Create a category + product so Debezium captures the INSERT
-        var categoryResponse = await _apiContext.PostAsync("/api/Categories", new()
+        var categoryResponse = await _apiContext.PostAsync("/api/v1/Categories", new()
         {
             Headers = headers,
             DataObject = new { name = $"CdcCat_{Guid.NewGuid():N}", description = "CDC Journey" }
@@ -63,7 +63,7 @@ public class CdcJourneyTests : IAsyncLifetime
         var categoryId = category?.GetProperty("id").GetGuid();
 
         var originalName = $"CdcProduct_{Guid.NewGuid():N}";
-        var productResponse = await _apiContext.PostAsync("/api/Products", new()
+        var productResponse = await _apiContext.PostAsync("/api/v1/Products", new()
         {
             Headers = headers,
             DataObject = new
@@ -88,7 +88,7 @@ public class CdcJourneyTests : IAsyncLifetime
 
         // 4. Update the product name
         var updatedName = $"Updated_{Guid.NewGuid():N}";
-        var updateResponse = await _apiContext.PutAsync($"/api/Products/{productId}", new()
+        var updateResponse = await _apiContext.PutAsync($"/api/v1/Products/{productId}", new()
         {
             Headers = headers,
             DataObject = new
@@ -120,7 +120,7 @@ public class CdcJourneyTests : IAsyncLifetime
         {
             await Task.Delay(1000);
 
-            var searchResponse = await _apiContext.GetAsync($"/api/search?q={query}");
+            var searchResponse = await _apiContext.GetAsync($"/api/v1/search?q={query}");
             if (!searchResponse.Ok) continue;
 
             var result = await searchResponse.JsonAsync();

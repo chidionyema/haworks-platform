@@ -69,7 +69,7 @@ public sealed class NotificationsApiTests : IAsyncLifetime
         var client = _factory.CreateClient();
 
         var recipient = $"happy-{Guid.NewGuid():N}@test.invalid";
-        var resp = await client.PostAsJsonAsync("/api/notifications", new
+        var resp = await client.PostAsJsonAsync("/api/v1/notifications", new
         {
             userId = (string?)null,
             recipient,
@@ -116,7 +116,7 @@ public sealed class NotificationsApiTests : IAsyncLifetime
             await db.SaveChangesAsync();
         }
 
-        var resp = await client.PostAsJsonAsync("/api/notifications", new
+        var resp = await client.PostAsJsonAsync("/api/v1/notifications", new
         {
             userId = (string?)null,
             recipient,
@@ -162,11 +162,11 @@ public sealed class NotificationsApiTests : IAsyncLifetime
             idempotencyKey = clientKey,
         };
 
-        var first = await client.PostAsJsonAsync("/api/notifications", body);
+        var first = await client.PostAsJsonAsync("/api/v1/notifications", body);
         first.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Created);
         var firstId = await ExtractIdAsync(first);
 
-        var second = await client.PostAsJsonAsync("/api/notifications", body);
+        var second = await client.PostAsJsonAsync("/api/v1/notifications", body);
         second.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Created);
         var secondId = await ExtractIdAsync(second);
 

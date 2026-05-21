@@ -44,11 +44,11 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
     public async Task Create_then_get_category_round_trips()
     {
         var name = $"Cat-{Guid.NewGuid():N}";
-        var createResp = await _client.PostAsJsonAsync("/api/categories",
+        var createResp = await _client.PostAsJsonAsync("/api/v1/categories",
             new { name, description = "x" });
         createResp.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        var listResp = await _client.GetFromJsonAsync<CategoryDto[]>("/api/categories");
+        var listResp = await _client.GetFromJsonAsync<CategoryDto[]>("/api/v1/categories");
         listResp.Should().NotBeNull();
         listResp!.Should().Contain(c => c.Name == name);
     }
@@ -59,7 +59,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
         var categoryId = await CreateCategoryAsync();
         var productId = await CreateProductAsync(categoryId, initialStock: 5);
 
-        var get = await _client.GetFromJsonAsync<ProductDto>($"/api/products/{productId}");
+        var get = await _client.GetFromJsonAsync<ProductDto>($"/api/v1/products/{productId}");
         get.Should().NotBeNull();
         get!.StockQuantity.Should().Be(5);
         get.IsListed.Should().BeTrue();
@@ -70,7 +70,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
     [Fact]
     public async Task Get_missing_product_returns_404()
     {
-        var resp = await _client.GetAsync($"/api/products/{Guid.NewGuid()}");
+        var resp = await _client.GetAsync($"/api/v1/products/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
@@ -80,7 +80,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
         // Use a random Guid (not Guid.Empty) so the FluentValidation rule
         // `NotEqual(Guid.Empty)` doesn't short-circuit with a 400 before the
         // handler's not-found check runs.
-        var resp = await _client.PostAsJsonAsync("/api/products", new
+        var resp = await _client.PostAsJsonAsync("/api/v1/products", new
         {
             name = "Orphan",
             description = "x",
@@ -100,7 +100,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
         var orderId = Guid.NewGuid();
         var sagaId = Guid.NewGuid();
 
-        var reserveResp = await _client.PostAsJsonAsync($"/api/products/{productId}/reserve",
+        var reserveResp = await _client.PostAsJsonAsync($"/api/v1/products/{productId}/reserve",
             new
             {
                 quantity = 3,
@@ -115,7 +115,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
         reserveResp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Stock decremented atomically.
-        var get = await _client.GetFromJsonAsync<ProductDto>($"/api/products/{productId}");
+        var get = await _client.GetFromJsonAsync<ProductDto>($"/api/v1/products/{productId}");
         get!.StockQuantity.Should().Be(7);
 
         // StockReservedEvent published via the (replaced) in-memory transport.
@@ -140,7 +140,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
         var productId = await CreateProductAsync(categoryId, initialStock: 5);
 
         var orderId = Guid.NewGuid();
-        var reserveResp = await _client.PostAsJsonAsync($"/api/products/{productId}/reserve",
+        var reserveResp = await _client.PostAsJsonAsync($"/api/v1/products/{productId}/reserve",
             new
             {
                 quantity = 5,
@@ -154,7 +154,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
             });
         reserveResp.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var get = await _client.GetFromJsonAsync<ProductDto>($"/api/products/{productId}");
+        var get = await _client.GetFromJsonAsync<ProductDto>($"/api/v1/products/{productId}");
         get!.StockQuantity.Should().Be(0);
         get.IsInStock.Should().BeFalse("reserving the exact stock quantity must set IsInStock to false");
     }
@@ -168,7 +168,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         var publishedBefore = harness.Published.Select<StockReservedEvent>().Count();
 
-        var resp = await _client.PostAsJsonAsync($"/api/products/{productId}/reserve",
+        var resp = await _client.PostAsJsonAsync($"/api/v1/products/{productId}/reserve",
             new
             {
                 quantity = 100,
@@ -181,7 +181,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
             });
         resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
-        var get = await _client.GetFromJsonAsync<ProductDto>($"/api/products/{productId}");
+        var get = await _client.GetFromJsonAsync<ProductDto>($"/api/v1/products/{productId}");
         get!.StockQuantity.Should().Be(2, "failed reservation must not decrement stock");
 
         // No new StockReservedEvent: outbox publish was rolled back with the
@@ -192,7 +192,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
     private async Task<Guid> CreateCategoryAsync()
     {
         var name = $"Cat-{Guid.NewGuid():N}";
-        var resp = await _client.PostAsJsonAsync("/api/categories",
+        var resp = await _client.PostAsJsonAsync("/api/v1/categories",
             new { name, description = "x" });
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<Guid>();
@@ -200,7 +200,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
 
     private async Task<Guid> CreateProductAsync(Guid categoryId, int initialStock)
     {
-        var resp = await _client.PostAsJsonAsync("/api/products", new
+        var resp = await _client.PostAsJsonAsync("/api/v1/products", new
         {
             name = $"P-{Guid.NewGuid():N}",
             description = "x",

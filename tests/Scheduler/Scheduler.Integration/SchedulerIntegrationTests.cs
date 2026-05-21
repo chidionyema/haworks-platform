@@ -34,7 +34,7 @@ public class SchedulerIntegrationTests : IClassFixture<SchedulerWebAppFactory>
             "{}");
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/Scheduling/schedule", command);
+        var response = await _client.PostAsJsonAsync("/api/v1/Scheduling/schedule", command);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);

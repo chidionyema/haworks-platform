@@ -53,20 +53,20 @@ public class CheckoutE2ETests : IAsyncLifetime
         var username = $"e2e_{Guid.NewGuid():N}";
         var email = $"{username}@example.com";
         var password = "Password123!";
-        var registerResponse = await _apiContext.PostAsync("/api/Authentication/register", new APIRequestContextOptions 
+        var registerResponse = await _apiContext.PostAsync("/api/v1/Authentication/register", new APIRequestContextOptions 
         { 
             DataObject = new { username, email, password } 
         });
         registerResponse.Status.Should().Be(201);
 
         // 2. Get CSRF
-        var csrfResponse = await _apiContext.GetAsync("/api/Authentication/csrf-token");
+        var csrfResponse = await _apiContext.GetAsync("/api/v1/Authentication/csrf-token");
         var csrfData = await csrfResponse.JsonAsync();
         var csrfToken = csrfData?.GetProperty("token").GetString();
         var csrfHeader = csrfData?.GetProperty("headerName").GetString();
 
         // 3. Create Product (Catalog)
-        var categoryResponse = await _apiContext.PostAsync("/api/Categories", new APIRequestContextOptions
+        var categoryResponse = await _apiContext.PostAsync("/api/v1/Categories", new APIRequestContextOptions
         {
             Headers = new Dictionary<string, string> { { csrfHeader!, csrfToken! } },
             DataObject = new { name = "Electronics", description = "E2E Testing" }
@@ -74,7 +74,7 @@ public class CheckoutE2ETests : IAsyncLifetime
         var categoryData = await categoryResponse.JsonAsync();
         var categoryId = categoryData?.GetProperty("id").GetGuid() ?? Guid.Empty;
 
-        var productResponse = await _apiContext.PostAsync("/api/Products", new APIRequestContextOptions
+        var productResponse = await _apiContext.PostAsync("/api/v1/Products", new APIRequestContextOptions
         {
             Headers = new Dictionary<string, string> { { csrfHeader!, csrfToken! } },
             DataObject = new 
@@ -90,7 +90,7 @@ public class CheckoutE2ETests : IAsyncLifetime
         var productId = productData?.GetProperty("id").GetGuid() ?? Guid.Empty;
 
         // 4. Start Checkout (BffWeb)
-        var checkoutResponse = await _apiContext.PostAsync("/api/Checkout", new APIRequestContextOptions
+        var checkoutResponse = await _apiContext.PostAsync("/api/v1/Checkout", new APIRequestContextOptions
         {
             Headers = new Dictionary<string, string> { { csrfHeader!, csrfToken! } },
             DataObject = new 

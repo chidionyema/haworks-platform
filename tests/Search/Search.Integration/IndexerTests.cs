@@ -190,7 +190,7 @@ public sealed class IndexerTests : IAsyncLifetime
     private void StubProduct(Guid id, Guid categoryId, string name, string categoryName)
     {
         _factory.Catalog
-            .Given(Request.Create().WithPath($"/api/products/{id}").UsingGet())
+            .Given(Request.Create().WithPath($"/api/v1/products/{id}").UsingGet())
             .RespondWith(WireMockResponse.Create()
                 .WithStatusCode(200)
                 .WithHeader("Content-Type", "application/json")

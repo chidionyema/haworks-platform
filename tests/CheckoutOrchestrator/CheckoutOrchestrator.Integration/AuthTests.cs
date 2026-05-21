@@ -36,7 +36,7 @@ public sealed class AuthTests : IClassFixture<CheckoutWebAppFactory>
         }).CreateClient();
 
         // Act
-        var resp = await client.PostAsync("/api/checkouts", null);
+        var resp = await client.PostAsync("/api/v1/checkouts", null);
 
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);

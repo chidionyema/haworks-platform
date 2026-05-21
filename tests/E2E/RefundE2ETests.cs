@@ -17,27 +17,27 @@ public class RefundE2ETests(E2EEnvironmentFixture fixture)
         var apiContext = await fixture.CreateApiContextAsync();
         var username = $"refund_e2e_{Guid.NewGuid():N}";
         
-        await apiContext.PostAsync("/api/Authentication/register", new()
+        await apiContext.PostAsync("/api/v1/Authentication/register", new()
         {
             DataObject = new { username, email = $"{username}@example.com", password = "Password123!" }
         });
 
-        var csrfResponse = await apiContext.GetAsync("/api/Authentication/csrf-token");
+        var csrfResponse = await apiContext.GetAsync("/api/v1/Authentication/csrf-token");
         var csrfData = await csrfResponse.JsonAsync();
         var headers = new Dictionary<string, string> { { csrfData?.GetProperty("headerName").GetString()!, csrfData?.GetProperty("token").GetString()! } };
 
         // Create Category & Product
-        var catResp = await apiContext.PostAsync("/api/Categories", new() { Headers = headers, DataObject = new { name = "E2E Category" } });
+        var catResp = await apiContext.PostAsync("/api/v1/Categories", new() { Headers = headers, DataObject = new { name = "E2E Category" } });
         var categoryId = (await catResp.JsonAsync())?.GetProperty("id").GetGuid();
 
-        var prodResp = await apiContext.PostAsync("/api/Products", new() { 
+        var prodResp = await apiContext.PostAsync("/api/v1/Products", new() { 
             Headers = headers, 
             DataObject = new { name = "Refundable Item", unitPrice = 50.00m, categoryId, initialStock = 100 } 
         });
         var productId = (await prodResp.JsonAsync())?.GetProperty("id").GetGuid();
 
         // 2. Act: Complete a Purchase
-        var checkoutResp = await apiContext.PostAsync("/api/Checkout", new() {
+        var checkoutResp = await apiContext.PostAsync("/api/v1/Checkout", new() {
             Headers = headers,
             DataObject = new { 
                 userId = username, 
@@ -53,7 +53,7 @@ public class RefundE2ETests(E2EEnvironmentFixture fixture)
         for (int i = 0; i < 15; i++)
         {
             await Task.Delay(1000);
-            var paymentsResp = await apiContext.GetAsync($"/api/Admin/payments/user/{username}"); // Assuming admin endpoint
+            var paymentsResp = await apiContext.GetAsync($"/api/v1/Admin/payments/user/{username}"); // Assuming admin endpoint
             if (paymentsResp.Ok)
             {
                 var payments = await paymentsResp.JsonAsync();
@@ -68,7 +68,7 @@ public class RefundE2ETests(E2EEnvironmentFixture fixture)
         paymentId.Should().NotBeNull("Checkout should have resulted in a payment record");
 
         // 3. Act: Request Refund
-        var refundResp = await apiContext.PostAsync("/api/refunds", new() {
+        var refundResp = await apiContext.PostAsync("/api/v1/refunds", new() {
             Headers = headers,
             DataObject = new { paymentId, amount = 50.00m, currency = "USD", reason = "E2E Test" }
         });
@@ -80,7 +80,7 @@ public class RefundE2ETests(E2EEnvironmentFixture fixture)
         for (int i = 0; i < 20; i++)
         {
             await Task.Delay(1000);
-            var statusResp = await apiContext.GetAsync($"/api/refunds/{refundId}");
+            var statusResp = await apiContext.GetAsync($"/api/v1/refunds/{refundId}");
             if (statusResp.Ok)
             {
                 var status = await statusResp.JsonAsync();
