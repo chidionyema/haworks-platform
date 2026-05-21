@@ -85,9 +85,7 @@ public static class DependencyInjection
             mt.AddEntityFrameworkOutbox<CheckoutDbContext>(o =>
             {
                 o.UsePostgres();
-                // UseBusOutbox REMOVED — it wraps saga endpoints with an inbox
-                // that intercepts messages before the saga state machine.
-                // IPublishEndpoint now publishes directly to RabbitMQ.
+                o.UseBusOutbox();
                 o.QueryDelay = TimeSpan.FromSeconds(1);
                 o.DuplicateDetectionWindow = TimeSpan.FromMinutes(30);
             });
