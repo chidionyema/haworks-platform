@@ -9,6 +9,24 @@ using Microsoft.Extensions.Logging;
 
 namespace Haworks.Payments.Application.Sagas;
 
+// DUAL-CORRELATION SCHEME:
+// This saga uses two correlation strategies depending on the event type:
+//
+//   CorrelateById (ctx.Message.SubscriptionId → CorrelationId):
+//     Used by events that carry the internal Guid SubscriptionId (i.e. our own
+//     saga CorrelationId): RenewalRequested, RenewalFailed, PaymentRecovered,
+//     and both schedule-fired internal messages.
+//
+//   CorrelateBy (state.ProviderSubscriptionId == ctx.Message.SubscriptionId):
+//     Used by events that arrive from the payment provider webhook and carry the
+//     provider's string identifier (e.g. "sub_1Abc..."). These are SubscriptionStarted,
+//     SubscriptionRenewed, and SubscriptionCancelled.
+//
+// The asymmetry exists because webhook events only know the provider's identifier,
+// while internally-routed events (renewal scheduler, dunning) know the saga Guid.
+// CorrelationId is set on first insert (SubscriptionStarted) to a deterministic Guid
+// derived from the provider subscription ID so lookups are always O(1) by PK.
+
 public sealed record SubscriptionRenewalScheduled(Guid SubscriptionId);
 public sealed record SubscriptionDunningScheduled(Guid SubscriptionId);
 
@@ -141,12 +159,40 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                     ctx => GuardDelay(ctx.Saga.PeriodEnd - DateTime.UtcNow - TimeSpan.FromDays(1)))
                 .TransitionTo(Active),
             When(DunningRetrySchedule.Received)
-                .Then(ctx => logger.LogInformation("Dunning retry triggered for {SubscriptionId}", ctx.Saga.ProviderSubscriptionId))
-                .PublishAsync(ctx => ctx.Init<SubscriptionRenewalRequestedEvent>(new SubscriptionRenewalRequestedEvent
+                // SS-F05: increment RetryCount on schedule fire so the limit is enforced even when
+                // the consumer is down and RenewalFailed never arrives (stuck-state guard).
+                .Then(ctx =>
                 {
-                    SubscriptionId = ctx.Saga.CorrelationId,
-                    ProviderSubscriptionId = ctx.Saga.ProviderSubscriptionId
-                })),
+                    ctx.Saga.RetryCount++;
+                    logger.LogInformation("Dunning retry triggered for {SubscriptionId}. Attempt {RetryCount}",
+                        ctx.Saga.ProviderSubscriptionId, ctx.Saga.RetryCount);
+                })
+                .If(ctx => ctx.Saga.RetryCount > 3,
+                    binder => binder
+                        .Then(ctx =>
+                        {
+                            EmitSpan(ctx.Saga.CorrelationId, ctx.Saga.ProviderSubscriptionId, "canceled_dunning_exhausted_no_response");
+                            logger.LogError(
+                                "Dunning exhausted (no consumer response) for {SubscriptionId} after {RetryCount} attempts. Terminating access.",
+                                ctx.Saga.ProviderSubscriptionId, ctx.Saga.RetryCount);
+                        })
+                        .PublishAsync(ctx => ctx.Init<SubscriptionCancelledEvent>(new SubscriptionCancelledEvent
+                        {
+                            SubscriptionId = ctx.Saga.ProviderSubscriptionId,
+                            UserId = ctx.Saga.UserId,
+                            Provider = Enum.TryParse<PaymentProvider>(ctx.Saga.Provider, out var p) ? p : PaymentProvider.Stripe,
+                            Reason = "dunning_exhausted",
+                            CancelledAt = DateTime.UtcNow
+                        }))
+                        .TransitionTo(Canceled)
+                        .Finalize())
+                .If(ctx => ctx.Saga.RetryCount <= 3,
+                    binder => binder
+                        .PublishAsync(ctx => ctx.Init<SubscriptionRenewalRequestedEvent>(new SubscriptionRenewalRequestedEvent
+                        {
+                            SubscriptionId = ctx.Saga.CorrelationId,
+                            ProviderSubscriptionId = ctx.Saga.ProviderSubscriptionId
+                        }))),
             When(RenewalFailed)
                 .Then(ctx =>
                 {

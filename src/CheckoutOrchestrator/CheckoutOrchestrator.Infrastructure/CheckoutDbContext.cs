@@ -71,6 +71,8 @@ public class CheckoutDbContext : DbContext, ICheckoutDbContext
             entity.HasIndex(s => s.OrderId).IsUnique().HasDatabaseName("IX_CheckoutSagas_OrderId");
             entity.HasIndex(s => s.IdempotencyKey).IsUnique().HasFilter("\"IdempotencyKey\" IS NOT NULL").HasDatabaseName("IX_CheckoutSagas_IdempotencyKey");
             entity.HasIndex(s => s.CurrentState).HasDatabaseName("IX_CheckoutSagas_CurrentState");
+            // Composite index for sweeper/monitoring queries that filter by state and then sort/range by CreatedAt.
+            entity.HasIndex(s => new { s.CurrentState, s.CreatedAt }).HasDatabaseName("IX_CheckoutSagas_CurrentState_CreatedAt");
         });
 
         modelBuilder.Entity<SagaTransitionAuditEntry>(e =>
@@ -78,6 +80,7 @@ public class CheckoutDbContext : DbContext, ICheckoutDbContext
             e.ToTable("SagaTransitionAudit");
             e.HasKey(x => x.Id);
             e.Property(x => x.Id).UseIdentityAlwaysColumn();
+            e.Property(x => x.InitiatedBy).HasMaxLength(450);
             e.HasIndex(x => new { x.SagaType, x.CorrelationId });
         });
 

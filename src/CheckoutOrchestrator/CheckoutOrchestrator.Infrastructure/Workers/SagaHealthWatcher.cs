@@ -127,7 +127,7 @@ public sealed class SagaHealthWatcher : BackgroundService
 
         var stuck = await db.CheckoutSagas
             .Where(s =>
-                (s.CurrentState == "StockReserved" || s.CurrentState == "StockReservationRequested") &&
+                (s.CurrentState == "StockReservedState" || s.CurrentState == "Initiated") &&
                 s.CreatedAt < deadline)
             .Select(s => new { s.CorrelationId, s.OrderId, s.CurrentState, s.CreatedAt })
             .ToListAsync(ct);

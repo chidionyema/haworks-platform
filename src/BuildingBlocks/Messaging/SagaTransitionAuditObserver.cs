@@ -34,6 +34,13 @@ public sealed class SagaTransitionAuditObserver<TSaga> : IStateObserver<TSaga>
         var correlationId = context.Saga.CorrelationId;
         var sagaType = typeof(TSaga).Name;
 
+        // Attempt to extract the initiating identity from MassTransit message headers.
+        // The "UserId" header is set by the BFF/API layer for user-initiated transitions.
+        // For scheduled events and internal saga-to-saga transitions no header is present.
+        string? initiatedBy = null;
+        try { initiatedBy = context.Headers.Get<string>("UserId"); }
+        catch { /* header not present or unreadable — leave null */ }
+
         try
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
@@ -45,6 +52,7 @@ public sealed class SagaTransitionAuditObserver<TSaga> : IStateObserver<TSaga>
                     CorrelationId = correlationId,
                     FromState = fromState,
                     ToState = toState,
+                    InitiatedBy = initiatedBy,
                 });
                 await dbContext.SaveChangesAsync(CancellationToken.None);
                 return;

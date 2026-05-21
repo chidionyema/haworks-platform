@@ -131,7 +131,7 @@ public sealed class StripeSubscriptionManager(
     }
 
     /// <inheritdoc />
-    public async Task HandleSubscriptionEventAsync(SubscriptionEvent subscriptionEvent, CancellationToken ct = default)
+    public async Task<SubscriptionEventResult> HandleSubscriptionEventAsync(SubscriptionEvent subscriptionEvent, CancellationToken ct = default)
     {
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
@@ -162,6 +162,15 @@ public sealed class StripeSubscriptionManager(
                 await HandleCanceledAsync(subscriptionEvent, existing, ct);
                 break;
         }
+
+        _ = long.TryParse(subscriptionEvent.Metadata.GetValueOrDefault("amount_cents"), out var resultAmount);
+        return new SubscriptionEventResult
+        {
+            UserId = existing?.UserId ?? subscriptionEvent.UserId,
+            AmountCents = resultAmount,
+            Currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency),
+            PeriodEnd = existing?.ExpiresAt ?? subscriptionEvent.CurrentPeriodEnd,
+        };
     }
 
     private async Task HandleCreatedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, CancellationToken ct)

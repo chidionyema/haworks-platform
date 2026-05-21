@@ -12,10 +12,11 @@ builder.AddServiceDefaults();
 var connectionString = builder.Configuration.GetConnectionString("featureflags")
     ?? throw new InvalidOperationException("ConnectionStrings:featureflags is required.");
 
-builder.Services.AddDbContext<FeatureFlagsDbContext>(options =>
+builder.Services.AddDbContext<FeatureFlagsDbContext>((sp, options) =>
 {
     options.UseNpgsql(connectionString, npgsql =>
         npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "featureflags"));
+    options.AddPlatformInterceptors(sp);
 });
 
 // Redis distributed cache — used by StackExchange.Redis for IDistributedCache consumers.

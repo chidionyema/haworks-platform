@@ -11,4 +11,12 @@ public sealed class CheckoutOptions
 
     [Required, Url]
     public string CancelUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Minutes after stock reservation before the payment session expires.
+    /// Defaults to 15. Controls both the MassTransit scheduler delay and
+    /// the FailureReason message stored on the saga.
+    /// </summary>
+    [Range(1, 1440)]
+    public int PaymentExpiryMinutes { get; set; } = 15;
 }

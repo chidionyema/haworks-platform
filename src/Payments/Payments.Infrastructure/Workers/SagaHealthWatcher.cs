@@ -123,15 +123,15 @@ public sealed class SagaHealthWatcher : BackgroundService
     {
         var exhausted = await db.SubscriptionSagas
             .Where(s => s.CurrentState == "Canceled" && s.RetryCount > DunningRetryThreshold)
-            .Select(s => new { s.CorrelationId, s.UserId, s.PlanId, s.RetryCount, s.LastModifiedAt })
+            .Select(s => new { s.CorrelationId, s.UserId, s.PlanId, s.RetryCount })
             .ToListAsync(ct);
 
         foreach (var saga in exhausted)
         {
             PaymentsActivities.SubscriptionDunningExhausted.Add(1);
             _logger.LogCritical(
-                "Subscription {SagaId} canceled by dunning exhaustion for user {UserId}, plan {PlanId}, retries {RetryCount}, last modified {LastModifiedAt}",
-                saga.CorrelationId, saga.UserId, saga.PlanId, saga.RetryCount, saga.LastModifiedAt);
+                "Subscription {SagaId} canceled by dunning exhaustion for user {UserId}, plan {PlanId}, retries {RetryCount}",
+                saga.CorrelationId, saga.UserId, saga.PlanId, saga.RetryCount);
         }
     }
 }

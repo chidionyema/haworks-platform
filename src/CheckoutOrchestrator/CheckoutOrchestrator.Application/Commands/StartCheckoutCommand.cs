@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Haworks.BuildingBlocks.Common;
 using Haworks.CheckoutOrchestrator.Application.Telemetry;
 using Haworks.CheckoutOrchestrator.Application.Interfaces;
@@ -33,7 +35,15 @@ internal sealed class StartCheckoutCommandHandler(
         // tracker and causes tracking conflicts when the saga consumer tries
         // to Add the new instance (same scoped DbContext).
 
-        var sagaId = request.SagaId == Guid.Empty ? Guid.NewGuid() : request.SagaId;
+        // Derive a deterministic SagaId from the IdempotencyKey so that retried
+        // HTTP requests with the same key never produce a second saga instance.
+        // Guid.NewGuid() is used only when no IdempotencyKey is present (rare path).
+        var sagaId = request.SagaId != Guid.Empty
+            ? request.SagaId
+            : new Guid(MD5.HashData(Encoding.UTF8.GetBytes(
+                !string.IsNullOrEmpty(request.IdempotencyKey)
+                    ? request.IdempotencyKey
+                    : Guid.NewGuid().ToString("N"))));
         var orderId = request.OrderId == Guid.Empty ? Guid.NewGuid() : request.OrderId;
 
         using var activity = CheckoutActivities.Source.StartActivity("checkout.saga.start");

@@ -17,6 +17,13 @@ public sealed class SubscriptionRenewalRequestedConsumer(
 
         try
         {
+            // H12: ISubscriptionManager.HandleSubscriptionEventAsync returns void — the renewal
+            // amount, currency, userId, and exact period-end are not available here.
+            // The authoritative SubscriptionRenewedEvent (with real financial data) is published
+            // by StripeSubscriptionManager / PayPalSubscriptionManager via their webhook paths
+            // when the provider confirms the renewal. This consumer's publish is a belt-and-
+            // suspenders fallback for the saga scheduler path; downstream handlers MUST NOT rely
+            // on AmountCents/Currency from this event for financial records.
             await paymentGateway.Subscriptions.HandleSubscriptionEventAsync(new SubscriptionEvent
             {
                 SubscriptionId = msg.ProviderSubscriptionId,
@@ -27,14 +34,19 @@ public sealed class SubscriptionRenewalRequestedConsumer(
 
             logger.LogInformation("Subscription {SubscriptionId} renewed successfully", msg.ProviderSubscriptionId);
 
+            logger.LogWarning(
+                "SubscriptionRenewedEvent for {SubscriptionId} published with placeholder financial data " +
+                "(AmountCents=0, Currency=unknown). Authoritative data comes from the provider webhook path.",
+                msg.ProviderSubscriptionId);
+
             await context.Publish(new SubscriptionRenewedEvent
             {
                 SubscriptionId = msg.ProviderSubscriptionId,
-                UserId = string.Empty,
+                UserId = string.Empty,   // not carried on the request message; populated via webhook path
                 Provider = paymentGateway.ActiveProvider,
-                AmountCents = 0,
-                Currency = string.Empty, // event lacks currency; populated downstream
-                NewPeriodEnd = DateTime.UtcNow.AddMonths(1),
+                AmountCents = 0,         // not available without provider response; see H12 comment above
+                Currency = string.Empty, // not available without provider response; see H12 comment above
+                NewPeriodEnd = DateTime.UtcNow.AddMonths(1), // approximation; webhook path carries exact value
                 RenewedAt = DateTime.UtcNow
             }, context.CancellationToken);
         }
@@ -42,14 +54,15 @@ public sealed class SubscriptionRenewalRequestedConsumer(
         {
             logger.LogError(ex, "Subscription renewal failed for {SubscriptionId}", msg.ProviderSubscriptionId);
 
+            // Publish failure to saga and RETURN — do not rethrow.
+            // Rethrowing after publishing causes MassTransit to retry,
+            // which can publish both Failed and Renewed events (race).
             await context.Publish(new SubscriptionRenewalFailedEvent
             {
                 SubscriptionId = msg.SubscriptionId,
                 ErrorCode = ex.GetType().Name,
                 ErrorMessage = ex.Message
             }, context.CancellationToken);
-
-            throw;
         }
     }
 }

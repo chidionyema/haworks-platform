@@ -4,6 +4,7 @@ using Haworks.Audit.Infrastructure.Persistence;
 using Haworks.BuildingBlocks.Authentication;
 using Haworks.BuildingBlocks.Extensions;
 using Haworks.BuildingBlocks.Messaging;
+using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Startup;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -16,10 +17,11 @@ builder.AddServiceDefaults();
 
 // Audit's Postgres — the connection string lands here from Aspire (audit DB)
 // or compose (ConnectionStrings__audit env var).
-builder.Services.AddDbContext<AuditDbContext>(options =>
+builder.Services.AddDbContext<AuditDbContext>((sp, options) =>
 {
     options.UseNpgsql(builder.Configuration.GetConnectionString("audit"));
     options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+    options.AddPlatformInterceptors(sp);
 });
 
 builder.Services.AddAuditApplication();

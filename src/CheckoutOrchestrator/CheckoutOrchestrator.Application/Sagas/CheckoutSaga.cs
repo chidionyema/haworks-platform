@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MassTransit;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.CheckoutOrchestrator.Application.Options;
@@ -18,7 +19,7 @@ namespace Haworks.CheckoutOrchestrator.Application.Sagas;
 ///                  publishes StockReservationRequested
 ///   Initiated --(StockReservedEvent)-->                StockReserved
 ///                  publishes PaymentSessionRequested
-///                  schedules PaymentExpiry timeout (15 min)
+///                  schedules PaymentExpiry timeout (configurable, default 15 min)
 ///   StockReserved --(PaymentSessionCreatedEvent)-->    ReadyForPayment
 ///   ReadyForPayment --(PaymentCompletedEvent)-->       Completed (final)
 ///                  cancels PaymentExpiry timeout
@@ -26,14 +27,19 @@ namespace Haworks.CheckoutOrchestrator.Application.Sagas;
 /// Compensation paths:
 ///   Initiated --(StockReservationFailedEvent)-->       Abandoned (final)
 ///                  no stock to release
-///   StockReserved | ReadyForPayment --(PaymentSessionFailedEvent)-->  Compensating
+///   StockReserved | ReadyForPayment --(PaymentSessionFailedEvent)-->
 ///                  publishes StockReleaseRequested
 ///                  --(immediately)-->                  Abandoned (final)
-///   ReadyForPayment --(PaymentExpiry timeout)-->       Compensating
-///                  publishes StockReleaseRequested + CheckoutSessionExpiredEvent
+///   ReadyForPayment --(PaymentExpiry timeout)-->
+///                  publishes StockReleaseRequested
 ///                  --(immediately)-->                  Abandoned (final)
-///   ReadyForPayment --(PaymentAmountMismatchEvent)-->  RequiresReview (final-ish)
-///                  no compensation; ops decides
+///   ReadyForPayment --(PaymentAmountMismatchEvent)-->  RequiresReview
+///                  no stock released yet; ops resolves via ManualResolutionEvent
+///
+/// Operator escape-hatch:
+///   RequiresReview --(ManualResolutionEvent, Resolution="completed")-->  Completed (final)
+///   RequiresReview --(ManualResolutionEvent, Resolution="abandoned")-->  Abandoned (final)
+///                  publishes StockReleaseRequested + CheckoutSessionExpiredEvent
 ///
 /// Per ADR-0009 the saga owns no business state — only the snapshot
 /// needed to drive orchestration. Order/Payment aggregates remain
@@ -41,7 +47,7 @@ namespace Haworks.CheckoutOrchestrator.Application.Sagas;
 /// </summary>
 public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
 {
-    public CheckoutSaga(IOptions<CheckoutOptions> checkoutOptions, SagaTransitionAuditObserver<CheckoutSagaState>? auditObserver = null)
+    public CheckoutSaga(IOptions<CheckoutOptions> checkoutOptions, ILogger<CheckoutSaga> logger, SagaTransitionAuditObserver<CheckoutSagaState>? auditObserver = null)
     {
         if (auditObserver != null) ConnectStateObserver(auditObserver);
         var options = checkoutOptions.Value;
@@ -58,7 +64,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
             instance => instance.PaymentExpiryTokenId,
             s =>
             {
-                s.Delay = TimeSpan.FromMinutes(15);
+                s.Delay = TimeSpan.FromMinutes(options.PaymentExpiryMinutes);
                 s.Received = r => r.CorrelateById(ctx => ctx.Message.SagaId);
             });
 
@@ -76,6 +82,11 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
             e.CorrelateBy((state, ctx) => state.OrderId == ctx.Message.OrderId);
             e.OnMissingInstance(m => m.Discard());
         });
+        Event(() => ManualResolution, e =>
+        {
+            e.CorrelateById(ctx => ctx.Message.SagaId);
+            e.OnMissingInstance(m => m.Discard());
+        });
 
         Initially(
             When(CheckoutInitiated)
@@ -83,6 +94,26 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 {
                     var msg = ctx.Message;
                     var sagaState = ctx.Saga;
+
+                    // Guard: negative or zero TotalAmount is a data-integrity violation.
+                    // Transition to Abandoned immediately to avoid reserving stock
+                    // for an order that can never be fulfilled.
+                    if (msg.TotalAmount <= 0)
+                    {
+                        sagaState.OrderId = msg.OrderId;
+                        sagaState.UserId = msg.UserId;
+                        sagaState.CustomerEmail = msg.CustomerEmail;
+                        sagaState.TotalAmount = msg.TotalAmount;
+                        sagaState.Currency = msg.Currency ?? "USD";
+                        sagaState.IdempotencyKey = msg.IdempotencyKey;
+                        sagaState.CreatedAt = DateTime.UtcNow;
+                        sagaState.FailureReason = "invalid_amount";
+                        logger.LogError(
+                            "CheckoutSaga rejected: TotalAmount={TotalAmount} is invalid (OrderId={OrderId}, SagaId={SagaId})",
+                            msg.TotalAmount, msg.OrderId, sagaState.CorrelationId);
+                        return;
+                    }
+
                     sagaState.OrderId = msg.OrderId;
                     sagaState.UserId = msg.UserId;
                     sagaState.CustomerEmail = msg.CustomerEmail;
@@ -93,18 +124,22 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     sagaState.CreatedAt = DateTime.UtcNow;
                     EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Initial", "Initiated");
                 })
-                .PublishAsync(ctx => ctx.Init<StockReservationRequestedEvent>(new StockReservationRequestedEvent
-                {
-                    OrderId = ctx.Message.OrderId,
-                    SagaId = ctx.Saga.CorrelationId,
-                    UserId = ctx.Message.UserId,
-                    CustomerEmail = ctx.Message.CustomerEmail,
-                    TotalAmount = ctx.Message.TotalAmount,
-                    Currency = ctx.Saga.Currency,
-                    Items = ctx.Message.Items,
-                    IdempotencyKey = ctx.Message.IdempotencyKey,
-                }))
-                .TransitionTo(Initiated));
+                .If(ctx => ctx.Saga.FailureReason == "invalid_amount",
+                    binder => binder.TransitionTo(Abandoned))
+                .If(ctx => ctx.Saga.FailureReason != "invalid_amount",
+                    binder => binder
+                        .PublishAsync(ctx => ctx.Init<StockReservationRequestedEvent>(new StockReservationRequestedEvent
+                        {
+                            OrderId = ctx.Message.OrderId,
+                            SagaId = ctx.Saga.CorrelationId,
+                            UserId = ctx.Message.UserId,
+                            CustomerEmail = ctx.Message.CustomerEmail,
+                            TotalAmount = ctx.Message.TotalAmount,
+                            Currency = ctx.Saga.Currency,
+                            Items = ctx.Message.Items,
+                            IdempotencyKey = ctx.Message.IdempotencyKey,
+                        }))
+                        .TransitionTo(Initiated)));
 
         During(Initiated,
             When(StockReserved)
@@ -179,7 +214,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
             When(PaymentExpirySchedule!.Received)
                 .Then(ctx =>
                 {
-                    ctx.Saga.FailureReason = "PaymentExpired (no payment session created within 15min)";
+                    ctx.Saga.FailureReason = $"PaymentExpired (no payment session created within {options.PaymentExpiryMinutes}min)";
                     EmitCompensateSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "payment_expired");
                 })
                 .PublishAsync(ctx => ctx.Init<StockReleaseRequestedEvent>(new StockReleaseRequestedEvent
@@ -222,7 +257,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
             When(PaymentExpirySchedule!.Received)
                 .Then(ctx =>
                 {
-                    ctx.Saga.FailureReason = "PaymentExpired (customer abandoned payment session)";
+                    ctx.Saga.FailureReason = $"PaymentExpired (customer abandoned payment session after {options.PaymentExpiryMinutes}min)";
                     EmitCompensateSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "payment_expired");
                 })
                 .PublishAsync(ctx => ctx.Init<StockReleaseRequestedEvent>(new StockReleaseRequestedEvent
@@ -245,6 +280,32 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     Reason = "payment_amount_mismatch",
                 }))
                 .TransitionTo(RequiresReview));
+
+        // Operator escape-hatch: RequiresReview is a holding state for
+        // amount-mismatch anomalies. An operator publishes ManualResolutionEvent
+        // to move the saga forward. Resolution="completed" marks it done;
+        // Resolution="abandoned" releases stock and moves to Abandoned.
+        During(RequiresReview,
+            When(ManualResolution)
+                .Then(ctx =>
+                {
+                    ctx.Saga.FailureReason = $"ManualResolution by {ctx.Message.OperatorId}: {ctx.Message.Resolution}";
+                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "RequiresReview", ctx.Message.Resolution);
+                })
+                .If(ctx => string.Equals(ctx.Message.Resolution, "completed", StringComparison.OrdinalIgnoreCase),
+                    binder => binder
+                        .TransitionTo(Completed)
+                        .Finalize())
+                .If(ctx => string.Equals(ctx.Message.Resolution, "abandoned", StringComparison.OrdinalIgnoreCase),
+                    binder => binder
+                        .PublishAsync(ctx => ctx.Init<StockReleaseRequestedEvent>(new StockReleaseRequestedEvent
+                        {
+                            OrderId = ctx.Saga.OrderId,
+                            SagaId = ctx.Saga.CorrelationId,
+                            Items = DeserializeItems(ctx.Saga.ReservedItemsJson),
+                            Reason = "manual_resolution_abandoned",
+                        }))
+                        .TransitionTo(Abandoned)));
 
         // Idempotency: late-arriving duplicate events on a finalized saga
         // (Completed / Abandoned / RequiresReview) silently no-op rather
@@ -276,6 +337,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
     public Event<PaymentSessionFailedEvent> PaymentSessionFailed { get; private set; } = null!;
     public Event<PaymentCompletedEvent> PaymentCompleted { get; private set; } = null!;
     public Event<PaymentAmountMismatchEvent> PaymentAmountMismatch { get; private set; } = null!;
+    public Event<ManualResolutionEvent> ManualResolution { get; private set; } = null!;
 
     // Scheduled tick. Schedule.Received is the Event the saga reacts to
     // when the timer fires; the schedule is started via .Schedule(...) on
@@ -316,14 +378,13 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
     private static IReadOnlyList<StockReservationItem> DeserializeItems(string? json)
     {
         if (string.IsNullOrEmpty(json)) return Array.Empty<StockReservationItem>();
-        try
-        {
-            return JsonSerializer.Deserialize<List<StockReservationItem>>(json)
-                ?? new List<StockReservationItem>();
-        }
-        catch (JsonException)
-        {
-            return Array.Empty<StockReservationItem>();
-        }
+
+        // Do NOT swallow the exception: returning an empty list on corrupt JSON
+        // would silently release zero stock, leaving reserved inventory locked
+        // indefinitely. Throwing surfaces the corruption so the DLQ + ops can
+        // investigate and replay after the data is fixed.
+        return JsonSerializer.Deserialize<List<StockReservationItem>>(json)
+            ?? throw new InvalidOperationException(
+                "ReservedItemsJson deserialized to null — saga state is corrupt.");
     }
 }

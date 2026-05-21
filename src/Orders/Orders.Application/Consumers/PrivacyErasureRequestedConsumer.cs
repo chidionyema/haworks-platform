@@ -26,30 +26,47 @@ public sealed class PrivacyErasureRequestedConsumer(
             "GDPR erasure requested for UserId={UserId}, RequestId={RequestId}",
             msg.UserId, msg.RequestId);
 
-        var totalAnonymised = 0;
-        var skip = 0;
-        while (true)
+        try
         {
-            // Paginate through results without saving, using skip to advance
-            var batch = await orders.ListByUserTrackedAsync(userId, skip, PageSize, context.CancellationToken);
-            if (batch.Count == 0) break;
-
-            foreach (var order in batch)
+            var totalAnonymised = 0;
+            var skip = 0;
+            while (true)
             {
-                order.AnonymiseForPrivacy();
+                // Paginate through results without saving, using skip to advance
+                var batch = await orders.ListByUserTrackedAsync(userId, skip, PageSize, context.CancellationToken);
+                if (batch.Count == 0) break;
+
+                foreach (var order in batch)
+                {
+                    order.AnonymiseForPrivacy();
+                }
+
+                skip += batch.Count;
+                totalAnonymised += batch.Count;
             }
 
-            skip += batch.Count;
-            totalAnonymised += batch.Count;
+            logger.LogInformation("Anonymised {Count} orders for UserId={UserId}", totalAnonymised, msg.UserId);
+
+            await context.Publish(new PrivacyErasureCompleted
+            {
+                RequestId = msg.RequestId,
+                UserId = msg.UserId,
+                ServiceName = "orders-svc"
+            });
         }
-
-        logger.LogInformation("Anonymised {Count} orders for UserId={UserId}", totalAnonymised, msg.UserId);
-
-        await context.Publish(new PrivacyErasureCompleted
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            RequestId = msg.RequestId,
-            UserId = msg.UserId,
-            ServiceName = "orders-svc"
-        });
+            logger.LogError(ex,
+                "Terminal failure during GDPR erasure for UserId={UserId}, RequestId={RequestId}",
+                msg.UserId, msg.RequestId);
+
+            await context.Publish(new PrivacyErasureFailed
+            {
+                RequestId = msg.RequestId,
+                UserId = msg.UserId,
+                ServiceName = "orders-svc",
+                ErrorMessage = ex.Message
+            });
+        }
     }
 }

@@ -76,14 +76,27 @@ namespace Haworks.Privacy.Infrastructure.Migrations
                     b.Property<Guid?>("ErasureTimeoutTokenId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("FailedServices")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
                     b.Property<bool>("IdentityCompleted")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("IdentityCompletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("OrdersCompleted")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("OrdersCompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<bool>("PaymentsCompleted")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("PaymentsCompletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("RequestType")
                         .IsRequired()

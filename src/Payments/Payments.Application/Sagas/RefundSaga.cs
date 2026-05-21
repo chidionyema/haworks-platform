@@ -6,6 +6,14 @@ using Haworks.Contracts.Payments;
 
 namespace Haworks.Payments.Application.Sagas;
 
+// CONCURRENCY GUARD NOTE:
+// Duplicate concurrent refund sagas for the same refund are prevented by two layers:
+//   1. API layer: the IdempotencyKey on the RefundRequest endpoint ensures the HTTP
+//      caller cannot issue the same refund twice (unique constraint on IdempotencyJournal).
+//   2. Domain layer: Payment.RecordRefund uses a concurrency token (Version) so a
+//      second saga instance for the same PaymentId will hit DbUpdateConcurrencyException
+//      and be nacked/retried, effectively serialising concurrent attempts.
+// No additional unique-index guard is needed in the saga repository itself.
 public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
 {
     public RefundSaga(SagaTransitionAuditObserver<RefundSagaState>? auditObserver = null)
@@ -41,6 +49,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     saga.Currency = msg.Currency;
                     saga.Reason = msg.Reason ?? "";
                     saga.Provider = msg.Provider ?? "Stripe";
+                    saga.RequestedBy = msg.RequestedBy;
                     saga.CreatedAt = DateTime.UtcNow;
                     EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Initial", "Requested");
                 })

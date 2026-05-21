@@ -90,14 +90,16 @@ public sealed class ProviderRefundCancellationConsumer(
                 "Failed to process refund cancellation. RefundId={RefundId}, ProviderRefundId={ProviderRefundId}",
                 msg.RefundId, msg.ProviderRefundId);
 
+            // Publish failure event to let the RefundSaga compensate, then
+            // return normally (C3 pattern). Re-throwing after publishing would
+            // cause MassTransit to nack and retry, which would publish a second
+            // ProviderRefundFailedEvent — double-publishing a terminal failure.
             await context.Publish(new ProviderRefundFailedEvent
             {
                 RefundId = msg.RefundId,
                 ErrorCode = "CancellationError",
                 ErrorMessage = ex.Message
             }, context.CancellationToken);
-
-            throw; // let MassTransit retry
         }
     }
 }

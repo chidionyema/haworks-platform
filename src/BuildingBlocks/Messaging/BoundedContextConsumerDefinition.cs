@@ -60,25 +60,31 @@ public abstract class BoundedContextSagaDefinition<TSaga, TDbContext>
         ISagaConfigurator<TSaga> sagaConfigurator,
         IRegistrationContext context)
     {
-        // Retry MUST be outermost — each retry gets a fresh DI scope + clean
-        // DbContext. If retry sits inside the outbox scope, the DbContext
-        // change tracker is poisoned from the failed attempt and every retry
-        // throws a tracking conflict (InvalidOperationException).
-        endpointConfigurator.UseMessageRetry(r =>
-        {
-            r.Interval(5, TimeSpan.FromMilliseconds(500));
-            r.Handle<Microsoft.EntityFrameworkCore.DbUpdateException>();
-            r.Handle<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>();
-            var retryObs = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<DiagnosticRetryObserver>(context);
-            if (retryObs != null) r.ConnectRetryObserver(retryObs);
-        });
-
+        // Delayed redelivery MUST be outermost — it catches after immediate
+        // retries are exhausted and re-queues with increasing delay (1/5/30 min).
+        // Previously this was declared AFTER UseMessageRetry, making it dead code.
         endpointConfigurator.UseDelayedRedelivery(r => r.Intervals(
             TimeSpan.FromMinutes(1),
             TimeSpan.FromMinutes(5),
             TimeSpan.FromMinutes(30)));
 
-        // No outbox on saga endpoints. The saga repository handles its own
-        // persistence via EntityFrameworkRepository + UsePostgres().
+        // Immediate retries sit inside redelivery scope. Each retry gets a
+        // fresh DI scope + clean DbContext.
+        endpointConfigurator.UseMessageRetry(r =>
+        {
+            r.Interval(5, TimeSpan.FromMilliseconds(500));
+            r.Handle<Microsoft.EntityFrameworkCore.DbUpdateException>();
+            r.Handle<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>();
+            r.Handle<Npgsql.NpgsqlException>();
+            r.Handle<TimeoutException>();
+            r.Handle<System.IO.IOException>();
+            var retryObs = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<DiagnosticRetryObserver>(context);
+            if (retryObs != null) r.ConnectRetryObserver(retryObs);
+        });
+
+        // InMemoryOutbox buffers saga publishes until the saga state is saved.
+        // If the save fails, buffered publishes are discarded (not sent).
+        // This prevents fire-and-forget publishes to RabbitMQ during compensation.
+        endpointConfigurator.UseInMemoryOutbox(context);
     }
 }
