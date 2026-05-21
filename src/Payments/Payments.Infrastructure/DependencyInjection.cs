@@ -193,6 +193,7 @@ public static class DependencyInjection
             mt.AddConsumer<PaymentSessionRequestedConsumer, PaymentsConsumerDefinition<PaymentSessionRequestedConsumer>>();
             mt.AddConsumer<ProviderRefundInitiationRequestedConsumer, PaymentsConsumerDefinition<ProviderRefundInitiationRequestedConsumer>>();
             mt.AddConsumer<ProviderRefundCancellationConsumer, PaymentsConsumerDefinition<ProviderRefundCancellationConsumer>>();
+            mt.AddConsumer<RefundCancelledPaymentCompensationConsumer, PaymentsConsumerDefinition<RefundCancelledPaymentCompensationConsumer>>();
             mt.AddConsumer<SubscriptionRenewalRequestedConsumer, PaymentsConsumerDefinition<SubscriptionRenewalRequestedConsumer>>();
             mt.AddConsumer<PrivacyErasureRequestedConsumer, PaymentsConsumerDefinition<PrivacyErasureRequestedConsumer>>();
 

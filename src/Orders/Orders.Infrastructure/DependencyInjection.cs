@@ -85,6 +85,7 @@ public static class DependencyInjection
             // Cross-context consumers. Each is anchored to OrderDbContext via
             // OrdersConsumerDefinition<T> so consume + state writes + downstream
             // publishes commit atomically in one OrderDbContext transaction.
+            mt.AddConsumer<GlobalFaultConsumer>();
             mt.AddConsumer<PaymentCompletedConsumer, OrdersConsumerDefinition<PaymentCompletedConsumer>>();
             mt.AddConsumer<PaymentSessionFailedConsumer, OrdersConsumerDefinition<PaymentSessionFailedConsumer>>();
             mt.AddConsumer<StockReservationFailedConsumer, OrdersConsumerDefinition<StockReservationFailedConsumer>>();

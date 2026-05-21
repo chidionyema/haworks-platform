@@ -6,4 +6,6 @@ public enum RefundFailureCategory
     ProviderRefundFailed,
     RefundTimedOut,
     CancelledByOperator,
+    RetriesExhausted,
+    ReviewEscalationTimeout,
 }

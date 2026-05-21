@@ -68,41 +68,22 @@ public sealed class PaymentWebhookValidatedConsumer(
             return;
         }
 
-        // 2. Process the event
-        try
-        {
-            var result = await processor.ProcessEventAsync(validationResult.Event, context.CancellationToken);
-            
-            if (result.Processed)
-            {
-                logger.LogInformation("Webhook {EventId} processed successfully: {Message}",
-                    evt.ProviderEventId, result.Message);
-            }
-            else
-            {
-                logger.LogInformation("Webhook {EventId} skipped or failed: {Message}",
-                    evt.ProviderEventId, result.Message);
-            }
-        }
-        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
-        {
-            logger.LogInformation(
-                "Webhook {ProviderEventId} concurrently processed by another worker; skipping",
-                evt.ProviderEventId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to process webhook {EventId}", evt.ProviderEventId);
-            throw; // Re-throw to trigger MT retry
-        }
-    }
+        // 2. Process the event. Do NOT catch DbUpdateException for unique violations —
+        // it poisons the DbContext and breaks the outbox (Law #3). On a unique constraint
+        // violation, the exception propagates to MassTransit which retries; the retry
+        // hits the processor's WebhookEventExistsAsync check and skips.
+        var result = await processor.ProcessEventAsync(validationResult.Event, context.CancellationToken);
 
-    private static bool IsUniqueViolation(DbUpdateException ex)
-    {
-        var inner = ex.InnerException;
-        return inner is not null
-            && string.Equals(inner.GetType().Name, "PostgresException", StringComparison.Ordinal)
-            && string.Equals(inner.GetType().GetProperty("SqlState")?.GetValue(inner) as string, "23505", StringComparison.Ordinal);
+        if (result.Processed)
+        {
+            logger.LogInformation("Webhook {EventId} processed successfully: {Message}",
+                evt.ProviderEventId, result.Message);
+        }
+        else
+        {
+            logger.LogInformation("Webhook {EventId} skipped or failed: {Message}",
+                evt.ProviderEventId, result.Message);
+        }
     }
 
     private static PaymentProvider? ParseProvider(string provider) => provider switch

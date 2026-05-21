@@ -29,7 +29,7 @@ public sealed class SubscriptionRenewalRequestedConsumer(
 
             await context.Publish(new SubscriptionRenewedEvent
             {
-                SubscriptionId = msg.ProviderSubscriptionId,
+                ProviderSubscriptionId = msg.ProviderSubscriptionId,
                 UserId = string.Empty,
                 Provider = paymentGateway.ActiveProvider,
                 AmountCents = 0,

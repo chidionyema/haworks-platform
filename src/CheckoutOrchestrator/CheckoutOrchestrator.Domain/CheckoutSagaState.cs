@@ -56,6 +56,10 @@ public class CheckoutSagaState : SagaStateMachineInstance, ISagaVersion
     /// uses this to cancel the timeout when payment lands in time.</summary>
     public Guid? PaymentExpiryTokenId { get; set; }
 
+    /// <summary>Token for the stock-reservation timeout schedule. MassTransit
+    /// uses this to cancel the timeout when stock is reserved in time.</summary>
+    public Guid? StockReservationTimeoutTokenId { get; set; }
+
     /// <summary>When the saga was kicked off — used for the OrderAbandoned age calculation.</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

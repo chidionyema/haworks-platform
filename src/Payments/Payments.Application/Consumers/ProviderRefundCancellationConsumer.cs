@@ -49,7 +49,7 @@ public sealed class ProviderRefundCancellationConsumer(
                 await context.Publish(new RefundCancelledEvent
                 {
                     RefundId = msg.RefundId,
-                    OrderId = msg.RefundId, // Correlation: RefundId is the saga CorrelationId; saga resolves OrderId from state
+                    OrderId = Guid.Empty, // Consumer lacks OrderId; saga publishes the authoritative RefundCancelledEvent with correct OrderId
                     Reason = "provider_confirmed_cancelled"
                 }, context.CancellationToken);
                 return;
@@ -58,6 +58,8 @@ public sealed class ProviderRefundCancellationConsumer(
             if (result.Status == RefundStatus.Succeeded)
             {
                 // Refund already settled — cancellation is no longer possible.
+                // This is a permanent failure: publish and ACK so MassTransit
+                // does not retry.
                 logger.LogWarning(
                     "Cannot cancel refund {ProviderRefundId}: already succeeded. RefundId={RefundId}",
                     msg.ProviderRefundId, msg.RefundId);
@@ -80,7 +82,7 @@ public sealed class ProviderRefundCancellationConsumer(
             await context.Publish(new RefundCancelledEvent
             {
                 RefundId = msg.RefundId,
-                OrderId = msg.RefundId, // Correlation: saga resolves OrderId from its state via RefundId
+                OrderId = Guid.Empty, // Consumer lacks OrderId; saga publishes the authoritative RefundCancelledEvent with correct OrderId
                 Reason = "operator_cancellation_requested"
             }, context.CancellationToken);
         }
@@ -90,14 +92,11 @@ public sealed class ProviderRefundCancellationConsumer(
                 "Failed to process refund cancellation. RefundId={RefundId}, ProviderRefundId={ProviderRefundId}",
                 msg.RefundId, msg.ProviderRefundId);
 
-            await context.Publish(new ProviderRefundFailedEvent
-            {
-                RefundId = msg.RefundId,
-                ErrorCode = "CancellationError",
-                ErrorMessage = ex.Message
-            }, context.CancellationToken);
-
-            throw; // let MassTransit retry
+            // Re-throw so MassTransit retries transient failures (network
+            // timeouts, 5xx from provider). The consumer definition's retry
+            // policy will eventually move the message to the error queue if
+            // retries are exhausted — at which point ops can investigate.
+            throw;
         }
     }
 }

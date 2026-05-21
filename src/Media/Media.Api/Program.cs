@@ -144,6 +144,8 @@ if (!builder.Environment.IsEnvironment("Test"))
 // ── MassTransit + outbox (event publishing) ──
 if (!builder.Environment.IsEnvironment("Test"))
 {
+    builder.Services.AddMassTransitDiagnostics();
+
     builder.Services.AddMassTransit(mt =>
     {
         mt.SetKebabCaseEndpointNameFormatter();
@@ -152,6 +154,8 @@ if (!builder.Environment.IsEnvironment("Test"))
         mt.AddConsumer<Haworks.Media.Api.Infrastructure.Workers.ProcessMediaConsumer, Haworks.Media.Api.Infrastructure.Messaging.MediaConsumerDefinition<Haworks.Media.Api.Infrastructure.Workers.ProcessMediaConsumer>>();
         mt.AddConsumer<Haworks.Media.Api.Infrastructure.Workers.ProcessMediaFaultConsumer, Haworks.Media.Api.Infrastructure.Messaging.MediaConsumerDefinition<Haworks.Media.Api.Infrastructure.Workers.ProcessMediaFaultConsumer>>();
         mt.AddConsumer<Haworks.Media.Api.Infrastructure.Workers.MediaUploadCompletedConsumer, Haworks.Media.Api.Infrastructure.Messaging.MediaConsumerDefinition<Haworks.Media.Api.Infrastructure.Workers.MediaUploadCompletedConsumer>>();
+        mt.AddConsumer<Haworks.Media.Api.Infrastructure.Workers.MediaScanPassedConsumer, Haworks.Media.Api.Infrastructure.Messaging.MediaConsumerDefinition<Haworks.Media.Api.Infrastructure.Workers.MediaScanPassedConsumer>>();
+        mt.AddConsumer<Haworks.Media.Api.Infrastructure.Workers.MediaScanFailedConsumer, Haworks.Media.Api.Infrastructure.Messaging.MediaConsumerDefinition<Haworks.Media.Api.Infrastructure.Workers.MediaScanFailedConsumer>>();
 
         mt.AddEntityFrameworkOutbox<MediaDbContext>(o =>
         {

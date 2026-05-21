@@ -283,31 +283,23 @@ if (!builder.Environment.IsEnvironment("Test"))
 builder.Services.AddMassTransit(mt =>
     {
         mt.SetKebabCaseEndpointNameFormatter();
-        mt.AddConsumer<PaymentSessionCreatedConsumer>();
+        mt.AddConsumer<GlobalFaultConsumer>();
+        mt.AddConsumer<PaymentSessionCreatedConsumer, Haworks.BffWeb.Api.Infrastructure.Messaging.BffWebConsumerDefinition<PaymentSessionCreatedConsumer>>();
 
         // T2.2 commit 2: bridge each saga state-change event to a SignalR
         // OnSagaStep push so the portfolio's CheckoutDemo updates in real
-        // time as the saga progresses. One consumer per event; each
-        // translates to a step + progress percent matching the frontend's
-        // stage ladder. See SagaStepBridgeConsumers.cs.
-        mt.AddConsumer<StockReservedSagaBridge>();
-        mt.AddConsumer<StockReservationFailedSagaBridge>();
-        mt.AddConsumer<PaymentSessionCreatedSagaBridge>();
-        mt.AddConsumer<PaymentSessionFailedSagaBridge>();
-        mt.AddConsumer<PaymentCompletedSagaBridge>();
-            mt.AddConsumer<PaymentAmountMismatchSagaBridge>();
-            mt.AddConsumer<VaultRotationStageBridge>();
+        // time as the saga progresses.
+        mt.AddConsumer<StockReservedSagaBridge, Haworks.BffWeb.Api.Infrastructure.Messaging.BffWebConsumerDefinition<StockReservedSagaBridge>>();
+        mt.AddConsumer<StockReservationFailedSagaBridge, Haworks.BffWeb.Api.Infrastructure.Messaging.BffWebConsumerDefinition<StockReservationFailedSagaBridge>>();
+        mt.AddConsumer<PaymentSessionCreatedSagaBridge, Haworks.BffWeb.Api.Infrastructure.Messaging.BffWebConsumerDefinition<PaymentSessionCreatedSagaBridge>>();
+        mt.AddConsumer<PaymentSessionFailedSagaBridge, Haworks.BffWeb.Api.Infrastructure.Messaging.BffWebConsumerDefinition<PaymentSessionFailedSagaBridge>>();
+        mt.AddConsumer<PaymentCompletedSagaBridge, Haworks.BffWeb.Api.Infrastructure.Messaging.BffWebConsumerDefinition<PaymentCompletedSagaBridge>>();
+        mt.AddConsumer<PaymentAmountMismatchSagaBridge, Haworks.BffWeb.Api.Infrastructure.Messaging.BffWebConsumerDefinition<PaymentAmountMismatchSagaBridge>>();
+        mt.AddConsumer<VaultRotationStageBridge, Haworks.BffWeb.Api.Infrastructure.Messaging.BffWebConsumerDefinition<VaultRotationStageBridge>>();
 
-        // T2.5: closes the persisted -> consumed loop for the event-flow demo.
-        // Subscribes to DemoOutboxEvent (relayed from payments-svc's outbox)
-        // and emits OnEventFlow stage='consumed' to the SignalR hub.
-        mt.AddConsumer<DemoOutboxEventConsumer>();
+        mt.AddConsumer<DemoOutboxEventConsumer, Haworks.BffWeb.Api.Infrastructure.Messaging.BffWebConsumerDefinition<DemoOutboxEventConsumer>>();
 
-        // #1+#2: bridges catalog-svc ProductCacheInvalidatedEvent (PUT/DELETE
-        // on /api/demo/cache/product/*) to a SignalR OnCacheEvent push so
-        // connected portfolio clients see real cache invalidations as they
-        // happen.
-        mt.AddConsumer<ProductCacheInvalidatedBridge>();
+        mt.AddConsumer<ProductCacheInvalidatedBridge, Haworks.BffWeb.Api.Infrastructure.Messaging.BffWebConsumerDefinition<ProductCacheInvalidatedBridge>>();
 
         mt.UsingRabbitMq((context, cfg) =>
         {

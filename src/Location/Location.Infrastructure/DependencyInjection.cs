@@ -82,6 +82,7 @@ public static class DependencyInjection
         {
             mt.SetKebabCaseEndpointNameFormatter();
 
+            mt.AddConsumer<GlobalFaultConsumer>();
             mt.AddEntityFrameworkOutbox<LocationDbContext>(o =>
             {
                 o.UsePostgres();

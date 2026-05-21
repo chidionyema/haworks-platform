@@ -57,14 +57,14 @@ public static class DependencyInjection
         services.AddMassTransit(mt =>
             {
                 mt.SetKebabCaseEndpointNameFormatter();
-                mt.AddConsumer<ProductCacheInvalidatedConsumer>();
-                mt.AddConsumer<CategoryUpdatedConsumer>();
+                mt.AddConsumer<GlobalFaultConsumer>();
+                mt.AddConsumer<ProductCacheInvalidatedConsumer, Messaging.SearchConsumerDefinition<ProductCacheInvalidatedConsumer>>();
+                mt.AddConsumer<CategoryUpdatedConsumer, Messaging.SearchConsumerDefinition<CategoryUpdatedConsumer>>();
+                mt.AddConsumer<LocationUpdatedConsumer, Messaging.SearchConsumerDefinition<LocationUpdatedConsumer>>();
 
                 mt.UsingRabbitMq((ctx, cfg) =>
                 {
-                    var rabbit = configuration.GetConnectionString("rabbitmq")
-                        ?? throw new InvalidOperationException("ConnectionStrings:rabbitmq is missing");
-                    cfg.Host(new Uri(rabbit));
+                    cfg.ConfigureStandardHost(configuration);
                     cfg.ConfigureStandardRabbitMq(ctx);
                 });
             });

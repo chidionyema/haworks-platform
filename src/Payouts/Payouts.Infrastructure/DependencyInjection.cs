@@ -35,8 +35,10 @@ public static class DependencyInjection
 
         services.AddMassTransit(x => {
                 x.SetKebabCaseEndpointNameFormatter();
+                x.AddConsumer<GlobalFaultConsumer>();
                 x.AddConsumer<PaymentCompletedConsumer, Messaging.PayoutsConsumerDefinition<PaymentCompletedConsumer>>();
                 x.AddConsumer<RefundIssuedConsumer, Messaging.PayoutsConsumerDefinition<RefundIssuedConsumer>>();
+                x.AddDelayedMessageScheduler();
                 x.AddEntityFrameworkOutbox<PayoutsDbContext>(o =>
                 {
                     o.UsePostgres();

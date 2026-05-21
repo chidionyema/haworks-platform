@@ -1,9 +1,9 @@
 namespace Haworks.Contracts.Orders;
 
-public record OrderStatusChanged
+public sealed record OrderStatusChanged : DomainEvent
 {
-    public Guid OrderId { get; init; }
-    public Guid CustomerId { get; init; }
-    public string NewStatus { get; init; } = string.Empty;
+    public required Guid OrderId { get; init; }
+    public required Guid CustomerId { get; init; }
+    public required string NewStatus { get; init; }
     public DateTime ChangedAt { get; init; } = DateTime.UtcNow;
 }

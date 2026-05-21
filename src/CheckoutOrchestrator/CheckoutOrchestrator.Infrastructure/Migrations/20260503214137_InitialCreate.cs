@@ -38,8 +38,8 @@ namespace Haworks.CheckoutOrchestrator.Infrastructure.Migrations
                     PaymentCheckoutUrl = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FailureReason = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     PaymentExpiryTokenId = table.Column<Guid>(type: "uuid", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
+                    StockReservationTimeoutTokenId = table.Column<Guid>(type: "uuid", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {

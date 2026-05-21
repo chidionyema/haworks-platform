@@ -87,9 +87,9 @@ public static class DependencyInjection
                 mt.SetKebabCaseEndpointNameFormatter();
                 mt.AddDelayedMessageScheduler();
 
-                mt.AddConsumers(
-                    typeof(DependencyInjection).Assembly,
-                    typeof(Haworks.Pricing.Application.Services.PriceCalculationEngine).Assembly);
+                mt.AddConsumer<GlobalFaultConsumer>();
+                mt.AddConsumer<Haworks.Pricing.Application.Consumers.PricingRequestedConsumer, Messaging.PricingConsumerDefinition<Haworks.Pricing.Application.Consumers.PricingRequestedConsumer>>();
+                mt.AddConsumer<Haworks.Pricing.Application.Consumers.ProductCacheInvalidatedConsumer, Messaging.PricingConsumerDefinition<Haworks.Pricing.Application.Consumers.ProductCacheInvalidatedConsumer>>();
 
                 mt.AddEntityFrameworkOutbox<Persistence.PricingDbContext>(o =>
                 {
@@ -98,11 +98,9 @@ public static class DependencyInjection
 
                 mt.UsingRabbitMq((context, cfg) =>
                 {
-                    var rabbitHost = configuration.GetConnectionString("rabbitmq")
-                        ?? throw new InvalidOperationException("ConnectionStrings:rabbitmq is required");
-                    cfg.Host(new Uri(rabbitHost));
+                    cfg.ConfigureStandardHost(configuration);
                     cfg.UseDelayedMessageScheduler();
-                    cfg.ConfigureEndpoints(context);
+                    cfg.ConfigureStandardRabbitMq(context);
                 });
             });
         }

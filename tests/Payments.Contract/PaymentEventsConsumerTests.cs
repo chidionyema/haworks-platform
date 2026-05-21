@@ -150,7 +150,7 @@ public sealed class PaymentEventsConsumerTests
             .VerifyAsync<RefundIssuedEvent>(evt =>
             {
                 evt.PaymentId.Should().Be(Guid.Parse("11111111-1111-1111-1111-111111111111"));
-                evt.RefundId.Should().Be("re_123");
+                evt.ProviderRefundId.Should().Be("re_123");
                 evt.AmountCents.Should().Be(5000);
                 evt.Provider.Should().Be(PaymentProvider.Stripe);
                 return Task.CompletedTask;
@@ -176,7 +176,7 @@ public sealed class PaymentEventsConsumerTests
             })
             .VerifyAsync<SubscriptionStartedEvent>(evt =>
             {
-                evt.SubscriptionId.Should().Be("sub_abc");
+                evt.ProviderSubscriptionId.Should().Be("sub_abc");
                 evt.UserId.Should().Be("user_123");
                 evt.PlanId.Should().Be("plan_99");
                 evt.Provider.Should().Be(PaymentProvider.Stripe);
@@ -204,7 +204,7 @@ public sealed class PaymentEventsConsumerTests
             })
             .VerifyAsync<SubscriptionRenewedEvent>(evt =>
             {
-                evt.SubscriptionId.Should().Be("sub_abc");
+                evt.ProviderSubscriptionId.Should().Be("sub_abc");
                 evt.AmountCents.Should().Be(9900);
                 evt.Provider.Should().Be(PaymentProvider.Stripe);
                 return Task.CompletedTask;
@@ -229,7 +229,7 @@ public sealed class PaymentEventsConsumerTests
             })
             .VerifyAsync<SubscriptionCancelledEvent>(evt =>
             {
-                evt.SubscriptionId.Should().Be("sub_abc");
+                evt.ProviderSubscriptionId.Should().Be("sub_abc");
                 evt.UserId.Should().Be("user_123");
                 evt.Provider.Should().Be(PaymentProvider.Stripe);
                 return Task.CompletedTask;

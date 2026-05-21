@@ -181,7 +181,7 @@ public sealed class StripeSubscriptionManager(
 
         await eventPublisher.Publish(new SubscriptionStartedEvent
         {
-            SubscriptionId = newSub.ProviderSubscriptionId,
+            ProviderSubscriptionId = newSub.ProviderSubscriptionId,
             UserId = newSub.UserId,
             PlanId = newSub.PlanId,
             Provider = PaymentProvider.Stripe,
@@ -221,7 +221,7 @@ public sealed class StripeSubscriptionManager(
 
         await eventPublisher.Publish(new SubscriptionRenewedEvent
         {
-            SubscriptionId = existing.ProviderSubscriptionId,
+            ProviderSubscriptionId = existing.ProviderSubscriptionId,
             UserId = existing.UserId,
             Provider = PaymentProvider.Stripe,
             AmountCents = amount,
@@ -243,7 +243,7 @@ public sealed class StripeSubscriptionManager(
 
         await eventPublisher.Publish(new SubscriptionCancelledEvent
         {
-            SubscriptionId = existing.ProviderSubscriptionId,
+            ProviderSubscriptionId = existing.ProviderSubscriptionId,
             UserId = existing.UserId,
             Provider = PaymentProvider.Stripe,
             Reason = subscriptionEvent.Metadata.GetValueOrDefault("reason")

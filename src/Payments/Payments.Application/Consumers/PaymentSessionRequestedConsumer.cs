@@ -68,9 +68,33 @@ public sealed class PaymentSessionRequestedConsumer(
             "Processing PaymentSessionRequestedEvent via Stripe. OrderId={OrderId}, SagaId={SagaId}",
             evt.OrderId, evt.SagaId);
 
+        // Three-Phase Pattern (inlined):
+        // Phase 1 (I/O): Call Stripe BEFORE any DB mutation — no DB lock held.
+        // Phase 2 (Atomic): Create Payment + publish event inside outbox tx.
+        var request = new CreateCheckoutSessionRequest
+        {
+            SuccessUrl = evt.SuccessUrl,
+            CancelUrl = evt.CancelUrl,
+            CustomerEmail = evt.CustomerEmail,
+            IdempotencyKey = evt.IdempotencyKey ?? $"{evt.OrderId}:{evt.SagaId}",
+            LineItems = evt.LineItems.Select(li => new LineItem
+            {
+                Name = li.Name,
+                Description = li.Description,
+                UnitAmountCents = li.UnitAmountCents,
+                Quantity = li.Quantity,
+                Currency = evt.Currency
+            }).ToList(),
+            OrderId = evt.OrderId,
+            Metadata = evt.Metadata?.ToDictionary(x => x.Key, x => x.Value) ?? new Dictionary<string, string>()
+        };
+
         try
         {
-            // 1. Create the Payment aggregate (Status = Pending)
+            // Phase 1: External I/O — no DB transaction held
+            var result = await checkoutService.CreateSessionAsync(request, context.CancellationToken);
+
+            // Phase 2: Atomic DB mutation inside outbox transaction
             var payment = Haworks.Payments.Domain.Payment.Create(
                 evt.OrderId,
                 evt.UserId,
@@ -81,32 +105,8 @@ public sealed class PaymentSessionRequestedConsumer(
                 evt.SagaId);
 
             await paymentRepository.AddAsync(payment, context.CancellationToken);
-
-            // 2. Request session from provider
-            var request = new CreateCheckoutSessionRequest
-            {
-                SuccessUrl = evt.SuccessUrl,
-                CancelUrl = evt.CancelUrl,
-                CustomerEmail = evt.CustomerEmail,
-                IdempotencyKey = evt.IdempotencyKey ?? Guid.NewGuid().ToString(),
-                LineItems = evt.LineItems.Select(li => new LineItem
-                {
-                    Name = li.Name,
-                    Description = li.Description,
-                    UnitAmountCents = li.UnitAmountCents,
-                    Quantity = li.Quantity,
-                    Currency = evt.Currency
-                }).ToList(),
-                OrderId = evt.OrderId,
-                Metadata = evt.Metadata?.ToDictionary(x => x.Key, x => x.Value) ?? new Dictionary<string, string>()
-            };
-
-            var result = await checkoutService.CreateSessionAsync(request, context.CancellationToken);
-
-            // 3. Update payment with provider details (Status = Processing)
             payment.AttachProviderSession(result.SessionId, result.SessionUrl);
 
-            // 4. Notify saga — outbox handles this: entity + event saved atomically
             await context.Publish(new PaymentSessionCreatedEvent
             {
                 OrderId = evt.OrderId,
@@ -137,7 +137,7 @@ public sealed class PaymentSessionRequestedConsumer(
                 IsFinalAttempt = true
             }, context.CancellationToken);
 
-            throw; // let MassTransit retry
+            throw;
         }
     }
 

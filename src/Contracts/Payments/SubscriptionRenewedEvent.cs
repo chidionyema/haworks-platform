@@ -2,7 +2,8 @@ namespace Haworks.Contracts.Payments;
 
 public sealed record SubscriptionRenewedEvent : DomainEvent
 {
-    public required string SubscriptionId { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("subscriptionId")]
+    public required string ProviderSubscriptionId { get; init; }
     public required string UserId { get; init; }
     public required PaymentProvider Provider { get; init; }
     public required long AmountCents { get; init; }

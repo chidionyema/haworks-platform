@@ -74,6 +74,9 @@ namespace Haworks.CheckoutOrchestrator.Infrastructure.Migrations
                     b.Property<Guid?>("PaymentExpiryTokenId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("StockReservationTimeoutTokenId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("PaymentId")
                         .HasColumnType("uuid");
 
@@ -95,12 +98,6 @@ namespace Haworks.CheckoutOrchestrator.Infrastructure.Migrations
                     b.Property<int>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("integer");
-
-                    b.Property<uint>("xmin")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
 
                     b.HasKey("CorrelationId");
 

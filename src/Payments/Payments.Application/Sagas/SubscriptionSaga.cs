@@ -8,8 +8,15 @@ using Microsoft.Extensions.Logging;
 
 namespace Haworks.Payments.Application.Sagas;
 
-public sealed record SubscriptionRenewalScheduled(Guid SubscriptionId);
-public sealed record SubscriptionDunningScheduled(Guid SubscriptionId);
+public sealed record SubscriptionRenewalScheduled
+{
+    public required Guid SubscriptionId { get; init; }
+}
+
+public sealed record SubscriptionDunningScheduled
+{
+    public required Guid SubscriptionId { get; init; }
+}
 
 public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaState>
 {
@@ -27,12 +34,12 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
             s.Received = r => r.CorrelateById(ctx => ctx.Message.SubscriptionId);
         });
 
-        Event(() => SubscriptionStarted, e => e.CorrelateBy((state, ctx) => state.ProviderSubscriptionId == ctx.Message.SubscriptionId));
-        Event(() => SubscriptionRenewed, e => e.CorrelateBy((state, ctx) => state.ProviderSubscriptionId == ctx.Message.SubscriptionId));
+        Event(() => SubscriptionStarted, e => e.CorrelateBy((state, ctx) => state.ProviderSubscriptionId == ctx.Message.ProviderSubscriptionId));
+        Event(() => SubscriptionRenewed, e => e.CorrelateBy((state, ctx) => state.ProviderSubscriptionId == ctx.Message.ProviderSubscriptionId));
         Event(() => RenewalRequested, e => e.CorrelateById(ctx => ctx.Message.SubscriptionId));
         Event(() => RenewalFailed, e => e.CorrelateById(ctx => ctx.Message.SubscriptionId));
         Event(() => PaymentRecovered, e => e.CorrelateById(ctx => ctx.Message.SubscriptionId));
-        Event(() => SubscriptionCancelled, e => e.CorrelateBy((state, ctx) => state.ProviderSubscriptionId == ctx.Message.SubscriptionId));
+        Event(() => SubscriptionCancelled, e => e.CorrelateBy((state, ctx) => state.ProviderSubscriptionId == ctx.Message.ProviderSubscriptionId));
 
         Initially(
             When(SubscriptionStarted)
@@ -40,17 +47,17 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                 {
                     var msg = ctx.Message;
                     var saga = ctx.Saga;
-                    saga.ProviderSubscriptionId = msg.SubscriptionId;
+                    saga.ProviderSubscriptionId = msg.ProviderSubscriptionId;
                     saga.UserId = msg.UserId;
                     saga.PlanId = msg.PlanId;
                     saga.Provider = msg.Provider.ToString();
                     saga.PeriodEnd = msg.CurrentPeriodEnd;
                     saga.CreatedAt = DateTime.UtcNow;
 
-                    logger.LogInformation("Subscription Saga started for {SubscriptionId}, Period End: {PeriodEnd}",
-                        msg.SubscriptionId, msg.CurrentPeriodEnd);
+                    logger.LogInformation("Subscription Saga started for {ProviderSubscriptionId}, Period End: {PeriodEnd}",
+                        msg.ProviderSubscriptionId, msg.CurrentPeriodEnd);
                 })
-                .Schedule(RenewalTimeoutSchedule, ctx => new SubscriptionRenewalScheduled(ctx.Saga.CorrelationId),
+                .Schedule(RenewalTimeoutSchedule, ctx => new SubscriptionRenewalScheduled { SubscriptionId = ctx.Saga.CorrelationId },
                     ctx => GuardDelay(ctx.Saga.PeriodEnd - DateTime.UtcNow - TimeSpan.FromDays(1))) // SS-04: guard negative delay
                 .TransitionTo(Active));
 
@@ -80,7 +87,7 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                     ExpiresAt = DateTime.UtcNow.AddDays(7)
                 }))
                 .TransitionTo(GracePeriod)
-                .Schedule(DunningRetrySchedule, ctx => new SubscriptionDunningScheduled(ctx.Saga.CorrelationId),
+                .Schedule(DunningRetrySchedule, ctx => new SubscriptionDunningScheduled { SubscriptionId = ctx.Saga.CorrelationId },
                     ctx => TimeSpan.FromDays(2)));
 
         During(Renewing,
@@ -93,7 +100,7 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                         ctx.Saga.ProviderSubscriptionId, ctx.Saga.PeriodEnd);
                 })
                 .Unschedule(RenewalTimeoutSchedule)
-                .Schedule(RenewalTimeoutSchedule, ctx => new SubscriptionRenewalScheduled(ctx.Saga.CorrelationId),
+                .Schedule(RenewalTimeoutSchedule, ctx => new SubscriptionRenewalScheduled { SubscriptionId = ctx.Saga.CorrelationId },
                     ctx => GuardDelay(ctx.Saga.PeriodEnd - DateTime.UtcNow - TimeSpan.FromDays(1))) // SS-04
                 .TransitionTo(Active),
             When(RenewalFailed)
@@ -110,7 +117,7 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                     ExpiresAt = DateTime.UtcNow.AddDays(7)
                 }))
                 .TransitionTo(GracePeriod)
-                .Schedule(DunningRetrySchedule, ctx => new SubscriptionDunningScheduled(ctx.Saga.CorrelationId),
+                .Schedule(DunningRetrySchedule, ctx => new SubscriptionDunningScheduled { SubscriptionId = ctx.Saga.CorrelationId },
                     ctx => TimeSpan.FromDays(2)));
 
         During(GracePeriod,
@@ -123,7 +130,7 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                         ctx.Saga.ProviderSubscriptionId, ctx.Saga.PeriodEnd);
                 })
                 .Unschedule(DunningRetrySchedule)
-                .Schedule(RenewalTimeoutSchedule, ctx => new SubscriptionRenewalScheduled(ctx.Saga.CorrelationId), // SS-06: re-schedule on recovery
+                .Schedule(RenewalTimeoutSchedule, ctx => new SubscriptionRenewalScheduled { SubscriptionId = ctx.Saga.CorrelationId }, // SS-06: re-schedule on recovery
                     ctx => GuardDelay(ctx.Saga.PeriodEnd - DateTime.UtcNow - TimeSpan.FromDays(1)))
                 .TransitionTo(Active),
             // SS-03: Handle PaymentRecovered in GracePeriod
@@ -135,7 +142,7 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                     logger.LogInformation("Payment recovered for {SubscriptionId} during Grace Period", ctx.Saga.ProviderSubscriptionId);
                 })
                 .Unschedule(DunningRetrySchedule)
-                .Schedule(RenewalTimeoutSchedule, ctx => new SubscriptionRenewalScheduled(ctx.Saga.CorrelationId),
+                .Schedule(RenewalTimeoutSchedule, ctx => new SubscriptionRenewalScheduled { SubscriptionId = ctx.Saga.CorrelationId },
                     ctx => GuardDelay(ctx.Saga.PeriodEnd - DateTime.UtcNow - TimeSpan.FromDays(1)))
                 .TransitionTo(Active),
             When(DunningRetrySchedule.Received)
@@ -154,7 +161,7 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                 })
                 .If(ctx => ctx.Saga.RetryCount <= 3,
                     binder => binder
-                        .Schedule(DunningRetrySchedule, ctx => new SubscriptionDunningScheduled(ctx.Saga.CorrelationId),
+                        .Schedule(DunningRetrySchedule, ctx => new SubscriptionDunningScheduled { SubscriptionId = ctx.Saga.CorrelationId },
                             ctx => TimeSpan.FromDays(2)))
                 .If(ctx => ctx.Saga.RetryCount > 3,
                     binder => binder
@@ -165,7 +172,7 @@ public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaS
                         })
                         .PublishAsync(ctx => ctx.Init<SubscriptionCancelledEvent>(new SubscriptionCancelledEvent
                         {
-                            SubscriptionId = ctx.Saga.ProviderSubscriptionId,
+                            ProviderSubscriptionId = ctx.Saga.ProviderSubscriptionId,
                             UserId = ctx.Saga.UserId,
                             Provider = Enum.TryParse<PaymentProvider>(ctx.Saga.Provider, out var p) ? p : PaymentProvider.Stripe,
                             Reason = "dunning_exhausted",

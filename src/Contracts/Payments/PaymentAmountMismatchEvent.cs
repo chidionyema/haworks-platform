@@ -17,6 +17,9 @@ public sealed record PaymentAmountMismatchEvent : DomainEvent
     /// <summary>The order this payment is for.</summary>
     public required Guid OrderId { get; init; }
 
+    /// <summary>The checkout saga correlation ID for direct saga routing.</summary>
+    public Guid SagaId { get; init; }
+
     /// <summary>The payment provider (e.g., "Stripe", "PayPal").</summary>
     public required string Provider { get; init; }
 
