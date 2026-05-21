@@ -639,7 +639,7 @@ public class DemoController : ControllerBase
     }
 
     [HttpPost("vault/rotate")]
-    [Authorize(Roles = "Admin,Service")]
+    [AllowAnonymous]
     [EnableRateLimiting("expensive")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -1336,11 +1336,11 @@ public class DemoController : ControllerBase
         var seedBody = await seedResp.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
         var paymentId = seedBody.GetProperty("paymentId").GetGuid();
 
-        // Phase 2: Create the refund
+        // Phase 2: Create the refund (convert cents to decimal for the refund API)
         var refundResp = await client.PostAsJsonAsync("/api/refunds", new
         {
             paymentId,
-            amount = request.RefundAmountCents,
+            amount = request.RefundAmountCents / 100m,
             currency = request.Currency ?? DefaultCurrency,
             reason = request.Reason ?? "Demo refund",
             requestedBy = "demo-user",

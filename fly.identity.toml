@@ -11,6 +11,8 @@ primary_region = "iad"
 [env]
   ASPNETCORE_URLS        = "http://+:8080"
   ASPNETCORE_ENVIRONMENT = "Production"
+  Vault__Enabled         = "true"
+  Vault__Address         = "http://haworks-vault.internal:8200"
 
   # OpenTelemetry resource identity. Fly's [env] is static (no ${VAR}
   # interpolation), so the OTLP endpoint must be set out-of-band via:
