@@ -160,8 +160,8 @@ if [[ -z "$root_token" ]]; then
     if fly_ssh "sh -c \"curl -fsS -H 'X-Vault-Token: $init_root' http://[::1]:8200/v1/auth/token/lookup-self\"" >/dev/null 2>&1; then
       log "creating CI deployer policy and token..."
       fly_ssh "sh -c \"VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=$init_root vault policy write ci-deployer - <<'POLICY'
-path \\\"auth/approle/role/*/role-id\\\" { capabilities = [\\\"read\\\"] }
-path \\\"auth/approle/role/*/secret-id\\\" { capabilities = [\\\"update\\\"] }
+path \\\"auth/approle/role/+/role-id\\\" { capabilities = [\\\"read\\\"] }
+path \\\"auth/approle/role/+/secret-id\\\" { capabilities = [\\\"update\\\"] }
 POLICY\"" >/dev/null
 
       ci_token_json=$(fly_ssh "sh -c \"curl -fsS -X POST -H 'X-Vault-Token: $init_root' -d '{\\\"policies\\\": [\\\"ci-deployer\\\"], \\\"period\\\": \\\"720h\\\"}' http://[::1]:8200/v1/auth/token/create\"")
