@@ -1,6 +1,11 @@
-# Lightweight Transit-only vault running in dev mode on the same machine.
+# Lightweight Transit-only vault with persistent file backend.
 # Its sole purpose is to provide an auto-unseal key for the production vault.
-# Dev mode = no persistence needed, auto-initializes, never seals.
+# Data is persisted to /vault/data/transit/ on the Fly volume so the
+# encryption key survives container restarts.
+
+storage "file" {
+  path = "/vault/data/transit"
+}
 
 listener "tcp" {
   address     = "127.0.0.1:8100"
@@ -8,3 +13,4 @@ listener "tcp" {
 }
 
 disable_mlock = true
+ui            = false
