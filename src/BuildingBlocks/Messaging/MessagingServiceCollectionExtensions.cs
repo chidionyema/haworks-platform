@@ -1,10 +1,28 @@
 using MassTransit;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Haworks.BuildingBlocks.Messaging;
 
 public static class MessagingServiceCollectionExtensions
 {
+    /// <summary>
+    /// Configure RabbitMQ host with a 10s heartbeat so stale connections
+    /// from previous Fly.io deployments are detected within ~30s.
+    /// Without this, zombie consumers silently eat messages.
+    /// </summary>
+    public static void ConfigureStandardHost(
+        this IRabbitMqBusFactoryConfigurator cfg,
+        IConfiguration configuration)
+    {
+        var rabbitConn = configuration.GetConnectionString("rabbitmq")
+            ?? throw new InvalidOperationException("ConnectionStrings:rabbitmq is missing.");
+        cfg.Host(new Uri(rabbitConn), h =>
+        {
+            h.Heartbeat(TimeSpan.FromSeconds(10));
+        });
+    }
+
     public static void ConfigureStandardRabbitMq(
         this IRabbitMqBusFactoryConfigurator cfg,
         IBusRegistrationContext context)
