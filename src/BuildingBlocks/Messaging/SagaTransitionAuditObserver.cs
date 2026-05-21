@@ -44,7 +44,8 @@ public sealed class SagaTransitionAuditObserver<TSaga> : IStateObserver<TSaga>
         try
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
-            foreach (var dbContext in ResolveAuditDbContexts(scope.ServiceProvider))
+            var dbContext = ResolveAuditDbContext(scope.ServiceProvider);
+            if (dbContext is not null)
             {
                 dbContext.Set<SagaTransitionAuditEntry>().Add(new SagaTransitionAuditEntry
                 {
@@ -55,7 +56,6 @@ public sealed class SagaTransitionAuditObserver<TSaga> : IStateObserver<TSaga>
                     InitiatedBy = initiatedBy,
                 });
                 await dbContext.SaveChangesAsync(CancellationToken.None);
-                return;
             }
         }
         catch (Exception ex)
@@ -67,12 +67,7 @@ public sealed class SagaTransitionAuditObserver<TSaga> : IStateObserver<TSaga>
         }
     }
 
-    private static IEnumerable<DbContext> ResolveAuditDbContexts(IServiceProvider sp)
-    {
-        foreach (var service in sp.GetServices<DbContext>())
-        {
-            if (service.Model.FindEntityType(typeof(SagaTransitionAuditEntry)) is not null)
-                yield return service;
-        }
-    }
+    private static DbContext? ResolveAuditDbContext(IServiceProvider sp) =>
+        sp.GetServices<DbContext>()
+          .FirstOrDefault(ctx => ctx.Model.FindEntityType(typeof(SagaTransitionAuditEntry)) is not null);
 }
