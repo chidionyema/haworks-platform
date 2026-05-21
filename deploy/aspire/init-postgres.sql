@@ -21,6 +21,7 @@ SELECT 'CREATE DATABASE payouts'       WHERE NOT EXISTS (SELECT FROM pg_database
 SELECT 'CREATE DATABASE scheduler'     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'scheduler')\gexec
 SELECT 'CREATE DATABASE privacy'       WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'privacy')\gexec
 SELECT 'CREATE DATABASE merchant'      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'merchant')\gexec
+SELECT 'CREATE DATABASE posthog'       WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'posthog')\gexec
 
 -- 2. Per-DB owner roles (LOGIN — Vault rotates their passwords as Static Roles).
 

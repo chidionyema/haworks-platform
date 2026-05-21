@@ -70,8 +70,6 @@ jobs:
       privacy: ${{ steps.filter.outputs.privacy }}
       location: ${{ steps.filter.outputs.location }}
       realtime: ${{ steps.filter.outputs.realtime }}
-      featureflags: ${{ steps.filter.outputs.featureflags }}
-      analytics: ${{ steps.filter.outputs.analytics }}
       localization: ${{ steps.filter.outputs.localization }}
       rulesengine: ${{ steps.filter.outputs.rulesengine }}
     steps:
@@ -139,12 +137,6 @@ jobs:
             realtime:
               - 'src/Realtime/**'
               - 'fly.realtime.toml'
-            featureflags:
-              - 'src/FeatureFlags/**'
-              - 'fly.featureflags.toml'
-            analytics:
-              - 'src/Analytics/**'
-              - 'fly.analytics.toml'
             localization:
               - 'src/Localization/**'
               - 'fly.localization.toml'
@@ -197,8 +189,6 @@ jobs:
       C_PRIVACY: ${{ needs.changes.outputs.privacy }}
       C_LOCATION: ${{ needs.changes.outputs.location }}
       C_REALTIME: ${{ needs.changes.outputs.realtime }}
-      C_FEATUREFLAGS: ${{ needs.changes.outputs.featureflags }}
-      C_ANALYTICS: ${{ needs.changes.outputs.analytics }}
       C_LOCALIZATION: ${{ needs.changes.outputs.localization }}
       C_RULESENGINE: ${{ needs.changes.outputs.rulesengine }}
     steps:
@@ -226,8 +216,6 @@ jobs:
           add_if privacy       "$C_PRIVACY"       "$C_SHARED"
           add_if location      "$C_LOCATION"      "$C_SHARED"
           add_if realtime      "$C_REALTIME"      "$C_SHARED"
-          add_if featureflags  "$C_FEATUREFLAGS"  "$C_SHARED"
-          add_if analytics     "$C_ANALYTICS"     "$C_SHARED"
           add_if localization  "$C_LOCALIZATION"   "$C_SHARED"
           add_if rulesengine   "$C_RULESENGINE"   "$C_SHARED"
           if [[ "${{ vars.DEPLOY_MEDIA }}" == "true" ]]; then
