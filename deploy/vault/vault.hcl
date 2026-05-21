@@ -24,7 +24,7 @@ seal "transit" {
   key_name        = "autounseal"
   mount_path      = "transit/"
   tls_skip_verify = "true"
-  # Token is injected via VAULT_SEAL_TRANSIT_TOKEN env by entrypoint.sh
+  token           = "transit-autounseal-token"
 }
 
 api_addr      = "http://[::1]:8200"
