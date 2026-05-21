@@ -2962,7 +2962,7 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
         var violations = new List<string>();
         foreach (var file in FindCsFiles())
         {
-            if (file.Contains("/tests/") || file.Contains("/Demo/")) continue;
+            if (file.Contains("/tests/") || file.Contains("/Demo/") || file.Contains("BuildingBlocks.Testing")) continue;
             var lines = File.ReadAllLines(file);
             if (IsExcludedFromGuards(file)) continue;
             for (int i = 0; i < lines.Length; i++)

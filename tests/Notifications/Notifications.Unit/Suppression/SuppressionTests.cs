@@ -113,7 +113,7 @@ public class SuppressionTests
     {
         Haworks.Notifications.Domain.Entities.Suppression? captured = null;
         _repo.Setup(r => r.AddAsync(It.IsAny<Haworks.Notifications.Domain.Entities.Suppression>(), It.IsAny<CancellationToken>()))
-             .Callback<Haworks.Notifications.Domain.Entities.Suppression>(s => captured = s)
+             .Callback<Haworks.Notifications.Domain.Entities.Suppression, CancellationToken>((s, _) => captured = s)
              .Returns(Task.CompletedTask);
 
         var sut = BuildSut();
