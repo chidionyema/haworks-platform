@@ -46,7 +46,14 @@ curl -fsS -X POST -H "X-Vault-Token: $TRANSIT_TOKEN" \
 echo "[entrypoint] transit autounseal key ready"
 
 # ── Step 3: Start production vault ─────────────────────────────────
+# Token is hardcoded in vault.hcl (local dev-mode transit, not a real secret).
+# Also export as env var for belt-and-suspenders — some Vault versions read
+# the seal token from VAULT_SEAL_TRANSIT_TOKEN instead of the HCL `token`.
 export VAULT_SEAL_TRANSIT_TOKEN="$TRANSIT_TOKEN"
+
+# Prevent the Fly-secret VAULT_DEV_ROOT_TOKEN_ID from leaking a confusing
+# "cannot specify custom root token ID outside dev mode" warning on prod vault.
+unset VAULT_DEV_ROOT_TOKEN_ID 2>/dev/null || true
 
 echo "[entrypoint] starting production vault on :8200..."
 vault server -config=/vault/config/vault.hcl -log-level=warn &
