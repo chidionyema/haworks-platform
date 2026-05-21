@@ -7,13 +7,15 @@ namespace Haworks.Search.Application.Catalog;
 /// projection — only <c>GET /api/products/{id}</c> populates it. The
 /// indexer enriches per-product via the get-by-id endpoint accordingly.
 /// </summary>
-public sealed record CatalogProductDto(
-    Guid Id,
-    string Name,
-    string Description,
-    decimal UnitPrice,
-    int StockQuantity,
-    bool IsInStock,
-    bool IsListed,
-    Guid CategoryId,
-    string? CategoryName);
+public sealed record CatalogProductDto
+{
+    public Guid Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public decimal UnitPrice { get; init; }
+    public int StockQuantity { get; init; }
+    public bool IsInStock { get; init; }
+    public bool IsListed { get; init; }
+    public Guid CategoryId { get; init; }
+    public string? CategoryName { get; init; }
+}
