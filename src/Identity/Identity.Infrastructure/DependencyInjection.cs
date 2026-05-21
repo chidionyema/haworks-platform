@@ -240,8 +240,9 @@ public static class DependencyInjection
         services.AddMassTransit(mt =>
             {
                 mt.SetKebabCaseEndpointNameFormatter();
-                mt.AddConsumer<Haworks.Identity.Application.Consumers.PrivacyErasureRequestedConsumer>();
-                mt.AddConsumer<Haworks.Identity.Application.Consumers.JwtKeyRotatedConsumer>();
+                mt.AddConsumer<Haworks.BuildingBlocks.Messaging.GlobalFaultConsumer>();
+                mt.AddConsumer<Haworks.Identity.Application.Consumers.PrivacyErasureRequestedConsumer, Messaging.IdentityConsumerDefinition<Haworks.Identity.Application.Consumers.PrivacyErasureRequestedConsumer>>();
+                mt.AddConsumer<Haworks.Identity.Application.Consumers.JwtKeyRotatedConsumer, Messaging.IdentityConsumerDefinition<Haworks.Identity.Application.Consumers.JwtKeyRotatedConsumer>>();
 
                 mt.AddEntityFrameworkOutbox<AppIdentityDbContext>(o =>
                 {

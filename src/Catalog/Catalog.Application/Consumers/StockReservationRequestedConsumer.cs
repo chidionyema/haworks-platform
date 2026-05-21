@@ -70,18 +70,12 @@ public sealed class StockReservationRequestedConsumer(
             return;
         }
 
-        try
-        {
-            await ReserveStockCoreAsync(evt, context);
-        }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
-        {
-            // Defense-in-depth: concurrent duplicate slipped past the read check above.
-            // The reservation was already persisted by the winner — treat as idempotent success.
-            logger.LogInformation(
-                "Unique constraint on reservation for orderId={OrderId}; concurrent duplicate — idempotent success",
-                evt.OrderId);
-        }
+        // The pre-check above (GetStockReservationByOrderIdAsync) + unique DB index
+        // provides idempotency. If a race slips past the check, the unique violation
+        // propagates to MassTransit which retries — the retry hits the pre-check and skips.
+        // Do NOT catch DbUpdateException here — it poisons the EF DbContext and breaks
+        // the outbox (Architectural Law #3).
+        await ReserveStockCoreAsync(evt, context);
     }
 
     private async Task ReserveStockCoreAsync(StockReservationRequestedEvent evt, ConsumeContext<StockReservationRequestedEvent> context)

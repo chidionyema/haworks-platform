@@ -4,7 +4,8 @@ public sealed record RefundIssuedEvent : DomainEvent
 {
     public required Guid PaymentId { get; init; }
     public required Guid OrderId { get; init; }
-    public required string RefundId { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("refundId")]
+    public required string ProviderRefundId { get; init; }
     public required long AmountCents { get; init; }
     public required string Currency { get; init; }
     public required PaymentProvider Provider { get; init; }

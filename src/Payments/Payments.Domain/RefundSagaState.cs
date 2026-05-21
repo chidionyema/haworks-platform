@@ -23,5 +23,7 @@ public class RefundSagaState : SagaStateMachineInstance, ISagaVersion
     public RefundFailureCategory FailureCategory { get; set; }
     public string? RequestedBy { get; set; }  // UserId or service identity that initiated the refund
     public Guid? RefundTimeoutTokenId { get; set; }
+    public Guid? ReviewEscalationTokenId { get; set; }
+    public int RetryCount { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

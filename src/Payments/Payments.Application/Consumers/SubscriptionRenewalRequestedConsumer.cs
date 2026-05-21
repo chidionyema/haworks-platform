@@ -41,8 +41,8 @@ public sealed class SubscriptionRenewalRequestedConsumer(
 
             await context.Publish(new SubscriptionRenewedEvent
             {
-                SubscriptionId = msg.ProviderSubscriptionId,
-                UserId = string.Empty,   // not carried on the request message; populated via webhook path
+                ProviderSubscriptionId = msg.ProviderSubscriptionId,
+                UserId = string.Empty,
                 Provider = paymentGateway.ActiveProvider,
                 AmountCents = 0,         // not available without provider response; see H12 comment above
                 Currency = string.Empty, // not available without provider response; see H12 comment above

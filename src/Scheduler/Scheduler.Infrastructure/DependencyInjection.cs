@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddMassTransit(x =>
             {
                 x.SetKebabCaseEndpointNameFormatter();
+                x.AddConsumer<GlobalFaultConsumer>();
                 x.AddEntityFrameworkOutbox<SchedulerDbContext>(o =>
                 {
                     o.UsePostgres();
@@ -45,13 +46,7 @@ public static class DependencyInjection
 
                 x.UsingRabbitMq((context, cfg) =>
                 {
-                    var rabbitMqConfig = configuration.GetSection("RabbitMq");
-                    var host = rabbitMqConfig["Host"] ?? throw new InvalidOperationException("RabbitMq:Host is required");
-                    cfg.Host(host, "/", h =>
-                    {
-                        h.Username(rabbitMqConfig["Username"] ?? throw new InvalidOperationException("RabbitMq:Username is required"));
-                        h.Password(rabbitMqConfig["Password"] ?? throw new InvalidOperationException("RabbitMq:Password is required"));
-                    });
+                    cfg.ConfigureStandardHost(configuration);
                     cfg.ConfigureStandardRabbitMq(context);
                 });
             });

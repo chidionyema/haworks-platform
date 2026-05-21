@@ -76,7 +76,6 @@ namespace Haworks.Payments.Infrastructure.Migrations
                     ProviderSessionId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     ProviderCheckoutUrl = table.Column<string>(type: "text", nullable: true),
                     ProviderTransactionId = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
                     CreatedFromIp = table.Column<string>(type: "text", nullable: true),
                     ModifiedFromIp = table.Column<string>(type: "text", nullable: true),
                     RowVersion = table.Column<byte[]>(type: "bytea", nullable: false),
@@ -109,8 +108,9 @@ namespace Haworks.Payments.Infrastructure.Migrations
                     FailureDetail = table.Column<string>(type: "text", nullable: true),
                     FailureCategory = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     RefundTimeoutTokenId = table.Column<Guid>(type: "uuid", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
+                    ReviewEscalationTokenId = table.Column<Guid>(type: "uuid", nullable: true),
+                    RetryCount = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -188,8 +188,7 @@ namespace Haworks.Payments.Infrastructure.Migrations
                     RenewalTimeoutTokenId = table.Column<Guid>(type: "uuid", nullable: true),
                     DunningRetryTokenId = table.Column<Guid>(type: "uuid", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    LastModifiedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
+                    LastModifiedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {

@@ -16,6 +16,7 @@ public interface IS3Service
     string GeneratePresignedGetUrl(string key);
     Task<string> DownloadToFileAsync(string key, string destinationPath, CancellationToken ct);
     Task QuarantineAsync(string key, CancellationToken ct);
+    Task PromoteFromQuarantineAsync(string key, CancellationToken ct);
     Task<string> ComputeSha256Async(string key, CancellationToken ct);
     Task DeleteAsync(string key, CancellationToken ct);
 }
@@ -210,6 +211,22 @@ public class S3Service : IS3Service
         }, ct);
 
         await _s3.DeleteObjectAsync(_opts.BucketName, key, ct);
+    }
+
+    public async Task PromoteFromQuarantineAsync(string key, CancellationToken ct)
+    {
+        if (!_opts.Enabled) return;
+
+        var quarantineKey = $"quarantine/{key}";
+        await _s3.CopyObjectAsync(new CopyObjectRequest
+        {
+            SourceBucket = _opts.BucketName,
+            SourceKey = quarantineKey,
+            DestinationBucket = _opts.BucketName,
+            DestinationKey = key,
+        }, ct);
+
+        await _s3.DeleteObjectAsync(_opts.BucketName, quarantineKey, ct);
     }
 
     public async Task<string> ComputeSha256Async(string key, CancellationToken ct)

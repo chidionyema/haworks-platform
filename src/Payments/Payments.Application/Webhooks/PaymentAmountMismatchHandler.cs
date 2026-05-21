@@ -56,6 +56,7 @@ public sealed class PaymentAmountMismatchHandler : IPaymentAmountMismatchHandler
         {
             PaymentId = payment.Id,
             OrderId = payment.OrderId,
+            SagaId = payment.SagaId,
             Provider = provider.ToString(),
             ActualPaid = actualPaid,
             ExpectedTotal = expectedTotal,

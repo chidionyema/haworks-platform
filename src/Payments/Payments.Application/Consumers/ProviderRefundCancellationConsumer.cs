@@ -49,7 +49,7 @@ public sealed class ProviderRefundCancellationConsumer(
                 await context.Publish(new RefundCancelledEvent
                 {
                     RefundId = msg.RefundId,
-                    OrderId = msg.RefundId, // Correlation: RefundId is the saga CorrelationId; saga resolves OrderId from state
+                    OrderId = Guid.Empty, // Consumer lacks OrderId; saga publishes the authoritative RefundCancelledEvent with correct OrderId
                     Reason = "provider_confirmed_cancelled"
                 }, context.CancellationToken);
                 return;
@@ -58,6 +58,8 @@ public sealed class ProviderRefundCancellationConsumer(
             if (result.Status == RefundStatus.Succeeded)
             {
                 // Refund already settled — cancellation is no longer possible.
+                // This is a permanent failure: publish and ACK so MassTransit
+                // does not retry.
                 logger.LogWarning(
                     "Cannot cancel refund {ProviderRefundId}: already succeeded. RefundId={RefundId}",
                     msg.ProviderRefundId, msg.RefundId);
@@ -80,7 +82,7 @@ public sealed class ProviderRefundCancellationConsumer(
             await context.Publish(new RefundCancelledEvent
             {
                 RefundId = msg.RefundId,
-                OrderId = msg.RefundId, // Correlation: saga resolves OrderId from its state via RefundId
+                OrderId = Guid.Empty, // Consumer lacks OrderId; saga publishes the authoritative RefundCancelledEvent with correct OrderId
                 Reason = "operator_cancellation_requested"
             }, context.CancellationToken);
         }
@@ -91,9 +93,8 @@ public sealed class ProviderRefundCancellationConsumer(
                 msg.RefundId, msg.ProviderRefundId);
 
             // Publish failure event to let the RefundSaga compensate, then
-            // return normally (C3 pattern). Re-throwing after publishing would
-            // cause MassTransit to nack and retry, which would publish a second
-            // ProviderRefundFailedEvent — double-publishing a terminal failure.
+            // return normally. Re-throwing after publishing would cause MassTransit
+            // to nack and retry, double-publishing ProviderRefundFailedEvent.
             await context.Publish(new ProviderRefundFailedEvent
             {
                 RefundId = msg.RefundId,

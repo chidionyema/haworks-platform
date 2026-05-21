@@ -118,6 +118,7 @@ public static class DependencyInjection
         if (!env.IsEnvironment("Test"))
         {
             services.AddHostedService<Workers.PaymentExpiryWatcher>();
+            services.AddHostedService<Workers.StockReservationTimeoutWatcher>();
             services.AddHostedService<Workers.SagaHealthWatcher>();
         }
 

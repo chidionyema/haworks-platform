@@ -132,10 +132,6 @@ public sealed class NotificationRequestConsumer(
 
         notification.MarkQueued();
 
-        // Persist Queued status before external call so a re-read after rollback
-        // can detect the attempt. This is a best-effort guard — see limitation below.
-        await repository.SaveChangesAsync(ct);
-
         // Step 4: dispatch via the channel-appropriate gateway. The gateway
         // mutates the aggregate (RecordAttempt + MarkSent or MarkFailed).
         //
@@ -171,17 +167,9 @@ public sealed class NotificationRequestConsumer(
                 break;
         }
 
-        // Persist the terminal status written by the channel gateway (MarkSent /
-        // MarkFailed / RecordAttempt). In production the MassTransit EF Outbox
-        // wraps the consumer scope and commits on success, but the outbox is not
-        // registered under ASPNETCORE_ENVIRONMENT=Test (the outbox guard in
-        // DependencyInjection.cs is conditioned on !env.IsEnvironment("Test")).
-        // An explicit SaveChangesAsync here is correct in both paths: the outbox
-        // only starts its own transaction if no ambient transaction exists, so
-        // calling SaveChanges before the outbox commit is safe — the outbox
-        // commits the same DbContext in the same scope, picking up any unflushed
-        // changes that remain.
-        await repository.SaveChangesAsync(ct);
+        // MassTransit EF Outbox commits SaveChangesAsync automatically on
+        // consumer success. Do NOT call SaveChangesAsync manually — it breaks
+        // the outbox atomicity guarantee (Architectural Law #1).
 
         logger.LogInformation(
             "Notification {NotificationId} dispatch complete: status={Status}, providerMessageId={ProviderMessageId}",

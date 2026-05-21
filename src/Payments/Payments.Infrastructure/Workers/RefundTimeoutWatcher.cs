@@ -78,7 +78,7 @@ public sealed class RefundTimeoutWatcher : BackgroundService
 
         var stuck = await db.RefundSagas
             .Where(s =>
-                s.CurrentState == "AwaitingProviderConfirmation" &&
+                (s.CurrentState == "AwaitingProviderConfirmation" || s.CurrentState == "Requested") &&
                 s.CreatedAt < deadline)
             .OrderBy(s => s.CreatedAt)
             .Take(MaxPublishesPerTick)

@@ -50,22 +50,16 @@ public class RefundIssuedConsumer : IConsumer<RefundIssuedEvent>
             return;
         }
 
-        try
-        {
-            // DebitSellerAsync internally prefixes refId with "REFUND:" so the reference key
-            // is distinct from the original credit entry's reference.
-            // The unique index on (ReferenceId, AccountId) prevents double-debits at DB level.
-            await _ledgerService.DebitSellerAsync(
-                sellerEntry.OwnerId,
-                refundAmount,
-                evt.Currency,
-                evt.PaymentId,
-                $"Refund for Order {evt.OrderId}",
-                context.CancellationToken);
-        }
-        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
-        {
-            _logger.LogWarning("Duplicate refund for Payment {PaymentId} — idempotent skip", evt.PaymentId);
-        }
+        // DebitSellerAsync internally prefixes refId with "REFUND:" so the reference key
+        // is distinct from the original credit entry's reference.
+        // The unique index on (ReferenceId, AccountId) prevents double-debits at DB level.
+        // Do NOT catch DbUpdateException — it poisons DbContext (Law #3).
+        await _ledgerService.DebitSellerAsync(
+            sellerEntry.OwnerId,
+            refundAmount,
+            evt.Currency,
+            evt.PaymentId,
+            $"Refund for Order {evt.OrderId}",
+            context.CancellationToken);
     }
 }

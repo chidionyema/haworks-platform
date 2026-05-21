@@ -27,12 +27,19 @@ builder.Services.AddStartupTaskRunner();
 builder.Services.AddMassTransitDiagnostics();
 builder.Services.AddMassTransit(x =>
 {
+    x.SetKebabCaseEndpointNameFormatter();
     x.AddConsumer<Haworks.BuildingBlocks.Messaging.GlobalFaultConsumer>();
-    x.AddConsumer<EventFanOutConsumer>();
+    x.AddConsumer<EventFanOutConsumer, Haworks.Webhooks.Infrastructure.Messaging.WebhooksConsumerDefinition<EventFanOutConsumer>>();
+
+    x.AddEntityFrameworkOutbox<Haworks.Webhooks.Infrastructure.Persistence.WebhooksDbContext>(o =>
+    {
+        o.UsePostgres();
+        o.UseBusOutbox();
+    });
 
     x.UsingRabbitMq((context, cfg) =>
     {
-        cfg.Host(builder.Configuration.GetConnectionString("rabbitmq"));
+        cfg.ConfigureStandardHost(builder.Configuration);
         cfg.ConfigureStandardRabbitMq(context);
     });
 });

@@ -137,6 +137,21 @@ public class Payment : AuditableEntity
         LastModifiedDate = DateTime.UtcNow;
     }
 
+    /// <summary>Reverses a previously recorded refund amount (compensation for cancelled refunds).
+    /// Restores TotalRefunded and re-transitions from Refunded → Completed if needed.</summary>
+    public void ReverseRefund(decimal amount)
+    {
+        if (amount <= 0)
+            throw new ArgumentException("Reverse refund amount must be positive", nameof(amount));
+        if (amount > TotalRefunded)
+            throw new InvalidOperationException($"Cannot reverse {amount} — only {TotalRefunded} has been refunded");
+
+        TotalRefunded -= amount;
+        if (Status == PaymentStatus.Refunded && TotalRefunded < Amount)
+            Status = PaymentStatus.Completed;
+        LastModifiedDate = DateTime.UtcNow;
+    }
+
     /// <summary>Marks the payment as fully refunded (legacy — prefer RecordRefund for partial support).</summary>
     public void MarkRefunded()
     {

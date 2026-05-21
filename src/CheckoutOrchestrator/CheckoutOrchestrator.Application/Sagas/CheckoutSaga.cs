@@ -53,6 +53,20 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
         var options = checkoutOptions.Value;
         InstanceState(s => s.CurrentState);
 
+        // StockReservationTimeout: if the catalog service never responds with
+        // StockReservedEvent (or StockReservationFailedEvent) within 5 minutes
+        // the saga is stuck in Initiated with stock never reserved. The timeout
+        // fires StockReservationTimedOutEvent and the saga transitions to
+        // Abandoned. No compensation is needed — stock was never reserved.
+        Schedule(
+            () => StockReservationTimeoutSchedule,
+            instance => instance.StockReservationTimeoutTokenId,
+            s =>
+            {
+                s.Delay = TimeSpan.FromMinutes(5);
+                s.Received = r => r.CorrelateById(ctx => ctx.Message.SagaId);
+            });
+
         // PaymentExpiry timeout: stock is reserved on StockReserved transition,
         // payment session lives in StockReserved + ReadyForPayment. If the
         // customer never completes payment within the deadline, the timeout
@@ -76,10 +90,12 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
         Event(() => PaymentCompleted, e => e.SelectId(ctx => ctx.Message.SagaId));
         Event(() => PaymentAmountMismatch, e =>
         {
-            // PaymentAmountMismatchEvent doesn't carry a SagaId — correlate
-            // by OrderId (one saga per order). If no saga matches, discard
-            // rather than create a new saga.
-            e.CorrelateBy((state, ctx) => state.OrderId == ctx.Message.OrderId);
+            // Use SagaId for direct correlation when available; fall back to
+            // OrderId (index-covered) if SagaId is empty (legacy publishers).
+            e.CorrelateBy((state, ctx) =>
+                ctx.Message.SagaId != Guid.Empty
+                    ? state.CorrelationId == ctx.Message.SagaId
+                    : state.OrderId == ctx.Message.OrderId);
             e.OnMissingInstance(m => m.Discard());
         });
         Event(() => ManualResolution, e =>
@@ -95,9 +111,6 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     var msg = ctx.Message;
                     var sagaState = ctx.Saga;
 
-                    // Guard: negative or zero TotalAmount is a data-integrity violation.
-                    // Transition to Abandoned immediately to avoid reserving stock
-                    // for an order that can never be fulfilled.
                     if (msg.TotalAmount <= 0)
                     {
                         sagaState.OrderId = msg.OrderId;
@@ -139,15 +152,30 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                             Items = ctx.Message.Items,
                             IdempotencyKey = ctx.Message.IdempotencyKey,
                         }))
+                        .Schedule(
+                            StockReservationTimeoutSchedule,
+                            ctx => ctx.Init<StockReservationTimedOutEvent>(new StockReservationTimedOutEvent
+                            {
+                                SagaId = ctx.Saga.CorrelationId,
+                                OrderId = ctx.Saga.OrderId,
+                            }))
                         .TransitionTo(Initiated)));
 
         During(Initiated,
+            When(StockReservationTimeoutSchedule!.Received)
+                .Then(ctx =>
+                {
+                    ctx.Saga.FailureReason = "stock_reservation_timeout";
+                    EmitCompensateSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "stock_reservation_timeout");
+                })
+                .TransitionTo(Abandoned),
             When(StockReserved)
                 .Then(ctx =>
                 {
                     ctx.Saga.ReservedItemsJson = JsonSerializer.Serialize(ctx.Message.Items);
                     EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Initiated", "StockReserved");
                 })
+                .Unschedule(StockReservationTimeoutSchedule)
                 .PublishAsync(ctx => ctx.Init<PaymentSessionRequestedEvent>(new PaymentSessionRequestedEvent
                 {
                     OrderId = ctx.Saga.OrderId,
@@ -184,6 +212,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     ctx.Saga.FailureReason = $"StockReservationFailed: {ctx.Message.Reason}";
                     EmitCompensateSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "stock_reservation_failed");
                 })
+                .Unschedule(StockReservationTimeoutSchedule)
                 .TransitionTo(Abandoned));
 
         During(StockReservedState,
@@ -223,6 +252,13 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     SagaId = ctx.Saga.CorrelationId,
                     Items = DeserializeItems(ctx.Saga.ReservedItemsJson),
                     Reason = "payment_expired",
+                }))
+                .PublishAsync(ctx => ctx.Init<CheckoutSessionExpiredEvent>(new CheckoutSessionExpiredEvent
+                {
+                    SessionId = ctx.Saga.PaymentSessionId ?? string.Empty,
+                    PaymentId = ctx.Saga.PaymentId ?? Guid.Empty,
+                    OrderId = ctx.Saga.OrderId,
+                    Provider = "unknown",
                 }))
                 .TransitionTo(Abandoned));
 
@@ -267,18 +303,21 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     Items = DeserializeItems(ctx.Saga.ReservedItemsJson),
                     Reason = "payment_expired",
                 }))
+                .PublishAsync(ctx => ctx.Init<CheckoutSessionExpiredEvent>(new CheckoutSessionExpiredEvent
+                {
+                    SessionId = ctx.Saga.PaymentSessionId ?? string.Empty,
+                    PaymentId = ctx.Saga.PaymentId ?? Guid.Empty,
+                    OrderId = ctx.Saga.OrderId,
+                    Provider = "stripe",
+                }))
                 .TransitionTo(Abandoned),
             When(PaymentAmountMismatch)
                 .Then(ctx => ctx.Saga.FailureReason =
                     $"PaymentAmountMismatch: expected={ctx.Message.ExpectedTotal}, actual={ctx.Message.ActualPaid}")
                 .Unschedule(PaymentExpirySchedule)
-                .PublishAsync(ctx => ctx.Init<StockReleaseRequestedEvent>(new StockReleaseRequestedEvent
-                {
-                    OrderId = ctx.Saga.OrderId,
-                    SagaId = ctx.Saga.CorrelationId,
-                    Items = DeserializeItems(ctx.Saga.ReservedItemsJson),
-                    Reason = "payment_amount_mismatch",
-                }))
+                // Do NOT release stock here — customer has paid. Stock remains
+                // reserved in RequiresReview so ops can either complete the order
+                // (adjust amount) or explicitly release stock after refunding.
                 .TransitionTo(RequiresReview));
 
         // Operator escape-hatch: RequiresReview is a holding state for
@@ -307,14 +346,32 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                         }))
                         .TransitionTo(Abandoned)));
 
-        // Idempotency: late-arriving duplicate events on a finalized saga
-        // (Completed / Abandoned / RequiresReview) silently no-op rather
-        // than throwing. MT's inbox dedupes most replays; this catches
-        // the rare case where the same event arrives via two paths.
+        // Idempotency: late-arriving events on non-primary states silently
+        // no-op rather than throwing UnhandledEventException. Each event
+        // guards against every state where it is NOT explicitly handled.
+        //
+        // Primary handlers:
+        //   StockReserved             → During(Initiated)
+        //   StockReservationFailed    → During(Initiated)
+        //   PaymentSessionCreated     → During(StockReservedState)
+        //   PaymentSessionFailed      → During(StockReservedState, ReadyForPayment)
+        //   PaymentCompleted          → During(ReadyForPayment)
+        //   PaymentAmountMismatch     → During(ReadyForPayment)
+        //   ManualResolution          → During(RequiresReview)
         DuringAny(
-            When(StockReserved).If(ctx => !string.Equals(ctx.Saga.CurrentState, Initiated.Name, StringComparison.Ordinal), ctx => ctx),
-            When(PaymentCompleted).If(ctx => !string.Equals(ctx.Saga.CurrentState, ReadyForPayment.Name, StringComparison.Ordinal), ctx => ctx),
-            When(PaymentSessionFailed).If(ctx => string.Equals(ctx.Saga.CurrentState, Abandoned.Name, StringComparison.Ordinal), ctx => ctx));
+            When(StockReserved)
+                .If(ctx => !string.Equals(ctx.Saga.CurrentState, Initiated.Name, StringComparison.Ordinal), ctx => ctx),
+            When(StockReservationFailed)
+                .If(ctx => !string.Equals(ctx.Saga.CurrentState, Initiated.Name, StringComparison.Ordinal), ctx => ctx),
+            When(PaymentSessionCreated)
+                .If(ctx => !string.Equals(ctx.Saga.CurrentState, StockReservedState.Name, StringComparison.Ordinal), ctx => ctx),
+            When(PaymentSessionFailed)
+                .If(ctx => !string.Equals(ctx.Saga.CurrentState, StockReservedState.Name, StringComparison.Ordinal)
+                        && !string.Equals(ctx.Saga.CurrentState, ReadyForPayment.Name, StringComparison.Ordinal), ctx => ctx),
+            When(PaymentCompleted)
+                .If(ctx => !string.Equals(ctx.Saga.CurrentState, ReadyForPayment.Name, StringComparison.Ordinal), ctx => ctx),
+            When(PaymentAmountMismatch)
+                .If(ctx => !string.Equals(ctx.Saga.CurrentState, ReadyForPayment.Name, StringComparison.Ordinal), ctx => ctx));
 
         SetCompletedWhenFinalized();
     }
@@ -339,11 +396,16 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
     public Event<PaymentAmountMismatchEvent> PaymentAmountMismatch { get; private set; } = null!;
     public Event<ManualResolutionEvent> ManualResolution { get; private set; } = null!;
 
-    // Scheduled tick. Schedule.Received is the Event the saga reacts to
-    // when the timer fires; the schedule is started via .Schedule(...) on
-    // the StockReserved transition and cancelled via .Unschedule(...) on
-    // any terminal transition (PaymentCompleted, PaymentSessionFailed,
-    // PaymentAmountMismatch).
+    // Scheduled ticks. Schedule.Received is the Event the saga reacts to
+    // when the timer fires.
+
+    // StockReservationTimeoutSchedule: started on Initially→Initiated transition,
+    // cancelled when StockReservedEvent or StockReservationFailedEvent arrives.
+    public Schedule<CheckoutSagaState, StockReservationTimedOutEvent> StockReservationTimeoutSchedule { get; private set; } = null!;
+
+    // PaymentExpirySchedule: started on StockReserved→StockReservedState transition,
+    // cancelled via .Unschedule(...) on any terminal transition (PaymentCompleted,
+    // PaymentSessionFailed, PaymentAmountMismatch).
     public Schedule<CheckoutSagaState, PaymentExpiredEvent> PaymentExpirySchedule { get; private set; } = null!;
 
     /// <summary>
