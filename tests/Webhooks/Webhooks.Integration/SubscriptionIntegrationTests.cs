@@ -31,11 +31,7 @@ public class SubscriptionIntegrationTests(WebhooksWebAppFactory factory) : IClas
         var response = await _client.PostAsJsonAsync("/api/webhooks/subscriptions", request);
 
         // Assert
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorBody = await response.Content.ReadAsStringAsync();
-            throw new HttpRequestException($"Status: {response.StatusCode}, Body: {errorBody}");
-        }
+        response.EnsureSuccessStatusCode();
         var subscriptionId = await response.Content.ReadFromJsonAsync<Guid>();
         subscriptionId.Should().NotBeEmpty();
 
