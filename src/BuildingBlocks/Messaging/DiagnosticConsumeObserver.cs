@@ -11,10 +11,26 @@ namespace Haworks.BuildingBlocks.Messaging;
 public sealed class DiagnosticConsumeObserver(ILogger<DiagnosticConsumeObserver> logger) : IConsumeObserver
 {
     public Task PreConsume<T>(ConsumeContext<T> context) where T : class
-        => Task.CompletedTask;
+    {
+        logger.LogWarning(
+            "PRE_CONSUME: {MessageType} on {Endpoint}, MessageId={MessageId}, CorrelationId={CorrelationId}",
+            typeof(T).Name,
+            context.ReceiveContext.InputAddress,
+            context.MessageId,
+            context.CorrelationId);
+        return Task.CompletedTask;
+    }
 
     public Task PostConsume<T>(ConsumeContext<T> context) where T : class
-        => Task.CompletedTask;
+    {
+        logger.LogWarning(
+            "POST_CONSUME: {MessageType} on {Endpoint}, MessageId={MessageId}, CorrelationId={CorrelationId}",
+            typeof(T).Name,
+            context.ReceiveContext.InputAddress,
+            context.MessageId,
+            context.CorrelationId);
+        return Task.CompletedTask;
+    }
 
     public Task ConsumeFault<T>(ConsumeContext<T> context, Exception exception) where T : class
     {
@@ -90,9 +106,31 @@ public sealed class DiagnosticReceiveObserver(ILogger<DiagnosticReceiveObserver>
     public Task PreReceive(ReceiveContext context) => Task.CompletedTask;
     public Task PostReceive(ReceiveContext context) => Task.CompletedTask;
     public Task PostConsume<T>(ConsumeContext<T> context, TimeSpan duration, string consumerType)
-        where T : class => Task.CompletedTask;
+        where T : class
+    {
+        logger.LogWarning(
+            "RECV_POST_CONSUME: {MessageType} by {ConsumerType}, Duration={Duration}ms, Endpoint={Endpoint}, CorrelationId={CorrelationId}",
+            typeof(T).Name,
+            consumerType,
+            duration.TotalMilliseconds,
+            context.ReceiveContext.InputAddress,
+            context.CorrelationId);
+        return Task.CompletedTask;
+    }
+
     public Task ConsumeFault<T>(ConsumeContext<T> context, TimeSpan duration, string consumerType, Exception exception)
-        where T : class => Task.CompletedTask;
+        where T : class
+    {
+        logger.LogError(
+            exception,
+            "RECV_CONSUME_FAULT: {MessageType} by {ConsumerType}, Duration={Duration}ms, Endpoint={Endpoint}, CorrelationId={CorrelationId}",
+            typeof(T).Name,
+            consumerType,
+            duration.TotalMilliseconds,
+            context.ReceiveContext.InputAddress,
+            context.CorrelationId);
+        return Task.CompletedTask;
+    }
 
     public Task ReceiveFault(ReceiveContext context, Exception exception)
     {
