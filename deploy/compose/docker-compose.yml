@@ -305,6 +305,23 @@ services:
     ports:
       - "8081:8081"
 
+  posthog:
+    image: posthog/posthog:latest
+    container_name: rw-posthog
+    ports:
+      - "8100:8000"
+    environment:
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/posthog"
+      REDIS_URL: "redis://redis:6379"
+      SECRET_KEY: "change-me-in-production"
+      SITE_URL: "http://localhost:8100"
+      DISABLE_SECURE_SSL_REDIRECT: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: rw-pgadmin

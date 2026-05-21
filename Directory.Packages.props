@@ -148,6 +148,10 @@
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
   </ItemGroup>
 
+  <ItemGroup Label="Analytics">
+    <PackageVersion Include="PostHog" Version="2.7.1" />
+  </ItemGroup>
+
   <ItemGroup Label="Analyzers">
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.4.0.108396" />
     <PackageVersion Include="AsyncFixer" Version="1.6.0" />
