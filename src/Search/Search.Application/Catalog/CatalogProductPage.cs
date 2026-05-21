@@ -4,8 +4,10 @@ namespace Haworks.Search.Application.Catalog;
 /// Catalog's offset-paginated list response. Mirrors
 /// <c>Haworks.BuildingBlocks.Common.PagedResult&lt;ProductDto&gt;</c>.
 /// </summary>
-public sealed record CatalogProductPage(
-    IReadOnlyList<CatalogProductDto> Items,
-    int Total,
-    int Skip,
-    int Take);
+public sealed record CatalogProductPage
+{
+    public IReadOnlyList<CatalogProductDto> Items { get; init; } = [];
+    public int Total { get; init; }
+    public int Skip { get; init; }
+    public int Take { get; init; }
+}

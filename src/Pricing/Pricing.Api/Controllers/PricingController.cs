@@ -47,10 +47,10 @@ public sealed class PricingController : ControllerBase
         CancellationToken ct = default)
     {
         if (productId == Guid.Empty)
-            return BadRequest("productId is required.");
+            return Result.Failure<PriceBreakdownResult>(Error.Validation("Pricing.ProductIdRequired", "productId is required.")).ToActionResult();
 
         if (quantity < 1 || quantity > 9999)
-            return BadRequest("Quantity must be between 1 and 9999.");
+            return Result.Failure<PriceBreakdownResult>(Error.Validation("Pricing.InvalidQuantity", "Quantity must be between 1 and 9999.")).ToActionResult();
 
         var result = await _mediator.Send(new CalculateEffectivePriceQuery
         {
@@ -75,7 +75,7 @@ public sealed class PricingController : ControllerBase
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Code) || request.ProductId == Guid.Empty)
-            return BadRequest("code and productId are required.");
+            return Result.Failure<ValidatePromotionCodeResult>(Error.Validation("Pricing.InvalidPromoRequest", "code and productId are required.")).ToActionResult();
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // from JWT
         var result = await _mediator.Send(new ValidatePromotionCodeQuery
@@ -101,7 +101,7 @@ public sealed class PricingController : ControllerBase
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Code) || request.OrderId == Guid.Empty)
-            return BadRequest("code and orderId are required.");
+            return Result.Failure(Error.Validation("Pricing.InvalidRedeemRequest", "code and orderId are required.")).ToActionResult();
 
         var redeemUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)!; // from JWT
         var result = await _mediator.Send(new RedeemPromotionCodeCommand
@@ -130,7 +130,7 @@ public sealed class PricingController : ControllerBase
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(countryCode))
-            return BadRequest("countryCode is required.");
+            return Result.Failure<TaxRateResponse>(Error.Validation("Pricing.CountryCodeRequired", "countryCode is required.")).ToActionResult();
 
         var result = await taxCalculator.CalculateAsync(
             countryCode, 

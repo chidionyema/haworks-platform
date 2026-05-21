@@ -11,12 +11,6 @@ internal static class WebhookHeaders
     /// <summary>PayPal transmission signature header.</summary>
     public const string PayPal = "PayPal-Transmission-Sig";
 
-    /// <summary>Square webhook signature header.</summary>
-    public const string Square = "X-Square-Signature";
-
-    /// <summary>Braintree webhook signature header.</summary>
-    public const string Braintree = "Bt-Signature";
-
     /// <summary>PayPal transmission ID header.</summary>
     public const string PayPalTransmissionId = "PayPal-Transmission-Id";
 
