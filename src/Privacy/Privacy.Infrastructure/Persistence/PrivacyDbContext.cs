@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Privacy.Application.Common.Interfaces;
 using Haworks.Privacy.Domain.Aggregates;
 using Haworks.Privacy.Application.Requests.Sagas;
@@ -12,6 +13,7 @@ public class PrivacyDbContext : DbContext, IPrivacyDbContext
 
     public DbSet<PrivacyRequest> PrivacyRequests => Set<PrivacyRequest>();
     public DbSet<PrivacyRequestStep> PrivacyRequestSteps => Set<PrivacyRequestStep>();
+    public DbSet<SagaTransitionAuditEntry> SagaTransitionAudit => Set<SagaTransitionAuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -43,6 +45,14 @@ public class PrivacyDbContext : DbContext, IPrivacyDbContext
             entity.Property(e => e.CurrentState).HasMaxLength(64);
             entity.Property(e => e.UserId).IsRequired();
             entity.Property(e => e.Version).IsConcurrencyToken();
+        });
+
+        builder.Entity<SagaTransitionAuditEntry>(e =>
+        {
+            e.ToTable("SagaTransitionAudit");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).UseIdentityAlwaysColumn();
+            e.HasIndex(x => new { x.SagaType, x.CorrelationId });
         });
     }
 }

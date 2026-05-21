@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using MassTransit;
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Application.Telemetry;
 using Haworks.Contracts;
@@ -13,8 +14,9 @@ public sealed record SubscriptionDunningScheduled(Guid SubscriptionId);
 
 public sealed class SubscriptionSaga : MassTransitStateMachine<SubscriptionSagaState>
 {
-    public SubscriptionSaga(ILogger<SubscriptionSaga> logger)
+    public SubscriptionSaga(ILogger<SubscriptionSaga> logger, SagaTransitionAuditObserver<SubscriptionSagaState>? auditObserver = null)
     {
+        if (auditObserver != null) ConnectStateObserver(auditObserver);
         InstanceState(s => s.CurrentState);
 
         Schedule(() => RenewalTimeoutSchedule, instance => instance.RenewalTimeoutTokenId, s =>

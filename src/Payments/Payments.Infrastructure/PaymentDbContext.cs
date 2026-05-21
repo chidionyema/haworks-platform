@@ -2,6 +2,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.BuildingBlocks.CurrentUser;
@@ -34,6 +35,7 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
     public DbSet<WebhookEvent> WebhookEvents => Set<WebhookEvent>();
     public DbSet<RefundSagaState> RefundSagas => Set<RefundSagaState>();
     public DbSet<SubscriptionSagaState> SubscriptionSagas => Set<SubscriptionSagaState>();
+    public DbSet<SagaTransitionAuditEntry> SagaTransitionAudit => Set<SagaTransitionAuditEntry>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -149,6 +151,14 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
 
             // Concurrency protection (XC-01/RS-02/SS-05)
             entity.Property(s => s.Version).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<SagaTransitionAuditEntry>(e =>
+        {
+            e.ToTable("SagaTransitionAudit");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).UseIdentityAlwaysColumn();
+            e.HasIndex(x => new { x.SagaType, x.CorrelationId });
         });
 
         modelBuilder.AddInboxStateEntity();

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MassTransit;
 using Microsoft.Extensions.Options;
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.CheckoutOrchestrator.Application.Options;
 using Haworks.CheckoutOrchestrator.Application.Telemetry;
 using Haworks.Contracts.Catalog;
@@ -40,8 +41,9 @@ namespace Haworks.CheckoutOrchestrator.Application.Sagas;
 /// </summary>
 public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
 {
-    public CheckoutSaga(IOptions<CheckoutOptions> checkoutOptions)
+    public CheckoutSaga(IOptions<CheckoutOptions> checkoutOptions, SagaTransitionAuditObserver<CheckoutSagaState>? auditObserver = null)
     {
+        if (auditObserver != null) ConnectStateObserver(auditObserver);
         var options = checkoutOptions.Value;
         InstanceState(s => s.CurrentState);
 
@@ -81,8 +83,6 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 {
                     var msg = ctx.Message;
                     var sagaState = ctx.Saga;
-                    Serilog.Log.Warning("SAGA_INITIALLY: SagaId={SagaId}, OrderId={OrderId}", ctx.Saga.CorrelationId, msg.OrderId);
-                    Console.WriteLine($"SAGA_DEBUG: Initially fired — SagaId={ctx.Saga.CorrelationId}, OrderId={msg.OrderId}, Currency={msg.Currency}");
                     sagaState.OrderId = msg.OrderId;
                     sagaState.UserId = msg.UserId;
                     sagaState.CustomerEmail = msg.CustomerEmail;
@@ -91,6 +91,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     sagaState.IdempotencyKey = msg.IdempotencyKey;
                     sagaState.LineItemsJson = JsonSerializer.Serialize(msg.Items);
                     sagaState.CreatedAt = DateTime.UtcNow;
+                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Initial", "Initiated");
                 })
                 .PublishAsync(ctx => ctx.Init<StockReservationRequestedEvent>(new StockReservationRequestedEvent
                 {
@@ -110,6 +111,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 .Then(ctx =>
                 {
                     ctx.Saga.ReservedItemsJson = JsonSerializer.Serialize(ctx.Message.Items);
+                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Initiated", "StockReserved");
                 })
                 .PublishAsync(ctx => ctx.Init<PaymentSessionRequestedEvent>(new PaymentSessionRequestedEvent
                 {
@@ -156,6 +158,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     ctx.Saga.PaymentId = ctx.Message.PaymentId;
                     ctx.Saga.PaymentSessionId = ctx.Message.SessionId;
                     ctx.Saga.PaymentCheckoutUrl = ctx.Message.CheckoutUrl;
+                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "StockReserved", "ReadyForPayment");
                 })
                 .TransitionTo(ReadyForPayment),
             When(PaymentSessionFailed)
@@ -194,6 +197,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 {
                     // PaymentId already set in StockReserved transition;
                     // the PaymentCompletedEvent carries the same id.
+                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "ReadyForPayment", "Completed");
                 })
                 // Customer paid in time — cancel the expiry clock so no
                 // orphaned StockReleaseRequested fires later.
@@ -293,6 +297,20 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
         activity?.SetTag("saga.id", sagaId);
         activity?.SetTag("order.id", orderId);
         activity?.SetTag("compensate.reason", reason);
+    }
+
+    /// <summary>
+    /// Emits a discrete <c>checkout.saga.transition</c> span for each
+    /// happy-path state advancement. Tags carry the from/to state names
+    /// and correlation ids so Tempo can reconstruct the full saga lifecycle.
+    /// </summary>
+    private static void EmitTransitionSpan(Guid sagaId, Guid orderId, string fromState, string toState)
+    {
+        using var activity = CheckoutActivities.Source.StartActivity("checkout.saga.transition");
+        activity?.SetTag("saga.id", sagaId);
+        activity?.SetTag("order.id", orderId);
+        activity?.SetTag("from_state", fromState);
+        activity?.SetTag("to_state", toState);
     }
 
     private static IReadOnlyList<StockReservationItem> DeserializeItems(string? json)

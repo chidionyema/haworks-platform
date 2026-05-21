@@ -251,58 +251,8 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
         release!.Context.Message.Reason.Should().Be("payment_amount_mismatch");
     }
 
-    [Fact(Skip = "InMemory test harness does not re-subscribe consumers after Stop/Start. Requires real RabbitMQ transport — covered by SagaRealTransportTests.")]
-    public async Task Saga_state_persists_across_harness_restarts()
-    {
-        // Drive the saga halfway through the happy path.
-        var (sagaId, orderId) = await PublishCheckoutInitiatedAsync();
-        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Initiated", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
-
-        await PublishAsync(new StockReservedEvent
-        {
-            OrderId = orderId, SagaId = sagaId, UserId = "user-1",
-            TotalAmount = 25.50m, Currency = "USD", CustomerEmail = "buyer@example.com",
-            Items = new[] { new StockReservationItem
-            {
-                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, RemainingStock = 9,
-            }},
-            OrderLineItems = new[] { new CheckoutItemData
-            {
-                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
-            }},
-        });
-        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
-
-        // Stop the harness — simulates the orchestrator pod going away.
-        var harness = _factory.Services.GetRequiredService<ITestHarness>();
-        await harness.Stop();
-
-        // Saga state must still be in the DB (EF saga repository persistence).
-        var persisted = await ReadSagaAsync(sagaId);
-        persisted.Should().NotBeNull("EF saga repository must persist state across orchestrator restarts");
-        persisted!.CurrentState.Should().Be("StockReservedState");
-        persisted.OrderId.Should().Be(orderId);
-
-        // Restart and verify the saga can pick up where it left off.
-        await harness.Start();
-        // Wait for bus + saga endpoints to fully re-subscribe after restart.
-        // The EF saga repository re-loads state from DB on the next correlated
-        // message, so the saga instance must be "found" by SagaId correlation.
-        await Task.Delay(5000);
-        var paymentId = Guid.NewGuid();
-        await PublishAsync(new PaymentSessionCreatedEvent
-        {
-            OrderId = orderId, SagaId = sagaId, PaymentId = paymentId,
-            UserId = "user-1",
-            SessionId = "sess_resume", CheckoutUrl = "https://stripe.test/sess_resume",
-            Provider = "Stripe", Amount = 25.50m, Currency = "USD",
-        });
-        await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "ReadyForPayment", StringComparison.Ordinal), TimeSpan.FromSeconds(30));
-
-        var resumed = await ReadSagaAsync(sagaId);
-        resumed!.CurrentState.Should().Be("ReadyForPayment");
-        resumed.PaymentId.Should().Be(paymentId);
-    }
+    // Saga restart persistence is covered by SagaRealTransportTests (real RabbitMQ).
+    // InMemory harness doesn't re-subscribe consumers after Stop/Start.
 
     private async Task<(Guid sagaId, Guid orderId)> PublishCheckoutInitiatedAsync(string userId = "user-1")
     {

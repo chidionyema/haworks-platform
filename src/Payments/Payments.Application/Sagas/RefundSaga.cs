@@ -1,4 +1,5 @@
 using MassTransit;
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Application.Telemetry;
 using Haworks.Contracts.Payments;
@@ -7,8 +8,9 @@ namespace Haworks.Payments.Application.Sagas;
 
 public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
 {
-    public RefundSaga()
+    public RefundSaga(SagaTransitionAuditObserver<RefundSagaState>? auditObserver = null)
     {
+        if (auditObserver != null) ConnectStateObserver(auditObserver);
         InstanceState(s => s.CurrentState);
 
         Schedule(
@@ -40,6 +42,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     saga.Reason = msg.Reason ?? "";
                     saga.Provider = msg.Provider ?? "Stripe";
                     saga.CreatedAt = DateTime.UtcNow;
+                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Initial", "Requested");
                 })
                 .PublishAsync(ctx => ctx.Init<ProviderRefundInitiationRequestedEvent>(new ProviderRefundInitiationRequestedEvent
                 {
@@ -60,6 +63,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                 .Then(ctx =>
                 {
                     ctx.Saga.ProviderRefundId = ctx.Message.ProviderRefundId;
+                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Requested", "AwaitingProviderConfirmation");
                 })
                 .TransitionTo(AwaitingProviderConfirmation),
             When(ProviderRefundFailed)
@@ -84,6 +88,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                 .Then(ctx =>
                 {
                     // Optionally update amount refunded if it differs
+                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "AwaitingProviderConfirmation", "Refunded");
                 })
                 .Unschedule(RefundTimeoutSchedule)
                 .PublishAsync(ctx => ctx.Init<RefundCompletedEvent>(new RefundCompletedEvent
@@ -211,5 +216,19 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
         activity?.SetTag("saga.id", sagaId);
         activity?.SetTag("order.id", orderId);
         activity?.SetTag("compensate.reason", reason);
+    }
+
+    /// <summary>
+    /// Emits a discrete <c>refund.saga.transition</c> span for each
+    /// happy-path state advancement. Tags carry the from/to state names
+    /// and correlation ids so Tempo can reconstruct the full refund lifecycle.
+    /// </summary>
+    private static void EmitTransitionSpan(Guid sagaId, Guid orderId, string fromState, string toState)
+    {
+        using var activity = PaymentsActivities.Source.StartActivity("refund.saga.transition");
+        activity?.SetTag("saga.id", sagaId);
+        activity?.SetTag("order.id", orderId);
+        activity?.SetTag("from_state", fromState);
+        activity?.SetTag("to_state", toState);
     }
 }

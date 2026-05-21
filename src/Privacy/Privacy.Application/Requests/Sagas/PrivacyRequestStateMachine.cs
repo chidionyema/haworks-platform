@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Messaging;
 using Haworks.Contracts.Privacy;
 using Haworks.Privacy.Application.Telemetry;
 using MassTransit;
@@ -9,9 +10,10 @@ public class PrivacyRequestStateMachine : MassTransitStateMachine<PrivacyRequest
 {
     private readonly ILogger<PrivacyRequestStateMachine> _logger;
 
-    public PrivacyRequestStateMachine(ILogger<PrivacyRequestStateMachine> logger)
+    public PrivacyRequestStateMachine(ILogger<PrivacyRequestStateMachine> logger, SagaTransitionAuditObserver<PrivacyRequestState>? auditObserver = null)
     {
         _logger = logger;
+        if (auditObserver != null) ConnectStateObserver(auditObserver);
         InstanceState(x => x.CurrentState);
 
         // PR-02: 7-day timeout for GDPR compliance
