@@ -24,6 +24,19 @@ MIGRATION_MARKER="/vault/data/.persistent-transit-ok"
 # Prevent stale Fly secrets from confusing vault
 unset VAULT_DEV_ROOT_TOKEN_ID 2>/dev/null || true
 
+# ── Pre-flight: wipe raft data sealed with a lost transit key ───────
+# The old dev-mode transit vault encrypted raft data with an ephemeral key
+# that was lost on restart. Vault refuses to start when raft's seal type
+# (transit) doesn't match a working transit key. Detect this by checking
+# for the old migration marker WITHOUT a working persistent transit setup.
+if [ -f /vault/data/.transit-migration-done ] && [ ! -f "$MIGRATION_MARKER" ]; then
+  echo "[entrypoint] detected raft data sealed with lost dev-mode transit key"
+  echo "[entrypoint] wiping stale raft data for fresh initialization..."
+  rm -rf /vault/data/raft /vault/data/vault.db /vault/data/core /vault/data/logical /vault/data/sys
+  rm -f /vault/data/.transit-migration-done "$INIT_FILE"
+  echo "[entrypoint] raft data wiped"
+fi
+
 # ── Step 1: Start transit vault with persistent file backend ───────
 mkdir -p "$TRANSIT_DATA"
 echo "[entrypoint] starting transit vault on :8100 (data at $TRANSIT_DATA)..."
