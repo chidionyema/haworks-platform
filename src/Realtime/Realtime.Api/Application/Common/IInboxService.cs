@@ -3,7 +3,12 @@ namespace Haworks.Realtime.Api.Application.Common;
 /// <summary>
 /// Represents a single inbox message with a unique identifier for client-side deduplication.
 /// </summary>
-public sealed record InboxMessage(Guid MessageId, string MessageType, object Data);
+public sealed record InboxMessage
+{
+    public required Guid MessageId { get; init; }
+    public required string MessageType { get; init; }
+    public required object Data { get; init; }
+}
 
 public interface IInboxService
 {

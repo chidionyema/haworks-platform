@@ -68,7 +68,7 @@ public sealed class RedisInboxService : IInboxService
             {
                 // C1 Fix: Use stored MessageType and raw JSON data
                 var data = JsonSerializer.Deserialize<JsonElement>(envelope.DataJson);
-                messages.Add(new InboxMessage(envelope.MessageId, envelope.MessageType, data));
+                messages.Add(new InboxMessage { MessageId = envelope.MessageId, MessageType = envelope.MessageType, Data = data });
             }
         }
 
