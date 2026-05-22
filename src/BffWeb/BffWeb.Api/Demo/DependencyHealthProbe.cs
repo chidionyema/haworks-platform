@@ -32,6 +32,9 @@ public sealed class DependencyHealthProbe : IDependencyHealthProbe
         ("orders",    "ORDERS",    BackendClients.Orders),
         ("payments",  "PAYMENTS",  BackendClients.Payments),
         ("checkout",  "CHECKOUT",  BackendClients.Checkout),
+        ("payouts",   "PAYOUTS",   BackendClients.Payouts),
+        ("privacy",   "PRIVACY",   BackendClients.Privacy),
+        ("search",    "SEARCH",    BackendClients.Search),
     ];
 
     private readonly IHttpClientFactory _httpClientFactory;
