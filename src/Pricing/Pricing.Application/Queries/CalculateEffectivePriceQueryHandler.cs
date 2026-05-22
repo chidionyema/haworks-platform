@@ -134,7 +134,11 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
             snapshotProductPrice: baseUnitPrice);
 
         await _logRepo.AddAsync(log, ct).ConfigureAwait(false);
-        await _logRepo.SaveChangesAsync(ct).ConfigureAwait(false);
+        // Do NOT call SaveChangesAsync here — this handler is called from both
+        // HTTP controllers (where SaveChanges is needed) and MassTransit consumers
+        // (where the outbox commits automatically). Callers must flush explicitly.
+        // The PricingRequestedConsumer's outbox commits the log atomically.
+        // The PricingController calls SaveChangesAsync after mediator.Send returns.
 
         _logger.LogInformation(
             "Price calculated for product {ProductId}: base={Base}, effective={Effective}, total={Total}",

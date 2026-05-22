@@ -79,7 +79,6 @@ internal sealed class SendNotificationCommandHandler(
                     suppressed.MarkFailed(preferenceResult.ToString());
 
                 repository.Add(suppressed);
-                await repository.SaveChangesAsync(ct).ConfigureAwait(false);
 
                 logger.LogInformation(
                     "Notification {NotificationId} blocked by preferences ({Reason}) for user {UserId}",
@@ -99,8 +98,6 @@ internal sealed class SendNotificationCommandHandler(
             var suppressed = CreateNotification(request, idempotencyKey);
             suppressed.MarkSuppressed("Recipient on suppression list");
             repository.Add(suppressed);
-            // outbox handles this — early return below, no PublishAsync in this branch
-            await repository.SaveChangesAsync(ct).ConfigureAwait(false);
 
             logger.LogInformation(
                 "Notification {NotificationId} suppressed for recipient on suppression list",
@@ -124,7 +121,9 @@ internal sealed class SendNotificationCommandHandler(
             IdempotencyKey = idempotencyKey
         }, ct).ConfigureAwait(false);
 
-        await repository.SaveChangesAsync(ct).ConfigureAwait(false);
+        // Do NOT call SaveChangesAsync here — this handler is dual-use:
+        // - From HTTP controller: controller calls SaveChanges after mediator returns
+        // - From MassTransit consumer (RefundEmailConsumer): outbox commits automatically
         logger.LogInformation(
             "Notification {NotificationId} created (template {TemplateId}, channel {Channel})",
             notification.Id, request.TemplateId, request.Channel);

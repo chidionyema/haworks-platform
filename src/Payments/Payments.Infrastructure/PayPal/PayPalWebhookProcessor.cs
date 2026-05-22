@@ -21,7 +21,6 @@ internal sealed class PayPalWebhookProcessor(
     ISubscriptionManager subscriptionManager,
     IWebhookIdempotencyGuard idempotencyGuard,
     IPayPalClientFactory clientFactory,
-    IPublishEndpoint eventPublisher,
     IResiliencePolicyFactory resiliencePolicyFactory,
     IOptions<PaymentProviderOptions> providerOptions,
     ILogger<PayPalWebhookProcessor> logger,
@@ -83,7 +82,8 @@ internal sealed class PayPalWebhookProcessor(
     }
 
     public async Task<WebhookProcessingResult> ProcessEventAsync(
-        PaymentWebhookEvent webhookEvent, 
+        PaymentWebhookEvent webhookEvent,
+        IPublishEndpoint publisher,
         CancellationToken ct = default)
     {
         using var scope = logger.BeginScope(new Dictionary<string, object>
@@ -93,22 +93,22 @@ internal sealed class PayPalWebhookProcessor(
             ["Provider"] = Provider.ToString()
         });
 
-        if (await idempotencyGuard.IsAlreadyProcessedAsync(Provider, webhookEvent.EventId, ct)) 
+        if (await idempotencyGuard.IsAlreadyProcessedAsync(Provider, webhookEvent.EventId, ct))
             return WebhookProcessingResult.Skipped("Already processed");
 
         try
         {
             var result = webhookEvent.EventType switch
             {
-                PayPalEventTypes.PaymentCaptureCompleted => await HandleCaptureCompletedAsync(webhookEvent, ct),
-                PayPalEventTypes.PaymentCaptureRefunded => await HandleCaptureRefundedAsync(webhookEvent, ct),
-                PayPalEventTypes.BillingSubscriptionCreated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Created, ct),
-                PayPalEventTypes.BillingSubscriptionActivated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Created, ct),
-                PayPalEventTypes.BillingSubscriptionUpdated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Updated, ct),
-                PayPalEventTypes.BillingSubscriptionCancelled => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Canceled, ct),
-                PayPalEventTypes.BillingSubscriptionExpired => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Expired, ct),
-                PayPalEventTypes.BillingSubscriptionReactivated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Resumed, ct),
-                PayPalEventTypes.BillingSubscriptionPaymentFailed => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.PaymentFailed, ct),
+                PayPalEventTypes.PaymentCaptureCompleted => await HandleCaptureCompletedAsync(webhookEvent, publisher, ct),
+                PayPalEventTypes.PaymentCaptureRefunded => await HandleCaptureRefundedAsync(webhookEvent, publisher, ct),
+                PayPalEventTypes.BillingSubscriptionCreated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Created, publisher, ct),
+                PayPalEventTypes.BillingSubscriptionActivated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Created, publisher, ct),
+                PayPalEventTypes.BillingSubscriptionUpdated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Updated, publisher, ct),
+                PayPalEventTypes.BillingSubscriptionCancelled => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Canceled, publisher, ct),
+                PayPalEventTypes.BillingSubscriptionExpired => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Expired, publisher, ct),
+                PayPalEventTypes.BillingSubscriptionReactivated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Resumed, publisher, ct),
+                PayPalEventTypes.BillingSubscriptionPaymentFailed => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.PaymentFailed, publisher, ct),
                 _ => WebhookProcessingResult.Skipped($"Unhandled event type: {webhookEvent.EventType}")
             };
 
@@ -186,43 +186,43 @@ internal sealed class PayPalWebhookProcessor(
         }
     }
 
-    private async Task<WebhookProcessingResult> HandleCaptureCompletedAsync(PaymentWebhookEvent webhookEvent, CancellationToken ct)
+    private async Task<WebhookProcessingResult> HandleCaptureCompletedAsync(PaymentWebhookEvent webhookEvent, IPublishEndpoint publisher, CancellationToken ct)
     {
         var resource = (JsonElement)webhookEvent.Data!;
         var captureId = resource.GetProperty("id").GetString()!;
         var amount = resource.GetProperty("amount").GetProperty("value").GetString()!;
         var currency = resource.GetProperty("amount").GetProperty("currency_code").GetString()!;
-        
+
         // order_id is in supplementary_data.related_ids.order_id
-        var orderId = resource.TryGetProperty("supplementary_data", out var supp) 
+        var orderId = resource.TryGetProperty("supplementary_data", out var supp)
             && supp.TryGetProperty("related_ids", out var ids)
             ? ids.GetProperty("order_id").GetString()!
             : captureId;
 
-        var sessionEvent = new PaymentSessionEvent 
-        { 
-            SessionId = orderId, 
-            TransactionId = captureId, 
-            Provider = PaymentProvider.PayPal, 
+        var sessionEvent = new PaymentSessionEvent
+        {
+            SessionId = orderId,
+            TransactionId = captureId,
+            Provider = PaymentProvider.PayPal,
             Mode = SessionMode.Payment,
             Currency = currency,
             AmountTotal = (long)Math.Round(decimal.Parse(amount) * CheckoutConstants.CentMultiplier, 0, MidpointRounding.ToEven)
         };
 
-        await paymentProcessor.HandleCompletedSessionAsync(sessionEvent, ct);
+        await paymentProcessor.HandleCompletedSessionAsync(sessionEvent, publisher, ct);
         return WebhookProcessingResult.Success(webhookEvent.EventType, "Capture completed handled");
     }
 
-    private async Task<WebhookProcessingResult> HandleCaptureRefundedAsync(PaymentWebhookEvent webhookEvent, CancellationToken ct)
+    private async Task<WebhookProcessingResult> HandleCaptureRefundedAsync(PaymentWebhookEvent webhookEvent, IPublishEndpoint publisher, CancellationToken ct)
     {
         var resource = (JsonElement)webhookEvent.Data!;
         var refundId = resource.GetProperty("id").GetString()!;
         var status = resource.GetProperty("status").GetString()!;
-        
+
         if (status.Equals("COMPLETED", StringComparison.OrdinalIgnoreCase))
         {
             var amount = resource.GetProperty("amount").GetProperty("value").GetString()!;
-            
+
             // Try to find saga ID in custom_id or invoice_id
             string? sagaIdStr = null;
             if (resource.TryGetProperty("custom_id", out var customId)) sagaIdStr = customId.GetString();
@@ -230,8 +230,8 @@ internal sealed class PayPalWebhookProcessor(
 
             if (Guid.TryParse(sagaIdStr, out var sagaId))
             {
-                // outbox handles this — event published via MassTransit outbox, SaveChangesAsync called by idempotency guard
-                await eventPublisher.Publish(new ProviderRefundSucceededEvent
+                // MassTransit EF outbox commits entity state + outbox messages atomically
+                await publisher.Publish(new ProviderRefundSucceededEvent
                 {
                     RefundId = sagaId,
                     ProviderRefundId = refundId,
@@ -244,7 +244,7 @@ internal sealed class PayPalWebhookProcessor(
         return WebhookProcessingResult.Success(webhookEvent.EventType, $"Refund {refundId} processed");
     }
 
-    private async Task<WebhookProcessingResult> HandleSubscriptionEventAsync(PaymentWebhookEvent webhookEvent, SubscriptionEventType eventType, CancellationToken ct)
+    private async Task<WebhookProcessingResult> HandleSubscriptionEventAsync(PaymentWebhookEvent webhookEvent, SubscriptionEventType eventType, IPublishEndpoint publisher, CancellationToken ct)
     {
         var resource = (JsonElement)webhookEvent.Data!;
         var subId = resource.GetProperty("id").GetString()!;
@@ -264,7 +264,7 @@ internal sealed class PayPalWebhookProcessor(
             subEvent = subEvent with { CurrentPeriodEnd = DateTime.Parse(nextTime.GetString()!, System.Globalization.CultureInfo.InvariantCulture) };
         }
 
-        await subscriptionManager.HandleSubscriptionEventAsync(subEvent, ct);
+        await subscriptionManager.HandleSubscriptionEventAsync(subEvent, publisher, ct);
         return WebhookProcessingResult.Success(webhookEvent.EventType, $"Subscription {subId} processed");
     }
 

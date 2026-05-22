@@ -53,8 +53,6 @@ public class ShipmentsController(
             result.Carrier, result.Service, result.TrackingNumber,
             result.TrackingUrl, result.LabelUrl, result.Amount, result.Currency, result.EstimatedDelivery);
 
-        await db.SaveChangesAsync(ct);
-
         await publisher.Publish(new ShipmentCreatedEvent
         {
             ShipmentId = shipment.Id,
@@ -63,6 +61,8 @@ public class ShipmentsController(
             TrackingNumber = result.TrackingNumber,
             TrackingUrl = result.TrackingUrl,
         }, ct);
+
+        await db.SaveChangesAsync(ct);
 
         return Ok(new { shipment.TrackingNumber, shipment.TrackingUrl, shipment.LabelUrl, shipment.EstimatedDelivery });
     }
@@ -106,7 +106,6 @@ public class ShipmentsController(
 
         var newStatus = MapEasyPostStatus(payload.Result?.Status);
         shipment.UpdateStatus(newStatus);
-        await db.SaveChangesAsync(ct);
 
         if (newStatus == ShipmentStatus.Delivered)
         {
@@ -126,6 +125,8 @@ public class ShipmentsController(
                 Reason = payload.Result?.StatusDetail ?? "Unknown exception",
             }, ct);
         }
+
+        await db.SaveChangesAsync(ct);
 
         return Ok();
     }

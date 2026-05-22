@@ -1,4 +1,5 @@
 using Haworks.Payments.Domain;
+using MassTransit;
 
 namespace Haworks.Payments.Application.Interfaces;
 
@@ -10,8 +11,15 @@ public interface IPaymentSessionProcessor
     /// <summary>
     /// Handles a completed checkout session from a webhook.
     /// </summary>
+    /// <param name="sessionEvent">The parsed session event.</param>
+    /// <param name="publisher">
+    /// Publish endpoint — pass <see cref="ConsumeContext"/> from a consumer
+    /// so events route through the EF Core outbox.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
     Task HandleCompletedSessionAsync(
         PaymentSessionEvent sessionEvent,
+        IPublishEndpoint publisher,
         CancellationToken ct = default);
 
     /// <summary>

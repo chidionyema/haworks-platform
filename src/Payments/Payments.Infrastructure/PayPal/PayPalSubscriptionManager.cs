@@ -20,7 +20,6 @@ namespace Haworks.Payments.Infrastructure.PayPal;
 /// </summary>
 internal sealed class PayPalSubscriptionManager(
     IPaymentRepository paymentRepository,
-    IPublishEndpoint eventPublisher,
     IPayPalClientFactory clientFactory,
     IResiliencePolicyFactory resiliencePolicyFactory,
     ILogger<PayPalSubscriptionManager> logger,
@@ -148,7 +147,7 @@ internal sealed class PayPalSubscriptionManager(
     }
 
     /// <inheritdoc />
-    public async Task<SubscriptionEventResult> HandleSubscriptionEventAsync(SubscriptionEvent subscriptionEvent, CancellationToken ct = default)
+    public async Task<SubscriptionEventResult> HandleSubscriptionEventAsync(SubscriptionEvent subscriptionEvent, IPublishEndpoint publisher, CancellationToken ct = default)
     {
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
@@ -162,21 +161,21 @@ internal sealed class PayPalSubscriptionManager(
         switch (subscriptionEvent.EventType)
         {
             case SubscriptionEventType.Created:
-                await HandleCreatedAsync(subscriptionEvent, existing, ct);
+                await HandleCreatedAsync(subscriptionEvent, existing, publisher, ct);
                 break;
 
             case SubscriptionEventType.Updated:
             case SubscriptionEventType.Resumed:
-                await HandleUpdatedOrResumedAsync(subscriptionEvent, existing, ct);
+                HandleUpdatedOrResumed(subscriptionEvent, existing);
                 break;
 
             case SubscriptionEventType.Renewed:
-                await HandleRenewedAsync(subscriptionEvent, existing, ct);
+                await HandleRenewedAsync(subscriptionEvent, existing, publisher, ct);
                 break;
 
             case SubscriptionEventType.Canceled:
             case SubscriptionEventType.Expired:
-                await HandleCanceledAsync(subscriptionEvent, existing, ct);
+                await HandleCanceledAsync(subscriptionEvent, existing, publisher, ct);
                 break;
         }
 
@@ -190,7 +189,7 @@ internal sealed class PayPalSubscriptionManager(
         };
     }
 
-    private async Task HandleCreatedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, CancellationToken ct)
+    private async Task HandleCreatedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, IPublishEndpoint publisher, CancellationToken ct)
     {
         if (existing != null) return;
 
@@ -205,7 +204,8 @@ internal sealed class PayPalSubscriptionManager(
         newSub.UpdateStatus(subscriptionEvent.NewStatus);
         await paymentRepository.AddSubscriptionAsync(newSub, ct);
 
-        await eventPublisher.Publish(new SubscriptionStartedEvent
+        // MassTransit EF outbox commits entity state + outbox messages atomically
+        await publisher.Publish(new SubscriptionStartedEvent
         {
             ProviderSubscriptionId = newSub.ProviderSubscriptionId,
             UserId = newSub.UserId,
@@ -213,10 +213,9 @@ internal sealed class PayPalSubscriptionManager(
             Provider = PaymentProvider.PayPal,
             CurrentPeriodEnd = newSub.ExpiresAt
         }, ct);
-        await paymentRepository.SaveChangesAsync(ct);
     }
 
-    private async Task HandleUpdatedOrResumedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, CancellationToken ct)
+    private static void HandleUpdatedOrResumed(SubscriptionEvent subscriptionEvent, DomainSubscription? existing)
     {
         if (existing == null) return;
 
@@ -229,10 +228,10 @@ internal sealed class PayPalSubscriptionManager(
         {
             existing.Activate();
         }
-        await paymentRepository.SaveChangesAsync(ct);
+        // MassTransit EF outbox commits entity mutations atomically
     }
 
-    private async Task HandleRenewedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, CancellationToken ct)
+    private async Task HandleRenewedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, IPublishEndpoint publisher, CancellationToken ct)
     {
         if (existing == null) return;
 
@@ -245,7 +244,8 @@ internal sealed class PayPalSubscriptionManager(
         _ = long.TryParse(subscriptionEvent.Metadata.GetValueOrDefault("amount_cents"), out var amount);
         var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency);
 
-        await eventPublisher.Publish(new SubscriptionRenewedEvent
+        // MassTransit EF outbox commits entity state + outbox messages atomically
+        await publisher.Publish(new SubscriptionRenewedEvent
         {
             ProviderSubscriptionId = existing.ProviderSubscriptionId,
             UserId = existing.UserId,
@@ -254,10 +254,9 @@ internal sealed class PayPalSubscriptionManager(
             Currency = currency,
             NewPeriodEnd = existing.ExpiresAt
         }, ct);
-        await paymentRepository.SaveChangesAsync(ct);
     }
 
-    private async Task HandleCanceledAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, CancellationToken ct)
+    private async Task HandleCanceledAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, IPublishEndpoint publisher, CancellationToken ct)
     {
         if (existing == null) return;
 
@@ -267,14 +266,14 @@ internal sealed class PayPalSubscriptionManager(
             existing.SetExpiresAt(subscriptionEvent.CurrentPeriodEnd.Value);
         }
 
-        await eventPublisher.Publish(new SubscriptionCancelledEvent
+        // MassTransit EF outbox commits entity state + outbox messages atomically
+        await publisher.Publish(new SubscriptionCancelledEvent
         {
             ProviderSubscriptionId = existing.ProviderSubscriptionId,
             UserId = existing.UserId,
             Provider = PaymentProvider.PayPal,
             Reason = subscriptionEvent.Metadata.GetValueOrDefault("reason")
         }, ct);
-        await paymentRepository.SaveChangesAsync(ct);
     }
 
     private static DomainSubscriptionStatus MapSubscriptionStatus(string? paypalStatus)

@@ -1,4 +1,5 @@
 using Haworks.Payments.Domain;
+using MassTransit;
 
 namespace Haworks.Payments.Application.Interfaces;
 
@@ -29,8 +30,18 @@ public interface IWebhookProcessor
     /// <summary>
     /// Processes a validated webhook event.
     /// </summary>
+    /// <param name="webhookEvent">The parsed webhook event.</param>
+    /// <param name="publisher">
+    /// The publish endpoint to use for outgoing events. When called from a
+    /// MassTransit consumer, pass the <see cref="ConsumeContext"/> (which
+    /// implements <see cref="IPublishEndpoint"/>) so events route through
+    /// the EF Core outbox. When called outside a consumer, pass the
+    /// DI-resolved <see cref="IPublishEndpoint"/>.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
     Task<WebhookProcessingResult> ProcessEventAsync(
         PaymentWebhookEvent webhookEvent,
+        IPublishEndpoint publisher,
         CancellationToken ct = default);
 }
 

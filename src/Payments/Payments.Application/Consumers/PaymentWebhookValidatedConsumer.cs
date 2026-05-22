@@ -72,7 +72,7 @@ public sealed class PaymentWebhookValidatedConsumer(
         // it poisons the DbContext and breaks the outbox (Law #3). On a unique constraint
         // violation, the exception propagates to MassTransit which retries; the retry
         // hits the processor's WebhookEventExistsAsync check and skips.
-        var result = await processor.ProcessEventAsync(validationResult.Event, context.CancellationToken);
+        var result = await processor.ProcessEventAsync(validationResult.Event, context, context.CancellationToken);
 
         if (result.Processed)
         {

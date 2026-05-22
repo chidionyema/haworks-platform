@@ -141,14 +141,22 @@ public sealed class PaymentSessionRequestedConsumer(
         }
     }
 
+    private static Guid DeterministicGuid(Guid sagaId, string suffix)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes($"{sagaId}:{suffix}"));
+        return new Guid(bytes.AsSpan(0, 16));
+    }
+
     private async Task HandleDemoModeAsync(ConsumeContext<PaymentSessionRequestedEvent> context, PaymentSessionRequestedEvent evt)
     {
         logger.LogInformation(
             "Processing PaymentSessionRequestedEvent in DEMO MODE. OrderId={OrderId}, SagaId={SagaId}",
             evt.OrderId, evt.SagaId);
 
-        var sessionId = Guid.NewGuid().ToString();
-        var paymentId = Guid.NewGuid();
+        // Deterministic IDs from SagaId so retries produce the same payment/session
+        var sessionId = DeterministicGuid(evt.SagaId, "session").ToString();
+        var paymentId = DeterministicGuid(evt.SagaId, "payment");
         var provider = "demo-mock";
 
         // 1. Create session immediately
@@ -202,7 +210,7 @@ public sealed class PaymentSessionRequestedConsumer(
                 Amount = evt.Amount,
                 Currency = evt.Currency,
                 Provider = provider,
-                TransactionReference = $"demo-ref-{Guid.NewGuid():N}"
+                TransactionReference = $"demo-ref-{DeterministicGuid(evt.SagaId, "txref"):N}"
             }, context.CancellationToken);
         }
     }

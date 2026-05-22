@@ -27,6 +27,7 @@ public sealed class SagaTransitionAuditObserver<TSaga> : IStateObserver<TSaga>
         _logger = logger;
     }
 
+    // KNOWN: audit rows written in separate transaction — phantom rows possible on rollback. Acceptable for observability.
     public async Task StateChanged(BehaviorContext<TSaga> context, State currentState, State previousState)
     {
         var fromState = previousState?.Name ?? "Initial";

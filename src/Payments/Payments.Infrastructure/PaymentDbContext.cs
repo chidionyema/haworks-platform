@@ -152,7 +152,7 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
             // existing rows are not affected and the schema change is backward-compatible.
             entity.Property(s => s.CurrentState).HasMaxLength(100);
 
-            entity.HasIndex(s => s.ProviderSubscriptionId);
+            entity.HasIndex(s => s.ProviderSubscriptionId).IsUnique(); // H2: one saga per provider subscription
             entity.HasIndex(s => s.UserId);
 
             // Concurrency protection (XC-01/RS-02/SS-05)

@@ -20,7 +20,6 @@ namespace Haworks.Payments.Infrastructure.Stripe;
 public sealed class StripeSubscriptionManager(
     IPaymentRepository paymentRepository,
     IStripeClientFactory clientFactory,
-    IPublishEndpoint eventPublisher,
     IResiliencePolicyFactory resiliencePolicyFactory,
     ILogger<StripeSubscriptionManager> logger,
     ITelemetryService telemetry) : ISubscriptionManager
@@ -131,7 +130,7 @@ public sealed class StripeSubscriptionManager(
     }
 
     /// <inheritdoc />
-    public async Task<SubscriptionEventResult> HandleSubscriptionEventAsync(SubscriptionEvent subscriptionEvent, CancellationToken ct = default)
+    public async Task<SubscriptionEventResult> HandleSubscriptionEventAsync(SubscriptionEvent subscriptionEvent, IPublishEndpoint publisher, CancellationToken ct = default)
     {
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
@@ -145,21 +144,21 @@ public sealed class StripeSubscriptionManager(
         switch (subscriptionEvent.EventType)
         {
             case SubscriptionEventType.Created:
-                await HandleCreatedAsync(subscriptionEvent, existing, ct);
+                await HandleCreatedAsync(subscriptionEvent, existing, publisher, ct);
                 break;
 
             case SubscriptionEventType.Updated:
             case SubscriptionEventType.Resumed:
-                await HandleUpdatedOrResumedAsync(subscriptionEvent, existing, ct);
+                HandleUpdatedOrResumedAsync(subscriptionEvent, existing);
                 break;
 
             case SubscriptionEventType.Renewed:
-                await HandleRenewedAsync(subscriptionEvent, existing, ct);
+                await HandleRenewedAsync(subscriptionEvent, existing, publisher, ct);
                 break;
 
             case SubscriptionEventType.Canceled:
             case SubscriptionEventType.Expired:
-                await HandleCanceledAsync(subscriptionEvent, existing, ct);
+                await HandleCanceledAsync(subscriptionEvent, existing, publisher, ct);
                 break;
         }
 
@@ -173,7 +172,7 @@ public sealed class StripeSubscriptionManager(
         };
     }
 
-    private async Task HandleCreatedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, CancellationToken ct)
+    private async Task HandleCreatedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, IPublishEndpoint publisher, CancellationToken ct)
     {
         if (existing != null) return;
 
@@ -188,7 +187,8 @@ public sealed class StripeSubscriptionManager(
         newSub.UpdateStatus(subscriptionEvent.NewStatus);
         await paymentRepository.AddSubscriptionAsync(newSub, ct);
 
-        await eventPublisher.Publish(new SubscriptionStartedEvent
+        // MassTransit EF outbox commits entity state + outbox messages atomically
+        await publisher.Publish(new SubscriptionStartedEvent
         {
             ProviderSubscriptionId = newSub.ProviderSubscriptionId,
             UserId = newSub.UserId,
@@ -196,10 +196,9 @@ public sealed class StripeSubscriptionManager(
             Provider = PaymentProvider.Stripe,
             CurrentPeriodEnd = newSub.ExpiresAt
         }, ct);
-        await paymentRepository.SaveChangesAsync(ct);
     }
 
-    private async Task HandleUpdatedOrResumedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, CancellationToken ct)
+    private static void HandleUpdatedOrResumedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing)
     {
         if (existing == null) return;
 
@@ -212,10 +211,10 @@ public sealed class StripeSubscriptionManager(
         {
             existing.ClearCancellation();
         }
-        await paymentRepository.SaveChangesAsync(ct);
+        // MassTransit EF outbox commits entity mutations atomically
     }
 
-    private async Task HandleRenewedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, CancellationToken ct)
+    private async Task HandleRenewedAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, IPublishEndpoint publisher, CancellationToken ct)
     {
         if (existing == null) return;
 
@@ -228,7 +227,8 @@ public sealed class StripeSubscriptionManager(
         _ = long.TryParse(subscriptionEvent.Metadata.GetValueOrDefault("amount_cents"), out var amount);
         var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency);
 
-        await eventPublisher.Publish(new SubscriptionRenewedEvent
+        // MassTransit EF outbox commits entity state + outbox messages atomically
+        await publisher.Publish(new SubscriptionRenewedEvent
         {
             ProviderSubscriptionId = existing.ProviderSubscriptionId,
             UserId = existing.UserId,
@@ -237,10 +237,9 @@ public sealed class StripeSubscriptionManager(
             Currency = currency,
             NewPeriodEnd = existing.ExpiresAt
         }, ct);
-        await paymentRepository.SaveChangesAsync(ct);
     }
 
-    private async Task HandleCanceledAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, CancellationToken ct)
+    private async Task HandleCanceledAsync(SubscriptionEvent subscriptionEvent, DomainSubscription? existing, IPublishEndpoint publisher, CancellationToken ct)
     {
         if (existing == null) return;
 
@@ -250,13 +249,13 @@ public sealed class StripeSubscriptionManager(
             existing.SetExpiresAt(subscriptionEvent.CurrentPeriodEnd.Value);
         }
 
-        await eventPublisher.Publish(new SubscriptionCancelledEvent
+        // MassTransit EF outbox commits entity state + outbox messages atomically
+        await publisher.Publish(new SubscriptionCancelledEvent
         {
             ProviderSubscriptionId = existing.ProviderSubscriptionId,
             UserId = existing.UserId,
             Provider = PaymentProvider.Stripe,
             Reason = subscriptionEvent.Metadata.GetValueOrDefault("reason")
         }, ct);
-        await paymentRepository.SaveChangesAsync(ct);
     }
 }

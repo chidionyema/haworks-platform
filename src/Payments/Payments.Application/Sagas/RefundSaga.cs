@@ -299,6 +299,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                             EmitCompensateSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "refund_cancelled_by_operator");
                         })
                         .Unschedule(RefundTimeoutSchedule)
+                        .Unschedule(ReviewEscalationSchedule) // H4: cancel 72h escalation on operator cancel
                         .If(ctx => string.Equals(ctx.Saga.CurrentState, AwaitingProviderConfirmation.Name, StringComparison.Ordinal),
                             x => x.PublishAsync(ctx => ctx.Init<ProviderRefundCancellationRequestedEvent>(new ProviderRefundCancellationRequestedEvent
                             {

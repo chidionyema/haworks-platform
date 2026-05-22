@@ -54,7 +54,6 @@ public class StripeWebhookProcessorTests
             _subscriptionManagerMock.Object,
             _idempotencyGuardMock.Object,
             _paymentRepositoryMock.Object,
-            _eventPublisherMock.Object,
             _options,
             _loggerMock.Object,
             _telemetryMock.Object);
@@ -99,12 +98,12 @@ public class StripeWebhookProcessorTests
             .Setup(g => g.IsAlreadyProcessedAsync(PaymentProvider.Stripe, "evt_123", It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
-        var result = await _processor.ProcessEventAsync(webhookEvent, CancellationToken.None);
+        var result = await _processor.ProcessEventAsync(webhookEvent, _eventPublisherMock.Object, CancellationToken.None);
 
         Assert.False(result.Processed);
         Assert.Equal("Already processed", result.Message);
         _paymentProcessorMock.Verify(
-            p => p.HandleCompletedSessionAsync(It.IsAny<PaymentSessionEvent>(), It.IsAny<CancellationToken>()),
+            p => p.HandleCompletedSessionAsync(It.IsAny<PaymentSessionEvent>(), It.IsAny<IPublishEndpoint>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -147,11 +146,11 @@ public class StripeWebhookProcessorTests
 
         PaymentSessionEvent? capturedEvent = null;
         _paymentProcessorMock
-            .Setup(p => p.HandleCompletedSessionAsync(It.IsAny<PaymentSessionEvent>(), It.IsAny<CancellationToken>()))
-            .Callback<PaymentSessionEvent, CancellationToken>((e, _) => capturedEvent = e)
+            .Setup(p => p.HandleCompletedSessionAsync(It.IsAny<PaymentSessionEvent>(), It.IsAny<IPublishEndpoint>(), It.IsAny<CancellationToken>()))
+            .Callback<PaymentSessionEvent, IPublishEndpoint, CancellationToken>((e, _, _) => capturedEvent = e)
             .Returns(Task.CompletedTask);
 
-        var result = await _processor.ProcessEventAsync(webhookEvent, CancellationToken.None);
+        var result = await _processor.ProcessEventAsync(webhookEvent, _eventPublisherMock.Object, CancellationToken.None);
 
         Assert.True(result.Processed);
         Assert.NotNull(capturedEvent);

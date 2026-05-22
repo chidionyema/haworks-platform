@@ -344,7 +344,14 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                             Items = DeserializeItems(ctx.Saga.ReservedItemsJson),
                             Reason = "manual_resolution_abandoned",
                         }))
-                        .TransitionTo(Abandoned)));
+                        .TransitionTo(Abandoned))
+                // M5: Log warning when Resolution is neither "completed" nor "abandoned"
+                .If(ctx => !string.Equals(ctx.Message.Resolution, "completed", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(ctx.Message.Resolution, "abandoned", StringComparison.OrdinalIgnoreCase),
+                    binder => binder
+                        .Then(ctx => logger.LogWarning(
+                            "ManualResolution for saga {SagaId} has unrecognized Resolution '{Resolution}' from operator {OperatorId} — no state change applied",
+                            ctx.Saga.CorrelationId, ctx.Message.Resolution, ctx.Message.OperatorId))));
 
         // Idempotency: late-arriving events on non-primary states silently
         // no-op rather than throwing UnhandledEventException. Each event
@@ -372,6 +379,9 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 .If(ctx => !string.Equals(ctx.Saga.CurrentState, ReadyForPayment.Name, StringComparison.Ordinal), ctx => ctx),
             When(PaymentAmountMismatch)
                 .If(ctx => !string.Equals(ctx.Saga.CurrentState, ReadyForPayment.Name, StringComparison.Ordinal), ctx => ctx));
+
+        // C4: Abandoned is a terminal state — finalize so saga is removed from the repository
+        WhenEnter(Abandoned, x => x.Finalize());
 
         SetCompletedWhenFinalized();
     }
