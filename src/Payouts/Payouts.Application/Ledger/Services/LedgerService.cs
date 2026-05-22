@@ -201,7 +201,7 @@ public class LedgerService : ILedgerService
 
             // OUTBOX-SAFE: Flush to DB so the row exists for the FOR UPDATE re-lock.
             // This is safe inside the ambient outbox transaction — it does not commit.
-            await _context.SaveChangesAsync(ct);
+            await _context.SaveChangesAsync(ct); // OUTBOX-SAFE
 
             if (!_useLinqFallback)
             {

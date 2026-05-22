@@ -9,6 +9,7 @@ using Haworks.Notifications.Application.Commands;
 using Haworks.Notifications.Application.Queries;
 using Haworks.Notifications.Domain.Enums;
 using Haworks.BuildingBlocks.Common;
+using Haworks.Notifications.Application.Channels;
 
 namespace Haworks.Notifications.Unit.Controllers;
 
@@ -20,7 +21,7 @@ public sealed class NotificationsControllerTests
 
     public NotificationsControllerTests()
     {
-        _sut = new NotificationsController(_mediator.Object);
+        _sut = new NotificationsController(_mediator.Object, Mock.Of<INotificationRepository>());
         _sut.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
