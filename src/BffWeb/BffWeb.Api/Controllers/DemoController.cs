@@ -1354,11 +1354,23 @@ public class DemoController : ControllerBase
 
         var refundBody = await refundResp.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
 
+        // The refund endpoint returns Result<Guid> which may serialize as:
+        //   {"value":"<guid>","isSuccess":true}  — object with value property
+        //   "<guid>"                              — raw string GUID
+        //   {"refundId":"<guid>"}                 — direct refundId property
+        Guid refundId;
+        if (refundBody.ValueKind == JsonValueKind.String)
+            refundId = refundBody.GetGuid();
+        else if (refundBody.TryGetProperty("value", out var v))
+            refundId = v.GetGuid();
+        else
+            refundId = refundBody.GetProperty("refundId").GetGuid();
+
         return Ok(new
         {
             sessionId,
             paymentId,
-            refundId = refundBody.TryGetProperty("value", out var v) ? v.GetGuid() : refundBody.GetProperty("refundId").GetGuid(),
+            refundId,
             status = "Started",
             _metadata = BuildMetadata(("payments-svc", refundResp)),
         });
