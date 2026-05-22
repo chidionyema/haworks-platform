@@ -380,9 +380,10 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
             When(PaymentAmountMismatch)
                 .If(ctx => !string.Equals(ctx.Saga.CurrentState, ReadyForPayment.Name, StringComparison.Ordinal), ctx => ctx));
 
-        // C4: Abandoned is a terminal state — finalize so saga is removed from the repository
-        WhenEnter(Abandoned, x => x.Finalize());
-
+        // Abandoned and Completed are terminal states. SetCompletedWhenFinalized
+        // marks the saga as completed when it reaches Final, but does NOT
+        // auto-delete the row — the row remains queryable for auditing.
+        // Production cleanup is via a scheduled sweeper, not inline Finalize().
         SetCompletedWhenFinalized();
     }
 

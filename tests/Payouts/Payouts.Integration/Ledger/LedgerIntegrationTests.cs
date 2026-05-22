@@ -2,6 +2,7 @@ using FluentAssertions;
 using Haworks.Payouts.Application.Common.Interfaces;
 using Haworks.Payouts.Application.Ledger.Services;
 using Haworks.Payouts.Domain.Enums;
+using Haworks.Payouts.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -13,12 +14,14 @@ public class LedgerIntegrationTests : IAsyncLifetime
     private readonly PayoutsWebAppFactory _factory;
     private readonly IServiceScope _scope;
     private readonly ILedgerService _ledgerService;
+    private readonly PayoutsDbContext _db;
 
     public LedgerIntegrationTests(PayoutsWebAppFactory factory)
     {
         _factory = factory;
         _scope = _factory.Services.CreateScope();
         _ledgerService = _scope.ServiceProvider.GetRequiredService<ILedgerService>();
+        _db = _scope.ServiceProvider.GetRequiredService<PayoutsDbContext>();
     }
 
     public async Task InitializeAsync()
@@ -35,6 +38,7 @@ public class LedgerIntegrationTests : IAsyncLifetime
         var amount = 100.00m;
         var currency = "USD";
         await _ledgerService.CreditSellerAsync(sellerId, amount, currency, Guid.NewGuid(), "Test credit");
+        await _db.SaveChangesAsync(); // outbox handles this in production
         var sellerBalance = await _ledgerService.GetBalanceAsync(sellerId, AccountType.SellerPending, currency);
         sellerBalance.Should().Be(90.00m); // 100 - 10% default commission
         var platformId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -49,6 +53,7 @@ public class LedgerIntegrationTests : IAsyncLifetime
         var amount = 200.00m;
         var currency = "USD";
         await _ledgerService.CreditSellerAsync(sellerId, amount, currency, Guid.NewGuid(), "Commission test");
+        await _db.SaveChangesAsync(); // outbox handles this in production
 
         var sellerBalance = await _ledgerService.GetBalanceAsync(sellerId, AccountType.SellerPending, currency);
         sellerBalance.Should().Be(180.00m); // 200 - 10% default commission = 180
