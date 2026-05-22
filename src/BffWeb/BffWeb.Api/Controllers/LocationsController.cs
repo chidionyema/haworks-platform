@@ -18,7 +18,7 @@ public sealed class LocationsController(IHttpClientFactory httpFactory) : Contro
     public async Task<IActionResult> Create([FromBody] object command, CancellationToken ct = default)
     {
         var http = httpFactory.CreateClient(BackendClients.Location);
-        var response = await http.PostAsJsonAsync("/api/addresses", command, ct);
+        var response = await http.PostAsJsonAsync("/api/v1/addresses", command, ct);
         
         var body = await response.Content.ReadAsStringAsync(ct);
         return new ContentResult

@@ -27,7 +27,7 @@ public sealed class SubscriptionsController : ControllerBase
         [FromHeader(Name = "Authorization")] string? authorization,
         CancellationToken ct = default)
     {
-        return ForwardAsync(HttpMethod.Get, "/api/subscriptions/status", null, authorization, ct);
+        return ForwardAsync(HttpMethod.Get, "/api/v1/subscriptions/status", null, authorization, ct);
     }
 
     [HttpPost("create-checkout-session")]
@@ -40,7 +40,7 @@ public sealed class SubscriptionsController : ControllerBase
         // For POST, we read the body and forward it.
         Request.EnableBuffering();
         using var streamContent = new StreamContent(Request.Body);
-        return await ForwardAsync(HttpMethod.Post, "/api/subscriptions/create-checkout-session", streamContent, authorization, ct);
+        return await ForwardAsync(HttpMethod.Post, "/api/v1/subscriptions/create-checkout-session", streamContent, authorization, ct);
     }
 
     private async Task<IActionResult> ForwardAsync(HttpMethod method, string path, HttpContent? content, string? authorization, CancellationToken ct = default)

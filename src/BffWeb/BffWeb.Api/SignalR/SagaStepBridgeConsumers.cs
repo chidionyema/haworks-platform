@@ -123,7 +123,7 @@ public sealed class PaymentAmountMismatchSagaBridge(
         var client = httpClientFactory.CreateClient(Haworks.BffWeb.Api.BackendClients.Checkout);
         try
         {
-            using var resp = await client.GetAsync($"/api/checkouts/by-order/{ctx.Message.OrderId}", ctx.CancellationToken);
+            using var resp = await client.GetAsync($"/api/v1/checkouts/by-order/{ctx.Message.OrderId}", ctx.CancellationToken);
             if (resp.IsSuccessStatusCode)
             {
                 var body = await System.Net.Http.Json.HttpContentJsonExtensions.ReadFromJsonAsync<System.Text.Json.JsonElement>(resp.Content, cancellationToken: ctx.CancellationToken);

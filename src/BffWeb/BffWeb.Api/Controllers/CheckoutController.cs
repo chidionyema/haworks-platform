@@ -73,7 +73,7 @@ public sealed class CheckoutController(
             body.IdempotencyKey ?? string.Empty);
 
         var client = httpClientFactory.CreateClient(BackendClients.Checkout);
-        var resp = await client.PostAsJsonAsync("/api/checkouts", new
+        var resp = await client.PostAsJsonAsync("/api/v1/checkouts", new
         {
             sagaId,
             orderId,
