@@ -110,6 +110,11 @@ public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
                 // and race with manually-published test events.
                 mt.AddConsumer<PaymentWebhookValidatedConsumer>();
                 mt.AddConsumer<PaymentSessionRequestedConsumer>();
+                mt.UsingInMemory((ctx, cfg) =>
+                {
+                    cfg.UseConsumeFilter(typeof(TestSaveChangesFilter<>), ctx);
+                    cfg.ConfigureEndpoints(ctx);
+                });
                 mt.AddSagaStateMachine<RefundSaga, RefundSagaState>()
                     .EntityFrameworkRepository(r =>
                     {
@@ -141,4 +146,21 @@ public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
         var hex = Convert.ToHexString(hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(signed))).ToLowerInvariant();
         return $"t={unix},v1={hex}";
     }
+}
+
+/// <summary>
+/// Test-only consume filter that calls SaveChangesAsync on the PaymentDbContext
+/// after each consumer completes. In production, the MassTransit EF Outbox
+/// handles this; the in-memory test harness has no outbox middleware.
+/// </summary>
+internal sealed class TestSaveChangesFilter<T>(PaymentDbContext db) : IFilter<ConsumeContext<T>>
+    where T : class
+{
+    public async Task Send(ConsumeContext<T> context, IPipe<ConsumeContext<T>> next)
+    {
+        await next.Send(context);
+        await db.SaveChangesAsync(context.CancellationToken);
+    }
+
+    public void Probe(ProbeContext context) => context.CreateFilterScope("test-save-changes");
 }
