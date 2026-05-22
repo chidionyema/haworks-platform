@@ -78,6 +78,16 @@ public sealed class CheckoutRealTransportFactory : WebApplicationFactory<Program
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CheckoutDbContext>();
         await db.Database.MigrateAsync();
+
+        // Purge stale outbox messages from previous test runs so the
+        // BusOutboxDeliveryService doesn't spend time delivering old messages
+        // before getting to the test's message.
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """TRUNCATE TABLE checkout."OutboxMessage", checkout."OutboxState" CASCADE""");
+        }
+        catch { /* tables may not exist on first run */ }
     }
 
     private async Task PurgeRabbitMqQueuesAsync()
