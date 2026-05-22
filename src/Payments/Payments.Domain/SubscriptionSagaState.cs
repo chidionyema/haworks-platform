@@ -18,5 +18,6 @@ public class SubscriptionSagaState : SagaStateMachineInstance, ISagaVersion
     
     public Guid? RenewalTimeoutTokenId { get; set; }
     public Guid? DunningRetryTokenId { get; set; }
+    public Guid? RenewingTimeoutTokenId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

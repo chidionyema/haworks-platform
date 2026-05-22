@@ -22,7 +22,6 @@ internal sealed class PayPalPaymentProcessor(
     IPayPalClientFactory paypalClientFactory,
     IResiliencePolicyFactory resiliencePolicyFactory,
     IPaymentAmountMismatchHandler amountMismatchHandler,
-    IPublishEndpoint eventPublisher,
     ILogger<PayPalPaymentProcessor> logger,
     ITelemetryService telemetry) : IPaymentSessionProcessor
 {
@@ -32,6 +31,7 @@ internal sealed class PayPalPaymentProcessor(
     /// <inheritdoc />
     public async Task HandleCompletedSessionAsync(
         PaymentSessionEvent sessionEvent,
+        IPublishEndpoint publisher,
         CancellationToken ct = default)
     {
         using var scope = logger.BeginScope(new Dictionary<string, object>
@@ -84,10 +84,11 @@ internal sealed class PayPalPaymentProcessor(
             return;
         }
 
-        // 5. Atomic payment completion
+        // 5. Atomic payment completion — MassTransit EF outbox commits
+        // entity state + outbox messages atomically; do NOT call SaveChangesAsync.
         payment.MarkCompleted(sessionEvent.TransactionId, "paypal");
 
-        await eventPublisher.Publish(new PaymentCompletedEvent
+        await publisher.Publish(new PaymentCompletedEvent
         {
             PaymentId = payment.Id,
             OrderId = payment.OrderId,
@@ -97,8 +98,6 @@ internal sealed class PayPalPaymentProcessor(
             Provider = PaymentProvider.PayPal.ToString(),
             TransactionReference = sessionEvent.TransactionId
         }, ct).ConfigureAwait(false);
-
-        await paymentRepository.SaveChangesAsync(ct).ConfigureAwait(false);
 
         logger.LogInformation("Payment {PaymentId} completed for order {OrderId}", payment.Id, payment.OrderId);
         TrackPaymentCompleted(payment.OrderId, payment, sessionEvent);

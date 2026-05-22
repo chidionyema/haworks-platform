@@ -1,11 +1,13 @@
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Contracts.Payments;
+using MassTransit;
 using Microsoft.Extensions.Logging;
 
 namespace Haworks.Payments.Infrastructure.Webhooks;
 
 internal sealed class WebhookRouter(
     IEnumerable<IWebhookProcessor> processors,
+    IPublishEndpoint publishEndpoint,
     ILogger<WebhookRouter> logger) : IWebhookRouter
 {
     private readonly Dictionary<PaymentProvider, IWebhookProcessor> _processors = 
@@ -37,7 +39,7 @@ internal sealed class WebhookRouter(
         var validationResult = await processor.ValidateAndParseAsync(payload, signature ?? string.Empty, ct);
         if (validationResult.IsValid && validationResult.Event != null)
         {
-            await processor.ProcessEventAsync(validationResult.Event, ct);
+            await processor.ProcessEventAsync(validationResult.Event, publishEndpoint, ct);
         }
     }
 

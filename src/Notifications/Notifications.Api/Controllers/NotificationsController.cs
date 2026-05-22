@@ -13,9 +13,10 @@ namespace Haworks.Notifications.Api.Controllers;
 [Route("api/v{version:apiVersion}/notifications")]
 [Authorize]
 [EnableRateLimiting("api")]
-public sealed class NotificationsController(IMediator mediator) : ControllerBase
+public sealed class NotificationsController(IMediator mediator, INotificationRepository repository) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
+    private readonly INotificationRepository _repository = repository;
 
     /// <summary>
     /// Accepts a notification send request. The handler enforces idempotency,
@@ -31,9 +32,12 @@ public sealed class NotificationsController(IMediator mediator) : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _mediator.Send(command, cancellationToken).ConfigureAwait(false);
-        return result.IsSuccess 
-            ? result.ToCreatedActionResult(nameof(Get), new { id = result.Value })
-            : result.ToActionResult();
+        if (result.IsSuccess)
+        {
+            await _repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return result.ToCreatedActionResult(nameof(Get), new { id = result.Value });
+        }
+        return result.ToActionResult();
     }
 
     [HttpGet("{id:guid}", Name = nameof(Get))]

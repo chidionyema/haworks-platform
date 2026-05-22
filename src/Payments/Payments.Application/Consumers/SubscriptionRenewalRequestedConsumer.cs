@@ -30,7 +30,7 @@ public sealed class SubscriptionRenewalRequestedConsumer(
                 EventType = SubscriptionEventType.Renewed,
                 NewStatus = SubscriptionStatus.Active,
                 Provider = paymentGateway.ActiveProvider
-            }, context.CancellationToken);
+            }, context, context.CancellationToken);
 
             logger.LogInformation("Subscription {SubscriptionId} renewed successfully", msg.ProviderSubscriptionId);
 

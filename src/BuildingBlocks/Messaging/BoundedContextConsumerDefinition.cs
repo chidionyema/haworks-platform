@@ -34,6 +34,22 @@ public abstract class BoundedContextConsumerDefinition<TConsumer, TDbContext>
         IConsumerConfigurator<TConsumer> consumerConfigurator,
         IRegistrationContext context)
     {
+        // Retry MUST be outermost — each retry gets a fresh DI scope + clean DbContext.
+        // Without this, a single transient Postgres error sends the message straight
+        // to the error queue with zero retries.
+        endpointConfigurator.UseMessageRetry(r =>
+        {
+            r.Intervals(
+                TimeSpan.FromMilliseconds(200),
+                TimeSpan.FromSeconds(1),
+                TimeSpan.FromSeconds(5));
+            r.Handle<Microsoft.EntityFrameworkCore.DbUpdateException>();
+            r.Handle<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>();
+            r.Handle<Npgsql.NpgsqlException>();
+            r.Handle<TimeoutException>();
+            r.Handle<System.IO.IOException>();
+        });
+
         // Consume-side filter: opens a TDbContext transaction around Consume,
         // writes InboxState row for dedupe, captures every publish into
         // TDbContext's OutboxMessage table, calls SaveChangesAsync + commits
@@ -82,9 +98,9 @@ public abstract class BoundedContextSagaDefinition<TSaga, TDbContext>
             if (retryObs != null) r.ConnectRetryObserver(retryObs);
         });
 
-        // InMemoryOutbox buffers saga publishes until the saga state is saved.
-        // If the save fails, buffered publishes are discarded (not sent).
-        // This prevents fire-and-forget publishes to RabbitMQ during compensation.
-        endpointConfigurator.UseInMemoryOutbox(context);
+        // M1: EF Outbox ensures saga state writes + publishes commit atomically in ONE
+        // TDbContext transaction. InMemoryOutbox only buffers — it cannot guarantee
+        // atomicity if the process crashes after state save but before publish flush.
+        endpointConfigurator.UseEntityFrameworkOutbox<TDbContext>(context);
     }
 }

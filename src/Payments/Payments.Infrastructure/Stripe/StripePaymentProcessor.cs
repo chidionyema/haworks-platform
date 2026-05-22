@@ -29,7 +29,6 @@ internal sealed class StripePaymentProcessor(
     IPaymentSessionCache sessionCache,
     IResiliencePolicyFactory resiliencePolicyFactory,
     IPaymentAmountMismatchHandler amountMismatchHandler,
-    IPublishEndpoint eventPublisher,
     ILogger<StripePaymentProcessor> logger,
     ITelemetryService telemetry) : IPaymentSessionProcessor
 {
@@ -41,6 +40,7 @@ internal sealed class StripePaymentProcessor(
     /// <inheritdoc />
     public async Task HandleCompletedSessionAsync(
         PaymentSessionEvent sessionEvent,
+        IPublishEndpoint publisher,
         CancellationToken ct = default)
     {
         using var scope = logger.BeginScope(new Dictionary<string, object>
@@ -118,7 +118,7 @@ internal sealed class StripePaymentProcessor(
         // 5. Atomic payment completion
         try
         {
-            await CompletePaymentAsync(sessionEvent, payment, ct).ConfigureAwait(false);
+            await CompletePaymentAsync(sessionEvent, payment, publisher, ct).ConfigureAwait(false);
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -201,6 +201,7 @@ internal sealed class StripePaymentProcessor(
     private async Task CompletePaymentAsync(
         PaymentSessionEvent sessionEvent,
         Payment payment,
+        IPublishEndpoint publisher,
         CancellationToken ct)
     {
         try
@@ -208,8 +209,11 @@ internal sealed class StripePaymentProcessor(
             // Mark the aggregate as completed
             payment.MarkCompleted(sessionEvent.TransactionId, "card");
 
-            // Publish event for Orders context to handle order status update
-            await eventPublisher.Publish(new PaymentCompletedEvent
+            // Publish via the caller-supplied endpoint — when called from a
+            // MassTransit consumer this is the ConsumeContext, which routes
+            // through the EF Core outbox. The outbox commits entity state +
+            // outbox messages atomically; do NOT call SaveChangesAsync here.
+            await publisher.Publish(new PaymentCompletedEvent
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
@@ -220,15 +224,12 @@ internal sealed class StripePaymentProcessor(
                 TransactionReference = sessionEvent.TransactionId
             }, ct).ConfigureAwait(false);
 
-            // Commit changes. MassTransit-EF outbox handles atomicity.
-            await paymentRepository.SaveChangesAsync(ct).ConfigureAwait(false);
-
             await sessionCache.RemoveAsync(sessionEvent.SessionId, ct).ConfigureAwait(false);
 
             logger.LogInformation(
                 "Payment {PaymentId} completed, PaymentCompletedEvent published for order {OrderId}",
                 payment.Id, payment.OrderId);
-            
+
             TrackPaymentCompleted(payment.OrderId, payment, sessionEvent);
         }
         catch (Exception ex)

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Haworks.BuildingBlocks.Common;
 using Haworks.Pricing.Application.Commands;
+using Haworks.Pricing.Application.Interfaces;
 using Haworks.Pricing.Application.Queries;
 using Haworks.Pricing.Domain.Exceptions;
 using Haworks.Pricing.Domain.ValueObjects;
@@ -19,15 +20,18 @@ namespace Haworks.Pricing.Api.Controllers;
 [Route("pricing")]
 [ProducesResponseType(StatusCodes.Status400BadRequest)]
 [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6960", Justification = "Single pricing domain — splitting would fragment the API surface")]
 public sealed class PricingController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly BrandOptions _brandOptions;
+    private readonly ICalculationLogRepository _logRepo;
 
-    public PricingController(IMediator mediator, IOptions<BrandOptions> brandOptions)
+    public PricingController(IMediator mediator, IOptions<BrandOptions> brandOptions, ICalculationLogRepository logRepo)
     {
         _mediator = mediator;
         _brandOptions = brandOptions.Value;
+        _logRepo = logRepo;
     }
 
     /// <summary>
@@ -61,6 +65,10 @@ public sealed class PricingController : ControllerBase
             CountryCode = countryCode,
             StateCode = stateCode,
         }, ct).ConfigureAwait(false);
+
+        // Flush the PriceCalculationLog added by the handler (handler no longer calls SaveChanges
+        // because it's also used from consumers where the outbox commits automatically).
+        await _logRepo.SaveChangesAsync(ct).ConfigureAwait(false);
 
         return Result.Success(result).ToActionResult();
     }

@@ -23,7 +23,6 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
     private readonly ISubscriptionManager _subscriptionManager;
     private readonly IWebhookIdempotencyGuard _idempotencyGuard;
     private readonly IPaymentRepository _paymentRepository;
-    private readonly IPublishEndpoint _eventPublisher;
     private readonly ILogger<StripeWebhookProcessor> _logger;
     private readonly ITelemetryService _telemetry;
 
@@ -39,7 +38,6 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         ISubscriptionManager subscriptionManager,
         IWebhookIdempotencyGuard idempotencyGuard,
         IPaymentRepository paymentRepository,
-        IPublishEndpoint eventPublisher,
         IOptions<PaymentProviderOptions> providerOptions,
         ILogger<StripeWebhookProcessor> logger,
         ITelemetryService telemetry)
@@ -48,7 +46,6 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         _subscriptionManager = subscriptionManager ?? throw new ArgumentNullException(nameof(subscriptionManager));
         _idempotencyGuard = idempotencyGuard ?? throw new ArgumentNullException(nameof(idempotencyGuard));
         _paymentRepository = paymentRepository ?? throw new ArgumentNullException(nameof(paymentRepository));
-        _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
     }
@@ -95,6 +92,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
     /// <inheritdoc />
     public async Task<WebhookProcessingResult> ProcessEventAsync(
         PaymentWebhookEvent webhookEvent,
+        IPublishEndpoint publisher,
         CancellationToken ct = default)
     {
         using var scope = _logger.BeginScope(new Dictionary<string, object>
@@ -113,13 +111,13 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         {
             var result = webhookEvent.EventType switch
             {
-                StripeConstants.EventTypes.CheckoutSessionCompleted => await HandleCheckoutSessionCompletedAsync(webhookEvent, ct),
-                StripeConstants.EventTypes.CheckoutSessionExpired => await HandleCheckoutSessionExpiredAsync(webhookEvent, ct),
-                StripeConstants.EventTypes.CustomerSubscriptionCreated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Created, ct),
-                StripeConstants.EventTypes.CustomerSubscriptionUpdated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Updated, ct),
-                StripeConstants.EventTypes.CustomerSubscriptionDeleted => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Canceled, ct),
-                StripeConstants.EventTypes.InvoicePaymentFailed => await HandleInvoicePaymentFailedAsync(webhookEvent, ct),
-                "charge.refunded" => await HandleChargeRefundedAsync(webhookEvent, ct),
+                StripeConstants.EventTypes.CheckoutSessionCompleted => await HandleCheckoutSessionCompletedAsync(webhookEvent, publisher, ct),
+                StripeConstants.EventTypes.CheckoutSessionExpired => await HandleCheckoutSessionExpiredAsync(webhookEvent, publisher, ct),
+                StripeConstants.EventTypes.CustomerSubscriptionCreated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Created, publisher, ct),
+                StripeConstants.EventTypes.CustomerSubscriptionUpdated => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Updated, publisher, ct),
+                StripeConstants.EventTypes.CustomerSubscriptionDeleted => await HandleSubscriptionEventAsync(webhookEvent, SubscriptionEventType.Canceled, publisher, ct),
+                StripeConstants.EventTypes.InvoicePaymentFailed => await HandleInvoicePaymentFailedAsync(webhookEvent, publisher, ct),
+                "charge.refunded" => await HandleChargeRefundedAsync(webhookEvent, publisher, ct),
                 _ => WebhookProcessingResult.Skipped($"Unhandled event type: {webhookEvent.EventType}")
             };
 
@@ -138,7 +136,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         }
     }
 
-    private async Task<WebhookProcessingResult> HandleCheckoutSessionCompletedAsync(PaymentWebhookEvent webhookEvent, CancellationToken ct)
+    private async Task<WebhookProcessingResult> HandleCheckoutSessionCompletedAsync(PaymentWebhookEvent webhookEvent, IPublishEndpoint publisher, CancellationToken ct)
     {
         var session = ParseDataObject<StripeSessionDto>(webhookEvent.RawPayload);
         if (session == null) return WebhookProcessingResult.Failed("Failed to parse Session data");
@@ -154,7 +152,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
                 Provider = Provider,
                 Metadata = session.Metadata
             };
-            await _subscriptionManager.HandleSubscriptionEventAsync(subEvent, ct);
+            await _subscriptionManager.HandleSubscriptionEventAsync(subEvent, publisher, ct);
         }
         else
         {
@@ -168,13 +166,13 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
                 Provider = Provider,
                 Metadata = session.Metadata
             };
-            await _paymentProcessor.HandleCompletedSessionAsync(sessionEvent, ct);
+            await _paymentProcessor.HandleCompletedSessionAsync(sessionEvent, publisher, ct);
         }
 
         return WebhookProcessingResult.Success(webhookEvent.EventType, $"Session {session.Id} processed");
     }
 
-    private async Task<WebhookProcessingResult> HandleSubscriptionEventAsync(PaymentWebhookEvent webhookEvent, SubscriptionEventType eventType, CancellationToken ct)
+    private async Task<WebhookProcessingResult> HandleSubscriptionEventAsync(PaymentWebhookEvent webhookEvent, SubscriptionEventType eventType, IPublishEndpoint publisher, CancellationToken ct)
     {
         var sub = ParseDataObject<StripeSubscriptionDto>(webhookEvent.RawPayload);
         if (sub == null) return WebhookProcessingResult.Failed("Failed to parse Subscription data");
@@ -190,11 +188,11 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
             Metadata = sub.Metadata
         };
 
-        await _subscriptionManager.HandleSubscriptionEventAsync(subscriptionEvent, ct);
+        await _subscriptionManager.HandleSubscriptionEventAsync(subscriptionEvent, publisher, ct);
         return WebhookProcessingResult.Success(webhookEvent.EventType, $"Subscription {sub.Id} processed");
     }
 
-    private async Task<WebhookProcessingResult> HandleInvoicePaymentFailedAsync(PaymentWebhookEvent webhookEvent, CancellationToken ct)
+    private async Task<WebhookProcessingResult> HandleInvoicePaymentFailedAsync(PaymentWebhookEvent webhookEvent, IPublishEndpoint publisher, CancellationToken ct)
     {
         var invoice = ParseDataObject<StripeInvoiceDto>(webhookEvent.RawPayload);
         if (invoice == null) return WebhookProcessingResult.Failed("Failed to parse Invoice data");
@@ -208,11 +206,11 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
             Provider = Provider
         };
 
-        await _subscriptionManager.HandleSubscriptionEventAsync(subscriptionEvent, ct);
+        await _subscriptionManager.HandleSubscriptionEventAsync(subscriptionEvent, publisher, ct);
         return WebhookProcessingResult.Success(webhookEvent.EventType, "Invoice failed handled");
     }
 
-    private async Task<WebhookProcessingResult> HandleCheckoutSessionExpiredAsync(PaymentWebhookEvent webhookEvent, CancellationToken ct)
+    private async Task<WebhookProcessingResult> HandleCheckoutSessionExpiredAsync(PaymentWebhookEvent webhookEvent, IPublishEndpoint publisher, CancellationToken ct)
     {
         var session = ParseDataObject<StripeSessionDto>(webhookEvent.RawPayload);
         if (session == null) return WebhookProcessingResult.Failed("Failed to parse Session data");
@@ -220,20 +218,19 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         var payment = await _paymentRepository.GetByProviderSessionAsync(Provider, session.Id, ct);
         if (payment == null) return WebhookProcessingResult.Skipped("No payment record");
 
-        // Publish then save — outbox message commits atomically with entity state
-        await _eventPublisher.Publish(new CheckoutSessionExpiredEvent
+        // MassTransit EF outbox commits entity state + outbox messages atomically
+        await publisher.Publish(new CheckoutSessionExpiredEvent
         {
             SessionId = session.Id,
             PaymentId = payment.Id,
             OrderId = payment.OrderId,
             Provider = Provider.ToString()
         }, ct);
-        await _paymentRepository.SaveChangesAsync(ct);
 
         return WebhookProcessingResult.Success(webhookEvent.EventType, "Expired handled");
     }
 
-    private async Task<WebhookProcessingResult> HandleChargeRefundedAsync(PaymentWebhookEvent webhookEvent, CancellationToken ct)
+    private async Task<WebhookProcessingResult> HandleChargeRefundedAsync(PaymentWebhookEvent webhookEvent, IPublishEndpoint publisher, CancellationToken ct)
     {
         var charge = ParseDataObject<StripeChargeDto>(webhookEvent.RawPayload);
         if (charge == null) return WebhookProcessingResult.Failed("Failed to parse Charge data");
@@ -245,12 +242,12 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         var payment = await _paymentRepository.GetByProviderTransactionIdAsync(charge.PaymentIntent, ct);
         if (payment == null) return WebhookProcessingResult.Skipped("No payment record for intent");
 
-        // We check if it's already processed or if we need to emit a system-wide event.
         // For Dashboard refunds, we want to ensure Orders etc are notified.
+        // MassTransit EF outbox commits entity state + outbox messages atomically.
         foreach (var refund in charge.Refunds.Data.Where(r => string.Equals(r.Status, "succeeded", StringComparison.Ordinal)))
         {
             // 1. Legacy/Dashboard event for broad consumption
-            await _eventPublisher.Publish(new RefundIssuedEvent
+            await publisher.Publish(new RefundIssuedEvent
             {
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
@@ -264,7 +261,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
             // 2. Saga-specific correlation event
             if (refund.Metadata.TryGetValue("refund_id", out var sagaIdStr) && Guid.TryParse(sagaIdStr, out var sagaId))
             {
-                await _eventPublisher.Publish(new ProviderRefundSucceededEvent
+                await publisher.Publish(new ProviderRefundSucceededEvent
                 {
                     RefundId = sagaId,
                     ProviderRefundId = refund.Id,
@@ -274,7 +271,6 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
             }
         }
 
-        await _paymentRepository.SaveChangesAsync(ct);
         return WebhookProcessingResult.Success(webhookEvent.EventType, "Refund processed");
     }
 

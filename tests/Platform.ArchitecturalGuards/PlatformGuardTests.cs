@@ -2191,6 +2191,76 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
         violations.Should().BeEmpty("Dockerfiles must use targeted COPY, never COPY . . (leaks secrets, slow builds)");
     }
 
+    // ─── Consumer Transitive Call Guards ─────────────────────────────
+    // These guards catch violations that HWK001/HWK074 miss because
+    // they only check direct calls within the consumer class itself.
+    // Services injected INTO consumers that call SaveChangesAsync or
+    // BeginTransactionAsync are equally dangerous.
+
+    [Fact]
+    public void No_SaveChangesAsync_in_services_called_by_consumers()
+    {
+        // Step 1: Find all types injected into consumers by scanning constructor parameters
+        var consumerDependencyTypes = new HashSet<string>();
+        foreach (var file in FindConsumerFiles())
+        {
+            var content = File.ReadAllText(file);
+            // Match constructor injection patterns: IFoo _foo or IFoo foo
+            var ctorMatches = Regex.Matches(content, @"(?:readonly\s+)?I(\w+Service\w*|I\w+Guard\w*|I\w+Writer\w*)\s+_?\w+");
+            foreach (Match m in ctorMatches)
+                consumerDependencyTypes.Add(m.Groups[1].Value);
+
+            // Also match primary constructor params: IFooService fooService
+            var primaryCtorMatches = Regex.Matches(content, @"(?:I(\w+Service)|I(\w+Guard)|I(\w+Writer))\s+\w+[,)]");
+            foreach (Match m in primaryCtorMatches)
+            {
+                var name = m.Groups[1].Value + m.Groups[2].Value + m.Groups[3].Value;
+                if (!string.IsNullOrEmpty(name)) consumerDependencyTypes.Add(name);
+            }
+        }
+
+        // Step 2: Scan implementation classes of those types for SaveChangesAsync/BeginTransactionAsync
+        var violations = new List<string>();
+        foreach (var file in FindProductionCsFiles())
+        {
+            var content = File.ReadAllText(file);
+            var fileName = Path.GetFileNameWithoutExtension(file);
+
+            // Only check files that implement service/guard types consumers depend on
+            var isConsumerDependency = consumerDependencyTypes.Any(t =>
+                fileName.Contains(t, StringComparison.OrdinalIgnoreCase) ||
+                content.Contains($": I{t}", StringComparison.Ordinal));
+            if (!isConsumerDependency) continue;
+
+            // Allowlist: Repository files wrap DbContext — they expose SaveChangesAsync
+            // but the consumer's outbox handles the commit.
+            if (fileName.Contains("Repository", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                // Lines annotated with OUTBOX-SAFE are explicitly justified flushes
+                // within the ambient transaction (e.g. creating a row so it can be FOR UPDATE locked)
+                if (line.Contains("OUTBOX-SAFE", StringComparison.Ordinal)) continue;
+                if (line.TrimStart().StartsWith("//")) continue;
+
+                if (Regex.IsMatch(line, @"\.SaveChangesAsync\(") &&
+                    !Regex.IsMatch(line, @"//.*SaveChangesAsync"))
+                {
+                    violations.Add($"{Relative(file)}:{i + 1}: SaveChangesAsync in service called by consumer — breaks EF Outbox atomicity");
+                }
+                if (Regex.IsMatch(line, @"\.BeginTransactionAsync\("))
+                {
+                    violations.Add($"{Relative(file)}:{i + 1}: BeginTransactionAsync in service called by consumer — creates nested transaction");
+                }
+            }
+        }
+        violations.Should().BeEmpty(
+            "services injected into MassTransit consumers must not call SaveChangesAsync or BeginTransactionAsync — " +
+            "the EF Outbox provides the ambient transaction (Architectural Law #1)");
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────
 
     private static string FindSrcRoot()
