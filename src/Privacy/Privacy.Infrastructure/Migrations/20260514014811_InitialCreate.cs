@@ -1,19 +1,20 @@
 #pragma warning disable CA1861
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace Haworks.Privacy.Infrastructure.Migrations
 {
-    /// <inheritdoc />
     public partial class InitialCreate : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.EnsureSchema(name: "privacy");
+
             migrationBuilder.CreateTable(
                 name: "PrivacyRequests",
+                schema: "privacy",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -37,6 +38,7 @@ namespace Haworks.Privacy.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "PrivacyRequestSteps",
+                schema: "privacy",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -60,23 +62,21 @@ namespace Haworks.Privacy.Infrastructure.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "IX_PrivacyRequests_UserId",
+                schema: "privacy",
                 table: "PrivacyRequests",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PrivacyRequestSteps_RequestId",
+                schema: "privacy",
                 table: "PrivacyRequestSteps",
                 column: "RequestId");
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "PrivacyRequests");
-
-            migrationBuilder.DropTable(
-                name: "PrivacyRequestSteps");
+            migrationBuilder.DropTable(name: "PrivacyRequests", schema: "privacy");
+            migrationBuilder.DropTable(name: "PrivacyRequestSteps", schema: "privacy");
         }
     }
 }
