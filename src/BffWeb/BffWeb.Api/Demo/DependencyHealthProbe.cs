@@ -23,7 +23,7 @@ namespace Haworks.BffWeb.Api.Demo;
 /// </summary>
 public sealed class DependencyHealthProbe : IDependencyHealthProbe
 {
-    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(5);
 
     private static readonly (string Id, string Name, string ClientName)[] s_downstream =
     [
