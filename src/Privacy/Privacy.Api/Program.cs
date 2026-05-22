@@ -53,6 +53,12 @@ builder.Services.AddHealthChecks().AddDbHealthCheck<Haworks.Privacy.Infrastructu
 
 var app = builder.Build();
 
+// Ensure privacy schema exists before EF migration runs
+using (var schemaScope = app.Services.CreateScope())
+{
+    var db = schemaScope.ServiceProvider.GetRequiredService<PrivacyDbContext>();
+    db.Database.ExecuteSqlRaw("CREATE SCHEMA IF NOT EXISTS privacy");
+}
 app.MigrateDatabase<PrivacyDbContext>();
 
 // Ensure MassTransit outbox tables exist in the privacy schema.
