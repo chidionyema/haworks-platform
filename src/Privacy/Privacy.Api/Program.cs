@@ -13,9 +13,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add service defaults & Aspire components
 builder.AddServiceDefaults();
 
-// Add Serilog
+// Add Serilog — explicit console sink since no appsettings.json exists
 builder.Host.UseSerilog((context, loggerConfiguration) => loggerConfiguration
-    .ReadFrom.Configuration(context.Configuration));
+    .ReadFrom.Configuration(context.Configuration)
+    .WriteTo.Console());
 
 // Add layers
 builder.Services.AddApplication();
