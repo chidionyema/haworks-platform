@@ -1,8 +1,7 @@
-using System.Text.Json;
 using MassTransit;
-using Microsoft.EntityFrameworkCore;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Application.Telemetry;
+using Haworks.Payments.Domain.Interfaces;
 
 namespace Haworks.Payments.Application.Consumers;
 
@@ -27,6 +26,7 @@ namespace Haworks.Payments.Application.Consumers;
 // assembly. Internal would be invisible there.
 public sealed class PaymentWebhookValidatedConsumer(
     IEnumerable<IWebhookProcessor> processors,
+    IPaymentRepository repository,
     ILogger<PaymentWebhookValidatedConsumer> logger
 ) : IConsumer<PaymentWebhookValidatedEvent>
 {
@@ -84,6 +84,12 @@ public sealed class PaymentWebhookValidatedConsumer(
             logger.LogInformation("Webhook {EventId} skipped or failed: {Message}",
                 evt.ProviderEventId, result.Message);
         }
+
+        // Flush entity changes (Payment status, WebhookEvent dedup row) so they
+        // land in the DB. With the EF Outbox this is a no-op flush inside the
+        // ambient outbox transaction — the outbox commits atomically on consumer
+        // success. Without the outbox (test harness) this is the actual commit.
+        await repository.SaveChangesAsync(context.CancellationToken); // OUTBOX-SAFE
     }
 
     private static PaymentProvider? ParseProvider(string provider) => provider switch
