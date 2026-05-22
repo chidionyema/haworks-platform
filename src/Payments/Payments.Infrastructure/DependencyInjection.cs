@@ -78,9 +78,15 @@ public static class DependencyInjection
         services.TryAddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
         services.TryAddSingleton<ITelemetryService>(NullTelemetryService.Instance);
 
-        // Caching
+        // Caching — HybridCache needs an IDistributedCache backend.
+        // Use Redis when connection string is available, in-memory otherwise.
         services.AddHybridCache();
-        if (env.IsEnvironment("Test") || env.IsDevelopment())
+        var redisConn = configuration.GetConnectionString("redis");
+        if (!string.IsNullOrEmpty(redisConn) && !env.IsEnvironment("Test"))
+        {
+            services.AddStackExchangeRedisCache(o => o.Configuration = redisConn);
+        }
+        else
         {
             services.AddInMemoryDistributedCache();
         }
