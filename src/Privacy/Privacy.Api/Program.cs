@@ -55,7 +55,8 @@ var app = builder.Build();
 
 app.MigrateDatabase<PrivacyDbContext>();
 
-// Configure the HTTP request pipeline
+// Enable detailed errors so we can see what's crashing
+app.UseDeveloperExceptionPage();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
