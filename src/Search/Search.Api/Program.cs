@@ -25,6 +25,17 @@ if (!builder.Environment.IsEnvironment("Test") && !string.IsNullOrEmpty(kafkaCon
     {
         consumerBuilder.Config.GroupId = "search-svc-cdc";
         consumerBuilder.Config.AutoOffsetReset = Confluent.Kafka.AutoOffsetReset.Earliest;
+
+        // Confluent Cloud SASL auth — read from Kafka__ config section
+        var saslUser = builder.Configuration["Kafka:SaslUsername"];
+        var saslPass = builder.Configuration["Kafka:SaslPassword"];
+        if (!string.IsNullOrEmpty(saslUser))
+        {
+            consumerBuilder.Config.SecurityProtocol = Confluent.Kafka.SecurityProtocol.SaslSsl;
+            consumerBuilder.Config.SaslMechanism = Confluent.Kafka.SaslMechanism.Plain;
+            consumerBuilder.Config.SaslUsername = saslUser;
+            consumerBuilder.Config.SaslPassword = saslPass;
+        }
     });
     builder.Services.AddCdcSearchIndexing();
 }
