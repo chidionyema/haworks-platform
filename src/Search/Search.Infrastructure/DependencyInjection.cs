@@ -31,6 +31,8 @@ public static class DependencyInjection
         {
             var opt = sp.GetRequiredService<IOptions<ElasticsearchOptions>>().Value;
             var settings = new ElasticsearchClientSettings(new Uri(opt.Url));
+            if (!string.IsNullOrEmpty(opt.ApiKey))
+                settings = settings.Authentication(new Elastic.Transport.ApiKey(opt.ApiKey));
             return new ElasticsearchClient(settings);
         });
 
