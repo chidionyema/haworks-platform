@@ -60,15 +60,7 @@ public sealed class UpsertTranslationCommandHandler : IRequestHandler<UpsertTran
 
         try
         {
-            await _publishEndpoint.Publish(new TranslationUpdatedEvent
-        {
-            TranslationId = translation.Id,
-            Key = request.Key,
-            Locale = request.Locale,
-            Value = request.Value,
-            UpdatedBy = request.UpdatedBy
-        }, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
         {
@@ -81,7 +73,16 @@ public sealed class UpsertTranslationCommandHandler : IRequestHandler<UpsertTran
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        
+        // Publish AFTER save succeeds (both happy and race paths) so the event
+        // is never lost. The outbox commits it atomically with the next save.
+        await _publishEndpoint.Publish(new TranslationUpdatedEvent
+        {
+            TranslationId = translation.Id,
+            Key = request.Key,
+            Locale = request.Locale,
+            Value = request.Value,
+            UpdatedBy = request.UpdatedBy
+        }, cancellationToken);
 
         return Result.Success(translation.Id);
     }

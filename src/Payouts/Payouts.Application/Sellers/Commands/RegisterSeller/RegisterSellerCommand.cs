@@ -3,6 +3,7 @@ using Haworks.Payouts.Domain.Aggregates;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace Haworks.Payouts.Application.Sellers.Commands.RegisterSeller;
 
@@ -45,13 +46,14 @@ public class RegisterSellerCommandHandler : IRequestHandler<RegisterSellerComman
                 "Seller {SellerId} registered successfully. ProfileId={ProfileId}, StripeAccountId={StripeId}",
                 request.SellerId, profile.Id, externalId);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
         {
             _logger.LogWarning(
                 "Race condition on seller registration {SellerId} — cleaning up orphaned Stripe account {StripeId}",
                 request.SellerId, externalId);
             await _payoutGateway.DeleteConnectedAccountAsync(externalId, cancellationToken);
 
+            ((DbContext)_context).ChangeTracker.Clear();
             var raceWinner = await _context.SellerProfiles
                 .FirstOrDefaultAsync(p => p.SellerId == request.SellerId, cancellationToken);
             if (raceWinner != null) return raceWinner.Id;

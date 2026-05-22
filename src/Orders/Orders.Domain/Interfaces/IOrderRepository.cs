@@ -12,6 +12,7 @@ public interface IOrderRepository
     Task<int> CountByUserAsync(string userId, CancellationToken ct = default);
     Task AddAsync(Order order, CancellationToken ct = default);
     Task<int> SaveChangesAsync(CancellationToken ct = default);
+    void ClearChangeTracker();
 
     // Guest order methods
     Task AddGuestInfoAsync(GuestOrderInfo guestInfo, CancellationToken ct = default);

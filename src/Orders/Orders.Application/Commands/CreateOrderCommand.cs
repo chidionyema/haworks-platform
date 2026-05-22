@@ -84,7 +84,7 @@ internal sealed class CreateOrderCommandHandler(
         }, ct);
 
         // M1 fix: catch unique constraint violation (23505) on SagaId for concurrent duplicates.
-        // On conflict, re-read the existing order and return its ID as idempotent success.
+        // On conflict, clear the poisoned change tracker, re-read, and return existing order.
         try
         {
             await orders.SaveChangesAsync(ct);
@@ -94,6 +94,7 @@ internal sealed class CreateOrderCommandHandler(
             logger.LogInformation(
                 "CreateOrderCommand: concurrent duplicate for sagaId {SagaId}; returning existing order",
                 request.SagaId);
+            orders.ClearChangeTracker();
             var duplicate = await orders.GetBySagaIdTrackedAsync(request.SagaId, ct);
             if (duplicate is not null)
                 return Result.Success(duplicate.Id);

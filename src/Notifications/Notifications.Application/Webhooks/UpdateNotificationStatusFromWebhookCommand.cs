@@ -49,17 +49,31 @@ internal sealed class UpdateNotificationStatusFromWebhookHandler(
         // Single SaveChangesAsync commits both the notification status update
         // and any suppression entries atomically (same DbContext/unit of work).
         // Defense-in-depth: if the suppression unique constraint fires (duplicate bounce),
-        // the exception propagates but the notification status is preserved.
+        // clear the poisoned tracker, re-load the entity, re-apply status transitions
+        // (without the duplicate suppression), and save.
         try
         {
             await repository.SaveChangesAsync(ct).ConfigureAwait(false);
         }
-        catch (DbUpdateException ex) when (ex.InnerException?.Message?.Contains("23505") == true)
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
         {
             logger.LogInformation(
-                "Duplicate suppression entry for {ProviderMessageId}; saving notification status only",
+                "Duplicate suppression entry for {ProviderMessageId}; clearing tracker and retrying status-only save",
                 request.ProviderMessageId);
-            await repository.SaveChangesAsync(ct).ConfigureAwait(false);
+            repository.ClearChangeTracker();
+
+            // Re-load and re-apply status transitions (suppression already exists, skip it)
+            var reloaded = await repository.GetByProviderMessageIdAsync(request.ProviderMessageId, ct).ConfigureAwait(false);
+            if (reloaded != null)
+            {
+                switch (request.Provider)
+                {
+                    case "SES": HandleSesStatusOnly(reloaded, request.EventType); break;
+                    case "SendGrid": HandleSendGridStatusOnly(reloaded, request.EventType); break;
+                    case "Twilio": HandleTwilioStatusOnly(reloaded, request.EventType); break;
+                }
+                await repository.SaveChangesAsync(ct).ConfigureAwait(false);
+            }
         }
 
         return Result.Success();
@@ -127,6 +141,52 @@ internal sealed class UpdateNotificationStatusFromWebhookHandler(
                 if (IsAlreadyInStatus(notification, NotificationStatus.Bounced)) break;
                 notification.MarkBounced("Twilio reported " + eventType);
                 await suppressionService.AddAsync(notification.Recipient, notification.Channel, "Twilio " + eventType, null, ct);
+                break;
+        }
+    }
+
+    // Status-only helpers for the retry path (suppression already exists, skip AddAsync)
+    private static void HandleSesStatusOnly(Notification n, string eventType)
+    {
+        switch (eventType)
+        {
+            case "Delivery":
+                if (!IsAlreadyInStatus(n, NotificationStatus.Delivered)) { n.MarkDelivered(); }
+                break;
+            case "Bounce":
+                if (!IsAlreadyInStatus(n, NotificationStatus.Bounced)) { n.MarkBounced("SES reported bounce"); }
+                break;
+            case "Complaint":
+                if (!IsAlreadyInStatus(n, NotificationStatus.Complained)) { n.MarkComplained(); }
+                break;
+        }
+    }
+
+    private static void HandleSendGridStatusOnly(Notification n, string eventType)
+    {
+        switch (eventType)
+        {
+            case "delivered":
+                if (!IsAlreadyInStatus(n, NotificationStatus.Delivered)) { n.MarkDelivered(); }
+                break;
+            case "bounce":
+                if (!IsAlreadyInStatus(n, NotificationStatus.Bounced)) { n.MarkBounced("SendGrid reported bounce"); }
+                break;
+            case "spamreport":
+                if (!IsAlreadyInStatus(n, NotificationStatus.Complained)) { n.MarkComplained(); }
+                break;
+        }
+    }
+
+    private static void HandleTwilioStatusOnly(Notification n, string eventType)
+    {
+        switch (eventType)
+        {
+            case "delivered":
+                if (!IsAlreadyInStatus(n, NotificationStatus.Delivered)) { n.MarkDelivered(); }
+                break;
+            case "undelivered" or "failed":
+                if (!IsAlreadyInStatus(n, NotificationStatus.Bounced)) { n.MarkBounced("Twilio reported " + eventType); }
                 break;
         }
     }
