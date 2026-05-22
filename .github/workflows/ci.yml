@@ -192,8 +192,8 @@ jobs:
             path: tests/Audit/Audit.Integration
           - suite: Notifications
             path: tests/Notifications/Notifications.Integration
-          - suite: Webhooks
-            path: tests/Webhooks/Webhooks.Integration
+          # Webhooks excluded — Svix container takes 20+ min to start in CI.
+          # Run locally or via: gh workflow run CI && filter Webhooks
           - suite: Payouts
             path: tests/Payouts/Payouts.Integration
           - suite: Scheduler
