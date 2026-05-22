@@ -52,13 +52,13 @@ public class CatalogE2ETests : IAsyncLifetime
         _output.WriteLine("--- STARTING E2E SYNC RESERVATION FLOW ---");
 
         // 1. Setup: Create Product
-        var csrfResponse = await _apiContext.GetAsync("/api/Authentication/csrf-token");
+        var csrfResponse = await _apiContext.GetAsync("/api/v1/Authentication/csrf-token");
         var csrfData = await csrfResponse.JsonAsync();
         var csrfToken = csrfData?.GetProperty("token").GetString();
         var csrfHeader = csrfData?.GetProperty("headerName").GetString();
         var headers = new Dictionary<string, string> { { csrfHeader!, csrfToken! } };
 
-        var categoryResponse = await _apiContext.PostAsync("/api/Categories", new()
+        var categoryResponse = await _apiContext.PostAsync("/api/v1/Categories", new()
         {
             Headers = headers,
             DataObject = new { name = "Toys", description = "Testing" }
@@ -66,7 +66,7 @@ public class CatalogE2ETests : IAsyncLifetime
         var category = await categoryResponse.JsonAsync();
         var categoryId = category?.GetProperty("id").GetGuid();
 
-        var productResponse = await _apiContext.PostAsync("/api/Products", new()
+        var productResponse = await _apiContext.PostAsync("/api/v1/Products", new()
         {
             Headers = headers,
             DataObject = new 
@@ -82,7 +82,7 @@ public class CatalogE2ETests : IAsyncLifetime
         var productId = product?.GetProperty("id").GetGuid() ?? Guid.Empty;
 
         // 2. Step 1: Create Reservation (Anonymous)
-        var reserveResponse = await _apiContext.PostAsync("/api/checkout/reservations", new()
+        var reserveResponse = await _apiContext.PostAsync("/api/v1/checkout/reservations", new()
         {
             Headers = headers,
             DataObject = new
@@ -97,14 +97,14 @@ public class CatalogE2ETests : IAsyncLifetime
         // 3. Step 2: Register (to get Auth Cookie for Confirm)
         var username = $"res_user_{Guid.NewGuid():N}";
         var email = $"{username}@example.com";
-        var registerResponse = await _apiContext.PostAsync("/api/Authentication/register", new()
+        var registerResponse = await _apiContext.PostAsync("/api/v1/Authentication/register", new()
         {
             DataObject = new { username, email, password = "Password123!" }
         });
         registerResponse.Status.Should().Be(201);
         
         // 4. Step 3: Confirm Reservation
-        var confirmResponse = await _apiContext.PostAsync($"/api/checkout/reservations/{reservationId}/confirm", new()
+        var confirmResponse = await _apiContext.PostAsync($"/api/v1/checkout/reservations/{reservationId}/confirm", new()
         {
             Headers = headers,
             DataObject = new { totalAmount = 100.00m, currency = "USD" }

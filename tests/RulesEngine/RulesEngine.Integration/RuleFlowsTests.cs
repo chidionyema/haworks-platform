@@ -34,7 +34,7 @@ public sealed class RuleFlowsTests : IAsyncLifetime
     public async Task Create_and_evaluate_rule_round_trips()
     {
         // 1. Create a rule: "age > 18"
-        var createResp = await _client.PostAsJsonAsync("/api/rules", new CreateRuleCommand(
+        var createResp = await _client.PostAsJsonAsync("/api/v1/rules", new CreateRuleCommand(
             Name: "Adult Check",
             Expression: "age > 18"
         ));
@@ -44,7 +44,7 @@ public sealed class RuleFlowsTests : IAsyncLifetime
         rule!.Id.Should().NotBeEmpty();
 
         // 2. Evaluate rule (True)
-        var evalTrueResp = await _client.PostAsJsonAsync("/api/rules/evaluate", new EvaluateRuleQuery(
+        var evalTrueResp = await _client.PostAsJsonAsync("/api/v1/rules/evaluate", new EvaluateRuleQuery(
             RuleId: rule.Id,
             Inputs: new Dictionary<string, object> { ["age"] = 25 }
         ));
@@ -53,7 +53,7 @@ public sealed class RuleFlowsTests : IAsyncLifetime
         resultTrue!.Outcome.Should().BeTrue();
 
         // 3. Evaluate rule (False)
-        var evalFalseResp = await _client.PostAsJsonAsync("/api/rules/evaluate", new EvaluateRuleQuery(
+        var evalFalseResp = await _client.PostAsJsonAsync("/api/v1/rules/evaluate", new EvaluateRuleQuery(
             RuleId: rule.Id,
             Inputs: new Dictionary<string, object> { ["age"] = 15 }
         ));
@@ -65,7 +65,7 @@ public sealed class RuleFlowsTests : IAsyncLifetime
     [Fact]
     public async Task Get_missing_rule_returns_404()
     {
-        var resp = await _client.GetAsync($"/api/rules/{Guid.NewGuid()}");
+        var resp = await _client.GetAsync($"/api/v1/rules/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

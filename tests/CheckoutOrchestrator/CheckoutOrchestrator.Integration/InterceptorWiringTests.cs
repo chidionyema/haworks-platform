@@ -49,7 +49,7 @@ public sealed class InterceptorWiringTests : IClassFixture<CheckoutRealTransport
         var loggerFactory = _factory.Services.GetRequiredService<ILoggerFactory>();
 
         var sagaId = Guid.NewGuid();
-        var response = await _client.PostAsJsonAsync("/api/checkouts", new
+        var response = await _client.PostAsJsonAsync("/api/v1/checkouts", new
         {
             sagaId,
             orderId = Guid.NewGuid(),

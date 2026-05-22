@@ -23,12 +23,20 @@ primary_region = "iad"
   # endpoint, but its proxy was returning "Connection reset by peer" for
   # this cluster's HTTP/8080 traffic. .internal hits the machine's 6PN
   # IP directly, no LB in the path.
-  "Services__identity-svc__http__0"  = "http://haworks-identity.internal:8080"
-  "Services__catalog-svc__http__0"   = "http://haworks-catalog.internal:8080"
-  "Services__orders-svc__http__0"    = "http://haworks-orders.internal:8080"
-  "Services__payments-svc__http__0"  = "http://haworks-payments.internal:8080"
-  "Services__checkout-svc__http__0"  = "http://haworks-checkout.internal:8080"
-  "Services__search-svc__http__0"    = "http://haworks-search.internal:8080"
+  "Services__identity-svc__http__0"      = "http://haworks-identity.internal:8080"
+  "Services__catalog-svc__http__0"       = "http://haworks-catalog.internal:8080"
+  "Services__orders-svc__http__0"        = "http://haworks-orders.internal:8080"
+  "Services__payments-svc__http__0"      = "http://haworks-payments.internal:8080"
+  "Services__checkout-svc__http__0"      = "http://haworks-checkout.internal:8080"
+  "Services__search-svc__http__0"        = "http://haworks-search.internal:8080"
+  "Services__payouts-svc__http__0"       = "http://haworks-payouts.internal:8080"
+  "Services__privacy-svc__http__0"       = "http://haworks-privacy.internal:8080"
+  "Services__location-svc__http__0"      = "http://haworks-location.internal:8080"
+  "Services__webhooks-svc__http__0"      = "http://haworks-webhooks.internal:8080"
+  "Services__scheduler-svc__http__0"     = "http://haworks-scheduler.internal:8080"
+  "Services__merchant-svc__http__0"      = "http://haworks-merchant.internal:8080"
+  "Services__notifications-svc__http__0" = "http://haworks-notifications.internal:8080"
+  "Services__audit-svc__http__0"         = "http://haworks-audit.internal:8080"
 
   # OpenTelemetry resource identity. Fly's [env] is static (no ${VAR}
   # interpolation), so the OTLP endpoint must be set out-of-band via:

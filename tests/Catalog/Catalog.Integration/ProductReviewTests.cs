@@ -42,7 +42,7 @@ public sealed class ProductReviewTests(CatalogWebAppFactory factory) : IAsyncLif
 
         // Act
         // TestAuthenticationHandler automatically sets X-User-Id: test-user
-        var resp = await _client.PostAsJsonAsync($"/api/products/{productId}/reviews", request);
+        var resp = await _client.PostAsJsonAsync($"/api/v1/products/{productId}/reviews", request);
 
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -75,7 +75,7 @@ public sealed class ProductReviewTests(CatalogWebAppFactory factory) : IAsyncLif
         }).CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
         // Act
-        var resp = await client.PostAsJsonAsync($"/api/products/{productId}/reviews", request);
+        var resp = await client.PostAsJsonAsync($"/api/v1/products/{productId}/reviews", request);
 
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -84,7 +84,7 @@ public sealed class ProductReviewTests(CatalogWebAppFactory factory) : IAsyncLif
     private async Task<Guid> CreateCategoryAsync()
     {
         var name = $"Cat-{Guid.NewGuid():N}";
-        var resp = await _client.PostAsJsonAsync("/api/categories",
+        var resp = await _client.PostAsJsonAsync("/api/v1/categories",
             new { name, description = "x" });
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<Guid>();
@@ -92,7 +92,7 @@ public sealed class ProductReviewTests(CatalogWebAppFactory factory) : IAsyncLif
 
     private async Task<Guid> CreateProductAsync(Guid categoryId)
     {
-        var resp = await _client.PostAsJsonAsync("/api/products", new
+        var resp = await _client.PostAsJsonAsync("/api/v1/products", new
         {
             name = $"P-{Guid.NewGuid():N}",
             description = "x",

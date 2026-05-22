@@ -18,6 +18,7 @@ public class GetPayoutsBySellerQueryHandler : IRequestHandler<GetPayoutsBySeller
         var take = Math.Clamp(request.Take, 1, 100);
 
         return _context.Payouts
+            .AsNoTracking()
             .Where(p => p.SellerId == request.SellerId)
             .OrderByDescending(p => p.CreatedAt)
             .Skip(skip)

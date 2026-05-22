@@ -38,7 +38,7 @@ public sealed class AuthFlowsTests : IAsyncLifetime
         var (email, username) = NewUser();
 
         var response = await _client.PostAsJsonAsync(
-            "/api/Authentication/register",
+            "/api/v1/Authentication/register",
             new { email, username, password = "TestPass#Word123" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -54,11 +54,11 @@ public sealed class AuthFlowsTests : IAsyncLifetime
     {
         var (email, username) = NewUser();
         var payload1 = new { email, username, password = "TestPass#Word123" };
-        var first = await _client.PostAsJsonAsync("/api/Authentication/register", payload1);
+        var first = await _client.PostAsJsonAsync("/api/v1/Authentication/register", payload1);
         first.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var payload2 = new { email, username = username + "-dupe", password = "TestPass#Word123" };
-        var second = await _client.PostAsJsonAsync("/api/Authentication/register", payload2);
+        var second = await _client.PostAsJsonAsync("/api/v1/Authentication/register", payload2);
 
         // The lifted controller returns 500 with the Identity error string.
         // A future refactor should map DuplicateEmail to 409; for now we
@@ -75,12 +75,12 @@ public sealed class AuthFlowsTests : IAsyncLifetime
         var password = "TestPass#Word123";
 
         var reg = await _client.PostAsJsonAsync(
-            "/api/Authentication/register",
+            "/api/v1/Authentication/register",
             new { email, username, password });
         reg.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var login = await _client.PostAsJsonAsync(
-            "/api/Authentication/login",
+            "/api/v1/Authentication/login",
             new { username, password });
 
         login.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -95,12 +95,12 @@ public sealed class AuthFlowsTests : IAsyncLifetime
     {
         var (email, username) = NewUser();
         var reg = await _client.PostAsJsonAsync(
-            "/api/Authentication/register",
+            "/api/v1/Authentication/register",
             new { email, username, password = "TestPass#Word123" });
         reg.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var login = await _client.PostAsJsonAsync(
-            "/api/Authentication/login",
+            "/api/v1/Authentication/login",
             new { username, password = "WrongPassword#1" });
 
         ((int)login.StatusCode).Should().BeGreaterThanOrEqualTo(400);
@@ -132,7 +132,7 @@ public sealed class AuthFlowsTests : IAsyncLifetime
     {
         var (email, username) = NewUser();
         var reg = await _client.PostAsJsonAsync(
-            "/api/Authentication/register",
+            "/api/v1/Authentication/register",
             new { email, username, password = "TestPass#Word123" });
         reg.StatusCode.Should().Be(HttpStatusCode.Created);
         var auth = await reg.Content.ReadFromJsonAsync<AuthResponseShape>();
@@ -154,7 +154,7 @@ public sealed class AuthFlowsTests : IAsyncLifetime
         var (email, username) = NewUser();
 
         var response = await _client.PostAsJsonAsync(
-            "/api/Authentication/register",
+            "/api/v1/Authentication/register",
             new { email, username, password = "Abcdefg1" });
 
         ((int)response.StatusCode).Should().BeGreaterThanOrEqualTo(400);

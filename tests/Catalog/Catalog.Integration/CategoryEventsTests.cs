@@ -41,11 +41,11 @@ public sealed class CategoryEventsTests : IAsyncLifetime
     {
         // Arrange — create a category through the existing HTTP endpoint
         var originalName = $"Cat-{Guid.NewGuid():N}";
-        var createResp = await _client.PostAsJsonAsync("/api/categories",
+        var createResp = await _client.PostAsJsonAsync("/api/v1/categories",
             new { name = originalName, description = "test" });
         createResp.EnsureSuccessStatusCode();
 
-        var listing = await _client.GetFromJsonAsync<CategoryDto[]>("/api/categories");
+        var listing = await _client.GetFromJsonAsync<CategoryDto[]>("/api/v1/categories");
         listing.Should().NotBeNull();
         var created = listing!.Single(c => string.Equals(c.Name, originalName, StringComparison.Ordinal));
 

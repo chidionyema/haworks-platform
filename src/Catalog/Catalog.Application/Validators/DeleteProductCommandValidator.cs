@@ -7,6 +7,6 @@ internal sealed class DeleteProductCommandValidator : AbstractValidator<DeletePr
 {
     public DeleteProductCommandValidator()
     {
-        RuleFor(x => x.ProductId).NotEqual(Guid.Empty);
+        RuleFor(x => x.ProductId).NotEmpty();
     }
 }

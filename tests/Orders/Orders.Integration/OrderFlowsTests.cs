@@ -52,7 +52,7 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
     {
         var (orderId, _) = await CreateOrderAsync();
 
-        var resp = await _client.GetAsync($"/api/orders/{orderId}");
+        var resp = await _client.GetAsync($"/api/v1/orders/{orderId}");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var order = await resp.Content.ReadFromJsonAsync<OrderDtoForTests>();
         order.Should().NotBeNull();
@@ -76,7 +76,7 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
     [Fact]
     public async Task GET_missing_order_returns_404()
     {
-        var resp = await _client.GetAsync($"/api/orders/{Guid.NewGuid()}");
+        var resp = await _client.GetAsync($"/api/v1/orders/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
@@ -90,7 +90,7 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
         await CreateOrderAsync(userId: userId);
         await CreateOrderAsync(userId: userId);
 
-        var resp = await _client.GetAsync($"/api/orders/by-user/{userId}?take=10");
+        var resp = await _client.GetAsync($"/api/v1/orders/by-user/{userId}?take=10");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var page = await resp.Content.ReadFromJsonAsync<PagedResultForTests>();
         page!.Total.Should().BeGreaterThanOrEqualTo(2);
@@ -336,7 +336,7 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
     [Fact]
     public async Task Zero_amount_order_rejected()
     {
-        var resp = await _client.PostAsJsonAsync("/api/orders", new
+        var resp = await _client.PostAsJsonAsync("/api/v1/orders", new
         {
             userId = Guid.NewGuid().ToString(),
             customerEmail = "buyer@example.com",
@@ -374,7 +374,7 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
     {
         userId ??= Guid.NewGuid().ToString();
         sagaId ??= Guid.NewGuid();
-        var resp = await _client.PostAsJsonAsync("/api/orders", new
+        var resp = await _client.PostAsJsonAsync("/api/v1/orders", new
         {
             userId,
             customerEmail = "buyer@example.com",

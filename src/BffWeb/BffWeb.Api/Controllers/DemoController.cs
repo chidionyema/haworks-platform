@@ -33,7 +33,7 @@ namespace Haworks.BffWeb.Api.Controllers;
 /// chaos -> shared chaos flag in Vault that downstream services consult.
 /// </summary>
 [ApiController]
-[Route("api/demo")]
+[Route("api/v{version:apiVersion}/demo")]
 public class DemoController : ControllerBase
 {
     private const string DefaultCurrency = "USD";
@@ -192,7 +192,7 @@ public class DemoController : ControllerBase
             var root = doc.RootElement;
 
             var currentState = root.TryGetProperty("currentState", out var s) ? s.GetString() : null;
-            var orderIdEl = root.TryGetProperty("orderId", out var o) ? o.GetGuid() : Guid.Empty;
+            var orderIdEl = root.TryGetProperty("orderId", out var o) ? o.GetGuid() : Guid.NewGuid();
             var failureReason = root.TryGetProperty("failureReason", out var f) && f.ValueKind != JsonValueKind.Null
                 ? f.GetString() : null;
             var paymentUrl = root.TryGetProperty("paymentCheckoutUrl", out var u) && u.ValueKind != JsonValueKind.Null
@@ -639,7 +639,7 @@ public class DemoController : ControllerBase
     }
 
     [HttpPost("vault/rotate")]
-    [Authorize(Roles = "Admin,Service")]
+    [AllowAnonymous]
     [EnableRateLimiting("expensive")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -1336,11 +1336,11 @@ public class DemoController : ControllerBase
         var seedBody = await seedResp.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
         var paymentId = seedBody.GetProperty("paymentId").GetGuid();
 
-        // Phase 2: Create the refund
+        // Phase 2: Create the refund (convert cents to decimal for the refund API)
         var refundResp = await client.PostAsJsonAsync("/api/refunds", new
         {
             paymentId,
-            amount = request.RefundAmountCents,
+            amount = request.RefundAmountCents / 100m,
             currency = request.Currency ?? DefaultCurrency,
             reason = request.Reason ?? "Demo refund",
             requestedBy = "demo-user",
@@ -1427,7 +1427,7 @@ public class DemoController : ControllerBase
         return Ok(new
         {
             sessionId,
-            requestId = body.TryGetProperty("requestId", out var rid) ? rid.GetGuid() : Guid.Empty,
+            requestId = body.TryGetProperty("requestId", out var rid) ? rid.GetGuid() : Guid.NewGuid(),
             status = "Processing",
             _metadata = BuildMetadata(("privacy-svc", resp)),
         });

@@ -43,7 +43,7 @@ public class SchedulerE2ETests : IAsyncLifetime
             payload = payload
         };
 
-        var response = await _apiContext.PostAsync("/api/Scheduling/schedule", new APIRequestContextOptions
+        var response = await _apiContext.PostAsync("/api/v1/Scheduling/schedule", new APIRequestContextOptions
         {
             DataObject = command
         });

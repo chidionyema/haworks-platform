@@ -6,7 +6,7 @@ public class GetErasureStatusQueryValidator : AbstractValidator<GetErasureStatus
 {
     public GetErasureStatusQueryValidator()
     {
-        RuleFor(x => x.RequestId).NotEqual(Guid.Empty);
-        RuleFor(x => x.UserId).NotEqual(Guid.Empty);
+        RuleFor(x => x.RequestId).NotEmpty();
+        RuleFor(x => x.UserId).NotEmpty();
     }
 }

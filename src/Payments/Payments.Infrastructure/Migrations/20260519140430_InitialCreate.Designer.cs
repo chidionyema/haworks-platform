@@ -174,14 +174,6 @@ namespace Haworks.Payments.Infrastructure.Migrations
                     b.Property<Guid?>("RefundTimeoutTokenId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("ReviewEscalationTokenId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("RetryCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
                     b.Property<int>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("integer");

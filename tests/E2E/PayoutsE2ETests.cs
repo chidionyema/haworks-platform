@@ -36,11 +36,11 @@ public class PayoutsE2ETests : IAsyncLifetime
         _output.WriteLine("--- STARTING PAYOUTS E2E TEST ---");
         var sellerId = Guid.NewGuid();
         var email = $"seller_{sellerId:N}@example.com";
-        var registerResponse = await _apiContext.PostAsync("/api/Sellers", new APIRequestContextOptions { DataObject = new { sellerId, email } });
+        var registerResponse = await _apiContext.PostAsync("/api/v1/Sellers", new APIRequestContextOptions { DataObject = new { sellerId, email } });
         registerResponse.Status.Should().Be(200);
         var registerData = await registerResponse.JsonAsync();
         registerData?.GetProperty("profileId").GetGuid().Should().NotBeEmpty();
-        var onboardingResponse = await _apiContext.PostAsync($"/api/Sellers/{sellerId}/onboarding-link?returnUrl=https://example.com&refreshUrl=https://example.com", new APIRequestContextOptions());
+        var onboardingResponse = await _apiContext.PostAsync($"/api/v1/Sellers/{sellerId}/onboarding-link?returnUrl=https://example.com&refreshUrl=https://example.com", new APIRequestContextOptions());
         onboardingResponse.Status.Should().Be(200);
         var onboardingData = await onboardingResponse.JsonAsync();
         onboardingData?.GetProperty("url").GetString().Should().StartWith("https://connect.stripe.com/");

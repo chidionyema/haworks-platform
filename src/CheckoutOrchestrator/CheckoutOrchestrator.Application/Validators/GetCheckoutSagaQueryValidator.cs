@@ -6,7 +6,7 @@ public sealed class GetCheckoutSagaQueryValidator : AbstractValidator<GetCheckou
 {
     public GetCheckoutSagaQueryValidator()
     {
-        RuleFor(x => x.SagaId).NotEqual(Guid.Empty);
+        RuleFor(x => x.SagaId).NotEmpty();
     }
 }
 
@@ -14,6 +14,6 @@ public sealed class GetCheckoutSagaByOrderIdQueryValidator : AbstractValidator<G
 {
     public GetCheckoutSagaByOrderIdQueryValidator()
     {
-        RuleFor(x => x.OrderId).NotEqual(Guid.Empty);
+        RuleFor(x => x.OrderId).NotEmpty();
     }
 }

@@ -71,7 +71,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
         };
 
         // Act: Call API
-        var response = await _client.PostAsJsonAsync("/api/refunds", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/refunds", request);
         response.EnsureSuccessStatusCode();
         var refundId = await response.Content.ReadFromJsonAsync<Guid>();
 

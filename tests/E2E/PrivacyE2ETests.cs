@@ -41,7 +41,7 @@ public class PrivacyE2ETests : IAsyncLifetime
             type = "Erasure"
         };
 
-        var response = await _apiContext.PostAsync("/api/PrivacyRequests", new APIRequestContextOptions
+        var response = await _apiContext.PostAsync("/api/v1/PrivacyRequests", new APIRequestContextOptions
         {
             DataObject = command
         });

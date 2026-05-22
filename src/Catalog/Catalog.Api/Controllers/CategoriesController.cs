@@ -8,7 +8,7 @@ using Haworks.Catalog.Application.Queries;
 namespace Haworks.Catalog.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public sealed class CategoriesController(IMediator mediator) : ControllerBase
 {
     [HttpGet]
@@ -24,6 +24,6 @@ public sealed class CategoriesController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateCategoryCommand command, CancellationToken ct)
     {
         var result = await mediator.Send(command, ct);
-        return result.ToCreatedActionResult(nameof(List), new { id = result.IsSuccess ? result.Value : Guid.Empty });
+        return result.ToCreatedActionResult(nameof(List), new { id = result.IsSuccess ? result.Value : Guid.NewGuid() });
     }
 }

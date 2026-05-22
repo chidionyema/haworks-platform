@@ -45,15 +45,15 @@ public sealed class RoundedOutAuthFlowsTests : IAsyncLifetime
     {
         // Arrange — register + login to get a valid (token, refreshToken) pair
         var (email, username) = NewUser();
-        await _client.PostAsJsonAsync("/api/Authentication/register",
+        await _client.PostAsJsonAsync("/api/v1/Authentication/register",
             new { email, username, password = "TestPass#Word123" });
-        var login = await _client.PostAsJsonAsync("/api/Authentication/login",
+        var login = await _client.PostAsJsonAsync("/api/v1/Authentication/login",
             new { username, password = "TestPass#Word123" });
         var tokens = await login.Content.ReadFromJsonAsync<AuthResponseShape>();
 
         // Act
         var refresh = await _client.PostAsJsonAsync(
-            "/api/Authentication/refresh-token",
+            "/api/v1/Authentication/refresh-token",
             new { accessToken = tokens!.Token, refreshToken = tokens.RefreshToken });
 
         // Assert — should return a NEW token (different jti) and a new refresh token
@@ -68,14 +68,14 @@ public sealed class RoundedOutAuthFlowsTests : IAsyncLifetime
     public async Task RefreshToken_with_garbage_refresh_token_returns_4xx()
     {
         var (email, username) = NewUser();
-        await _client.PostAsJsonAsync("/api/Authentication/register",
+        await _client.PostAsJsonAsync("/api/v1/Authentication/register",
             new { email, username, password = "TestPass#Word123" });
-        var login = await _client.PostAsJsonAsync("/api/Authentication/login",
+        var login = await _client.PostAsJsonAsync("/api/v1/Authentication/login",
             new { username, password = "TestPass#Word123" });
         var tokens = await login.Content.ReadFromJsonAsync<AuthResponseShape>();
 
         var refresh = await _client.PostAsJsonAsync(
-            "/api/Authentication/refresh-token",
+            "/api/v1/Authentication/refresh-token",
             new { accessToken = tokens!.Token, refreshToken = "garbage-not-a-real-refresh-token" });
 
         ((int)refresh.StatusCode).Should().BeGreaterThanOrEqualTo(400);
@@ -88,9 +88,9 @@ public sealed class RoundedOutAuthFlowsTests : IAsyncLifetime
     {
         // Arrange — register + login
         var (email, username) = NewUser();
-        await _client.PostAsJsonAsync("/api/Authentication/register",
+        await _client.PostAsJsonAsync("/api/v1/Authentication/register",
             new { email, username, password = "TestPass#Word123" });
-        var login = await _client.PostAsJsonAsync("/api/Authentication/login",
+        var login = await _client.PostAsJsonAsync("/api/v1/Authentication/login",
             new { username, password = "TestPass#Word123" });
         var tokens = await login.Content.ReadFromJsonAsync<AuthResponseShape>();
 
@@ -98,18 +98,18 @@ public sealed class RoundedOutAuthFlowsTests : IAsyncLifetime
             new AuthenticationHeaderValue("Bearer", tokens!.Token);
 
         // verify-token works BEFORE logout
-        var verifyBefore = await _client.GetAsync("/api/Authentication/verify-token");
+        var verifyBefore = await _client.GetAsync("/api/v1/Authentication/verify-token");
         verifyBefore.StatusCode.Should().Be(HttpStatusCode.OK,
             "verify-token must succeed for a freshly minted JWT");
 
         // Act — logout (revokes the JTI server-side)
         var logout = await _client.PostAsJsonAsync(
-            "/api/Authentication/logout",
+            "/api/v1/Authentication/logout",
             new { accessToken = tokens.Token, refreshToken = tokens.RefreshToken });
         logout.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Assert — verify-token must now reject the same JWT (revoked)
-        var verifyAfter = await _client.GetAsync("/api/Authentication/verify-token");
+        var verifyAfter = await _client.GetAsync("/api/v1/Authentication/verify-token");
         ((int)verifyAfter.StatusCode).Should().BeGreaterThanOrEqualTo(400,
             "verify-token must reject a JWT whose JTI was revoked by logout");
     }
@@ -118,14 +118,14 @@ public sealed class RoundedOutAuthFlowsTests : IAsyncLifetime
     public async Task VerifyToken_without_bearer_returns_401()
     {
         // No Authorization header set
-        var response = await _client.GetAsync("/api/Authentication/verify-token");
+        var response = await _client.GetAsync("/api/v1/Authentication/verify-token");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
     public async Task CsrfToken_endpoint_returns_200_with_token()
     {
-        var response = await _client.GetAsync("/api/Authentication/csrf-token");
+        var response = await _client.GetAsync("/api/v1/Authentication/csrf-token");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         // Body shape is controller-defined; just check it returns SOMETHING
         var body = await response.Content.ReadAsStringAsync();
@@ -135,7 +135,7 @@ public sealed class RoundedOutAuthFlowsTests : IAsyncLifetime
     [Fact]
     public async Task ExternalProviders_endpoint_returns_Google_Microsoft_Facebook()
     {
-        var response = await _client.GetAsync("/api/external-authentication/providers");
+        var response = await _client.GetAsync("/api/v1/external-authentication/providers");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var body = await response.Content.ReadAsStringAsync();
@@ -148,7 +148,7 @@ public sealed class RoundedOutAuthFlowsTests : IAsyncLifetime
     public async Task ExternalChallenge_invalid_provider_returns_400()
     {
         var response = await _client.GetAsync(
-            "/api/external-authentication/challenge/notreal?redirectUrl=/cb");
+            "/api/v1/external-authentication/challenge/notreal?redirectUrl=/cb");
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -156,7 +156,7 @@ public sealed class RoundedOutAuthFlowsTests : IAsyncLifetime
     public async Task ExternalChallenge_Google_returns_302_to_accounts_google_com()
     {
         var response = await _client.GetAsync(
-            "/api/external-authentication/challenge/Google?redirectUrl=https://localhost/cb");
+            "/api/v1/external-authentication/challenge/Google?redirectUrl=https://localhost/cb");
 
         response.StatusCode.Should().Be(HttpStatusCode.Found);
         response.Headers.Location!.Host.Should().Be("accounts.google.com",
@@ -173,7 +173,7 @@ public sealed class RoundedOutAuthFlowsTests : IAsyncLifetime
         // redirectUrl contains ".." path traversal — should be rejected and
         // the controller should fall back to the default callback URL.
         var response = await _client.GetAsync(
-            "/api/external-authentication/challenge/Google?redirectUrl=/../../../etc/passwd");
+            "/api/v1/external-authentication/challenge/Google?redirectUrl=/../../../etc/passwd");
 
         // The controller does NOT return 400 for bad redirect — it falls back
         // to the default callback URL and issues a normal 302 challenge.

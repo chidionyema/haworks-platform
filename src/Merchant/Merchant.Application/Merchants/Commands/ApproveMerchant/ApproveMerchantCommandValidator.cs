@@ -6,7 +6,7 @@ internal sealed class ApproveMerchantCommandValidator : AbstractValidator<Approv
 {
     public ApproveMerchantCommandValidator()
     {
-        RuleFor(x => x.MerchantId).NotEqual(Guid.Empty);
+        RuleFor(x => x.MerchantId).NotEmpty();
         RuleFor(x => x.ApprovedBy).NotEmpty().MaximumLength(200);
     }
 }

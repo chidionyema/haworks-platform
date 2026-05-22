@@ -52,7 +52,7 @@ public sealed class PipelineTests(NotificationsWebAppFactory factory)
 
         var client = scopedFactory.CreateClient();
         var recipient = $"dispatch-{Guid.NewGuid():N}@test.invalid";
-        var resp = await client.PostAsJsonAsync("/api/notifications", new
+        var resp = await client.PostAsJsonAsync("/api/v1/notifications", new
         {
             userId = (string?)null,
             recipient,
@@ -111,7 +111,7 @@ public sealed class PipelineTests(NotificationsWebAppFactory factory)
 
         var client = scopedFactory.CreateClient();
         var recipient = $"failover-{Guid.NewGuid():N}@test.invalid";
-        var resp = await client.PostAsJsonAsync("/api/notifications", new
+        var resp = await client.PostAsJsonAsync("/api/v1/notifications", new
         {
             userId = (string?)null,
             recipient,

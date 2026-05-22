@@ -9,11 +9,24 @@ INIT_FILE=/vault/data/.init.json
 unset VAULT_DEV_ROOT_TOKEN_ID 2>/dev/null || true
 unset VAULT_SEAL_TRANSIT_TOKEN 2>/dev/null || true
 
-# ── Pre-flight: clean up any transit-era data ──────────────────────
-# If .init.json is missing, the vault was wiped but leftover files may
-# prevent a clean start. Ensure a clean slate.
+# ── Pre-flight: detect stale transit seal in raft data ──────────────
+# If raft data was encrypted with a now-lost transit seal key, vault will
+# refuse to start ("cannot seal migrate from transit to Shamir"). Wipe the
+# raft data so vault can re-initialize with a fresh Shamir seal.
+if [ -f /vault/data/.transit-migration-done ] && ! grep -q '"transit"' /vault/config/vault.hcl 2>/dev/null; then
+  echo "[entrypoint] detected stale transit seal marker -- wiping raft data for re-init"
+  if [ -f "$INIT_FILE" ]; then
+    cp "$INIT_FILE" /tmp/.init.json.bak
+  fi
+  rm -rf /vault/data/raft /vault/data/core /vault/data/logical /vault/data/sys
+  rm -f /vault/data/.transit-migration-done /vault/data/transit
+  rm -f "$INIT_FILE"
+  echo "[entrypoint] raft data wiped -- vault will re-initialize on start"
+fi
+
+# Also clean up if .init.json is missing (vault was wiped externally)
 if [ ! -f "$INIT_FILE" ]; then
-  echo "[entrypoint] no .init.json — ensuring clean raft directory"
+  echo "[entrypoint] no .init.json -- ensuring clean raft directory"
   rm -rf /vault/data/raft /vault/data/vault.db /vault/data/core
   rm -rf /vault/data/logical /vault/data/sys /vault/data/transit
   rm -f /vault/data/.transit-migration-done /vault/data/.persistent-transit-ok

@@ -7,7 +7,7 @@ internal sealed class ApproveProductReviewCommandValidator : AbstractValidator<A
 {
     public ApproveProductReviewCommandValidator()
     {
-        RuleFor(x => x.ProductId).NotEqual(Guid.Empty);
-        RuleFor(x => x.ReviewId).NotEqual(Guid.Empty);
+        RuleFor(x => x.ProductId).NotEmpty();
+        RuleFor(x => x.ReviewId).NotEmpty();
     }
 }

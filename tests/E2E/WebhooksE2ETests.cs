@@ -44,12 +44,12 @@ public class WebhooksE2ETests(E2EEnvironmentFixture fixture) : IAsyncLifetime
         
         // Register & Auth
         var username = $"webhook_user_{Guid.NewGuid():N}";
-        await apiContext.PostAsync("/api/Authentication/register", new()
+        await apiContext.PostAsync("/api/v1/Authentication/register", new()
         {
             DataObject = new { username, email = $"{username}@example.com", password = "Password123!" }
         });
 
-        var csrfResponse = await apiContext.GetAsync("/api/Authentication/csrf-token");
+        var csrfResponse = await apiContext.GetAsync("/api/v1/Authentication/csrf-token");
         var csrfData = await csrfResponse.JsonAsync();
         var csrfToken = csrfData?.GetProperty("token").GetString();
         var csrfHeader = csrfData?.GetProperty("headerName").GetString();
@@ -62,7 +62,7 @@ public class WebhooksE2ETests(E2EEnvironmentFixture fixture) : IAsyncLifetime
         
         var webhookUrl = $"http://host.docker.internal:{_wireMockServer.Port}/webhook-receiver";
         
-        var subResponse = await apiContext.PostAsync("/api/webhooks/subscriptions", new()
+        var subResponse = await apiContext.PostAsync("/api/v1/webhooks/subscriptions", new()
         {
             Headers = headers,
             DataObject = new
@@ -80,7 +80,7 @@ public class WebhooksE2ETests(E2EEnvironmentFixture fixture) : IAsyncLifetime
         // For brevity, we'll use a direct internal API or a BFF demo endpoint if available.
         // Or just create a product and verify the CDC webhook.
         
-        var categoryResponse = await apiContext.PostAsync("/api/Categories", new()
+        var categoryResponse = await apiContext.PostAsync("/api/v1/Categories", new()
         {
             Headers = headers,
             DataObject = new { name = "Webhook Test Category", description = "Testing" }
@@ -94,7 +94,7 @@ public class WebhooksE2ETests(E2EEnvironmentFixture fixture) : IAsyncLifetime
         var subData = await subResponse.JsonAsync();
         var subId = subData?.GetProperty("id").GetGuid();
 
-        await apiContext.PutAsync($"/api/webhooks/subscriptions/{subId}", new()
+        await apiContext.PutAsync($"/api/v1/webhooks/subscriptions/{subId}", new()
         {
             Headers = headers,
             DataObject = new
@@ -106,7 +106,7 @@ public class WebhooksE2ETests(E2EEnvironmentFixture fixture) : IAsyncLifetime
             }
         });
 
-        await apiContext.PostAsync("/api/Products", new()
+        await apiContext.PostAsync("/api/v1/Products", new()
         {
             Headers = headers,
             DataObject = new

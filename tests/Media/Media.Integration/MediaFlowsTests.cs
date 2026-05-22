@@ -79,7 +79,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
     public async Task InitiateUpload_ReturnsPresignedUrl()
     {
         var (_, hash) = GenerateTestFile();
-        var response = await _client.PostAsJsonAsync("/api/media/initiate", new
+        var response = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
         {
             FileName = "test.png",
             Hash = hash,
@@ -107,7 +107,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         var (_, hash) = GenerateTestFile();
 
         // First upload
-        var r1 = await _client.PostAsJsonAsync("/api/media/initiate", new
+        var r1 = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
         {
             FileName = "first.png",
             Hash = hash,
@@ -117,7 +117,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         var body1 = await r1.Content.ReadFromJsonAsync<UploadResponse>();
 
         // Second upload with same hash
-        var r2 = await _client.PostAsJsonAsync("/api/media/initiate", new
+        var r2 = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
         {
             FileName = "second.png",
             Hash = hash,
@@ -136,7 +136,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         var (bytes, hash) = GenerateTestFile();
 
         // 1. Initiate
-        var initResponse = await _client.PostAsJsonAsync("/api/media/initiate", new
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
         {
             FileName = "clean.png",
             Hash = hash,
@@ -149,7 +149,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         await UploadFileToS3(upload!.Id, bytes, "image/png");
 
         // 3. Complete (triggers virus scan)
-        var completeResponse = await _client.PostAsync($"/api/media/{upload.Id}/complete", null);
+        var completeResponse = await _client.PostAsync($"/api/v1/media/{upload.Id}/complete", null);
         completeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // 4. Verify DB state is Active
@@ -165,7 +165,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         {
             var (bytes, hash) = GenerateTestFile();
 
-            var initResponse = await _client.PostAsJsonAsync("/api/media/initiate", new
+            var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
             {
                 FileName = "infected.exe",
                 Hash = hash,
@@ -175,7 +175,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
             var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
             await UploadFileToS3(upload!.Id, bytes, "application/octet-stream");
 
-            var completeResponse = await _client.PostAsync($"/api/media/{upload.Id}/complete", null);
+            var completeResponse = await _client.PostAsync($"/api/v1/media/{upload.Id}/complete", null);
             completeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
             var file = await ReadDbAsync(db => db.MediaFiles.FirstAsync(f => f.Id == upload.Id));
@@ -192,7 +192,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
     {
         var (bytes, hash) = GenerateTestFile();
 
-        var initResponse = await _client.PostAsJsonAsync("/api/media/initiate", new
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
         {
             FileName = "mismatch.png",
             Hash = hash,
@@ -206,7 +206,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         Random.Shared.NextBytes(differentBytes);
         await UploadFileToS3(upload!.Id, differentBytes, "image/png");
 
-        var completeResponse = await _client.PostAsync($"/api/media/{upload.Id}/complete", null);
+        var completeResponse = await _client.PostAsync($"/api/v1/media/{upload.Id}/complete", null);
         // Hash mismatch returns a failure result
         completeResponse.StatusCode.Should().NotBe(HttpStatusCode.InternalServerError);
 
@@ -219,7 +219,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
     {
         var (bytes, hash) = GenerateTestFile();
 
-        var initResponse = await _client.PostAsJsonAsync("/api/media/initiate", new
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
         {
             FileName = "meta.png",
             Hash = hash,
@@ -228,7 +228,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         });
         var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
 
-        var getResponse = await _client.GetAsync($"/api/media/{upload!.Id}");
+        var getResponse = await _client.GetAsync($"/api/v1/media/{upload!.Id}");
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var body = await getResponse.Content.ReadFromJsonAsync<MediaFileResponse>();
@@ -242,7 +242,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
     [Fact]
     public async Task GetMedia_NonExistent_Returns404()
     {
-        var response = await _client.GetAsync($"/api/media/{Guid.NewGuid()}");
+        var response = await _client.GetAsync($"/api/v1/media/{Guid.NewGuid()}");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
@@ -253,7 +253,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         for (int i = 0; i < 3; i++)
         {
             var (_, hash) = GenerateTestFile();
-            await _client.PostAsJsonAsync("/api/media/initiate", new
+            await _client.PostAsJsonAsync("/api/v1/media/initiate", new
             {
                 FileName = $"list-{i}.png",
                 Hash = hash,
@@ -262,7 +262,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
             });
         }
 
-        var response = await _client.GetAsync("/api/media?page=1&pageSize=2");
+        var response = await _client.GetAsync("/api/v1/media?page=1&pageSize=2");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -271,7 +271,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
     {
         var (_, hash) = GenerateTestFile();
 
-        var initResponse = await _client.PostAsJsonAsync("/api/media/initiate", new
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
         {
             FileName = "abort.png",
             Hash = hash,
@@ -280,7 +280,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         });
         var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
 
-        var abortResponse = await _client.PostAsync($"/api/media/{upload!.Id}/abort", null);
+        var abortResponse = await _client.PostAsync($"/api/v1/media/{upload!.Id}/abort", null);
         abortResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var file = await ReadDbAsync(db => db.MediaFiles.FirstOrDefaultAsync(f => f.Id == upload.Id));
@@ -292,7 +292,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
     {
         var (bytes, hash) = GenerateTestFile();
 
-        var initResponse = await _client.PostAsJsonAsync("/api/media/initiate", new
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
         {
             FileName = "url-test.png",
             Hash = hash,
@@ -301,9 +301,9 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         });
         var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
         await UploadFileToS3(upload!.Id, bytes, "image/png");
-        await _client.PostAsync($"/api/media/{upload.Id}/complete", null);
+        await _client.PostAsync($"/api/v1/media/{upload.Id}/complete", null);
 
-        var urlResponse = await _client.GetAsync($"/api/media/{upload.Id}/url");
+        var urlResponse = await _client.GetAsync($"/api/v1/media/{upload.Id}/url");
         urlResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -312,7 +312,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
     {
         var (bytes, hash) = GenerateTestFile();
 
-        var initResponse = await _client.PostAsJsonAsync("/api/media/initiate", new
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
         {
             FileName = "event.png",
             Hash = hash,
@@ -321,7 +321,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         });
         var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
         await UploadFileToS3(upload!.Id, bytes, "image/png");
-        await _client.PostAsync($"/api/media/{upload.Id}/complete", null);
+        await _client.PostAsync($"/api/v1/media/{upload.Id}/complete", null);
 
         // Verify MassTransit published the scan-passed event
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
@@ -337,7 +337,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
     {
         var (bytes, hash) = GenerateTestFile();
 
-        var initResponse = await _client.PostAsJsonAsync("/api/media/initiate", new
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
         {
             FileName = "process.png",
             Hash = hash,
@@ -346,7 +346,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         });
         var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
         await UploadFileToS3(upload!.Id, bytes, "image/png");
-        await _client.PostAsync($"/api/media/{upload.Id}/complete", null);
+        await _client.PostAsync($"/api/v1/media/{upload.Id}/complete", null);
 
         // Verify MassTransit sent the command point-to-point (Send, not Publish)
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
@@ -365,7 +365,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         {
             var (bytes, hash) = GenerateTestFile();
 
-            var initResponse = await _client.PostAsJsonAsync("/api/media/initiate", new
+            var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
             {
                 FileName = "event-fail.exe",
                 Hash = hash,
@@ -374,7 +374,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
             });
             var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
             await UploadFileToS3(upload!.Id, bytes, "application/octet-stream");
-            await _client.PostAsync($"/api/media/{upload.Id}/complete", null);
+            await _client.PostAsync($"/api/v1/media/{upload.Id}/complete", null);
 
             var harness = _factory.Services.GetRequiredService<ITestHarness>();
             var published = await PollUntilAsync(
@@ -394,7 +394,7 @@ public sealed class MediaFlowsTests : IAsyncLifetime
     {
         var (_, hash) = GenerateTestFile(50_000_000); // 50MB > 8MB threshold
 
-        var response = await _client.PostAsJsonAsync("/api/media/initiate", new
+        var response = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
         {
             FileName = "big.mp4",
             Hash = hash,

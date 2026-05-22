@@ -42,7 +42,7 @@ public class MerchantE2ETests : IAsyncLifetime
             slug = $"super-store-{Guid.NewGuid().ToString("N").Substring(0, 8)}"
         };
 
-        var response = await _apiContext.PostAsync("/api/Merchants", new APIRequestContextOptions
+        var response = await _apiContext.PostAsync("/api/v1/Merchants", new APIRequestContextOptions
         {
             DataObject = command
         });

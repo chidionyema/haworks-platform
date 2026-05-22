@@ -13,7 +13,7 @@ namespace Haworks.Notifications.Api.Controllers;
 
 // Webhook endpoints are called by email/SMS providers (SES, SendGrid, Twilio) — signature validation replaces auth
 [ApiController]
-[Route("api/notifications/webhooks")]
+[Route("api/v{version:apiVersion}/notifications/webhooks")]
 [AllowAnonymous]
 public sealed class WebhooksController(
     IPublishEndpoint publishEndpoint,
@@ -21,6 +21,8 @@ public sealed class WebhooksController(
     ILogger<WebhooksController> logger) : ControllerBase
 {
     [HttpPost("ses")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Ses(CancellationToken ct)
     {
         var rawPayload = await ReadRawBodyAsync(ct);
@@ -62,6 +64,8 @@ public sealed class WebhooksController(
     }
 
     [HttpPost("sendgrid")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SendGrid(
         [FromHeader(Name = "X-Twilio-Email-Event-Webhook-Signature")] string signature,
         [FromHeader(Name = "X-Twilio-Email-Event-Webhook-Timestamp")] string timestamp,
@@ -97,6 +101,8 @@ public sealed class WebhooksController(
     }
 
     [HttpPost("twilio")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Twilio(
         [FromHeader(Name = "X-Twilio-Signature")] string signature,
         CancellationToken ct)
@@ -136,11 +142,11 @@ public sealed class WebhooksController(
             var data = Encoding.UTF8.GetBytes(timestamp + payload);
             return ecdsa.VerifyData(data, Convert.FromBase64String(signature), HashAlgorithmName.SHA256);
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Error verifying SendGrid signature");
             return false;
-        }
-    }
+        }    }
 
     private Task PublishValidatedAsync(
         string provider,

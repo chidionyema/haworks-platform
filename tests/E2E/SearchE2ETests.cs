@@ -40,13 +40,13 @@ public class SearchE2ETests : IAsyncLifetime
         var email = $"{username}@example.com";
         var password = "Password123!";
         
-        var registerResponse = await _apiContext.PostAsync("/api/Authentication/register", new()
+        var registerResponse = await _apiContext.PostAsync("/api/v1/Authentication/register", new()
         {
             DataObject = new { username, email, password }
         });
         registerResponse.Status.Should().Be(201);
 
-        var csrfResponse = await _apiContext.GetAsync("/api/Authentication/csrf-token");
+        var csrfResponse = await _apiContext.GetAsync("/api/v1/Authentication/csrf-token");
         var csrfData = await csrfResponse.JsonAsync();
         var csrfToken = csrfData?.GetProperty("token").GetString();
         var csrfHeader = csrfData?.GetProperty("headerName").GetString();
@@ -54,7 +54,7 @@ public class SearchE2ETests : IAsyncLifetime
 
         // 2. Create Category and Product
         var categoryName = $"SearchLoopCat_{Guid.NewGuid():N}";
-        var categoryResponse = await _apiContext.PostAsync("/api/Categories", new()
+        var categoryResponse = await _apiContext.PostAsync("/api/v1/Categories", new()
         {
             Headers = headers,
             DataObject = new { name = categoryName, description = "Search Loop E2E" }
@@ -63,7 +63,7 @@ public class SearchE2ETests : IAsyncLifetime
         var categoryId = category?.GetProperty("id").GetGuid();
 
         var productName = $"Quantum_Widget_{Guid.NewGuid():N}";
-        var productResponse = await _apiContext.PostAsync("/api/Products", new()
+        var productResponse = await _apiContext.PostAsync("/api/v1/Products", new()
         {
             Headers = headers,
             DataObject = new 
@@ -86,7 +86,7 @@ public class SearchE2ETests : IAsyncLifetime
         {
             await Task.Delay(1000);
             
-            var searchResponse = await _apiContext.GetAsync($"/api/search?q={productName}");
+            var searchResponse = await _apiContext.GetAsync($"/api/v1/search?q={productName}");
             if (!searchResponse.Ok)
             {
                 _output.WriteLine($"Search request failed with status {searchResponse.Status}. Content: {await searchResponse.TextAsync()}");

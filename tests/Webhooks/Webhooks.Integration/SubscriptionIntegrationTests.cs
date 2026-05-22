@@ -28,14 +28,14 @@ public class SubscriptionIntegrationTests(WebhooksWebAppFactory factory) : IClas
         );
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/webhooks/subscriptions", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/webhooks/subscriptions", request);
 
         // Assert
         response.EnsureSuccessStatusCode();
         var subscriptionId = await response.Content.ReadFromJsonAsync<Guid>();
         subscriptionId.Should().NotBeEmpty();
 
-        var getResponse = await _client.GetAsync($"/api/webhooks/subscriptions/{subscriptionId}");
+        var getResponse = await _client.GetAsync($"/api/v1/webhooks/subscriptions/{subscriptionId}");
         getResponse.EnsureSuccessStatusCode();
         var sub = await getResponse.Content.ReadFromJsonAsync<WebhookSubscriptionDto>();
         

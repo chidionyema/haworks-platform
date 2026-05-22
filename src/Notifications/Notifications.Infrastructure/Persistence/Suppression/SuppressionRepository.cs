@@ -30,7 +30,7 @@ public sealed class SuppressionRepository : ISuppressionRepository
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(Haworks.Notifications.Domain.Entities.Suppression suppression)
+    public async Task AddAsync(Haworks.Notifications.Domain.Entities.Suppression suppression, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(suppression);
 
@@ -41,7 +41,7 @@ public sealed class SuppressionRepository : ISuppressionRepository
         var alreadyExists = await _dbContext.SuppressionList
             .AsNoTracking()
             .AnyAsync(s => s.RecipientHash == suppression.RecipientHash
-                        && s.Channel == suppression.Channel)
+                        && s.Channel == suppression.Channel, cancellationToken)
             .ConfigureAwait(false);
 
         if (alreadyExists)

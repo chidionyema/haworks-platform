@@ -200,14 +200,16 @@ builder.Services.AddCors(o => o.AddPolicy("portfolio-site", p => p
 // service-discovery URI form `https+http://<svc>` (configured by
 // AddServiceDiscovery() inside ServiceDefaults). Picks https when the target
 // service offers it, falls back to http.
-foreach (var name in new[]
+var backendClients = new[]
 {
     BackendClients.Identity, BackendClients.Catalog, BackendClients.Orders,
     BackendClients.Payments, BackendClients.Checkout, BackendClients.Search,
     BackendClients.Location, BackendClients.Webhooks, BackendClients.Payouts,
     BackendClients.Scheduler, BackendClients.Privacy, BackendClients.Merchant,
     BackendClients.Notifications, BackendClients.Content, BackendClients.Audit,
-})
+};
+
+foreach (var name in backendClients)
 {
     var serviceName = name; // capture for handlers
     builder.Services.AddHttpClient(name, (sp, client) =>
@@ -269,8 +271,8 @@ builder.Services.AddHttpClient(BackendClients.CatalogDemo, (sp, client) =>
     // make the predicate never match.
     o.Retry.ShouldHandle = static _ => ValueTask.FromResult(false);
     o.CircuitBreaker.ShouldHandle = static _ => ValueTask.FromResult(false);
-    o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(2);
-    o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(3);
+    o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(15);
+    o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(20);
 });
 
 // MassTransit + the bff-web-side SignalR-bridge consumer. Production

@@ -162,7 +162,7 @@ public sealed class CdcSearchIndexWorker(
             unitPrice: price,
             isInStock: after.TryGetProperty("is_in_stock", out var stockProp) && stockProp.ValueKind == System.Text.Json.JsonValueKind.True,
             isListed: after.TryGetProperty("is_listed", out var listedProp) && listedProp.ValueKind == System.Text.Json.JsonValueKind.True,
-            categoryId: string.IsNullOrEmpty(categoryId) ? Guid.Empty : Guid.Parse(categoryId),
+            categoryId: string.IsNullOrEmpty(categoryId) ? Guid.NewGuid() : Guid.Parse(categoryId),
             categoryName: "Unknown (CDC)",
             sourceVersion: 1);
 

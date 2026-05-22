@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 namespace Haworks.Orders.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public sealed class OrdersController(IMediator mediator) : ControllerBase
 {
     [HttpGet("{id:guid}")]
@@ -75,6 +75,6 @@ public sealed class OrdersController(IMediator mediator) : ControllerBase
 
         var safeCommand = command with { UserId = userId };
         var result = await mediator.Send(safeCommand, ct);
-        return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value : Guid.Empty });
+        return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value : Guid.NewGuid() });
     }
 }

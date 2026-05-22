@@ -6,6 +6,6 @@ internal sealed class GetPayoutsBySellerQueryValidator : AbstractValidator<GetPa
 {
     public GetPayoutsBySellerQueryValidator()
     {
-        RuleFor(x => x.SellerId).NotEqual(Guid.Empty);
+        RuleFor(x => x.SellerId).NotEmpty();
     }
 }

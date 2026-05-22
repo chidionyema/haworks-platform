@@ -15,7 +15,7 @@ public class SearchSmokeTests(EnvironmentAgnosticFixture fixture)
     [Fact]
     public async Task BFF_search_returns_search_envelope()
     {
-        var resp = await fixture.HttpClient.GetAsync("/api/search?q=test");
+        var resp = await fixture.HttpClient.GetAsync("/api/v1/search?q=test");
 
         resp.StatusCode.Should().NotBe(System.Net.HttpStatusCode.NotFound,
             "BFF must expose /api/search after B7");

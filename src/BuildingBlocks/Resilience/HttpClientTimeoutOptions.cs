@@ -20,8 +20,8 @@ public sealed class HttpClientTimeoutOptions
     public int CredentialStoreLockSeconds { get; init; } = 30;
 
     // ── BFF → backend service calls ─────────────────────────────────
-    public int BffBackendSeconds { get; init; } = 4;
-    public int BffCatalogDemoSeconds { get; init; } = 3;
+    public int BffBackendSeconds { get; init; } = 15;
+    public int BffCatalogDemoSeconds { get; init; } = 15;
     public int BffTokenProviderLockSeconds { get; init; } = 15;
 
     // ── Per-service HttpClient timeouts ─────────────────────────────

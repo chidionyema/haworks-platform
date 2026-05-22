@@ -6,7 +6,6 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
-
   <ItemGroup Label="Core .NET">
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.0" />
@@ -28,19 +27,16 @@
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.3.0" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
   </ItemGroup>
-
   <ItemGroup Label="Data">
     <PackageVersion Include="Npgsql" Version="9.0.0" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.0" />
   </ItemGroup>
-
   <ItemGroup Label="Messaging">
     <PackageVersion Include="MassTransit" Version="8.3.4" />
     <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.3.4" />
     <PackageVersion Include="MassTransit.RabbitMQ" Version="8.3.4" />
     <PackageVersion Include="MediatR" Version="12.4.1" />
   </ItemGroup>
-
   <ItemGroup Label="Observability">
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.10.0" />
@@ -52,13 +48,11 @@
     <PackageVersion Include="Serilog.AspNetCore" Version="9.0.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.0.0" />
   </ItemGroup>
-
   <ItemGroup Label="Resilience">
     <PackageVersion Include="Polly" Version="8.5.0" />
     <PackageVersion Include="Polly.Extensions.Http" Version="3.0.0" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
   </ItemGroup>
-
   <ItemGroup Label="Infrastructure">
     <PackageVersion Include="AspNetCore.HealthChecks.Rabbitmq" Version="8.0.2" />
     <PackageVersion Include="VaultSharp" Version="1.17.5" />
@@ -69,6 +63,8 @@
     <PackageVersion Include="StackExchange.Redis" Version="2.8.22" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="7.2.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+    <PackageVersion Include="Asp.Versioning.Mvc" Version="8.1.0" />
+    <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.0" />
@@ -111,7 +107,6 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing" Version="1.1.2" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Testing.Verifiers.XUnit" Version="1.1.2" />
   </ItemGroup>
-
   <ItemGroup Label="Aspire">
     <PackageVersion Include="Aspire.Confluent.Kafka" Version="13.3.3" />
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.3.3" />
@@ -122,7 +117,6 @@
     <PackageVersion Include="Aspire.Hosting.Redis" Version="13.3.3" />
     <PackageVersion Include="Aspire.Hosting.Testing" Version="13.3.3" />
   </ItemGroup>
-
   <ItemGroup Label="Testing">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
@@ -147,15 +141,12 @@
     <PackageVersion Include="MassTransit.Testing" Version="8.3.4" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
   </ItemGroup>
-
   <ItemGroup Label="Analytics">
     <PackageVersion Include="PostHog" Version="2.7.1" />
   </ItemGroup>
-
   <ItemGroup Label="Analyzers">
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.4.0.108396" />
     <PackageVersion Include="AsyncFixer" Version="1.6.0" />
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.85" />
   </ItemGroup>
-
 </Project>

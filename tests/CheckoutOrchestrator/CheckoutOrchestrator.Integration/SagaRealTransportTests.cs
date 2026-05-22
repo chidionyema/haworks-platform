@@ -40,7 +40,7 @@ public sealed class SagaRealTransportTests : IClassFixture<CheckoutRealTransport
         var sagaId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        var response = await _client.PostAsJsonAsync("/api/checkouts", new
+        var response = await _client.PostAsJsonAsync("/api/v1/checkouts", new
         {
             sagaId,
             orderId,

@@ -25,7 +25,7 @@ public class LocationFlowsTests(LocationWebAppFactory factory) : IClassFixture<L
         };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/addresses", command);
+        var response = await _client.PostAsJsonAsync("/api/v1/addresses", command);
 
         // Assert
         response.EnsureSuccessStatusCode();
@@ -57,11 +57,11 @@ public class LocationFlowsTests(LocationWebAppFactory factory) : IClassFixture<L
             Longitude = -2.5879
         };
 
-        await _client.PostAsJsonAsync("/api/addresses", london);
-        await _client.PostAsJsonAsync("/api/addresses", bristol);
+        await _client.PostAsJsonAsync("/api/v1/addresses", london);
+        await _client.PostAsJsonAsync("/api/v1/addresses", bristol);
 
         // 2. Search near London (5km radius)
-        var response = await _client.GetAsync("/api/addresses/nearby?lat=51.5033&lon=-0.1276&radiusMeters=5000");
+        var response = await _client.GetAsync("/api/v1/addresses/nearby?lat=51.5033&lon=-0.1276&radiusMeters=5000");
 
         // Assert
         response.EnsureSuccessStatusCode();

@@ -16,7 +16,9 @@ public class GetOnboardingLinkCommandHandler : IRequestHandler<GetOnboardingLink
         ValidateRedirectUrl(request.ReturnUrl, nameof(request.ReturnUrl));
         ValidateRedirectUrl(request.RefreshUrl, nameof(request.RefreshUrl));
 
-        var profile = await _context.SellerProfiles.FirstOrDefaultAsync(p => p.SellerId == request.SellerId, cancellationToken);
+        var profile = await _context.SellerProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.SellerId == request.SellerId, cancellationToken);
         if (profile == null || string.IsNullOrEmpty(profile.ExternalProviderId)) throw new InvalidOperationException("Seller profile not found");
         return await _payoutGateway.CreateAccountOnboardingLinkAsync(profile.ExternalProviderId, request.ReturnUrl, request.RefreshUrl, cancellationToken);
     }

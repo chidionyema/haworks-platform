@@ -38,7 +38,7 @@ public class PreferenceTests
 
     private void SetupRows(params NotificationPreference[] rows)
     {
-        _repo.Setup(r => r.GetAllForUserAsync(UserId))
+        _repo.Setup(r => r.GetAllForUserAsync(UserId, It.IsAny<CancellationToken>()))
              .ReturnsAsync(rows);
     }
 

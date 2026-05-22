@@ -66,7 +66,7 @@ public sealed class SubscriptionEndpointTests : IAsyncLifetime
         var client = CreateClient(authenticated: false);
 
         // Act
-        var resp = await client.GetAsync("/api/subscriptions/status");
+        var resp = await client.GetAsync("/api/v1/subscriptions/status");
 
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -91,7 +91,7 @@ public sealed class SubscriptionEndpointTests : IAsyncLifetime
         }).CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
         // Act
-        var resp = await client.GetAsync("/api/subscriptions/status");
+        var resp = await client.GetAsync("/api/v1/subscriptions/status");
 
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -116,7 +116,7 @@ public sealed class SubscriptionEndpointTests : IAsyncLifetime
         var client = CreateClient();
 
         // Act
-        var resp = await client.GetAsync("/api/subscriptions/status");
+        var resp = await client.GetAsync("/api/v1/subscriptions/status");
 
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -141,7 +141,7 @@ public sealed class SubscriptionEndpointTests : IAsyncLifetime
         var client = CreateClient();
 
         // Act
-        var resp = await client.GetAsync("/api/subscriptions/status");
+        var resp = await client.GetAsync("/api/v1/subscriptions/status");
 
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -165,7 +165,7 @@ public sealed class SubscriptionEndpointTests : IAsyncLifetime
         var client = CreateClient();
 
         // Act
-        var resp = await client.PostAsJsonAsync("/api/subscriptions/create-checkout-session", request);
+        var resp = await client.PostAsJsonAsync("/api/v1/subscriptions/create-checkout-session", request);
 
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -182,7 +182,7 @@ public sealed class SubscriptionEndpointTests : IAsyncLifetime
         var client = CreateClient();
 
         // Act
-        var resp = await client.PostAsJsonAsync("/api/subscriptions/create-checkout-session", request);
+        var resp = await client.PostAsJsonAsync("/api/v1/subscriptions/create-checkout-session", request);
 
         // Assert
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);

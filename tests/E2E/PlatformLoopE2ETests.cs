@@ -37,7 +37,7 @@ public class PlatformLoopE2ETests(E2EEnvironmentFixture fixture, ITestOutputHelp
         // 1. Create a uniquely identifiable product in Catalog
         var productName = $"E2E_Sync_Check_{Guid.NewGuid():N}";
         
-        var categoryResponse = await catalogContext.PostAsync("/api/Categories", new()
+        var categoryResponse = await catalogContext.PostAsync("/api/v1/Categories", new()
         {
             DataObject = new { name = "E2E Sync Category", description = "For E2E tests" }
         });
@@ -45,7 +45,7 @@ public class PlatformLoopE2ETests(E2EEnvironmentFixture fixture, ITestOutputHelp
         var category = await categoryResponse.JsonAsync();
         var categoryId = category?.GetProperty("id").GetGuid();
 
-        var productResponse = await catalogContext.PostAsync("/api/Products", new()
+        var productResponse = await catalogContext.PostAsync("/api/v1/Products", new()
         {
             DataObject = new 
             { 
@@ -65,7 +65,7 @@ public class PlatformLoopE2ETests(E2EEnvironmentFixture fixture, ITestOutputHelp
         for (int i = 0; i < 20; i++)
         {
             await Task.Delay(1000);
-            var searchResponse = await _bffContext.GetAsync($"/api/search?q={productName}");
+            var searchResponse = await _bffContext.GetAsync($"/api/v1/search?q={productName}");
             if (!searchResponse.Ok) continue;
 
             var results = await searchResponse.JsonAsync();
@@ -101,7 +101,7 @@ public class PlatformLoopE2ETests(E2EEnvironmentFixture fixture, ITestOutputHelp
         var username = $"audit_check_{Guid.NewGuid():N}";
         var email = $"{username}@example.com";
         
-        var registerResponse = await identityContext.PostAsync("/api/Authentication/register", new()
+        var registerResponse = await identityContext.PostAsync("/api/v1/Authentication/register", new()
         {
             DataObject = new { username, email, password = "Password123!" }
         });

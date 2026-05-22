@@ -7,10 +7,10 @@ public sealed class ReserveStockCommandValidator : AbstractValidator<ReserveStoc
 {
     public ReserveStockCommandValidator()
     {
-        RuleFor(x => x.ProductId).NotEqual(Guid.Empty);
+        RuleFor(x => x.ProductId).NotEmpty();
         RuleFor(x => x.Quantity).GreaterThan(0);
-        RuleFor(x => x.OrderId).NotEqual(Guid.Empty);
-        RuleFor(x => x.SagaId).NotEqual(Guid.Empty);
+        RuleFor(x => x.OrderId).NotEmpty();
+        RuleFor(x => x.SagaId).NotEmpty();
         RuleFor(x => x.UserId).NotEmpty();
         RuleFor(x => x.TotalAmount).GreaterThan(0);
         RuleFor(x => x.Currency).NotEmpty().Length(3);
