@@ -168,7 +168,8 @@ internal sealed class TestSaveChangesFilter<T>(NotificationsDbContext db) : IFil
     public async Task Send(ConsumeContext<T> context, IPipe<ConsumeContext<T>> next)
     {
         await next.Send(context);
-        await db.SaveChangesAsync(context.CancellationToken);
+        if (db.ChangeTracker.HasChanges())
+            await db.SaveChangesAsync(context.CancellationToken);
     }
 
     public void Probe(ProbeContext context) => context.CreateFilterScope("test-save-changes");
