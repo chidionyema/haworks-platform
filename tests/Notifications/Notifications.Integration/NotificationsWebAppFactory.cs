@@ -119,6 +119,11 @@ public class NotificationsWebAppFactory : WebApplicationFactory<Program>, IAsync
             services.AddMassTransitTestHarness(mt =>
             {
                 mt.AddConsumer<NotificationRequestConsumer>();
+                mt.UsingInMemory((ctx, cfg) =>
+                {
+                    cfg.UseConsumeFilter(typeof(TestSaveChangesFilter<>), ctx);
+                    cfg.ConfigureEndpoints(ctx);
+                });
             });
 
             // [Authorize]-decorated endpoints need an auth scheme. Tests use
@@ -139,7 +144,32 @@ public class NotificationsWebAppFactory : WebApplicationFactory<Program>, IAsync
         var db = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
         await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS notifications;");
         await db.Database.EnsureCreatedAsync();
+
+        // Drop outbox/inbox tables — in-memory test harness doesn't use the EF
+        // Outbox middleware. TestSaveChangesFilter handles SaveChanges instead.
+        // Without this, MassTransit's scoped IPublishEndpoint routes publishes
+        // through the OutboxMessage table which the in-memory bus never delivers.
+        await db.Database.ExecuteSqlRawAsync(
+            """DROP TABLE IF EXISTS notifications."InboxState", notifications."OutboxMessage", notifications."OutboxState" CASCADE""");
     }
 
     public Task ResetDatabaseAsync() => _resetter!.ResetAsync();
+}
+
+/// <summary>
+/// Test-only consume filter that calls SaveChangesAsync on the NotificationsDbContext
+/// after each consumer completes. In production, the MassTransit EF Outbox middleware
+/// handles this; the in-memory test harness has no outbox middleware so we replicate
+/// the SaveChanges behavior here.
+/// </summary>
+internal sealed class TestSaveChangesFilter<T>(NotificationsDbContext db) : IFilter<ConsumeContext<T>>
+    where T : class
+{
+    public async Task Send(ConsumeContext<T> context, IPipe<ConsumeContext<T>> next)
+    {
+        await next.Send(context);
+        await db.SaveChangesAsync(context.CancellationToken);
+    }
+
+    public void Probe(ProbeContext context) => context.CreateFilterScope("test-save-changes");
 }

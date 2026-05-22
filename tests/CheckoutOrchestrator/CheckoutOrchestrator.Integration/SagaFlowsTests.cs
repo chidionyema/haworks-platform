@@ -240,15 +240,15 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
         var sagaState = await ReadSagaAsync(sagaId);
         sagaState!.FailureReason.Should().Contain("PaymentAmountMismatch");
 
-        // PaymentAmountMismatch must also publish StockReleaseRequested to
-        // compensate the reservation — stock was reserved and the payment
-        // amount doesn't match, so reserved items must be released.
+        // Stock is NOT released here — the customer has paid (just the wrong
+        // amount). Stock stays reserved in RequiresReview so ops can either
+        // complete the order (adjust amount) or explicitly release stock after
+        // refunding via ManualResolutionEvent(resolution="abandoned").
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         var release = harness.Published.Select<StockReleaseRequestedEvent>()
             .FirstOrDefault(p => p.Context.Message.SagaId == sagaId);
-        release.Should().NotBeNull(
-            "PaymentAmountMismatch must compensate by publishing StockReleaseRequested");
-        release!.Context.Message.Reason.Should().Be("payment_amount_mismatch");
+        release.Should().BeNull(
+            "PaymentAmountMismatch must NOT release stock — customer has paid, ops resolves via ManualResolution");
     }
 
     // Saga restart persistence is covered by SagaRealTransportTests (real RabbitMQ).

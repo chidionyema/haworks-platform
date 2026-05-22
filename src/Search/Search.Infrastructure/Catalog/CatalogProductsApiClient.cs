@@ -36,7 +36,7 @@ internal sealed class CatalogProductsApiClient : ICatalogProductsApi
     {
         return _policy.ExecuteAsync(async innerCt =>
         {
-            using var resp = await _http.GetAsync($"/api/products/{id}", innerCt).ConfigureAwait(false);
+            using var resp = await _http.GetAsync($"/api/v1/products/{id}", innerCt).ConfigureAwait(false);
             resp.EnsureSuccessStatusCode();
             var dto = await resp.Content.ReadFromJsonAsync<CatalogProductDto>(cancellationToken: innerCt).ConfigureAwait(false);
             return dto ?? throw new HttpRequestException($"Catalog returned null body for product {id}");
@@ -47,7 +47,7 @@ internal sealed class CatalogProductsApiClient : ICatalogProductsApi
     {
         return _policy.ExecuteAsync(async innerCt =>
         {
-            var query = $"/api/products?skip={skip}&take={take}";
+            var query = $"/api/v1/products?skip={skip}&take={take}";
             if (categoryId is { } cat) query += $"&categoryId={cat}";
 
             using var resp = await _http.GetAsync(query, innerCt).ConfigureAwait(false);

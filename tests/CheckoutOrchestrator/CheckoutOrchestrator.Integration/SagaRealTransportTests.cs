@@ -16,7 +16,8 @@ namespace Haworks.CheckoutOrchestrator.Integration;
 /// outbox relay, message serialization, exchange bindings, and consumer
 /// scope isolation.
 /// </summary>
-public sealed class SagaRealTransportTests : IClassFixture<CheckoutRealTransportFactory>, IAsyncLifetime
+[Collection(CheckoutRealTransportCollection.Name)]
+public sealed class SagaRealTransportTests : IAsyncLifetime
 {
     private readonly CheckoutRealTransportFactory _factory;
     private HttpClient _client = null!;
@@ -57,11 +58,12 @@ public sealed class SagaRealTransportTests : IClassFixture<CheckoutRealTransport
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
 
-        // Wait for the saga to be created — message goes through RabbitMQ
+        // Wait for the saga to be created — message goes through RabbitMQ.
+        // 60 attempts × 1s = 60s max to handle CI container startup latency.
         CheckoutSagaState? saga = null;
-        for (var i = 0; i < 30; i++)
+        for (var i = 0; i < 60; i++)
         {
-            await Task.Delay(500);
+            await Task.Delay(1000);
             using var scope = _factory.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<CheckoutDbContext>();
             saga = await db.CheckoutSagas.AsNoTracking()
@@ -69,7 +71,7 @@ public sealed class SagaRealTransportTests : IClassFixture<CheckoutRealTransport
             if (saga != null) break;
         }
 
-        saga.Should().NotBeNull("saga should be created within 15 seconds via RabbitMQ");
+        saga.Should().NotBeNull("saga should be created within 60 seconds via RabbitMQ");
         saga!.CurrentState.Should().Be("Initiated");
         saga.OrderId.Should().Be(orderId);
         saga.Currency.Should().Be("GBP");

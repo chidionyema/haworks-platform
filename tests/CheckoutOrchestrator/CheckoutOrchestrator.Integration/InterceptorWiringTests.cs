@@ -3,7 +3,6 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Haworks.BuildingBlocks.Messaging;
@@ -13,7 +12,8 @@ using System.Net.Http.Json;
 
 namespace Haworks.CheckoutOrchestrator.Integration;
 
-public sealed class InterceptorWiringTests : IClassFixture<CheckoutRealTransportFactory>, IAsyncLifetime
+[Collection(CheckoutRealTransportCollection.Name)]
+public sealed class InterceptorWiringTests : IAsyncLifetime
 {
     private readonly CheckoutRealTransportFactory _factory;
     private readonly ITestOutputHelper _output;
@@ -44,10 +44,6 @@ public sealed class InterceptorWiringTests : IClassFixture<CheckoutRealTransport
     [Fact]
     public async Task Interceptor_fires_on_saga_creation_via_real_RabbitMQ()
     {
-        // Capture log output from the interceptor
-        var logMessages = new List<string>();
-        var loggerFactory = _factory.Services.GetRequiredService<ILoggerFactory>();
-
         var sagaId = Guid.NewGuid();
         var response = await _client.PostAsJsonAsync("/api/v1/checkouts", new
         {
@@ -64,11 +60,13 @@ public sealed class InterceptorWiringTests : IClassFixture<CheckoutRealTransport
         _output.WriteLine($"POST response: {response.StatusCode}");
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
 
-        // Wait for saga to be created
+        // Poll for saga creation — 60 attempts × 1s = 60s max.
+        // Real RabbitMQ consumer startup is slow in CI when other suites
+        // compete for CPU/containers.
         CheckoutSagaState? saga = null;
-        for (var i = 0; i < 30; i++)
+        for (var i = 0; i < 60; i++)
         {
-            await Task.Delay(500);
+            await Task.Delay(1000);
             using var scope = _factory.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<CheckoutDbContext>();
             saga = await db.CheckoutSagas.AsNoTracking()
@@ -81,9 +79,6 @@ public sealed class InterceptorWiringTests : IClassFixture<CheckoutRealTransport
         }
 
         saga.Should().NotBeNull("saga should be created via real RabbitMQ");
-
-        // The interceptor should have logged — check by querying the DbContext
-        // to see if our interceptor metadata is present
         _output.WriteLine($"Saga: {saga!.CorrelationId} State={saga.CurrentState} Currency={saga.Currency}");
     }
 }
