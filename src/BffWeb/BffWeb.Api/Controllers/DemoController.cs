@@ -175,7 +175,7 @@ public class DemoController : ControllerBase
         var client = _httpClientFactory.CreateClient(BackendClients.Checkout);
         try
         {
-            using var resp = await client.GetAsync($"/api/checkouts/{sessionId}", ct);
+            using var resp = await client.GetAsync($"/api/v1/checkouts/{sessionId}", ct);
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 return NotFound(new { sessionId, status = "NotFound" });
@@ -237,7 +237,7 @@ public class DemoController : ControllerBase
                 idempotencyKey,
                 items,
             };
-            using var resp = await client.PostAsJsonAsync("/api/checkouts", payload, ct);
+            using var resp = await client.PostAsJsonAsync("/api/v1/checkouts", payload, ct);
             if (resp.IsSuccessStatusCode) return true;
 
             var body = await resp.Content.ReadAsStringAsync(ct);
@@ -908,7 +908,7 @@ public class DemoController : ControllerBase
         var client = _httpClientFactory.CreateClient(BackendClients.Catalog);
         try
         {
-            using var resp = await client.GetAsync($"/api/products/{productId}/cached", ct);
+            using var resp = await client.GetAsync($"/api/v1/products/{productId}/cached", ct);
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 return NotFound(new { productId });
@@ -941,7 +941,7 @@ public class DemoController : ControllerBase
         // sends price + name + sessionId; categoryId stays the same as current).
         try
         {
-            using var getResp = await client.GetAsync($"/api/products/{productId}", ct);
+            using var getResp = await client.GetAsync($"/api/v1/products/{productId}", ct);
             if (getResp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 return NotFound(new { productId });
@@ -959,13 +959,13 @@ public class DemoController : ControllerBase
                 correlationId = sessionId,
             };
 
-            using var putResp = await client.PutAsJsonAsync($"/api/products/{productId}", putBody, ct);
+            using var putResp = await client.PutAsJsonAsync($"/api/v1/products/{productId}", putBody, ct);
             putResp.EnsureSuccessStatusCode();
 
             // Re-read via the cached endpoint so the frontend gets current
             // cacheInfo (will be a miss because we just invalidated — that's
             // exactly what the demo wants to show).
-            using var cachedResp = await client.GetAsync($"/api/products/{productId}/cached", ct);
+            using var cachedResp = await client.GetAsync($"/api/v1/products/{productId}/cached", ct);
             cachedResp.EnsureSuccessStatusCode();
             var cachedBody = await cachedResp.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
 
@@ -1005,7 +1005,7 @@ public class DemoController : ControllerBase
         try
         {
             using var resp = await client.DeleteAsync(
-                $"/api/products/{productId}?correlationId={resolvedSession}", ct);
+                $"/api/v1/products/{productId}?correlationId={resolvedSession}", ct);
             // 204 NoContent is the success response from a Result-pattern DELETE.
             // 404 means the product was already gone — still report invalidated.
             return Ok(new
@@ -1337,7 +1337,7 @@ public class DemoController : ControllerBase
         var paymentId = seedBody.GetProperty("paymentId").GetGuid();
 
         // Phase 2: Create the refund (convert cents to decimal for the refund API)
-        var refundResp = await client.PostAsJsonAsync("/api/refunds", new
+        var refundResp = await client.PostAsJsonAsync("/api/v1/refunds", new
         {
             paymentId,
             amount = request.RefundAmountCents / 100m,
@@ -1383,7 +1383,7 @@ public class DemoController : ControllerBase
     public async Task<IActionResult> GetRefundStatus(Guid refundId, CancellationToken ct)
     {
         var client = _httpClientFactory.CreateClient(BackendClients.Payments);
-        using var resp = await client.GetAsync($"/api/refunds/{refundId}", ct);
+        using var resp = await client.GetAsync($"/api/v1/refunds/{refundId}", ct);
 
         if (!resp.IsSuccessStatusCode)
             return StatusCode((int)resp.StatusCode, new { error = "Failed to poll refund state" });
@@ -1422,7 +1422,7 @@ public class DemoController : ControllerBase
         CancellationToken ct)
     {
         var client = _httpClientFactory.CreateClient(BackendClients.Privacy);
-        using var resp = await client.PostAsJsonAsync("/api/privacyrequests", new
+        using var resp = await client.PostAsJsonAsync("/api/v1/privacyrequests", new
         {
             userId = Guid.NewGuid(), // demo user
             requestType = "Erasure",
@@ -1449,7 +1449,7 @@ public class DemoController : ControllerBase
     public async Task<IActionResult> GetErasureStatus(Guid requestId, CancellationToken ct)
     {
         var client = _httpClientFactory.CreateClient(BackendClients.Privacy);
-        using var resp = await client.GetAsync($"/api/privacyrequests/{requestId}", ct);
+        using var resp = await client.GetAsync($"/api/v1/privacyrequests/{requestId}", ct);
 
         if (!resp.IsSuccessStatusCode)
             return StatusCode((int)resp.StatusCode, new { error = "Failed to poll erasure state" });
