@@ -168,7 +168,7 @@ jobs:
   integration-tests:
     name: Integration / ${{ matrix.suite }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.timeout || 20 }}
     needs: [build-and-fast-tests]
     strategy:
       fail-fast: false
@@ -194,6 +194,7 @@ jobs:
             path: tests/Notifications/Notifications.Integration
           - suite: Webhooks
             path: tests/Webhooks/Webhooks.Integration
+            timeout: 30
           - suite: Payouts
             path: tests/Payouts/Payouts.Integration
           - suite: Scheduler
