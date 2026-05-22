@@ -43,8 +43,10 @@ public class InitiatePrivacyRequestCommandHandler : IRequestHandler<InitiatePriv
         // ExecuteSqlInterpolatedAsync is parameterized (safe against injection); userId is
         // passed as a typed FormattableString parameter, not concatenated as a string.
         var userId = request.UserId;
+        var pending = (int)PrivacyRequestStatus.Pending;
+        var inProgress = (int)PrivacyRequestStatus.InProgress;
         await _context.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM privacy.\"PrivacyRequests\" WHERE \"UserId\" = {userId} AND (\"Status\" = 'Pending' OR \"Status\" = 'InProgress') LIMIT 1 FOR UPDATE SKIP LOCKED",
+            $"SELECT 1 FROM privacy.\"PrivacyRequests\" WHERE \"UserId\" = {userId} AND (\"Status\" = {pending} OR \"Status\" = {inProgress}) LIMIT 1 FOR UPDATE SKIP LOCKED",
             cancellationToken);
 
         var existing = await _context.PrivacyRequests.FirstOrDefaultAsync(
