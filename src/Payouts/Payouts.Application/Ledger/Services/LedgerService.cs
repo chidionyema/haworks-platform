@@ -199,9 +199,9 @@ public class LedgerService : ILedgerService
             account = LedgerAccount.Create(ownerId, type, currency);
             _context.LedgerAccounts.Add(account);
 
-            // OUTBOX-SAFE: Flush to DB so the row exists for the FOR UPDATE re-lock.
+            // Flush to DB so the row exists for the FOR UPDATE re-lock.
             // This is safe inside the ambient outbox transaction — it does not commit.
-            await _context.SaveChangesAsync(ct);
+            await _context.SaveChangesAsync(ct); // OUTBOX-SAFE
 
             if (!_useLinqFallback)
             {

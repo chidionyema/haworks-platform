@@ -37,6 +37,7 @@ public sealed class LedgerServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         await _service.CreditSellerAsync(sellerId, 100m, "USD", Guid.NewGuid(), "Test payment");
+        await _context.SaveChangesAsync(); // outbox handles this in production
 
         var entries = await _context.LedgerEntries.ToListAsync();
         entries.Should().HaveCount(3);
@@ -52,7 +53,9 @@ public sealed class LedgerServiceTests : IDisposable
         var refId = Guid.NewGuid();
 
         await _service.CreditSellerAsync(sellerId, 100m, "USD", refId, "Payment 1");
+        await _context.SaveChangesAsync(); // outbox handles this in production
         await _service.CreditSellerAsync(sellerId, 100m, "USD", refId, "Payment 1 duplicate");
+        await _context.SaveChangesAsync();
 
         var entries = await _context.LedgerEntries.ToListAsync();
         entries.Should().HaveCount(3); // Only first credit, not 6
@@ -74,8 +77,10 @@ public sealed class LedgerServiceTests : IDisposable
         var sellerId = Guid.NewGuid();
         var paymentId = Guid.NewGuid();
         await _service.CreditSellerAsync(sellerId, 100m, "USD", paymentId, "Payment");
+        await _context.SaveChangesAsync();
 
         await _service.DebitSellerAsync(sellerId, 100m, "USD", paymentId, "Refund");
+        await _context.SaveChangesAsync();
 
         var sellerBalance = await _service.GetBalanceAsync(sellerId, AccountType.SellerPending, "USD");
         sellerBalance.Should().Be(0m);
@@ -87,9 +92,12 @@ public sealed class LedgerServiceTests : IDisposable
         var sellerId = Guid.NewGuid();
         var paymentId = Guid.NewGuid();
         await _service.CreditSellerAsync(sellerId, 100m, "USD", paymentId, "Payment");
+        await _context.SaveChangesAsync();
 
         await _service.DebitSellerAsync(sellerId, 100m, "USD", paymentId, "Refund");
+        await _context.SaveChangesAsync();
         await _service.DebitSellerAsync(sellerId, 100m, "USD", paymentId, "Refund duplicate");
+        await _context.SaveChangesAsync();
 
         var entries = await _context.LedgerEntries.CountAsync();
         entries.Should().Be(6); // 3 credit + 3 debit (not 9)

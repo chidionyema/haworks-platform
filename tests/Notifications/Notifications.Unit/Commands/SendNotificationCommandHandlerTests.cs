@@ -74,8 +74,10 @@ public sealed class SendNotificationCommandHandlerTests
         added!.Status.Should().Be(NotificationStatus.Created);
         added.IdempotencyKey.Should().Be(DeterministicKey);
 
-        publishCalledAt.Should().BeGreaterThan(0);
-        saveCalledAt.Should().BeGreaterThan(publishCalledAt, "publish must occur before save (outbox guarantee)");
+        publishCalledAt.Should().BeGreaterThan(0, "Publish must be called");
+        // Handler deliberately does NOT call SaveChangesAsync — the caller
+        // (HTTP controller or MassTransit outbox) owns the commit.
+        saveCalledAt.Should().Be(-1, "handler must not call SaveChangesAsync (dual-use: caller commits)");
 
         _eventPublisher.Verify(p => p.Publish(
             It.Is<NotificationCreatedEvent>(e => e.NotificationId == added.Id && e.IdempotencyKey == DeterministicKey),
