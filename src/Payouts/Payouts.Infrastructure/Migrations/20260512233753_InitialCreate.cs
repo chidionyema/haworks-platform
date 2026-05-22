@@ -1,19 +1,19 @@
 #pragma warning disable CA1861
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace Haworks.Payouts.Infrastructure.Migrations
 {
-    /// <inheritdoc />
     public partial class InitialCreate : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.EnsureSchema(name: "payouts");
+
             migrationBuilder.CreateTable(
-                name: "LedgerAccounts",
+                name: "LedgerAccounts", schema: "payouts",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -35,7 +35,7 @@ namespace Haworks.Payouts.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "LedgerEntries",
+                name: "LedgerEntries", schema: "payouts",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -59,7 +59,7 @@ namespace Haworks.Payouts.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Payouts",
+                name: "Payouts", schema: "payouts",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -85,7 +85,7 @@ namespace Haworks.Payouts.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "SellerProfiles",
+                name: "SellerProfiles", schema: "payouts",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -109,48 +109,19 @@ namespace Haworks.Payouts.Infrastructure.Migrations
                     table.PrimaryKey("PK_SellerProfiles", x => x.Id);
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_LedgerAccounts_OwnerId_Type_Currency",
-                table: "LedgerAccounts",
-                columns: new[] { "OwnerId", "Type", "Currency" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_LedgerEntries_AccountId",
-                table: "LedgerEntries",
-                column: "AccountId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_LedgerEntries_TransactionId",
-                table: "LedgerEntries",
-                column: "TransactionId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Payouts_SellerId",
-                table: "Payouts",
-                column: "SellerId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_SellerProfiles_SellerId",
-                table: "SellerProfiles",
-                column: "SellerId",
-                unique: true);
+            migrationBuilder.CreateIndex(name: "IX_LedgerAccounts_OwnerId_Type_Currency", schema: "payouts", table: "LedgerAccounts", columns: new[] { "OwnerId", "Type", "Currency" }, unique: true);
+            migrationBuilder.CreateIndex(name: "IX_LedgerEntries_AccountId", schema: "payouts", table: "LedgerEntries", column: "AccountId");
+            migrationBuilder.CreateIndex(name: "IX_LedgerEntries_TransactionId", schema: "payouts", table: "LedgerEntries", column: "TransactionId");
+            migrationBuilder.CreateIndex(name: "IX_Payouts_SellerId", schema: "payouts", table: "Payouts", column: "SellerId");
+            migrationBuilder.CreateIndex(name: "IX_SellerProfiles_SellerId", schema: "payouts", table: "SellerProfiles", column: "SellerId", unique: true);
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "LedgerAccounts");
-
-            migrationBuilder.DropTable(
-                name: "LedgerEntries");
-
-            migrationBuilder.DropTable(
-                name: "Payouts");
-
-            migrationBuilder.DropTable(
-                name: "SellerProfiles");
+            migrationBuilder.DropTable(name: "LedgerAccounts", schema: "payouts");
+            migrationBuilder.DropTable(name: "LedgerEntries", schema: "payouts");
+            migrationBuilder.DropTable(name: "Payouts", schema: "payouts");
+            migrationBuilder.DropTable(name: "SellerProfiles", schema: "payouts");
         }
     }
 }

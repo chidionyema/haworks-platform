@@ -2261,6 +2261,63 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
             "the EF Outbox provides the ambient transaction (Architectural Law #1)");
     }
 
+    // ─── EF Migration Schema Guards ──────────────────────────────────
+
+    [Fact]
+    public void EF_migrations_with_HasDefaultSchema_must_specify_schema_on_CreateTable()
+    {
+        var violations = new List<string>();
+
+        // Find all DbContext files that use HasDefaultSchema
+        var schemaByService = new Dictionary<string, string>();
+        foreach (var dbCtxFile in FindDbContextFiles())
+        {
+            var content = File.ReadAllText(dbCtxFile);
+            var match = Regex.Match(content, @"HasDefaultSchema\(""(\w+)""\)");
+            if (match.Success)
+            {
+                var svcDir = Path.GetDirectoryName(dbCtxFile) ?? "";
+                schemaByService[svcDir] = match.Groups[1].Value;
+            }
+        }
+
+        // For each service with a default schema, check all migration files
+        foreach (var (dbCtxDir, schema) in schemaByService)
+        {
+            // Find the Migrations directory relative to the DbContext
+            var infraDir = Directory.GetParent(dbCtxDir)?.FullName ?? dbCtxDir;
+            var migrationsDir = Path.Combine(infraDir, "Migrations");
+            if (!Directory.Exists(migrationsDir)) continue;
+
+            foreach (var migFile in Directory.GetFiles(migrationsDir, "*.cs"))
+            {
+                if (migFile.Contains("Designer") || migFile.Contains("Snapshot")) continue;
+
+                var content = File.ReadAllText(migFile);
+                // Skip no-op migrations (no CreateTable calls)
+                if (!content.Contains("CreateTable(")) continue;
+
+                // Check each CreateTable call has schema: parameter
+                var createTableMatches = Regex.Matches(content, @"CreateTable\(\s*\n\s*name:\s*""(\w+)""");
+                foreach (Match m in createTableMatches)
+                {
+                    var tableName = m.Groups[1].Value;
+                    // Check if schema: appears within the next 50 chars after the match
+                    var afterMatch = content.Substring(m.Index, Math.Min(200, content.Length - m.Index));
+                    if (!afterMatch.Contains("schema:"))
+                    {
+                        violations.Add($"{Relative(migFile)}: CreateTable(\"{tableName}\") missing schema: \"{schema}\" — tables will land in public schema");
+                    }
+                }
+            }
+        }
+
+        violations.Should().BeEmpty(
+            "EF migrations in services with HasDefaultSchema must specify schema: on every CreateTable. " +
+            "Without it, tables are created in the public schema but queries target the service schema, " +
+            "causing 42P01 'relation does not exist' errors at runtime.");
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────
 
     private static string FindSrcRoot()

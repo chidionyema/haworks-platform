@@ -1,5 +1,5 @@
 #pragma warning disable CA1861
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -7,14 +7,13 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 namespace Haworks.Privacy.Infrastructure.Migrations
 {
-    /// <inheritdoc />
     public partial class AddSagaAndOutbox : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
                 name: "InboxState",
+                schema: "privacy",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
@@ -38,6 +37,7 @@ namespace Haworks.Privacy.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "OutboxState",
+                schema: "privacy",
                 columns: table => new
                 {
                     OutboxId = table.Column<Guid>(type: "uuid", nullable: false),
@@ -54,6 +54,7 @@ namespace Haworks.Privacy.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "PrivacyRequestState",
+                schema: "privacy",
                 columns: table => new
                 {
                     CorrelationId = table.Column<Guid>(type: "uuid", nullable: false),
@@ -74,6 +75,7 @@ namespace Haworks.Privacy.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "OutboxMessage",
+                schema: "privacy",
                 columns: table => new
                 {
                     SequenceNumber = table.Column<long>(type: "bigint", nullable: false)
@@ -105,62 +107,31 @@ namespace Haworks.Privacy.Infrastructure.Migrations
                     table.ForeignKey(
                         name: "FK_OutboxMessage_InboxState_InboxMessageId_InboxConsumerId",
                         columns: x => new { x.InboxMessageId, x.InboxConsumerId },
+                        principalSchema: "privacy",
                         principalTable: "InboxState",
                         principalColumns: new[] { "MessageId", "ConsumerId" });
                     table.ForeignKey(
                         name: "FK_OutboxMessage_OutboxState_OutboxId",
                         column: x => x.OutboxId,
+                        principalSchema: "privacy",
                         principalTable: "OutboxState",
                         principalColumn: "OutboxId");
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_InboxState_Delivered",
-                table: "InboxState",
-                column: "Delivered");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_OutboxMessage_EnqueueTime",
-                table: "OutboxMessage",
-                column: "EnqueueTime");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_OutboxMessage_ExpirationTime",
-                table: "OutboxMessage",
-                column: "ExpirationTime");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_OutboxMessage_InboxMessageId_InboxConsumerId_SequenceNumber",
-                table: "OutboxMessage",
-                columns: new[] { "InboxMessageId", "InboxConsumerId", "SequenceNumber" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_OutboxMessage_OutboxId_SequenceNumber",
-                table: "OutboxMessage",
-                columns: new[] { "OutboxId", "SequenceNumber" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_OutboxState_Created",
-                table: "OutboxState",
-                column: "Created");
+            migrationBuilder.CreateIndex(name: "IX_InboxState_Delivered", schema: "privacy", table: "InboxState", column: "Delivered");
+            migrationBuilder.CreateIndex(name: "IX_OutboxMessage_EnqueueTime", schema: "privacy", table: "OutboxMessage", column: "EnqueueTime");
+            migrationBuilder.CreateIndex(name: "IX_OutboxMessage_ExpirationTime", schema: "privacy", table: "OutboxMessage", column: "ExpirationTime");
+            migrationBuilder.CreateIndex(name: "IX_OutboxMessage_InboxMessageId_InboxConsumerId_SequenceNumber", schema: "privacy", table: "OutboxMessage", columns: new[] { "InboxMessageId", "InboxConsumerId", "SequenceNumber" }, unique: true);
+            migrationBuilder.CreateIndex(name: "IX_OutboxMessage_OutboxId_SequenceNumber", schema: "privacy", table: "OutboxMessage", columns: new[] { "OutboxId", "SequenceNumber" }, unique: true);
+            migrationBuilder.CreateIndex(name: "IX_OutboxState_Created", schema: "privacy", table: "OutboxState", column: "Created");
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "OutboxMessage");
-
-            migrationBuilder.DropTable(
-                name: "PrivacyRequestState");
-
-            migrationBuilder.DropTable(
-                name: "InboxState");
-
-            migrationBuilder.DropTable(
-                name: "OutboxState");
+            migrationBuilder.DropTable(name: "OutboxMessage", schema: "privacy");
+            migrationBuilder.DropTable(name: "PrivacyRequestState", schema: "privacy");
+            migrationBuilder.DropTable(name: "InboxState", schema: "privacy");
+            migrationBuilder.DropTable(name: "OutboxState", schema: "privacy");
         }
     }
 }
