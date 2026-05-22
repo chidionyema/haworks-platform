@@ -52,6 +52,8 @@ internal sealed class OrderRepository(OrderDbContext db) : IOrderRepository
     public Task<int> SaveChangesAsync(CancellationToken ct = default) =>
         db.SaveChangesAsync(ct);
 
+    public void ClearChangeTracker() => db.ChangeTracker.Clear();
+
     public async Task AddGuestInfoAsync(GuestOrderInfo guestInfo, CancellationToken ct = default) =>
         await db.GuestOrders.AddAsync(guestInfo, ct);
 

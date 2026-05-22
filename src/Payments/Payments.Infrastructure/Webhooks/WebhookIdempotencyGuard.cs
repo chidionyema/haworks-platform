@@ -60,10 +60,13 @@ internal sealed class WebhookIdempotencyGuard : IWebhookIdempotencyGuard
         // not the source of truth — so an empty JSON object is sufficient.
         var webhookEvent = WebhookEvent.Create(provider, providerEventId, eventType, "{}");
         await _repository.AddWebhookEventAsync(webhookEvent, ct);
-        await _repository.SaveChangesAsync(ct);
+        // DO NOT call SaveChangesAsync here. When called from a MassTransit consumer,
+        // the EF Outbox transaction commits all changes atomically. Calling Save here
+        // would persist the dedup row before the outbox commits, risking silent webhook
+        // loss if the outbox transaction rolls back.
 
         var cacheKey = $"{CacheKeyPrefix}{provider}:{providerEventId}";
-        await _cache.SetAsync(cacheKey, new byte[] { 1 }, 
+        await _cache.SetAsync(cacheKey, new byte[] { 1 },
             new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24) }, ct);
     }
 }

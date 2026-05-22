@@ -13,4 +13,5 @@ public interface INotificationRepository
     Task<Notification?> GetByProviderMessageIdAsync(string providerMessageId, CancellationToken ct);
 
     Task<int> SaveChangesAsync(CancellationToken ct);
+    void ClearChangeTracker();
 }

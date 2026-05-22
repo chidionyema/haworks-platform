@@ -38,4 +38,6 @@ internal sealed class NotificationRepository(NotificationsDbContext dbContext) :
     {
         return dbContext.SaveChangesAsync(ct);
     }
+
+    public void ClearChangeTracker() => dbContext.ChangeTracker.Clear();
 }
