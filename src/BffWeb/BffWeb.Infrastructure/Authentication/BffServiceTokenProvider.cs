@@ -48,7 +48,7 @@ public sealed class BffServiceTokenProvider : IServiceTokenProvider
             var client = _httpClientFactory.CreateClient("IdentityServiceToken");
             client.BaseAddress = new Uri(baseUrl);
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "/api/Authentication/service-token");
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/Authentication/service-token");
             request.Headers.Add("X-Service-Secret", secret);
 
 #pragma warning disable HWK082 // Service token fetch has its own timeout + try/catch

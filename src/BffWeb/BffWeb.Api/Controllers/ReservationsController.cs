@@ -38,7 +38,7 @@ public sealed class ReservationsController : ControllerBase
     {
         Request.EnableBuffering();
         using var streamContent = new StreamContent(Request.Body);
-        return await ForwardAsync(HttpMethod.Post, "/api/checkout/reservations", streamContent, authorization, idempotencyKey, ct);
+        return await ForwardAsync(HttpMethod.Post, "/api/v1/checkout/reservations", streamContent, authorization, idempotencyKey, ct);
     }
 
     /// <summary>
@@ -61,7 +61,7 @@ public sealed class ReservationsController : ControllerBase
         using var streamContent = new StreamContent(Request.Body);
         return await ForwardAsync(
             HttpMethod.Post,
-            $"/api/checkout/reservations/{reservationId}/confirm",
+            $"/api/v1/checkout/reservations/{reservationId}/confirm",
             streamContent,
             authorization,
             idempotencyKey,
