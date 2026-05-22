@@ -15,6 +15,7 @@ namespace Haworks.Merchant.Infrastructure.Migrations
         {
             migrationBuilder.CreateTable(
                 name: "InboxState",
+                schema: "merchant",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
@@ -38,6 +39,7 @@ namespace Haworks.Merchant.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "Merchants",
+                schema: "merchant",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -61,6 +63,7 @@ namespace Haworks.Merchant.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "OperatingHours",
+                schema: "merchant",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -83,6 +86,7 @@ namespace Haworks.Merchant.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "OutboxState",
+                schema: "merchant",
                 columns: table => new
                 {
                     OutboxId = table.Column<Guid>(type: "uuid", nullable: false),
@@ -99,6 +103,7 @@ namespace Haworks.Merchant.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "OutboxMessage",
+                schema: "merchant",
                 columns: table => new
                 {
                     SequenceNumber = table.Column<long>(type: "bigint", nullable: false)
