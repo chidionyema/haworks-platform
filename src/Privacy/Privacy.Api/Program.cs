@@ -121,6 +121,8 @@ using (var scope = app.Services.CreateScope())
 
 
 // Configure the HTTP request pipeline
+// Temporarily enable detailed errors in all environments to debug 500s
+app.UseDeveloperExceptionPage();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
