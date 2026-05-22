@@ -23,34 +23,30 @@ namespace Haworks.Payments.Integration;
 
 public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    public const string TestStripeSecret = "whsec_test";
-
-    private string ConnString { get; set; } = string.Empty;
+    public string ConnString { get; private set; } = string.Empty;
+    public const string TestStripeSecret = "whsec_test_secret_1234567890abcdef";
 
     public async Task InitializeAsync()
     {
         ConnString = await SharedTestPostgres.CreateDatabaseAsync("payments");
+        JwtTestDefaults.SetTestEnvironmentVariables();
 
-        // Top-level Program.cs reads builder.Configuration before WAF's
-        // ConfigureAppConfiguration fires, so secrets must already be visible
-        // as env vars by the time the host starts building.
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Test");
         Environment.SetEnvironmentVariable("ConnectionStrings__payments", ConnString);
+        Environment.SetEnvironmentVariable("ConnectionStrings__RabbitMQ", "amqp://guest:guest@localhost:5672/");
+        Environment.SetEnvironmentVariable("Vault__Enabled", "false");
         Environment.SetEnvironmentVariable("Webhooks__Stripe__WebhookSecret", TestStripeSecret);
         Environment.SetEnvironmentVariable("PaymentProviders__Active", "Stripe");
         Environment.SetEnvironmentVariable("PaymentProviders__Stripe__WebhookSecret", TestStripeSecret);
         Environment.SetEnvironmentVariable("PaymentProviders__Stripe__SecretKey", "sk_test_dummy");
 
-        // Production AddPlatformAuthentication runs at boot and requires Jwt:* config.
-        // Set test-grade defaults — TestAuthenticationHandler still wins as the default
-        // scheme via ConfigureTestServices below.
-        JwtTestDefaults.SetTestEnvironmentVariables();
+        _ = Services;
+        await EnsureSchemaAsync();
     }
 
-    public new Task DisposeAsync()
+    async Task IAsyncLifetime.DisposeAsync()
     {
-        // Shared Postgres container outlives the fixture intentionally.
-        return Task.CompletedTask;
+        await base.DisposeAsync();
     }
 
     public async Task EnsureSchemaAsync()
@@ -110,11 +106,6 @@ public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
                 // and race with manually-published test events.
                 mt.AddConsumer<PaymentWebhookValidatedConsumer>();
                 mt.AddConsumer<PaymentSessionRequestedConsumer>();
-                mt.UsingInMemory((ctx, cfg) =>
-                {
-                    cfg.UseConsumeFilter(typeof(TestSaveChangesFilter<>), ctx);
-                    cfg.ConfigureEndpoints(ctx);
-                });
                 mt.AddSagaStateMachine<RefundSaga, RefundSagaState>()
                     .EntityFrameworkRepository(r =>
                     {
@@ -127,6 +118,11 @@ public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
                         r.ExistingDbContext<PaymentDbContext>();
                         r.UsePostgres();
                     });
+                // No global SaveChanges filter here — saga state machines use
+                // EntityFrameworkRepository which manages its own saves.
+                // Webhook consumers that need SaveChanges get it via
+                // PaymentWebhookValidatedConsumer calling SaveChangesAsync
+                // on the repository at the end of processing.
             });
 
             services.AddSingleton<ITelemetryService>(_ => NullTelemetryService.Instance);
@@ -150,8 +146,10 @@ public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
 
 /// <summary>
 /// Test-only consume filter that calls SaveChangesAsync on the PaymentDbContext
-/// after each consumer completes. In production, the MassTransit EF Outbox
-/// handles this; the in-memory test harness has no outbox middleware.
+/// after each consumer completes — but only if there are pending changes.
+/// In production, the MassTransit EF Outbox handles this.
+/// Saga state machines use EntityFrameworkRepository which calls SaveChanges
+/// internally, leaving no pending changes for this filter.
 /// </summary>
 internal sealed class TestSaveChangesFilter<T>(PaymentDbContext db) : IFilter<ConsumeContext<T>>
     where T : class
@@ -159,7 +157,8 @@ internal sealed class TestSaveChangesFilter<T>(PaymentDbContext db) : IFilter<Co
     public async Task Send(ConsumeContext<T> context, IPipe<ConsumeContext<T>> next)
     {
         await next.Send(context);
-        await db.SaveChangesAsync(context.CancellationToken);
+        if (db.ChangeTracker.HasChanges())
+            await db.SaveChangesAsync(context.CancellationToken);
     }
 
     public void Probe(ProbeContext context) => context.CreateFilterScope("test-save-changes");
