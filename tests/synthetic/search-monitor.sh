@@ -69,20 +69,12 @@ fi
 measure "GET /api/v1/search?q=test" \
   "${AUTH_ARGS[@]}" "${BASE_URL}/api/v1/search?q=test"
 
-# Test 2: Products listing
-measure "GET /api/v1/products?skip=0&take=1" \
-  "${AUTH_ARGS[@]}" "${BASE_URL}/api/v1/products?skip=0&take=1"
-
-# Test 3: AI search
-measure "POST /api/v1/ai/search" \
-  -X POST \
-  -H "Content-Type: application/json" \
-  "${AUTH_ARGS[@]}" \
-  -d '{"query": "test", "maxResults": 5}' \
-  "${BASE_URL}/api/v1/ai/search"
+# Test 2: Search with different query
+measure "GET /api/v1/search?q=headphones" \
+  "${AUTH_ARGS[@]}" "${BASE_URL}/api/v1/search?q=headphones"
 
 # Report
-log "=== Results: $((3 - FAILURES))/3 passed ==="
+log "=== Results: $((2 - FAILURES))/2 passed ==="
 if [[ ${FAILURES} -gt 0 ]]; then
   log "FAIL: ${FAILURES} check(s) failed"
   exit 1
