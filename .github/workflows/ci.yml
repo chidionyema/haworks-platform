@@ -162,6 +162,36 @@ jobs:
           path: StrykerOutput/
           retention-days: 7
 
+  # ── AI Service (Python) — independent of .NET build ──
+  ai-service-tests:
+    name: AI Service (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: []
+
+    defaults:
+      run:
+        working-directory: src/Ai
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install --system .
+
+      - name: Run unit tests
+        env:
+          AI_ANTHROPIC_API_KEY: "test-key-not-real"
+        run: python -m pytest tests/unit -v
+
   # Slow path — Testcontainers integration tests. One job per service so a
   # flake in one suite doesn't block the others, and so per-service timing
   # is visible at a glance.

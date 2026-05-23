@@ -207,6 +207,7 @@ var backendClients = new[]
     BackendClients.Location, BackendClients.Webhooks, BackendClients.Payouts,
     BackendClients.Scheduler, BackendClients.Privacy, BackendClients.Merchant,
     BackendClients.Notifications, BackendClients.Content, BackendClients.Audit,
+    BackendClients.Ai,
 };
 
 foreach (var name in backendClients)
