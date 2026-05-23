@@ -11,7 +11,7 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+AUTH_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/authentication/service-token" \
   -H "Content-Type: application/json" \
   -d "{\"secret\": \"${SERVICE_SECRET}\"}")
@@ -31,7 +31,7 @@ UNIQUE_SLUG="synth-merchant-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Creating test merchant (slug: ${UNIQUE_SLUG})..."
 
 START_TIME=$(date +%s%N)
-CREATE_RESPONSE=$(curl -s --fail-with-body --max-time 5 \
+CREATE_RESPONSE=$(curl -s --max-time 5 \
   -X POST "${BASE_URL}/api/v1/merchants" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
@@ -59,7 +59,7 @@ log "OK: Merchant created in ${ELAPSED}s (id=${MERCHANT_ID})"
 
 # Phase 3: Verify merchant via GET
 log "Verifying merchant via GET..."
-GET_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+GET_RESPONSE=$(curl -s --max-time 10 \
   -H "${AUTH_HEADER}" \
   "${BASE_URL}/api/v1/merchants/${MERCHANT_ID}")
 

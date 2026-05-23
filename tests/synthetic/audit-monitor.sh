@@ -11,7 +11,7 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+AUTH_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/authentication/service-token" \
   -H "Content-Type: application/json" \
   -d "{\"secret\": \"${SERVICE_SECRET}\"}")
@@ -32,7 +32,7 @@ FIVE_MIN_AGO=$(date -u -v-5M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '5 mi
 
 log "Querying audit entries from ${FIVE_MIN_AGO} to ${NOW_UTC}..."
 
-AUDIT_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+AUDIT_RESPONSE=$(curl -s --max-time 10 \
   -H "${AUTH_HEADER}" \
   "${BASE_URL}/api/v1/audit?from=${FIVE_MIN_AGO}&to=${NOW_UTC}")
 

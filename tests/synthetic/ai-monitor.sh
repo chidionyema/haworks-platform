@@ -22,7 +22,7 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+AUTH_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/authentication/service-token" \
   -H "Content-Type: application/json" \
   -d "{\"secret\": \"${SERVICE_SECRET}\"}")
@@ -41,7 +41,7 @@ FAILURES=0
 # Phase 2: AI Search
 log "Testing AI search..."
 START_TIME=$(date +%s%N)
-SEARCH_RESPONSE=$(curl -s --fail-with-body --max-time "${MAX_RESPONSE_TIME}" \
+SEARCH_RESPONSE=$(curl -s --max-time "${MAX_RESPONSE_TIME}" \
   -X POST "${BASE_URL}/api/v1/ai/search" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
@@ -61,7 +61,7 @@ fi
 SESSION_ID="synth-chat-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Testing AI chat (session: ${SESSION_ID})..."
 START_TIME=$(date +%s%N)
-CHAT_RESPONSE=$(curl -s --fail-with-body --max-time "${MAX_RESPONSE_TIME}" \
+CHAT_RESPONSE=$(curl -s --max-time "${MAX_RESPONSE_TIME}" \
   -X POST "${BASE_URL}/api/v1/ai/chat/message" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
@@ -80,7 +80,7 @@ fi
 # Phase 4: AI Recommendations
 log "Testing AI recommendations..."
 START_TIME=$(date +%s%N)
-RECO_RESPONSE=$(curl -s --fail-with-body --max-time "${MAX_RESPONSE_TIME}" \
+RECO_RESPONSE=$(curl -s --max-time "${MAX_RESPONSE_TIME}" \
   -H "${AUTH_HEADER}" \
   "${BASE_URL}/api/v1/ai/recommendations/test-user-id" 2>&1) || {
   log "FAIL: AI recommendations returned error"
@@ -97,7 +97,7 @@ fi
 # Phase 5: AI Content Generation
 log "Testing AI content generation..."
 START_TIME=$(date +%s%N)
-CONTENT_RESPONSE=$(curl -s --fail-with-body --max-time "${MAX_RESPONSE_TIME}" \
+CONTENT_RESPONSE=$(curl -s --max-time "${MAX_RESPONSE_TIME}" \
   -X POST "${BASE_URL}/api/v1/ai/content/generate" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \

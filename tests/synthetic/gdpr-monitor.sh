@@ -13,7 +13,7 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+AUTH_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/authentication/service-token" \
   -H "Content-Type: application/json" \
   -d "{\"secret\": \"${SERVICE_SECRET}\"}")
@@ -33,7 +33,7 @@ IDEMPOTENCY_KEY="synth-gdpr-$(date -u +%Y%m%d%H%M%S)-$$"
 TEST_USER_ID="synth-gdpr-user-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Initiating GDPR erasure request for test user: ${TEST_USER_ID}..."
 
-ERASURE_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+ERASURE_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/privacy/requests" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \

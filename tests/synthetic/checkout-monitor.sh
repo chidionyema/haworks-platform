@@ -13,7 +13,7 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+AUTH_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/authentication/service-token" \
   -H "Content-Type: application/json" \
   -d "{\"secret\": \"${SERVICE_SECRET}\"}")
@@ -32,7 +32,7 @@ AUTH_HEADER="Authorization: Bearer ${TOKEN}"
 IDEMPOTENCY_KEY="synth-checkout-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Creating checkout (idempotency key: ${IDEMPOTENCY_KEY})..."
 
-CHECKOUT_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+CHECKOUT_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/checkouts" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \

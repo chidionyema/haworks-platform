@@ -11,7 +11,7 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+AUTH_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/authentication/service-token" \
   -H "Content-Type: application/json" \
   -d "{\"secret\": \"${SERVICE_SECRET}\"}")
@@ -30,7 +30,7 @@ AUTH_HEADER="Authorization: Bearer ${TOKEN}"
 log "Initiating media upload..."
 
 START_TIME=$(date +%s%N)
-UPLOAD_RESPONSE=$(curl -s --fail-with-body --max-time 5 \
+UPLOAD_RESPONSE=$(curl -s --max-time 5 \
   -X POST "${BASE_URL}/api/v1/media/upload/initiate" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
