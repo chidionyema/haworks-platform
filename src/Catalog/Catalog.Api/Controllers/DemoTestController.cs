@@ -209,7 +209,7 @@ public sealed class DemoTestController(
                 new CreateProductCommand(
                     ProductName,
                     "Demo product for the portfolio cache-invalidation demo",
-                    UnitPrice: 39.99m,
+                    UnitPriceCents: 3999,
                     CategoryId: demoCategory.Id,
                     InitialStock: 1000),
                 ct);

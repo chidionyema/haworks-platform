@@ -7,7 +7,7 @@ public sealed class CreateRefundCommandValidator : AbstractValidator<CreateRefun
     public CreateRefundCommandValidator()
     {
         RuleFor(x => x.PaymentId).NotEmpty();
-        RuleFor(x => x.Amount).GreaterThan(0);
+        RuleFor(x => x.AmountCents).GreaterThan(0);
         RuleFor(x => x.Currency).NotEmpty().Length(3);
     }
 }

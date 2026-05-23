@@ -11,7 +11,7 @@ namespace Haworks.Payments.Application.Commands.Refunds;
 
 public sealed record CreateRefundCommand(
     Guid PaymentId,
-    decimal Amount,
+    long AmountCents,
     string Currency,
     string IdempotencyKey,
     string? Reason = null,
@@ -48,7 +48,7 @@ public sealed class CreateRefundCommandHandler(
         // and throws if total would exceed payment amount.
         try
         {
-            payment.RecordRefund(request.Amount);
+            payment.RecordRefund(request.AmountCents);
         }
         catch (InvalidOperationException ex)
         {
@@ -68,7 +68,7 @@ public sealed class CreateRefundCommandHandler(
             RefundId = refundId,
             OrderId = payment.OrderId,
             PaymentId = payment.Id,
-            Amount = request.Amount,
+            AmountCents = request.AmountCents,
             Currency = request.Currency,
             Reason = request.Reason,
             RequestedBy = request.RequestedBy ?? "Operator"

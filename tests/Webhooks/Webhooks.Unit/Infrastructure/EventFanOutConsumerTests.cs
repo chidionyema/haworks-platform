@@ -74,8 +74,9 @@ public class EventFanOutConsumerTests
         {
             OrderId = Guid.NewGuid(),
             CustomerId = Guid.NewGuid(),
-            TotalAmount = 50,
-            CustomerEmail = "test@example.com"
+            TotalAmountCents = 5000L,
+            CustomerEmail = "test@example.com",
+            Currency = "USD"
         };
 
         var mockContext = new Mock<ConsumeContext<OrderCreatedEvent>>();
@@ -104,8 +105,9 @@ public class EventFanOutConsumerTests
         {
             OrderId = Guid.NewGuid(),
             CustomerId = Guid.NewGuid(),
-            TotalAmount = 200,
-            CustomerEmail = "test@example.com"
+            TotalAmountCents = 20000L,
+            CustomerEmail = "test@example.com",
+            Currency = "USD"
         };
 
         var mockContext = new Mock<ConsumeContext<OrderCreatedEvent>>();

@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Haworks.BuildingBlocks.Common;
 using Haworks.Catalog.Application.Commands;
 using Haworks.Catalog.Application.Interfaces;
 using Haworks.Catalog.Application.Queries;
@@ -67,8 +68,14 @@ public sealed class ProductsController(
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Create([FromBody] CreateProductCommand command, CancellationToken ct)
+    public async Task<IActionResult> Create([FromBody] CreateProductRequest body, CancellationToken ct)
     {
+        var command = new CreateProductCommand(
+            body.Name,
+            body.Description,
+            Money.FromMajorUnits(body.UnitPrice, "USD").MinorUnits,
+            body.CategoryId,
+            body.InitialStock);
         var result = await mediator.Send(command, ct);
         return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value : Guid.NewGuid() });
     }
@@ -82,7 +89,7 @@ public sealed class ProductsController(
             id,
             body.Name,
             body.Description,
-            body.UnitPrice,
+            Money.FromMajorUnits(body.UnitPrice, "USD").MinorUnits,
             body.CategoryId,
             body.IsListed,
             body.CorrelationId);
@@ -132,6 +139,15 @@ public sealed record ReserveStockRequest
     public required string Currency { get; init; }
     public required string CustomerEmail { get; init; }
     public string? IdempotencyKey { get; init; }
+}
+
+public sealed record CreateProductRequest
+{
+    public required string Name { get; init; }
+    public required string Description { get; init; }
+    public required decimal UnitPrice { get; init; }
+    public required Guid CategoryId { get; init; }
+    public int InitialStock { get; init; }
 }
 
 public sealed record UpdateProductRequest

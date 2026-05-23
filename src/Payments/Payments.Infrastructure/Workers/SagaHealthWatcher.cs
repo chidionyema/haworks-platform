@@ -89,7 +89,7 @@ public sealed class SagaHealthWatcher : BackgroundService
 
         var stuck = await db.RefundSagas
             .Where(s => s.CurrentState == "RequiresReview" /* monitoring only — not a saga state transition */ && s.CreatedAt < deadline)
-            .Select(s => new { s.CorrelationId, s.OrderId, s.Amount, s.CreatedAt })
+            .Select(s => new { s.CorrelationId, s.OrderId, s.AmountCents, s.CreatedAt })
             .ToListAsync(ct);
 
         foreach (var saga in stuck)
@@ -97,7 +97,7 @@ public sealed class SagaHealthWatcher : BackgroundService
             PaymentsActivities.RefundStuckInReview.Add(1);
             _logger.LogCritical(
                 "Refund saga {SagaId} stuck in RequiresReview for order {OrderId}, amount {Amount}, since {CreatedAt}",
-                saga.CorrelationId, saga.OrderId, saga.Amount, saga.CreatedAt);
+                saga.CorrelationId, saga.OrderId, saga.AmountCents, saga.CreatedAt);
         }
     }
 
@@ -107,7 +107,7 @@ public sealed class SagaHealthWatcher : BackgroundService
 
         var stuck = await db.RefundSagas
             .Where(s => s.CurrentState == "AwaitingProviderConfirmation" && s.CreatedAt < deadline)
-            .Select(s => new { s.CorrelationId, s.OrderId, s.Amount, s.CreatedAt })
+            .Select(s => new { s.CorrelationId, s.OrderId, s.AmountCents, s.CreatedAt })
             .ToListAsync(ct);
 
         foreach (var saga in stuck)
@@ -115,7 +115,7 @@ public sealed class SagaHealthWatcher : BackgroundService
             PaymentsActivities.RefundStuckAwaitingProvider.Add(1);
             _logger.LogWarning(
                 "Refund saga {SagaId} stuck in AwaitingProviderConfirmation for order {OrderId}, amount {Amount}, since {CreatedAt}",
-                saga.CorrelationId, saga.OrderId, saga.Amount, saga.CreatedAt);
+                saga.CorrelationId, saga.OrderId, saga.AmountCents, saga.CreatedAt);
         }
     }
 

@@ -20,7 +20,7 @@ internal sealed class ListProductsQueryHandler(IProductRepository products)
         var total = await products.CountAsync(request.CategoryId, ct);
 
         var dtos = items.Select(p => new ProductDto(
-            p.Id, p.Name, p.Description, p.UnitPrice,
+            p.Id, p.Name, p.Description, p.UnitPriceCents,
             p.StockQuantity, p.IsInStock, p.IsListed,
             p.CategoryId, null)).ToList();
 

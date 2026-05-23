@@ -27,8 +27,7 @@ public class PaymentCompletedConsumer : IConsumer<PaymentCompletedEvent>
             return;
         }
 
-        // Convert from contract decimal to internal cents at boundary
-        var amountCents = (long)(evt.Amount * 100m);
+        var amountCents = evt.AmountCents;
         _logger.LogInformation("Processing payment completion for Order: {OrderId}, Seller: {SellerId}, AmountCents: {AmountCents}",
             evt.OrderId, evt.SellerId, amountCents);
 

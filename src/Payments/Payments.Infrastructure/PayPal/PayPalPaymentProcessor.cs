@@ -74,13 +74,13 @@ internal sealed class PayPalPaymentProcessor(
             throw new InvalidOperationException("Session validation failed");
         }
 
-        // 4. Financial integrity checks
-        decimal actualPaid = Math.Round(sessionEvent.AmountTotal / CheckoutConstants.CentMultiplier, 2, MidpointRounding.AwayFromZero);
-        decimal expectedTotal = payment.Amount + payment.Tax;
+        // 4. Financial integrity checks (compare in cents)
+        long actualPaidCents = sessionEvent.AmountTotal;
+        long expectedTotalCents = payment.AmountCents + payment.TaxCents;
 
-        if (PaymentValidationHelper.HasAmountMismatch(actualPaid, expectedTotal))
+        if (PaymentValidationHelper.HasAmountMismatch(actualPaidCents, expectedTotalCents))
         {
-            await amountMismatchHandler.HandleMismatchAsync(payment, actualPaid, expectedTotal, PaymentProvider.PayPal, ct).ConfigureAwait(false);
+            await amountMismatchHandler.HandleMismatchAsync(payment, actualPaidCents / 100m, expectedTotalCents / 100m, PaymentProvider.PayPal, ct).ConfigureAwait(false);
             return;
         }
 
@@ -93,7 +93,7 @@ internal sealed class PayPalPaymentProcessor(
             PaymentId = payment.Id,
             OrderId = payment.OrderId,
             SagaId = payment.SagaId,
-            Amount = payment.Amount,
+            AmountCents = payment.AmountCents,
             Currency = sessionEvent.Currency,
             Provider = PaymentProvider.PayPal.ToString(),
             TransactionReference = sessionEvent.TransactionId
@@ -154,7 +154,7 @@ internal sealed class PayPalPaymentProcessor(
             ["OrderId"] = orderId.ToString(),
             ["PaymentId"] = payment.Id.ToString(),
             ["TransactionId"] = sessionEvent.TransactionId,
-            ["Amount"] = payment.Amount.ToString("F2"),
+            ["AmountCents"] = payment.AmountCents.ToString(),
             ["Currency"] = sessionEvent.Currency
         });
     }

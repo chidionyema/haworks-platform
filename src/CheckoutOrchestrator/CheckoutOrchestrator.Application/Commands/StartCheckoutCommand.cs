@@ -64,7 +64,7 @@ internal sealed class StartCheckoutCommandHandler(
             Items = request.Items,
             IdempotencyKey = request.IdempotencyKey,
             IsGuest = false,
-            Currency = request.Currency,
+            Currency = request.Currency ?? "USD",
         }, ct);
 
         await db.SaveChangesAsync(ct);

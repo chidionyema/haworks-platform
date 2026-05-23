@@ -4,7 +4,7 @@ public sealed record ProductDto(
     Guid Id,
     string Name,
     string Description,
-    decimal UnitPrice,
+    long UnitPriceCents,
     int StockQuantity,
     bool IsInStock,
     bool IsListed,

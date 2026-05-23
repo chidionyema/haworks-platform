@@ -13,7 +13,7 @@ public class UpdateProductCommandValidatorTests
         ProductId: Guid.NewGuid(),
         Name: "Updated Product",
         Description: "Updated Description",
-        UnitPrice: 150.00m,
+        UnitPriceCents: 15000,
         CategoryId: Guid.NewGuid(),
         IsListed: true
     );

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Haworks.BuildingBlocks.Common;
 using Haworks.Pricing.Application.Interfaces;
 using Haworks.Pricing.Application.Services;
 using Haworks.Pricing.Domain.Entities;
@@ -62,8 +63,8 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
             _cache.Set(cacheKey, product, CacheDuration);
         }
 
-        var baseUnitPrice = product!.UnitPrice;
-        var currency = product.Currency;
+        var currency = product!.Currency;
+        var baseUnitPrice = new Money(product.UnitPriceCents, currency).ToMajorUnits();
         var categoryId = product.CategoryId;
 
         // Step 2: Load active rules

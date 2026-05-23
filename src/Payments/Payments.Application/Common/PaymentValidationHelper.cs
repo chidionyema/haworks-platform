@@ -22,7 +22,7 @@ public static class PaymentValidationHelper
         payment.Status == PaymentStatus.Flagged;
 
     /// <summary>
-    /// Calculates the amount difference and checks if it exceeds tolerance.
+    /// Calculates the amount difference and checks if it exceeds tolerance (decimal, legacy).
     /// </summary>
     public static bool HasAmountMismatch(
         decimal actualPaid,
@@ -31,6 +31,14 @@ public static class PaymentValidationHelper
     {
         var effectiveTolerance = tolerance > 0 ? tolerance : DefaultAmountTolerance;
         return Math.Abs(actualPaid - expectedTotal) > effectiveTolerance;
+    }
+
+    /// <summary>
+    /// Checks if the actual paid amount in cents mismatches the expected total in cents.
+    /// </summary>
+    public static bool HasAmountMismatch(long actualPaidCents, long expectedTotalCents)
+    {
+        return actualPaidCents != expectedTotalCents;
     }
 
     /// <summary>

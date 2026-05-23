@@ -30,8 +30,8 @@ public sealed record PaymentSessionCreatedEvent : DomainEvent
     /// <summary>The payment provider (e.g., "Stripe", "PayPal").</summary>
     public required string Provider { get; init; }
 
-    /// <summary>The total amount for this payment session.</summary>
-    public required decimal Amount { get; init; }
+    /// <summary>The total amount for this payment session in minor currency units (cents).</summary>
+    public required long AmountCents { get; init; }
 
     /// <summary>The currency code (e.g., "USD").</summary>
     public required string Currency { get; init; }

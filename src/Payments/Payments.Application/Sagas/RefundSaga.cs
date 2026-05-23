@@ -54,7 +54,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     saga.OrderId = msg.OrderId;
                     saga.PaymentId = msg.PaymentId;
                     saga.RefundId = msg.RefundId;
-                    saga.Amount = msg.Amount;
+                    saga.AmountCents = msg.AmountCents;
                     saga.Currency = msg.Currency;
                     saga.Reason = msg.Reason ?? "";
                     saga.Provider = msg.Provider ?? "Stripe";
@@ -67,7 +67,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     RefundId = ctx.Saga.CorrelationId,
                     Provider = ctx.Saga.Provider, // RS-04: use provider from event, not hardcoded
                     PaymentId = ctx.Saga.PaymentId,
-                    Amount = ctx.Saga.Amount,
+                    AmountCents = ctx.Saga.AmountCents,
                     Currency = ctx.Saga.Currency
                 }))
                 .Schedule(RefundTimeoutSchedule, ctx => ctx.Init<RefundTimedOutEvent>(new RefundTimedOutEvent
@@ -131,11 +131,11 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
             When(ProviderRefundSucceeded)
                 .Then(ctx =>
                 {
-                    if (ctx.Message.AmountRefunded != ctx.Saga.Amount)
+                    if (ctx.Message.AmountRefundedCents != ctx.Saga.AmountCents)
                     {
                         ctx.Saga.FailureDetail =
-                            $"Partial refund: requested={ctx.Saga.Amount}, actual={ctx.Message.AmountRefunded}";
-                        ctx.Saga.Amount = ctx.Message.AmountRefunded;
+                            $"Partial refund: requested={ctx.Saga.AmountCents}, actual={ctx.Message.AmountRefundedCents}";
+                        ctx.Saga.AmountCents = ctx.Message.AmountRefundedCents;
                     }
                     EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "AwaitingProviderConfirmation", "Refunded");
                 })
@@ -145,7 +145,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     RefundId = ctx.Saga.CorrelationId,
                     OrderId = ctx.Saga.OrderId,
                     PaymentId = ctx.Saga.PaymentId,
-                    Amount = ctx.Saga.Amount,
+                    AmountCents = ctx.Saga.AmountCents,
                     Currency = ctx.Saga.Currency
                 }))
                 .TransitionTo(Refunded)
@@ -209,7 +209,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                             RefundId = ctx.Saga.CorrelationId,
                             OrderId = ctx.Saga.OrderId,
                             PaymentId = ctx.Saga.PaymentId,
-                            Amount = ctx.Saga.Amount,
+                            AmountCents = ctx.Saga.AmountCents,
                             Reason = "retries_exhausted",
                             Currency = ctx.Saga.Currency
                         }))
@@ -229,7 +229,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                             RefundId = ctx.Saga.CorrelationId,
                             Provider = ctx.Saga.Provider,
                             PaymentId = ctx.Saga.PaymentId,
-                            Amount = ctx.Saga.Amount,
+                            AmountCents = ctx.Saga.AmountCents,
                             Currency = ctx.Saga.Currency
                         }))
                         .Schedule(RefundTimeoutSchedule, ctx => ctx.Init<RefundTimedOutEvent>(new RefundTimedOutEvent
@@ -247,7 +247,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     RefundId = ctx.Saga.CorrelationId,
                     OrderId = ctx.Saga.OrderId,
                     PaymentId = ctx.Saga.PaymentId,
-                    Amount = ctx.Saga.Amount,
+                    AmountCents = ctx.Saga.AmountCents,
                     Currency = ctx.Saga.Currency
                 }))
                 .TransitionTo(Refunded)
@@ -271,7 +271,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     RefundId = ctx.Saga.CorrelationId,
                     OrderId = ctx.Saga.OrderId,
                     PaymentId = ctx.Saga.PaymentId,
-                    Amount = ctx.Saga.Amount,
+                    AmountCents = ctx.Saga.AmountCents,
                     Reason = "review_escalation_timeout",
                     Currency = ctx.Saga.Currency
                 }))
@@ -314,7 +314,7 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                             RefundId = ctx.Saga.CorrelationId,
                             OrderId = ctx.Saga.OrderId,
                             PaymentId = ctx.Saga.PaymentId,
-                            Amount = ctx.Saga.Amount,
+                            AmountCents = ctx.Saga.AmountCents,
                             Reason = "Cancelled by operator",
                             Currency = ctx.Saga.Currency
                         }))

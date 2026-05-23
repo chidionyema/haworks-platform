@@ -105,13 +105,13 @@ internal sealed class StripePaymentProcessor(
                 $"Currency mismatch: expected {payment.Currency}, received {sessionEvent.Currency}");
         }
 
-        // 4b. Amount validation
-        decimal actualPaid = Math.Round(sessionEvent.AmountTotal / CentMultiplier, 2, MidpointRounding.AwayFromZero);
-        decimal expectedTotal = payment.Amount + payment.Tax;
+        // 4b. Amount validation (compare in cents — no floating-point rounding needed)
+        long actualPaidCents = sessionEvent.AmountTotal;
+        long expectedTotalCents = payment.AmountCents + payment.TaxCents;
 
-        if (PaymentValidationHelper.HasAmountMismatch(actualPaid, expectedTotal))
+        if (PaymentValidationHelper.HasAmountMismatch(actualPaidCents, expectedTotalCents))
         {
-            await HandleAmountMismatchAsync(payment, actualPaid, expectedTotal, ct).ConfigureAwait(false);
+            await HandleAmountMismatchAsync(payment, actualPaidCents / 100m, expectedTotalCents / 100m, ct).ConfigureAwait(false);
             return;
         }
 
@@ -218,7 +218,7 @@ internal sealed class StripePaymentProcessor(
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
                 SagaId = payment.SagaId,
-                Amount = payment.Amount,
+                AmountCents = payment.AmountCents,
                 Currency = sessionEvent.Currency,
                 Provider = PaymentProvider.Stripe.ToString(),
                 TransactionReference = sessionEvent.TransactionId
@@ -289,7 +289,7 @@ internal sealed class StripePaymentProcessor(
             ["OrderId"] = orderId.ToString(),
             ["PaymentId"] = payment.Id.ToString(),
             ["TransactionId"] = sessionEvent.TransactionId,
-            ["Amount"] = payment.Amount.ToString("F2"),
+            ["AmountCents"] = payment.AmountCents.ToString(),
             ["Currency"] = sessionEvent.Currency
         });
     }

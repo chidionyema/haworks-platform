@@ -180,7 +180,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 {
                     OrderId = ctx.Saga.OrderId,
                     SagaId = ctx.Saga.CorrelationId,
-                    Amount = ctx.Saga.TotalAmount,
+                    AmountCents = (long)Math.Round(ctx.Saga.TotalAmount * 100m, 0, MidpointRounding.AwayFromZero),
                     Currency = ctx.Saga.Currency,
                     UserId = ctx.Saga.UserId,
                     CustomerEmail = ctx.Saga.CustomerEmail,

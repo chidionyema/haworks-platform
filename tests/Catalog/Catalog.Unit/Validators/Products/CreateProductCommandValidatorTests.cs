@@ -12,7 +12,7 @@ public class CreateProductCommandValidatorTests
     private static CreateProductCommand CreateValidCommand() => new(
         Name: "Test Product",
         Description: "Test Description",
-        UnitPrice: 99.99m,
+        UnitPriceCents: 9999,
         CategoryId: Guid.NewGuid(),
         InitialStock: 100
     );
@@ -71,23 +71,23 @@ public class CreateProductCommandValidatorTests
     #region Price Validation
 
     [Theory]
-    [InlineData(-0.01)]
+    [InlineData(-1)]
     [InlineData(-100)]
-    public void Validate_WithNegativePrice_ShouldHaveError(decimal price)
+    public void Validate_WithNegativePrice_ShouldHaveError(long price)
     {
-        var command = CreateValidCommand() with { UnitPrice = price };
+        var command = CreateValidCommand() with { UnitPriceCents = price };
         var result = _validator.TestValidate(command);
-        result.ShouldHaveValidationErrorFor(x => x.UnitPrice);
+        result.ShouldHaveValidationErrorFor(x => x.UnitPriceCents);
     }
 
     [Theory]
-    [InlineData(0.01)]
+    [InlineData(1)]
     [InlineData(1000)]
-    public void Validate_WithValidPrice_ShouldNotHaveError(decimal price)
+    public void Validate_WithValidPrice_ShouldNotHaveError(long price)
     {
-        var command = CreateValidCommand() with { UnitPrice = price };
+        var command = CreateValidCommand() with { UnitPriceCents = price };
         var result = _validator.TestValidate(command);
-        result.ShouldNotHaveValidationErrorFor(x => x.UnitPrice);
+        result.ShouldNotHaveValidationErrorFor(x => x.UnitPriceCents);
     }
 
     #endregion
