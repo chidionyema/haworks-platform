@@ -41,7 +41,7 @@ TEST_PASSWORD="SynMon${RUN_ID}!Aa"
 log "Testing user registration: ${TEST_EMAIL}"
 start=$(date +%s%N)
 REG_RESP=$(curl --silent --max-time 10 -w "\n%{http_code}" \
-  -X POST "${BASE_URL}/api/v1/authentication/register" \
+  -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/register" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\",\"confirmPassword\":\"${TEST_PASSWORD}\"}")
 REG_STATUS=$(echo "$REG_RESP" | tail -1)
@@ -65,7 +65,7 @@ fi
 log "Testing user login..."
 start=$(date +%s%N)
 LOGIN_RESP=$(curl --silent --max-time 10 -w "\n%{http_code}" \
-  -X POST "${BASE_URL}/api/v1/authentication/login" \
+  -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/login" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\"}")
 LOGIN_STATUS=$(echo "$LOGIN_RESP" | tail -1)
@@ -91,7 +91,7 @@ if [ -n "${USER_TOKEN:-}" ]; then
   log "Testing token validation via protected endpoint..."
   start=$(date +%s%N)
   PROFILE_STATUS=$(curl --silent --max-time 10 -o /dev/null -w "%{http_code}" \
-    -X GET "${BASE_URL}/api/v1/authentication/me" \
+    -X GET "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/me" \
     -H "Authorization: Bearer ${USER_TOKEN}")
   elapsed=$(( ($(date +%s%N) - start) / 1000000 ))
   log "Profile: ${PROFILE_STATUS} (${elapsed}ms)"
@@ -111,7 +111,7 @@ fi
 log "Testing JWKS endpoint..."
 start=$(date +%s%N)
 JWKS_STATUS=$(curl --silent --max-time 10 -o /dev/null -w "%{http_code}" \
-  "${BASE_URL}/api/v1/authentication/.well-known/jwks.json")
+  "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/.well-known/jwks.json")
 elapsed=$(( ($(date +%s%N) - start) / 1000000 ))
 log "JWKS: ${JWKS_STATUS} (${elapsed}ms)"
 
@@ -120,7 +120,7 @@ if [ "$JWKS_STATUS" = "200" ]; then
 else
   # Try alternate path
   JWKS_STATUS=$(curl --silent --max-time 10 -o /dev/null -w "%{http_code}" \
-    "${BASE_URL}/.well-known/jwks.json")
+    "${IDENTITY_URL:-https://haworks-identity.fly.dev}/.well-known/jwks.json")
   if [ "$JWKS_STATUS" = "200" ]; then
     log "OK: JWKS at alternate path"
   else
