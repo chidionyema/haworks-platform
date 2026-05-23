@@ -32,7 +32,7 @@ IDEMPOTENCY_KEY="synth-pay-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Creating test payment session..."
 
 SESSION_RESPONSE=$(curl -s --max-time 10 \
-  -X POST "${BASE_URL}/api/v1/payments/sessions" \
+  -X POST "${PAYMENTS_URL:-https://haworks-payments.fly.dev}/api/v1/payments/sessions" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
@@ -82,7 +82,7 @@ STRIPE_SIGNATURE="t=${TIMESTAMP},v1=${SIGNATURE}"
 
 log "Sending simulated Stripe webhook..."
 WEBHOOK_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
-  -X POST "${BASE_URL}/api/v1/payments/webhooks/stripe" \
+  -X POST "${PAYMENTS_URL:-https://haworks-payments.fly.dev}/api/v1/payments/webhooks/stripe" \
   -H "Content-Type: application/json" \
   -H "Stripe-Signature: ${STRIPE_SIGNATURE}" \
   -d "${WEBHOOK_PAYLOAD}" 2>&1) || true
@@ -101,7 +101,7 @@ FINAL_STATE=""
 while [[ ${ELAPSED} -lt ${POLL_TIMEOUT} ]]; do
   STATUS_RESPONSE=$(curl -s --max-time 10 \
     -H "${AUTH_HEADER}" \
-    "${BASE_URL}/api/v1/payments/sessions/${SESSION_ID}" 2>/dev/null || echo '{}')
+    "${PAYMENTS_URL:-https://haworks-payments.fly.dev}/api/v1/payments/sessions/${SESSION_ID}" 2>/dev/null || echo '{}')
 
   CURRENT_STATUS=$(echo "${STATUS_RESPONSE}" | jq -r '.status // "Unknown"')
   log "  Status: ${CURRENT_STATUS} (${ELAPSED}s elapsed)"
@@ -124,7 +124,7 @@ done
 # Phase 5: Cleanup test data
 log "Cleaning up test payment session..."
 curl -s --max-time 10 \
-  -X DELETE "${BASE_URL}/api/v1/payments/sessions/${SESSION_ID}?isTest=true" \
+  -X DELETE "${PAYMENTS_URL:-https://haworks-payments.fly.dev}/api/v1/payments/sessions/${SESSION_ID}?isTest=true" \
   -H "${AUTH_HEADER}" > /dev/null 2>&1 || true
 log "OK: Cleanup attempted"
 

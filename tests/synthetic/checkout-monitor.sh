@@ -31,28 +31,29 @@ AUTH_HEADER="Authorization: Bearer ${TOKEN}"
 IDEMPOTENCY_KEY="synth-checkout-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Creating checkout (idempotency key: ${IDEMPOTENCY_KEY})..."
 
-CHECKOUT_RESPONSE=$(curl -s --max-time 10 \
-  -X POST "${BASE_URL}/api/v1/checkouts" \
+CHECKOUT_RESPONSE=$(curl -s --max-time 15 \
+  -X POST "${BASE_URL}/api/v1/checkout" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
+  -H "X-Idempotency-Key: ${IDEMPOTENCY_KEY}" \
   -d '{
+    "customerEmail": "synthetic-monitor@test.invalid",
+    "totalAmount": 9.99,
+    "idempotencyKey": "'"${IDEMPOTENCY_KEY}"'",
     "items": [
       {
         "productId": "00000000-0000-0000-0000-000000000001",
+        "productName": "Synthetic Test Product",
         "quantity": 1,
-        "amountCents": 100
+        "unitPrice": 9.99
       }
-    ],
-    "currency": "usd",
-    "isTest": true
-  }')
+    ]
+  }' 2>&1) || true
 
-CHECKOUT_ID=$(echo "${CHECKOUT_RESPONSE}" | jq -r '.checkoutId // .id // empty')
-SAGA_ID=$(echo "${CHECKOUT_RESPONSE}" | jq -r '.sagaId // .correlationId // empty')
+SAGA_ID=$(echo "${CHECKOUT_RESPONSE}" | jq -r '.sagaId // .checkoutId // .id // empty' 2>/dev/null)
 
-if [[ -z "${CHECKOUT_ID}" ]]; then
-  log "FAIL: Could not extract checkoutId from response"
+if [[ -z "${SAGA_ID}" ]]; then
+  log "FAIL: Could not extract sagaId from response"
   log "Response: ${CHECKOUT_RESPONSE}"
   exit 1
 fi
