@@ -15,7 +15,7 @@ log "Target: ${BASE_URL}"
 # Phase 1: Authenticate
 log "Authenticating..."
 AUTH_RESPONSE=$(curl -s --max-time 10 \
-  -X POST "${BASE_URL}/api/v1/authentication/service-token" \
+  -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/service-token" \
   -H "Content-Type: application/json" \
   -d "{\"secret\": \"${SERVICE_SECRET}\"}")
 

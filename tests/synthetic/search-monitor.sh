@@ -12,7 +12,7 @@ log() { echo "[$(date -u +%H:%M:%S)] $*"; }
 AUTH_HEADER=""
 if [ -n "${SERVICE_SECRET}" ]; then
   TOKEN_RESP=$(curl -s --max-time 10 -X POST \
-    "${BASE_URL}/api/v1/authentication/service-token" \
+    "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/service-token" \
     -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
   TOKEN=$(echo "${TOKEN_RESP}" | jq -r '.accessToken // .token // empty' 2>/dev/null)
   if [ -n "${TOKEN}" ]; then
