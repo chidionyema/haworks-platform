@@ -36,7 +36,8 @@ AUTH_HEADER="Authorization: Bearer ${TOKEN}"
 IDEMPOTENCY_KEY="synth-notif-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Sending test notification..."
 
-NOTIF_RESPONSE=$(curl -s --max-time 60 \
+NOTIF_TMP=$(mktemp)
+NOTIF_HTTP=$(curl -s -o "${NOTIF_TMP}" -w "%{http_code}" --max-time 60 \
   -X POST "${NOTIFICATIONS_URL}/api/v1/notifications" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
@@ -48,18 +49,21 @@ NOTIF_RESPONSE=$(curl -s --max-time 60 \
     "priority": 0,
     "variables": {},
     "idempotencyKey": "'"${IDEMPOTENCY_KEY}"'"
-  }' 2>&1) || true
+  }' 2>/dev/null) || NOTIF_HTTP="000"
+NOTIF_RESPONSE=$(cat "${NOTIF_TMP}")
+rm -f "${NOTIF_TMP}"
+log "Notification response: HTTP ${NOTIF_HTTP}"
+
+if [[ "${NOTIF_HTTP}" -lt 200 || "${NOTIF_HTTP}" -ge 300 ]]; then
+  log "FAIL: POST /notifications returned HTTP ${NOTIF_HTTP}"
+  log "Response: ${NOTIF_RESPONSE}"
+  exit 1
+fi
 
 NOTIFICATION_ID=$(echo "${NOTIF_RESPONSE}" | jq -r '.notificationId // .id // empty' 2>/dev/null)
-
 if [[ -z "${NOTIFICATION_ID}" ]]; then
-  # Check if empty response (timeout) vs error response
-  if [[ -z "${NOTIF_RESPONSE}" ]]; then
-    log "FAIL: Notifications service not responding (timeout)"
-  else
-    log "FAIL: Could not create notification"
-    log "Response: ${NOTIF_RESPONSE}"
-  fi
+  log "FAIL: No notification ID in response"
+  log "Response: ${NOTIF_RESPONSE}"
   exit 1
 fi
 log "OK: Notification created (id=${NOTIFICATION_ID})"
