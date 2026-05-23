@@ -75,7 +75,7 @@ internal sealed class PayPalPaymentProcessor(
         }
 
         // 4. Financial integrity checks
-        decimal actualPaid = Math.Round(sessionEvent.AmountTotal / CheckoutConstants.CentMultiplier, 2, MidpointRounding.ToEven);
+        decimal actualPaid = Math.Round(sessionEvent.AmountTotal / CheckoutConstants.CentMultiplier, 2, MidpointRounding.AwayFromZero);
         decimal expectedTotal = payment.Amount + payment.Tax;
 
         if (PaymentValidationHelper.HasAmountMismatch(actualPaid, expectedTotal))

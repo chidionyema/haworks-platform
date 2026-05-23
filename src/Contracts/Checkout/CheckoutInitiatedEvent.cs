@@ -30,8 +30,8 @@ public sealed record CheckoutInitiatedEvent : DomainEvent
     /// <summary>Customer email for payment session and notifications.</summary>
     public required string CustomerEmail { get; init; }
 
-    /// <summary>ISO 4217 currency code (e.g., "USD", "EUR"). Defaults to USD if not specified.</summary>
-    public string? Currency { get; init; }
+    /// <summary>ISO 4217 currency code (e.g., "USD", "EUR").</summary>
+    public required string Currency { get; init; }
 
     /// <summary>Idempotency key to prevent duplicate processing.</summary>
     public string? IdempotencyKey { get; init; }

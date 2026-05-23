@@ -29,7 +29,7 @@ public class RefundIssuedConsumer : IConsumer<RefundIssuedEvent>
     public async Task Consume(ConsumeContext<RefundIssuedEvent> context)
     {
         var evt = context.Message;
-        var refundAmount = Math.Round(evt.AmountCents / 100m, 2, MidpointRounding.ToEven);
+        var refundAmount = Math.Round(evt.AmountCents / 100m, 2, MidpointRounding.AwayFromZero);
 
         _logger.LogInformation("Processing refund for Payment {PaymentId}, Order {OrderId}, Amount: {Amount}",
             evt.PaymentId, evt.OrderId, refundAmount);

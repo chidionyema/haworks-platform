@@ -21,4 +21,7 @@ public sealed record OrderCreatedEvent : DomainEvent
 
     /// <summary>The customer's email for notifications.</summary>
     public required string CustomerEmail { get; init; }
+
+    /// <summary>ISO 4217 currency code (e.g., "USD", "EUR").</summary>
+    public required string Currency { get; init; }
 }

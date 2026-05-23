@@ -34,4 +34,7 @@ public sealed record PaymentAmountMismatchEvent : DomainEvent
 
     /// <summary>Human-readable reason for the mismatch.</summary>
     public required string Reason { get; init; }
+
+    /// <summary>ISO 4217 currency code (e.g., "USD", "EUR").</summary>
+    public required string Currency { get; init; }
 }
