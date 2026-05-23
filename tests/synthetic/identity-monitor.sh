@@ -43,7 +43,7 @@ start=$(date +%s%N)
 REG_RESP=$(curl --silent --max-time 10 -w "\n%{http_code}" \
   -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/register" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\",\"confirmPassword\":\"${TEST_PASSWORD}\"}")
+  -d "{\"username\":\"synthmon${RUN_ID}\",\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\",\"confirmPassword\":\"${TEST_PASSWORD}\"}")
 REG_STATUS=$(echo "$REG_RESP" | tail -1)
 REG_BODY=$(echo "$REG_RESP" | sed '$d')
 elapsed=$(( ($(date +%s%N) - start) / 1000000 ))
