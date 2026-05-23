@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Common;
 using Haworks.Contracts.Catalog;
 using Haworks.Search.Application.Catalog;
 using Haworks.Search.Application.Indexing;
@@ -72,11 +73,12 @@ public sealed class ProductCacheInvalidatedConsumer : IConsumer<ProductCacheInva
             return;
         }
 
+        var unitPriceDecimal = new Money(fetched.UnitPriceCents, "USD").ToMajorUnits();
         var doc = ProductSearchDocumentProjector.From(
             id:            fetched.Id,
             name:          fetched.Name,
             description:   fetched.Description,
-            unitPrice:     fetched.UnitPrice,
+            unitPrice:     unitPriceDecimal,
             isInStock:     fetched.IsInStock,
             isListed:      fetched.IsListed,
             categoryId:    fetched.CategoryId,
@@ -99,7 +101,8 @@ public sealed class ProductCacheInvalidatedConsumer : IConsumer<ProductCacheInva
                     UserId = match.UserId,
                     ProductId = fetched.Id,
                     ProductName = fetched.Name,
-                    UnitPrice = fetched.UnitPrice,
+                    UnitPrice = unitPriceDecimal,
+                    Currency = "USD",
                     MatchedAt = DateTimeOffset.UtcNow
                 }, context.CancellationToken).ConfigureAwait(false);
             }

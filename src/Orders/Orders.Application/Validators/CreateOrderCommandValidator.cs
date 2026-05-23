@@ -9,7 +9,7 @@ public sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrderC
     {
         RuleFor(x => x.UserId).NotEmpty();
         RuleFor(x => x.CustomerEmail).NotEmpty().EmailAddress();
-        RuleFor(x => x.TotalAmount).GreaterThan(0);
+        RuleFor(x => x.TotalAmountCents).GreaterThan(0);
         RuleFor(x => x.Currency).NotEmpty().Length(3);
         RuleFor(x => x.SagaId).NotEmpty();
         RuleFor(x => x.IdempotencyKey).NotEmpty();
@@ -19,7 +19,7 @@ public sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrderC
             item.RuleFor(i => i.ProductId).NotEmpty();
             item.RuleFor(i => i.ProductName).NotEmpty();
             item.RuleFor(i => i.Quantity).GreaterThan(0);
-            item.RuleFor(i => i.UnitPrice).GreaterThan(0);
+            item.RuleFor(i => i.UnitPriceCents).GreaterThan(0);
         });
     }
 }

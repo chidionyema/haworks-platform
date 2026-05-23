@@ -20,7 +20,7 @@ public sealed class RefundsController(IMediator mediator) : ControllerBase
     {
         var command = new CreateRefundCommand(
             body.PaymentId,
-            body.Amount,
+            body.AmountCents,
             body.Currency,
             Guid.NewGuid().ToString("N"),
             body.Reason,
@@ -58,7 +58,7 @@ public sealed class RefundsController(IMediator mediator) : ControllerBase
 public sealed record CreateRefundRequest
 {
     public required Guid PaymentId { get; init; }
-    public required decimal Amount { get; init; }
+    public required long AmountCents { get; init; }
     public required string Currency { get; init; }
     public string? Reason { get; init; }
     public string? RequestedBy { get; init; }

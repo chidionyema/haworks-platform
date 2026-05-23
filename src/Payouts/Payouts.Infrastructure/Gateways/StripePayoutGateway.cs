@@ -54,11 +54,11 @@ public class StripePayoutGateway : IPayoutGateway
         return accountLink.Url;
     }
 
-    public async Task<(string ExternalId, PayoutStatus Status)> InitiatePayoutAsync(string providerId, decimal amount, string currency, string? description = null, string? idempotencyKey = null, CancellationToken ct = default)
+    public async Task<(string ExternalId, PayoutStatus Status)> InitiatePayoutAsync(string providerId, long amountCents, string currency, string? description = null, string? idempotencyKey = null, CancellationToken ct = default)
     {
         var options = new TransferCreateOptions
         {
-            Amount = (long)Math.Round(amount * 100m, 0, MidpointRounding.AwayFromZero),
+            Amount = amountCents,
             Currency = currency.ToLowerInvariant(),
             Destination = providerId,
             Description = description

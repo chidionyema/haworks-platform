@@ -1,4 +1,5 @@
 using FluentValidation;
+using Haworks.BuildingBlocks.Common;
 using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -92,7 +93,8 @@ internal sealed class ReserveStockCommandHandler(
                     ProductId = product.Id,
                     ProductName = product.Name,
                     Quantity = request.Quantity,
-                    UnitPrice = product.UnitPrice
+                    UnitPrice = new Money(product.UnitPriceCents, request.Currency ?? "USD").ToMajorUnits(),
+                    Currency = request.Currency ?? "USD"
                 }
             }
         }, ct);

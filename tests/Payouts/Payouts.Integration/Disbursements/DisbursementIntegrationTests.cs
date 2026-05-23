@@ -39,17 +39,17 @@ public class DisbursementIntegrationTests : IAsyncLifetime
         var profile = SellerProfile.Create(sellerId);
         profile.ExternalProviderId = "acct_test";
         profile.PayoutsEnabled = true;
-        profile.PayoutThreshold = 50.00m;
+        profile.PayoutThresholdCents = 5000L;
         _context.SellerProfiles.Add(profile);
         var account = LedgerAccount.Create(sellerId, AccountType.SellerPayable, "USD");
-        account.UpdateBalance(100.00m, EntryType.Credit);
+        account.UpdateBalance(10000L, EntryType.Credit);
         _context.LedgerAccounts.Add(account);
         await _context.SaveChangesAsync();
         await _disbursementService.ProcessEligiblePayoutsAsync();
         var updatedAccount = await _context.LedgerAccounts.FirstAsync(a => a.Id == account.Id);
-        updatedAccount.Balance.Should().Be(0);
+        updatedAccount.BalanceCents.Should().Be(0);
         var payout = await _context.Payouts.FirstAsync(p => p.SellerId == sellerId);
-        payout.Amount.Should().Be(100.00m);
+        payout.AmountCents.Should().Be(10000L);
         payout.Status.Should().Be(PayoutStatus.InTransit);
     }
 }

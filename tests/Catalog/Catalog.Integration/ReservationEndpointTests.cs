@@ -306,7 +306,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
     private sealed record ConfirmResponseDto(Guid ReservationId, Guid OrderId, Guid SagaId);
 
     private sealed record ProductResponseDto(
-        Guid Id, string Name, string Description, decimal UnitPrice,
+        Guid Id, string Name, string Description, long UnitPriceCents,
         int StockQuantity, bool IsInStock, bool IsListed,
         Guid CategoryId, string? CategoryName);
 }

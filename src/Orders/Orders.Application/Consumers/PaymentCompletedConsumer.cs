@@ -70,10 +70,11 @@ public sealed class PaymentCompletedConsumer(
         {
             OrderId = order.Id,
             CustomerId = TryParseGuid(order.UserId),
-            TotalAmount = order.TotalAmount,
+            TotalAmountCents = order.TotalAmountCents,
             CustomerEmail = order.CustomerEmail,
             CompletedAt = order.LastModifiedDate ?? DateTime.UtcNow,
             PaymentId = evt.PaymentId,
+            Currency = order.Currency,
         }, context.CancellationToken);
 
         logger.LogInformation("Order {OrderId} marked Paid; published OrderCompletedEvent", order.Id);

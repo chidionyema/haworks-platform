@@ -12,7 +12,7 @@ public sealed record CatalogProductDto
     public Guid Id { get; init; }
     public string Name { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
-    public decimal UnitPrice { get; init; }
+    public long UnitPriceCents { get; init; }
     public int StockQuantity { get; init; }
     public bool IsInStock { get; init; }
     public bool IsListed { get; init; }

@@ -29,10 +29,9 @@ public class RefundIssuedConsumer : IConsumer<RefundIssuedEvent>
     public async Task Consume(ConsumeContext<RefundIssuedEvent> context)
     {
         var evt = context.Message;
-        var refundAmount = Math.Round(evt.AmountCents / 100m, 2, MidpointRounding.AwayFromZero);
 
-        _logger.LogInformation("Processing refund for Payment {PaymentId}, Order {OrderId}, Amount: {Amount}",
-            evt.PaymentId, evt.OrderId, refundAmount);
+        _logger.LogInformation("Processing refund for Payment {PaymentId}, Order {OrderId}, AmountCents: {AmountCents}",
+            evt.PaymentId, evt.OrderId, evt.AmountCents);
 
         // Deterministic lookup: filter to seller accounts only, ordered for consistency
         var sellerEntry = await _context.LedgerEntries
@@ -56,7 +55,7 @@ public class RefundIssuedConsumer : IConsumer<RefundIssuedEvent>
         // Do NOT catch DbUpdateException — it poisons DbContext (Law #3).
         await _ledgerService.DebitSellerAsync(
             sellerEntry.OwnerId,
-            refundAmount,
+            evt.AmountCents,
             evt.Currency,
             evt.PaymentId,
             $"Refund for Order {evt.OrderId}",

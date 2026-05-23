@@ -20,12 +20,12 @@ public class Product : AuditableEntity
     /// <summary>EF Core materialization constructor.</summary>
     protected Product() : base() { }
 
-    private Product(string name, string description, decimal unitPrice, Guid categoryId)
+    private Product(string name, string description, long unitPriceCents, Guid categoryId)
         : base()
     {
         Name = name;
         Description = description;
-        UnitPrice = unitPrice;
+        UnitPriceCents = unitPriceCents;
         CategoryId = categoryId;
         IsListed = false;
         IsInStock = false;
@@ -34,7 +34,7 @@ public class Product : AuditableEntity
 
     public string Name { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
-    public decimal UnitPrice { get; private set; }
+    public long UnitPriceCents { get; private set; }
     public int StockQuantity { get; private set; }
     public bool IsInStock { get; private set; }
     public bool IsListed { get; private set; }
@@ -46,11 +46,11 @@ public class Product : AuditableEntity
     public IReadOnlyCollection<ProductMetadata> Metadata => _metadata.AsReadOnly();
     public IReadOnlyCollection<ProductSpecification> Specifications => _specifications.AsReadOnly();
 
-    public static Product Create(string name, string description, decimal unitPrice, Guid categoryId)
+    public static Product Create(string name, string description, long unitPriceCents, Guid categoryId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        if (unitPrice < 0) throw new ArgumentException("Price cannot be negative", nameof(unitPrice));
-        return new Product(name, description, unitPrice, categoryId);
+        if (unitPriceCents < 0) throw new ArgumentException("Price cannot be negative", nameof(unitPriceCents));
+        return new Product(name, description, unitPriceCents, categoryId);
     }
 
     public void UpdateBasicInfo(string name, string description)
@@ -61,10 +61,10 @@ public class Product : AuditableEntity
         LastModifiedDate = DateTime.UtcNow;
     }
 
-    public void UpdatePricing(decimal unitPrice)
+    public void UpdatePricing(long unitPriceCents)
     {
-        if (unitPrice < 0) throw new ArgumentException("Price cannot be negative", nameof(unitPrice));
-        UnitPrice = unitPrice;
+        if (unitPriceCents < 0) throw new ArgumentException("Price cannot be negative", nameof(unitPriceCents));
+        UnitPriceCents = unitPriceCents;
         LastModifiedDate = DateTime.UtcNow;
     }
 

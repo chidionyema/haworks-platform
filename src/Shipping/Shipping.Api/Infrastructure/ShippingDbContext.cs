@@ -21,7 +21,7 @@ public class ShippingDbContext : DbContext
             e.HasIndex(x => x.TrackingNumber);
             e.HasIndex(x => x.EasyPostShipmentId).IsUnique();
             e.Property(x => x.Status).HasConversion<string>();
-            e.Property(x => x.RateAmount).HasColumnType("numeric(18,2)");
+            e.Property(x => x.RateAmountCents).HasColumnType("bigint");
         });
 
         modelBuilder.AddInboxStateEntity();

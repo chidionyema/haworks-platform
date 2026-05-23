@@ -7,7 +7,7 @@ namespace Haworks.Catalog.Application.Commands;
 public sealed record CreateProductCommand(
     string Name,
     string Description,
-    decimal UnitPrice,
+    long UnitPriceCents,
     Guid CategoryId,
     int InitialStock,
     string IdempotencyKey = "") : IIdempotentCommand, IRequest<Result<Guid>>;
@@ -27,7 +27,7 @@ internal sealed class CreateProductCommandHandler(
             return Result.Failure<Guid>(Error.Categories.NotFoundWithId(request.CategoryId));
         }
 
-        var product = Product.Create(request.Name, request.Description, request.UnitPrice, request.CategoryId);
+        var product = Product.Create(request.Name, request.Description, request.UnitPriceCents, request.CategoryId);
         if (request.InitialStock > 0)
         {
             product.RestockTo(request.InitialStock);

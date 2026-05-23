@@ -20,10 +20,10 @@ public sealed class RefundCancelledPaymentCompensationConsumer(
     {
         var msg = context.Message;
 
-        if (msg.PaymentId == Guid.Empty || msg.Amount <= 0)
+        if (msg.PaymentId == Guid.Empty || msg.AmountCents <= 0)
         {
             logger.LogDebug(
-                "Skipping payment compensation for RefundCancelled {RefundId} — no PaymentId/Amount (secondary notification)",
+                "Skipping payment compensation for RefundCancelled {RefundId} — no PaymentId/AmountCents (secondary notification)",
                 msg.RefundId);
             return;
         }
@@ -36,18 +36,18 @@ public sealed class RefundCancelledPaymentCompensationConsumer(
             return;
         }
 
-        if (payment.TotalRefunded < msg.Amount)
+        if (payment.TotalRefundedCents < msg.AmountCents)
         {
             logger.LogWarning(
-                "Payment {PaymentId} TotalRefunded ({TotalRefunded}) is less than reversal amount ({Amount}). RefundId={RefundId}. Skipping to avoid negative balance.",
-                msg.PaymentId, payment.TotalRefunded, msg.Amount, msg.RefundId);
+                "Payment {PaymentId} TotalRefundedCents ({TotalRefundedCents}) is less than reversal amount ({AmountCents}). RefundId={RefundId}. Skipping to avoid negative balance.",
+                msg.PaymentId, payment.TotalRefundedCents, msg.AmountCents, msg.RefundId);
             return;
         }
 
-        payment.ReverseRefund(msg.Amount);
+        payment.ReverseRefund(msg.AmountCents);
 
         logger.LogInformation(
-            "Reversed refund of {Amount} on Payment {PaymentId}. New TotalRefunded={TotalRefunded}. RefundId={RefundId}",
-            msg.Amount, msg.PaymentId, payment.TotalRefunded, msg.RefundId);
+            "Reversed refund of {AmountCents} cents on Payment {PaymentId}. New TotalRefundedCents={TotalRefundedCents}. RefundId={RefundId}",
+            msg.AmountCents, msg.PaymentId, payment.TotalRefundedCents, msg.RefundId);
     }
 }

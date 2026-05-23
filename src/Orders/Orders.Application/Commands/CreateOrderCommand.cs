@@ -12,7 +12,7 @@ namespace Haworks.Orders.Application.Commands;
 public sealed record CreateOrderCommand(
     string UserId,
     string CustomerEmail,
-    decimal TotalAmount,
+    long TotalAmountCents,
     string Currency,
     Guid SagaId,
     string IdempotencyKey,
@@ -22,7 +22,7 @@ public sealed record CreateOrderLineItem(
     Guid ProductId,
     string ProductName,
     int Quantity,
-    decimal UnitPrice);
+    long UnitPriceCents);
 
 
 internal sealed class CreateOrderCommandHandler(
@@ -35,7 +35,7 @@ internal sealed class CreateOrderCommandHandler(
     {
         using var activity = OrdersActivities.Source.StartActivity("orders.create");
         activity?.SetTag("customer.id", request.UserId);
-        activity?.SetTag("order.total_cents", (long)Math.Round(request.TotalAmount * 100m, 0, MidpointRounding.AwayFromZero));
+        activity?.SetTag("order.total_cents", request.TotalAmountCents);
         activity?.SetTag("order.currency", request.Currency);
         activity?.SetTag("order.item_count", request.Items.Count);
         activity?.SetTag("saga.id", request.SagaId);
@@ -53,12 +53,12 @@ internal sealed class CreateOrderCommandHandler(
 
         var order = Order.Create(
             request.UserId,
-            request.TotalAmount,
+            request.TotalAmountCents,
             request.Currency,
             request.SagaId,
             request.IdempotencyKey,
             request.CustomerEmail,
-            request.Items.Select(i => (i.ProductId, i.ProductName, i.Quantity, i.UnitPrice)));
+            request.Items.Select(i => (i.ProductId, i.ProductName, i.Quantity, i.UnitPriceCents)));
 
         await orders.AddAsync(order, ct);
 
@@ -79,8 +79,9 @@ internal sealed class CreateOrderCommandHandler(
         {
             OrderId = order.Id,
             CustomerId = customerGuid,
-            TotalAmount = order.TotalAmount,
+            TotalAmountCents = order.TotalAmountCents,
             CustomerEmail = order.CustomerEmail,
+            Currency = order.Currency,
         }, ct);
 
         // M1 fix: catch unique constraint violation (23505) on SagaId for concurrent duplicates.

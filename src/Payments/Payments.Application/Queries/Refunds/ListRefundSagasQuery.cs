@@ -42,7 +42,7 @@ internal sealed class ListRefundSagasQueryHandler(IPaymentDbContext db)
                 s.OrderId,
                 s.PaymentId,
                 s.CurrentState,
-                s.Amount,
+                s.AmountCents,
                 s.Currency,
                 s.Reason,
                 s.Provider,

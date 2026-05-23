@@ -27,14 +27,15 @@ public class PaymentCompletedConsumer : IConsumer<PaymentCompletedEvent>
             return;
         }
 
-        _logger.LogInformation("Processing payment completion for Order: {OrderId}, Seller: {SellerId}, Amount: {Amount}",
-            evt.OrderId, evt.SellerId, evt.Amount);
+        var amountCents = evt.AmountCents;
+        _logger.LogInformation("Processing payment completion for Order: {OrderId}, Seller: {SellerId}, AmountCents: {AmountCents}",
+            evt.OrderId, evt.SellerId, amountCents);
 
         // CreditSellerAsync has a pre-check for duplicate PaymentId.
         // Do NOT catch DbUpdateException — it poisons DbContext (Law #3).
         await _ledgerService.CreditSellerAsync(
             evt.SellerId,
-            evt.Amount,
+            amountCents,
             evt.Currency,
             evt.PaymentId,
             $"Payment for Order {evt.OrderId}",

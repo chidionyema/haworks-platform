@@ -36,13 +36,13 @@ public class CreateOrderCommandHandlerTests : TestBase
         var command = new CreateOrderCommand(
             Guid.NewGuid().ToString(),
             "test@example.com",
-            100m,
+            10_000L,
             "USD",
             Guid.NewGuid(),
             "idempotency-key",
             new List<CreateOrderLineItem>
             {
-                new(Guid.NewGuid(), "Product 1", 1, 100m)
+                new(Guid.NewGuid(), "Product 1", 1, 10_000L)
             });
 
         _orderRepositoryMock
@@ -73,7 +73,7 @@ public class CreateOrderCommandHandlerTests : TestBase
                     o.SagaId == command.SagaId &&
                     o.IdempotencyKey == command.IdempotencyKey &&
                     o.CustomerEmail == command.CustomerEmail &&
-                    o.TotalAmount == command.TotalAmount &&
+                    o.TotalAmountCents == command.TotalAmountCents &&
                     o.Items.Count == 1),
                 It.IsAny<CancellationToken>()),
             Times.Once);
@@ -81,7 +81,7 @@ public class CreateOrderCommandHandlerTests : TestBase
             x => x.Publish(
                 It.Is<OrderCreatedEvent>(e =>
                     e.CustomerEmail == command.CustomerEmail &&
-                    e.TotalAmount == command.TotalAmount),
+                    e.TotalAmountCents == command.TotalAmountCents),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

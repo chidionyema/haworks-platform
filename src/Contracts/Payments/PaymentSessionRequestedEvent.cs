@@ -14,8 +14,8 @@ public sealed record PaymentSessionRequestedEvent : DomainEvent
     /// <summary>The saga identifier for correlation.</summary>
     public required Guid SagaId { get; init; }
 
-    /// <summary>Total amount to charge.</summary>
-    public required decimal Amount { get; init; }
+    /// <summary>Total amount to charge in minor currency units (cents).</summary>
+    public required long AmountCents { get; init; }
 
     /// <summary>Currency code (e.g., "USD").</summary>
     public required string Currency { get; init; }
@@ -26,8 +26,8 @@ public sealed record PaymentSessionRequestedEvent : DomainEvent
     /// <summary>Customer email for the payment session.</summary>
     public required string CustomerEmail { get; init; }
 
-    /// <summary>Tax amount included in the total (may be 0 when not available).</summary>
-    public decimal Tax { get; init; } = 0m;
+    /// <summary>Tax amount included in the total in minor currency units (cents). May be 0 when not available.</summary>
+    public long TaxCents { get; init; }
 
     /// <summary>Line items for the payment session.</summary>
     public required IReadOnlyList<PaymentLineItemData> LineItems { get; init; }

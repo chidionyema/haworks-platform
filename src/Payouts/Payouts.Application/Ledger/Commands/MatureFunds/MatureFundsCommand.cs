@@ -33,7 +33,7 @@ public class MatureFundsCommandHandler : IRequestHandler<MatureFundsCommand>
                 .FromSqlRaw(
                     """
                     SELECT *, xmin FROM payouts."LedgerAccounts"
-                    WHERE "Type" = {0} AND "Balance" > 0
+                    WHERE "Type" = {0} AND "BalanceCents" > 0
                     ORDER BY "Id" ASC
                     FOR UPDATE SKIP LOCKED
                     LIMIT 500
@@ -75,7 +75,7 @@ public class MatureFundsCommandHandler : IRequestHandler<MatureFundsCommand>
                     _context.LedgerAccounts.Add(payableAccount);
                 }
 
-                var amount = pendingAccount.Balance;
+                var amount = pendingAccount.BalanceCents;
                 pendingAccount.UpdateBalance(amount, EntryType.Debit);
                 payableAccount.UpdateBalance(amount, EntryType.Credit);
 

@@ -48,7 +48,7 @@ public sealed class ProductCacheReader(
                     product.Id,
                     product.Name,
                     product.Description,
-                    product.UnitPrice,
+                    product.UnitPriceCents,
                     product.StockQuantity,
                     product.IsInStock,
                     product.IsListed,

@@ -37,16 +37,18 @@ public sealed class IdempotencyTests
         {
             OrderId = orderId,
             CustomerId = Guid.NewGuid(),
-            TotalAmount = 50.00m,
-            CustomerEmail = "idempotent@example.com"
+            TotalAmountCents = 5000L,
+            CustomerEmail = "idempotent@example.com",
+            Currency = "USD"
         }, context => context.MessageId = messageId);
 
         await harness.Bus.Publish(new OrderCreatedEvent
         {
             OrderId = orderId,
             CustomerId = Guid.NewGuid(),
-            TotalAmount = 50.00m,
-            CustomerEmail = "idempotent@example.com"
+            TotalAmountCents = 5000L,
+            CustomerEmail = "idempotent@example.com",
+            Currency = "USD"
         }, context => context.MessageId = messageId);
 
         // Poll for up to 10 seconds

@@ -5,7 +5,7 @@ public sealed record OrderDto(
     string UserId,
     Guid SagaId,
     string CustomerEmail,
-    decimal TotalAmount,
+    long TotalAmountCents,
     string Currency,
     string Status,
     Guid? PaymentId,
@@ -19,7 +19,7 @@ public sealed record OrderItemDto(
     Guid ProductId,
     string ProductName,
     int Quantity,
-    decimal UnitPrice,
-    decimal LineTotal);
+    long UnitPriceCents,
+    long LineTotalCents);
 
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Skip, int Take);

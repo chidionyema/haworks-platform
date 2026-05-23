@@ -7,7 +7,7 @@ namespace Haworks.Payouts.Unit.Domain;
 
 public class PayoutTests
 {
-    private static Payout CreatePending() => Payout.Create(Guid.NewGuid(), 100m, "USD");
+    private static Payout CreatePending() => Payout.Create(Guid.NewGuid(), 10000L, "USD");
 
     private static Payout CreateInTransit()
     {
@@ -21,22 +21,22 @@ public class PayoutTests
     [Fact]
     public void Create_with_valid_amount_succeeds()
     {
-        var payout = Payout.Create(Guid.NewGuid(), 100m, "USD");
+        var payout = Payout.Create(Guid.NewGuid(), 10000L, "USD");
         payout.Status.Should().Be(PayoutStatus.Pending);
-        payout.Amount.Should().Be(100m);
+        payout.AmountCents.Should().Be(10000L);
     }
 
     [Fact]
     public void Create_with_zero_amount_throws()
     {
-        var act = () => Payout.Create(Guid.NewGuid(), 0m, "USD");
+        var act = () => Payout.Create(Guid.NewGuid(), 0L, "USD");
         act.Should().Throw<ArgumentException>();
     }
 
     [Fact]
     public void Create_with_negative_amount_throws()
     {
-        var act = () => Payout.Create(Guid.NewGuid(), -10m, "USD");
+        var act = () => Payout.Create(Guid.NewGuid(), -1000L, "USD");
         act.Should().Throw<ArgumentException>();
     }
 
@@ -48,7 +48,7 @@ public class PayoutTests
     [InlineData("U1D")]
     public void Create_with_invalid_currency_throws(string currency)
     {
-        var act = () => Payout.Create(Guid.NewGuid(), 50m, currency);
+        var act = () => Payout.Create(Guid.NewGuid(), 5000L, currency);
         act.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("currency");
     }
 

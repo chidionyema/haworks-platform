@@ -18,8 +18,8 @@ public class Payment : AuditableEntity
     private Payment(
         Guid orderId,
         string userId,
-        decimal amount,
-        decimal tax,
+        long amountCents,
+        long taxCents,
         string currency,
         PaymentProvider provider,
         Guid sagaId)
@@ -27,8 +27,8 @@ public class Payment : AuditableEntity
     {
         OrderId = orderId;
         UserId = userId;
-        Amount = amount;
-        Tax = tax;
+        AmountCents = amountCents;
+        TaxCents = taxCents;
         Currency = currency;
         Provider = provider;
         SagaId = sagaId;
@@ -39,15 +39,15 @@ public class Payment : AuditableEntity
     public string UserId { get; private set; } = string.Empty;        // opaque FK -> identity-svc
     public Guid SagaId { get; private set; }                          // checkout saga correlation
 
-    public decimal Amount { get; private set; }
-    public decimal Tax { get; private set; }
+    public long AmountCents { get; private set; }
+    public long TaxCents { get; private set; }
     public string Currency { get; private set; } = "USD";
 
     public PaymentStatus Status { get; private set; } = PaymentStatus.Pending;
     public string PaymentMethod { get; private set; } = string.Empty;
     public bool IsComplete { get; private set; }
 
-    public decimal TotalRefunded { get; private set; }
+    public long TotalRefundedCents { get; private set; }
 
     public PaymentProvider Provider { get; private set; } = PaymentProvider.Stripe;
     public string? ProviderSessionId { get; private set; }
@@ -57,22 +57,22 @@ public class Payment : AuditableEntity
     public static Payment Create(
         Guid orderId,
         string userId,
-        decimal amount,
-        decimal tax,
+        long amountCents,
+        long taxCents,
         string currency,
         PaymentProvider provider,
         Guid sagaId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
-        if (amount < 0) throw new ArgumentException("Amount cannot be negative", nameof(amount));
-        if (tax < 0)    throw new ArgumentException("Tax cannot be negative", nameof(tax));
+        if (amountCents < 0) throw new ArgumentException("Amount cannot be negative", nameof(amountCents));
+        if (taxCents < 0)    throw new ArgumentException("Tax cannot be negative", nameof(taxCents));
         if (orderId == Guid.Empty) throw new ArgumentException("OrderId required", nameof(orderId));
         if (sagaId == Guid.Empty)  throw new ArgumentException("SagaId required", nameof(sagaId));
         if (provider == PaymentProvider.None)
             throw new ArgumentException("A concrete PaymentProvider must be supplied", nameof(provider));
 
-        return new Payment(orderId, userId, amount, tax, currency, provider, sagaId);
+        return new Payment(orderId, userId, amountCents, taxCents, currency, provider, sagaId);
     }
 
     /// <summary>Sets the provider session/checkout URL after gateway createSession.</summary>
@@ -121,33 +121,33 @@ public class Payment : AuditableEntity
     }
 
     /// <summary>Marks the payment as cancelled (user abandoned checkout).</summary>
-    /// <summary>Records a partial or full refund amount. Transitions to Refunded when fully refunded.</summary>
-    public void RecordRefund(decimal amount)
+    /// <summary>Records a partial or full refund amount (in cents). Transitions to Refunded when fully refunded.</summary>
+    public void RecordRefund(long amountCents)
     {
         if (Status != PaymentStatus.Completed && Status != PaymentStatus.Refunded)
             throw new InvalidOperationException($"Cannot refund a payment with status {Status}");
-        if (amount <= 0)
-            throw new ArgumentException("Refund amount must be positive", nameof(amount));
-        if (TotalRefunded + amount > Amount)
-            throw new InvalidOperationException($"Total refunded ({TotalRefunded + amount}) would exceed payment amount ({Amount})");
+        if (amountCents <= 0)
+            throw new ArgumentException("Refund amount must be positive", nameof(amountCents));
+        if (TotalRefundedCents + amountCents > AmountCents)
+            throw new InvalidOperationException($"Total refunded ({TotalRefundedCents + amountCents}) would exceed payment amount ({AmountCents})");
 
-        TotalRefunded += amount;
-        if (TotalRefunded >= Amount)
+        TotalRefundedCents += amountCents;
+        if (TotalRefundedCents >= AmountCents)
             Status = PaymentStatus.Refunded;
         LastModifiedDate = DateTime.UtcNow;
     }
 
-    /// <summary>Reverses a previously recorded refund amount (compensation for cancelled refunds).
-    /// Restores TotalRefunded and re-transitions from Refunded → Completed if needed.</summary>
-    public void ReverseRefund(decimal amount)
+    /// <summary>Reverses a previously recorded refund amount in cents (compensation for cancelled refunds).
+    /// Restores TotalRefundedCents and re-transitions from Refunded → Completed if needed.</summary>
+    public void ReverseRefund(long amountCents)
     {
-        if (amount <= 0)
-            throw new ArgumentException("Reverse refund amount must be positive", nameof(amount));
-        if (amount > TotalRefunded)
-            throw new InvalidOperationException($"Cannot reverse {amount} — only {TotalRefunded} has been refunded");
+        if (amountCents <= 0)
+            throw new ArgumentException("Reverse refund amount must be positive", nameof(amountCents));
+        if (amountCents > TotalRefundedCents)
+            throw new InvalidOperationException($"Cannot reverse {amountCents} — only {TotalRefundedCents} has been refunded");
 
-        TotalRefunded -= amount;
-        if (Status == PaymentStatus.Refunded && TotalRefunded < Amount)
+        TotalRefundedCents -= amountCents;
+        if (Status == PaymentStatus.Refunded && TotalRefundedCents < AmountCents)
             Status = PaymentStatus.Completed;
         LastModifiedDate = DateTime.UtcNow;
     }
@@ -158,7 +158,7 @@ public class Payment : AuditableEntity
         if (Status != PaymentStatus.Completed)
             throw new InvalidOperationException($"Cannot refund a payment with status {Status}");
 
-        TotalRefunded = Amount;
+        TotalRefundedCents = AmountCents;
         Status = PaymentStatus.Refunded;
         LastModifiedDate = DateTime.UtcNow;
     }

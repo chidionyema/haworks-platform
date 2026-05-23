@@ -49,9 +49,10 @@ public class ShipmentsController(
 
         var result = await provider.BuyLabelAsync(shipment.EasyPostShipmentId, request.RateId, ct);
 
+        var rateCents = (long)(result.Amount * 100m);
         shipment.MarkLabelPurchased(
             result.Carrier, result.Service, result.TrackingNumber,
-            result.TrackingUrl, result.LabelUrl, result.Amount, result.Currency, result.EstimatedDelivery);
+            result.TrackingUrl, result.LabelUrl, rateCents, result.Currency, result.EstimatedDelivery);
 
         await publisher.Publish(new ShipmentCreatedEvent
         {
