@@ -22,7 +22,7 @@ public sealed class Shipment
     public string TrackingNumber { get; private set; } = string.Empty;
     public string TrackingUrl { get; private set; } = string.Empty;
     public string LabelUrl { get; private set; } = string.Empty;
-    public decimal RateAmount { get; private set; }
+    public long RateAmountCents { get; private set; }
     public string RateCurrency { get; private set; } = "USD";
     public string FromStreet { get; private set; } = string.Empty;
     public string FromCity { get; private set; } = string.Empty;
@@ -53,14 +53,14 @@ public sealed class Shipment
         };
     }
 
-    public void MarkLabelPurchased(string carrier, string service, string trackingNumber, string trackingUrl, string labelUrl, decimal rate, string currency, DateTime? estimatedDelivery)
+    public void MarkLabelPurchased(string carrier, string service, string trackingNumber, string trackingUrl, string labelUrl, long rateCents, string currency, DateTime? estimatedDelivery)
     {
         CarrierCode = carrier;
         ServiceLevel = service;
         TrackingNumber = trackingNumber;
         TrackingUrl = trackingUrl;
         LabelUrl = labelUrl;
-        RateAmount = rate;
+        RateAmountCents = rateCents;
         RateCurrency = currency;
         EstimatedDelivery = estimatedDelivery;
         ShippedAt = DateTime.UtcNow;

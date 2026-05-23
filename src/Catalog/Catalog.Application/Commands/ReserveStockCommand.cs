@@ -92,7 +92,8 @@ internal sealed class ReserveStockCommandHandler(
                     ProductId = product.Id,
                     ProductName = product.Name,
                     Quantity = request.Quantity,
-                    UnitPrice = product.UnitPrice
+                    UnitPrice = product.UnitPrice,
+                    Currency = request.Currency ?? "USD"
                 }
             }
         }, ct);

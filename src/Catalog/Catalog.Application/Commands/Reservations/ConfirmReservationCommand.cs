@@ -114,6 +114,7 @@ internal sealed class ConfirmReservationCommandHandler(
                 ProductName = i.ProductName,
                 Quantity = i.Quantity,
                 UnitPrice = 0m, // Sync flow does not capture per-line prices.
+                Currency = request.Currency,
             }).ToList(),
         }, ct);
 

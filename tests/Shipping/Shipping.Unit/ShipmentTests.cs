@@ -21,12 +21,12 @@ public class ShipmentTests
     {
         var shipment = Shipment.Create(Guid.NewGuid(), "ep_test");
 
-        shipment.MarkLabelPurchased("usps", "Priority", "9400111899223", "https://track.example.com", "https://label.example.com/pdf", 7.95m, "USD", DateTime.UtcNow.AddDays(3));
+        shipment.MarkLabelPurchased("usps", "Priority", "9400111899223", "https://track.example.com", "https://label.example.com/pdf", 795L, "USD", DateTime.UtcNow.AddDays(3));
 
         shipment.Status.Should().Be(ShipmentStatus.LabelPurchased);
         shipment.CarrierCode.Should().Be("usps");
         shipment.TrackingNumber.Should().Be("9400111899223");
-        shipment.RateAmount.Should().Be(7.95m);
+        shipment.RateAmountCents.Should().Be(795L);
         shipment.ShippedAt.Should().NotBeNull();
     }
 
@@ -34,7 +34,7 @@ public class ShipmentTests
     public void UpdateStatus_ToDelivered_SetsDeliveredAt()
     {
         var shipment = Shipment.Create(Guid.NewGuid(), "ep_test");
-        shipment.MarkLabelPurchased("ups", "Ground", "1Z999", "url", "label", 12.50m, "USD", null);
+        shipment.MarkLabelPurchased("ups", "Ground", "1Z999", "url", "label", 1250L, "USD", null);
 
         shipment.UpdateStatus(ShipmentStatus.Delivered);
 
