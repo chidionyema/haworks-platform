@@ -1,0 +1,214 @@
+name: Synthetic Monitors
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+env:
+  BASE_URL: ${{ secrets.BASE_URL || 'https://haworks-bffweb.fly.dev' }}
+
+jobs:
+  health:
+    name: Health Monitor
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run health monitor
+        run: |
+          chmod +x tests/synthetic/health-monitor.sh
+          tests/synthetic/health-monitor.sh 2>&1 | tee /tmp/health-output.txt
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('/tmp/health-output.txt', 'utf8');
+            const title = `[Synthetic Monitor] Health check failure — ${new Date().toISOString().slice(0,16)}Z`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `## Health Monitor Failure\n\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${output}\n\`\`\``,
+              labels: ['synthetic-monitor', 'incident']
+            });
+
+  search:
+    name: Search Monitor
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run search monitor
+        run: |
+          chmod +x tests/synthetic/search-monitor.sh
+          tests/synthetic/search-monitor.sh 2>&1 | tee /tmp/search-output.txt
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('/tmp/search-output.txt', 'utf8');
+            const title = `[Synthetic Monitor] Search failure — ${new Date().toISOString().slice(0,16)}Z`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `## Search Monitor Failure\n\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${output}\n\`\`\``,
+              labels: ['synthetic-monitor', 'incident']
+            });
+
+  checkout:
+    name: Checkout Monitor
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Run every 15 minutes: only when the minute is 0, 15, 30, or 45
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(fromJSON('["0","15","30","45"]'), formatDate(github.event.schedule, 'mm'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run checkout monitor
+        run: |
+          chmod +x tests/synthetic/checkout-monitor.sh
+          tests/synthetic/checkout-monitor.sh 2>&1 | tee /tmp/checkout-output.txt
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          SERVICE_SECRET: ${{ secrets.SERVICE_SECRET }}
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('/tmp/checkout-output.txt', 'utf8');
+            const title = `[Synthetic Monitor] Checkout failure — ${new Date().toISOString().slice(0,16)}Z`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `## Checkout Monitor Failure\n\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${output}\n\`\`\``,
+              labels: ['synthetic-monitor', 'incident']
+            });
+
+  payment-webhook:
+    name: Payment Webhook Monitor
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Run every 15 minutes alongside checkout
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(fromJSON('["0","15","30","45"]'), formatDate(github.event.schedule, 'mm'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run payment webhook monitor
+        run: |
+          chmod +x tests/synthetic/payment-webhook-monitor.sh
+          tests/synthetic/payment-webhook-monitor.sh 2>&1 | tee /tmp/payment-output.txt
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          SERVICE_SECRET: ${{ secrets.SERVICE_SECRET }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('/tmp/payment-output.txt', 'utf8');
+            const title = `[Synthetic Monitor] Payment webhook failure — ${new Date().toISOString().slice(0,16)}Z`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `## Payment Webhook Monitor Failure\n\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${output}\n\`\`\``,
+              labels: ['synthetic-monitor', 'incident']
+            });
+
+  identity:
+    name: Identity Monitor
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Run every 15 minutes — auth is critical path for everything
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(fromJSON('["0","15","30","45"]'), formatDate(github.event.schedule, 'mm'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run identity monitor
+        run: |
+          chmod +x tests/synthetic/identity-monitor.sh
+          tests/synthetic/identity-monitor.sh 2>&1 | tee /tmp/identity-output.txt
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          SERVICE_SECRET: ${{ secrets.SERVICE_SECRET }}
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('/tmp/identity-output.txt', 'utf8');
+            const title = `[Synthetic Monitor] Identity failure — ${new Date().toISOString().slice(0,16)}Z`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `## Identity Monitor Failure\n\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${output}\n\`\`\``,
+              labels: ['synthetic-monitor', 'incident']
+            });
+
+  notification:
+    name: Notification Monitor
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Run every 15 minutes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(fromJSON('["0","15","30","45"]'), formatDate(github.event.schedule, 'mm'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run notification monitor
+        run: |
+          chmod +x tests/synthetic/notification-monitor.sh
+          tests/synthetic/notification-monitor.sh 2>&1 | tee /tmp/notification-output.txt
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          SERVICE_SECRET: ${{ secrets.SERVICE_SECRET }}
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('/tmp/notification-output.txt', 'utf8');
+            const title = `[Synthetic Monitor] Notification failure — ${new Date().toISOString().slice(0,16)}Z`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `## Notification Monitor Failure\n\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n\`\`\`\n${output}\n\`\`\``,
+              labels: ['synthetic-monitor', 'incident']
+            });
