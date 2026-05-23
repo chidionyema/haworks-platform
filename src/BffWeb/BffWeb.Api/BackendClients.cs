@@ -23,6 +23,7 @@ public static class BackendClients
     public const string Notifications = "notifications-svc";
     public const string Content = "content-svc";
     public const string Audit = "audit-svc";
+    public const string Ai = "ai-svc";
 
     /// <summary>
     /// Separate typed-client identity for the T2.3 circuit-breaker demo

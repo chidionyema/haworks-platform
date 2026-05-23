@@ -7,10 +7,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Cancel in-progress runs of the same workflow on the same branch.
+# Cancel in-progress runs on PRs (rapid iteration). On main, let runs
+# complete so integration suites aren't killed by back-to-back pushes.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   DOTNET_NOLOGO: true
@@ -161,6 +162,38 @@ jobs:
           name: stryker-pr-payments
           path: StrykerOutput/
           retention-days: 7
+
+  # ── AI Service (Python) — independent of .NET build ──
+  ai-service-tests:
+    name: AI Service (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: []
+
+    defaults:
+      run:
+        working-directory: src/Ai
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system .
+          uv pip install --system pytest pytest-asyncio pytest-cov httpx respx
+
+      - name: Run unit tests
+        env:
+          AI_ANTHROPIC_API_KEY: "test-key-not-real"
+        run: python -m pytest tests/unit -v
 
   # Slow path — Testcontainers integration tests. One job per service so a
   # flake in one suite doesn't block the others, and so per-service timing
