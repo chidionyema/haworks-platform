@@ -15,8 +15,7 @@ log "Target: ${BASE_URL}"
 log "Authenticating via service token..."
 AUTH_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/service-token" \
-  -H "Content-Type: application/json" \
-  -d "{\"secret\": \"${SERVICE_SECRET}\"}")
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
 
 TOKEN=$(echo "${AUTH_RESPONSE}" | jq -r '.token // .accessToken // empty')
 if [[ -z "${TOKEN}" ]]; then
@@ -36,7 +35,7 @@ log "Initiating GDPR erasure request for test user: ${TEST_USER_ID}..."
 ERASURE_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/privacy/requests" \
   -H "${AUTH_HEADER}" \
-  -H "Content-Type: application/json" \
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
   -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
   -d "{
     \"userId\": \"${TEST_USER_ID}\",

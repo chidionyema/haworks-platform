@@ -16,8 +16,7 @@ log "Target: ${BASE_URL}"
 log "Authenticating..."
 AUTH_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/service-token" \
-  -H "Content-Type: application/json" \
-  -d "{\"secret\": \"${SERVICE_SECRET}\"}")
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
 
 TOKEN=$(echo "${AUTH_RESPONSE}" | jq -r '.token // .accessToken // empty')
 if [[ -z "${TOKEN}" ]]; then
@@ -35,7 +34,7 @@ log "Creating test payment session..."
 SESSION_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/payments/sessions" \
   -H "${AUTH_HEADER}" \
-  -H "Content-Type: application/json" \
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
   -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
   -d '{
     "amountCents": 100,
@@ -84,7 +83,7 @@ STRIPE_SIGNATURE="t=${TIMESTAMP},v1=${SIGNATURE}"
 log "Sending simulated Stripe webhook..."
 WEBHOOK_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
   -X POST "${BASE_URL}/api/v1/payments/webhooks/stripe" \
-  -H "Content-Type: application/json" \
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
   -H "Stripe-Signature: ${STRIPE_SIGNATURE}" \
   -d "${WEBHOOK_PAYLOAD}")
 

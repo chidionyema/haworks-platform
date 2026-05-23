@@ -15,8 +15,7 @@ log "Target: ${BASE_URL}"
 log "Authenticating via service token..."
 AUTH_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/service-token" \
-  -H "Content-Type: application/json" \
-  -d "{\"secret\": \"${SERVICE_SECRET}\"}")
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
 
 TOKEN=$(echo "${AUTH_RESPONSE}" | jq -r '.token // .accessToken // empty')
 if [[ -z "${TOKEN}" ]]; then
@@ -35,7 +34,7 @@ log "Creating refund request (idempotency key: ${IDEMPOTENCY_KEY})..."
 REFUND_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/refunds" \
   -H "${AUTH_HEADER}" \
-  -H "Content-Type: application/json" \
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
   -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
   -d '{
     "orderId": "00000000-0000-0000-0000-000000000001",
