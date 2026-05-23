@@ -41,7 +41,7 @@ set -euo pipefail
 VAULT_APP="${VAULT_APP:-haworks-vault}"
 SERVICES_JSON="${SERVICES_JSON:-infra/vault/services.json}"
 FLY_APP_PREFIX="${FLY_APP_PREFIX:-haworks-}"
-WRAP_TTL_SECONDS="${WRAP_TTL_SECONDS:-1800}"
+WRAP_TTL_SECONDS="${WRAP_TTL_SECONDS:-86400}"
 
 log() { echo "[stage-vault-creds] $*"; }
 

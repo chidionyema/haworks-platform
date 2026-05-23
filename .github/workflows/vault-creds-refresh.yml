@@ -1,0 +1,22 @@
+name: Refresh Vault Credentials
+
+on:
+  schedule:
+    # Daily at 06:00 UTC — wrapping tokens last 24h, so there's always
+    # a valid token available when services restart.
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  stage-creds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Stage fresh Vault credentials
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          WRAP_TTL_SECONDS: '86400'
+        run: bash deploy/fly/ci-stage-vault-creds.sh
