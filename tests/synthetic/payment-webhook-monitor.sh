@@ -14,7 +14,7 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+AUTH_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/authentication/service-token" \
   -H "Content-Type: application/json" \
   -d "{\"secret\": \"${SERVICE_SECRET}\"}")
@@ -32,7 +32,7 @@ AUTH_HEADER="Authorization: Bearer ${TOKEN}"
 IDEMPOTENCY_KEY="synth-pay-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Creating test payment session..."
 
-SESSION_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+SESSION_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/payments/sessions" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \

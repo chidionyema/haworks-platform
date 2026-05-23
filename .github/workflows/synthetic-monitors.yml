@@ -57,6 +57,7 @@ jobs:
           tests/synthetic/search-monitor.sh 2>&1 | tee /tmp/search-output.txt
         env:
           BASE_URL: ${{ env.BASE_URL }}
+          SERVICE_SECRET: ${{ secrets.SERVICE_SECRET }}
 
       - name: Create issue on failure
         if: failure()

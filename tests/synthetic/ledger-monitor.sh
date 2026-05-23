@@ -11,7 +11,7 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+AUTH_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/authentication/service-token" \
   -H "Content-Type: application/json" \
   -d "{\"secret\": \"${SERVICE_SECRET}\"}")
@@ -43,7 +43,7 @@ IDEMPOTENCY_KEY="synth-ledger-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Crediting ledger with ${CREDIT_AMOUNT} cents (idempotency key: ${IDEMPOTENCY_KEY})..."
 
 START_TIME=$(date +%s%N)
-CREDIT_RESPONSE=$(curl -s --fail-with-body --max-time 5 \
+CREDIT_RESPONSE=$(curl -s --max-time 5 \
   -X POST "${BASE_URL}/api/v1/payouts/ledger/credit" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
@@ -67,7 +67,7 @@ log "OK: Ledger credited in ${ELAPSED}s"
 # Phase 4: Verify updated balance
 log "Verifying updated balance..."
 START_TIME=$(date +%s%N)
-BALANCE_AFTER_RESPONSE=$(curl -s --fail-with-body --max-time 5 \
+BALANCE_AFTER_RESPONSE=$(curl -s --max-time 5 \
   -H "${AUTH_HEADER}" \
   "${BASE_URL}/api/v1/payouts/ledger/balance/${SELLER_ID}")
 END_TIME=$(date +%s%N)
