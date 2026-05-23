@@ -45,7 +45,7 @@ START_TIME=$(date +%s%N)
 CREDIT_RESPONSE=$(curl -s --max-time 5 \
   -X POST "${BASE_URL}/api/v1/payouts/ledger/credit" \
   -H "${AUTH_HEADER}" \
-  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
+  -H "Content-Type: application/json" \
   -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
   -d "{
     \"sellerId\": \"${SELLER_ID}\",
@@ -53,7 +53,7 @@ CREDIT_RESPONSE=$(curl -s --max-time 5 \
     \"currency\": \"usd\",
     \"description\": \"Synthetic monitor test credit\",
     \"isTest\": true
-  }")
+  }" 2>&1) || true
 END_TIME=$(date +%s%N)
 ELAPSED=$(echo "scale=2; (${END_TIME} - ${START_TIME}) / 1000000000" | bc -l)
 

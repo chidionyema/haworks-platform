@@ -33,13 +33,13 @@ START_TIME=$(date +%s%N)
 CREATE_RESPONSE=$(curl -s --max-time 5 \
   -X POST "${BASE_URL}/api/v1/merchants" \
   -H "${AUTH_HEADER}" \
-  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
+  -H "Content-Type: application/json" \
   -d "{
     \"name\": \"Synthetic Monitor Merchant\",
     \"slug\": \"${UNIQUE_SLUG}\",
     \"email\": \"synth-${UNIQUE_SLUG}@test.haworks.dev\",
     \"isTest\": true
-  }")
+  }" 2>&1) || true
 END_TIME=$(date +%s%N)
 ELAPSED=$(echo "scale=2; (${END_TIME} - ${START_TIME}) / 1000000000" | bc -l)
 

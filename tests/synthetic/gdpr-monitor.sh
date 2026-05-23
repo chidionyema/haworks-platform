@@ -35,14 +35,14 @@ log "Initiating GDPR erasure request for test user: ${TEST_USER_ID}..."
 ERASURE_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/privacy/requests" \
   -H "${AUTH_HEADER}" \
-  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
+  -H "Content-Type: application/json" \
   -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
   -d "{
     \"userId\": \"${TEST_USER_ID}\",
     \"requestType\": \"erasure\",
     \"reason\": \"Synthetic monitor GDPR test\",
     \"isTest\": true
-  }")
+  }" 2>&1) || true
 
 REQUEST_ID=$(echo "${ERASURE_RESPONSE}" | jq -r '.requestId // .id // empty')
 if [[ -z "${REQUEST_ID}" ]]; then

@@ -34,14 +34,14 @@ log "Creating refund request (idempotency key: ${IDEMPOTENCY_KEY})..."
 REFUND_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/refunds" \
   -H "${AUTH_HEADER}" \
-  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
+  -H "Content-Type: application/json" \
   -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
   -d '{
     "orderId": "00000000-0000-0000-0000-000000000001",
     "amountCents": 100,
     "reason": "synthetic_monitor_test",
     "isTest": true
-  }')
+  }' 2>&1) || true
 
 REFUND_ID=$(echo "${REFUND_RESPONSE}" | jq -r '.refundId // .id // empty')
 if [[ -z "${REFUND_ID}" ]]; then

@@ -43,7 +43,7 @@ START_TIME=$(date +%s%N)
 SEARCH_RESPONSE=$(curl -s --max-time "${MAX_RESPONSE_TIME}" \
   -X POST "${BASE_URL}/api/v1/ai/search" \
   -H "${AUTH_HEADER}" \
-  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
+  -H "Content-Type: application/json" \
   -d '{"query": "test product", "limit": 5}' 2>&1) || {
   log "FAIL: AI search returned error"
   log "Response: ${SEARCH_RESPONSE}"
@@ -63,7 +63,7 @@ START_TIME=$(date +%s%N)
 CHAT_RESPONSE=$(curl -s --max-time "${MAX_RESPONSE_TIME}" \
   -X POST "${BASE_URL}/api/v1/ai/chat/message" \
   -H "${AUTH_HEADER}" \
-  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
+  -H "Content-Type: application/json" \
   -d "{\"sessionId\": \"${SESSION_ID}\", \"message\": \"What products are available?\", \"isTest\": true}" 2>&1) || {
   log "FAIL: AI chat returned error"
   log "Response: ${CHAT_RESPONSE}"
@@ -99,7 +99,7 @@ START_TIME=$(date +%s%N)
 CONTENT_RESPONSE=$(curl -s --max-time "${MAX_RESPONSE_TIME}" \
   -X POST "${BASE_URL}/api/v1/ai/content/generate" \
   -H "${AUTH_HEADER}" \
-  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
+  -H "Content-Type: application/json" \
   -d '{"type": "product_description", "context": "A premium handcrafted item", "isTest": true}' 2>&1) || {
   log "FAIL: AI content generation returned error"
   log "Response: ${CONTENT_RESPONSE}"
