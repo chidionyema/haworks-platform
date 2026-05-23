@@ -45,7 +45,8 @@ AUTH_HEADER="Authorization: Bearer ${TOKEN}"
 IDEMPOTENCY_KEY="synth-checkout-${RUN_ID}-$$"
 log "Creating checkout (idempotency key: ${IDEMPOTENCY_KEY})..."
 
-CHECKOUT_RESPONSE=$(curl -s --max-time 15 \
+CHECKOUT_TMP=$(mktemp)
+CHECKOUT_HTTP=$(curl -s -o "${CHECKOUT_TMP}" -w "%{http_code}" --max-time 15 \
   -X POST "${BASE_URL}/api/v1/checkout" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
@@ -62,18 +63,21 @@ CHECKOUT_RESPONSE=$(curl -s --max-time 15 \
         "unitPrice": 9.99
       }
     ]
-  }' 2>&1) || true
+  }' 2>/dev/null) || CHECKOUT_HTTP="000"
+CHECKOUT_RESPONSE=$(cat "${CHECKOUT_TMP}")
+rm -f "${CHECKOUT_TMP}"
+log "Checkout response: HTTP ${CHECKOUT_HTTP}"
 
-SAGA_ID=$(echo "${CHECKOUT_RESPONSE}" | jq -r '.sagaId // .checkoutId // .id // empty' 2>/dev/null)
-
-if [[ -z "${SAGA_ID}" ]]; then
-  # Checkout might return 202 with no body, or a different shape
-  HTTP_CODE=$(echo "${CHECKOUT_RESPONSE}" | jq -r '.status // empty' 2>/dev/null)
-  if [[ "${HTTP_CODE}" == "202" ]] || echo "${CHECKOUT_RESPONSE}" | grep -q "Accepted"; then
-    log "OK: Checkout accepted (202, no saga ID in response — saga runs async)"
+if [[ "${CHECKOUT_HTTP}" -ge 200 && "${CHECKOUT_HTTP}" -lt 300 ]]; then
+  SAGA_ID=$(echo "${CHECKOUT_RESPONSE}" | jq -r '.sagaId // .checkoutId // .id // empty' 2>/dev/null)
+  if [[ -n "${SAGA_ID}" ]]; then
+    log "OK: Checkout created (saga=${SAGA_ID})"
+  else
+    log "OK: Checkout accepted (HTTP ${CHECKOUT_HTTP})"
     exit 0
   fi
-  log "FAIL: Could not extract sagaId from response"
+else
+  log "FAIL: Checkout returned HTTP ${CHECKOUT_HTTP}"
   log "Response: ${CHECKOUT_RESPONSE}"
   exit 1
 fi
