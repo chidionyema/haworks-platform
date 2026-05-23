@@ -7,10 +7,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Cancel in-progress runs of the same workflow on the same branch.
+# Cancel in-progress runs on PRs (rapid iteration). On main, let runs
+# complete so integration suites aren't killed by back-to-back pushes.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   DOTNET_NOLOGO: true

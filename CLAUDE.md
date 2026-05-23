@@ -34,6 +34,15 @@
 - Before adding a dependency, check if BuildingBlocks already provides it.
 - No TODOs left in committed code. No commented-out code.
 - If a fix needs a workaround, flag it explicitly — don't hide it.
+
+# Git workflow (ENFORCED — branch protection on main)
+- **NEVER push directly to main.** Always use a branch + PR.
+- Create a branch: `git checkout -b fix/description` or use worktrees.
+- Push the branch, open a PR: `gh pr create --title "..." --body "..."`
+- CI must pass (Build + unit/arch/contract) before merge.
+- Max 3 services per PR. Sweeping changes must be split.
+- Run `make test svc=X` locally for every service you touched before pushing.
+- One agent per service at a time — don't race on the same files.
 # Project
 - .NET 9.0 microservices platform (Clean Architecture)
 - See `.claude/projects/*/memory/` for full architecture reference
