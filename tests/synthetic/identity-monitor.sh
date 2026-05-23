@@ -12,7 +12,7 @@ FAILURES=0
 log "Testing service token endpoint..."
 start=$(date +%s%N)
 TOKEN_RESP=$(curl --silent --max-time 10 \
-  -X POST "${BASE_URL}/api/v1/authentication/service-token" \
+  -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/service-token" \
   -H "Content-Type: application/json" \
   -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
 elapsed=$(( ($(date +%s%N) - start) / 1000000 ))
