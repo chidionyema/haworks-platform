@@ -84,7 +84,7 @@ class TestMassTransitEnvelope:
 
     def test_envelope_with_missing_optional_fields(self) -> None:
         minimal = {
-            "messageId": "f6a7b8c9-d0e1-2345-fgab-456789012345",
+            "messageId": "f6a7b8c9-d0e1-2345-abab-456789012345",
             "messageType": ["urn:message:Test:SomeEvent"],
             "message": {"productId": "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e5e5", "version": 0},
             "headers": {},
