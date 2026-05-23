@@ -16,4 +16,7 @@ public sealed record CheckoutItemData
 
     /// <summary>Unit price at time of checkout.</summary>
     public required decimal UnitPrice { get; init; }
+
+    /// <summary>ISO 4217 currency code (e.g., "USD", "EUR").</summary>
+    public required string Currency { get; init; }
 }

@@ -210,7 +210,8 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                             OrderId = ctx.Saga.OrderId,
                             PaymentId = ctx.Saga.PaymentId,
                             Amount = ctx.Saga.Amount,
-                            Reason = "retries_exhausted"
+                            Reason = "retries_exhausted",
+                            Currency = ctx.Saga.Currency
                         }))
                         .TransitionTo(Cancelled)
                         .Finalize(),
@@ -271,7 +272,8 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     OrderId = ctx.Saga.OrderId,
                     PaymentId = ctx.Saga.PaymentId,
                     Amount = ctx.Saga.Amount,
-                    Reason = "review_escalation_timeout"
+                    Reason = "review_escalation_timeout",
+                    Currency = ctx.Saga.Currency
                 }))
                 .TransitionTo(Cancelled)
                 .Finalize());
@@ -312,7 +314,8 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                             OrderId = ctx.Saga.OrderId,
                             PaymentId = ctx.Saga.PaymentId,
                             Amount = ctx.Saga.Amount,
-                            Reason = "Cancelled by operator"
+                            Reason = "Cancelled by operator",
+                            Currency = ctx.Saga.Currency
                         }))
                         .TransitionTo(Cancelled)
                         .Finalize()));

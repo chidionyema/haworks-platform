@@ -61,7 +61,8 @@ public sealed class PaymentAmountMismatchHandler : IPaymentAmountMismatchHandler
             ActualPaid = actualPaid,
             ExpectedTotal = expectedTotal,
             Difference = difference,
-            Reason = reason
+            Reason = reason,
+            Currency = payment.Currency
         }, ct);
 
         await _paymentRepository.SaveChangesAsync(ct);

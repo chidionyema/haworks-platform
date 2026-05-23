@@ -67,7 +67,7 @@ public sealed class DemoLedgerController(IPayoutsDbContext db) : ControllerBase
         db.LedgerAccounts.Add(account);
 
         // Credit: payment received
-        var paymentAmount = Math.Round(request.AmountCents / 100m, 2, MidpointRounding.ToEven);
+        var paymentAmount = Math.Round(request.AmountCents / 100m, 2, MidpointRounding.AwayFromZero);
         account.UpdateBalance(paymentAmount, Haworks.Payouts.Domain.Enums.EntryType.Credit);
         var creditEntry = Haworks.Payouts.Domain.Aggregates.LedgerEntry.Create(
             account.Id, txId, paymentAmount,
@@ -76,7 +76,7 @@ public sealed class DemoLedgerController(IPayoutsDbContext db) : ControllerBase
         db.LedgerEntries.Add(creditEntry);
 
         // Debit: platform commission (10%)
-        var commission = Math.Round(paymentAmount * 0.10m, 2, MidpointRounding.ToEven);
+        var commission = Math.Round(paymentAmount * 0.10m, 2, MidpointRounding.AwayFromZero);
         account.UpdateBalance(commission, Haworks.Payouts.Domain.Enums.EntryType.Debit);
         var debitEntry = Haworks.Payouts.Domain.Aggregates.LedgerEntry.Create(
             account.Id, txId, commission,

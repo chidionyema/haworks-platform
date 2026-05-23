@@ -50,7 +50,8 @@ public sealed class ProviderRefundCancellationConsumer(
                 {
                     RefundId = msg.RefundId,
                     OrderId = Guid.Empty, // Consumer lacks OrderId; saga publishes the authoritative RefundCancelledEvent with correct OrderId
-                    Reason = "provider_confirmed_cancelled"
+                    Reason = "provider_confirmed_cancelled",
+                    Currency = msg.Currency ?? "USD"
                 }, context.CancellationToken);
                 return;
             }
@@ -83,7 +84,8 @@ public sealed class ProviderRefundCancellationConsumer(
             {
                 RefundId = msg.RefundId,
                 OrderId = Guid.Empty, // Consumer lacks OrderId; saga publishes the authoritative RefundCancelledEvent with correct OrderId
-                Reason = "operator_cancellation_requested"
+                Reason = "operator_cancellation_requested",
+                Currency = msg.Currency ?? "USD"
             }, context.CancellationToken);
         }
         catch (Exception ex)

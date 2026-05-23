@@ -27,4 +27,7 @@ public sealed record OrderCompletedEvent : DomainEvent
 
     /// <summary>The payment ID associated with this order.</summary>
     public required Guid PaymentId { get; init; }
+
+    /// <summary>ISO 4217 currency code (e.g., "USD", "EUR").</summary>
+    public required string Currency { get; init; }
 }
