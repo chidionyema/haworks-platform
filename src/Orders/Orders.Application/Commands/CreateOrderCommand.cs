@@ -81,6 +81,7 @@ internal sealed class CreateOrderCommandHandler(
             CustomerId = customerGuid,
             TotalAmount = order.TotalAmount,
             CustomerEmail = order.CustomerEmail,
+            Currency = order.Currency,
         }, ct);
 
         // M1 fix: catch unique constraint violation (23505) on SagaId for concurrent duplicates.

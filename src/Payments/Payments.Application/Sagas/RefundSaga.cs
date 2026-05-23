@@ -306,7 +306,8 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                             x => x.PublishAsync(ctx => ctx.Init<ProviderRefundCancellationRequestedEvent>(new ProviderRefundCancellationRequestedEvent
                             {
                                 RefundId = ctx.Saga.CorrelationId,
-                                ProviderRefundId = ctx.Saga.ProviderRefundId ?? ""
+                                ProviderRefundId = ctx.Saga.ProviderRefundId ?? "",
+                                Currency = ctx.Saga.Currency
                             })))
                         .PublishAsync(ctx => ctx.Init<RefundCancelledEvent>(new RefundCancelledEvent
                         {

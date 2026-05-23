@@ -74,6 +74,7 @@ public sealed class PaymentCompletedConsumer(
             CustomerEmail = order.CustomerEmail,
             CompletedAt = order.LastModifiedDate ?? DateTime.UtcNow,
             PaymentId = evt.PaymentId,
+            Currency = order.Currency,
         }, context.CancellationToken);
 
         logger.LogInformation("Order {OrderId} marked Paid; published OrderCompletedEvent", order.Id);
