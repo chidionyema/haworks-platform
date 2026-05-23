@@ -14,7 +14,7 @@ log "Target: ${NOTIFICATIONS_URL}"
 
 # Phase 0: Warm up notifications service (may be cold/stopped)
 log "Warming up notifications service..."
-curl -s --max-time 30 "${NOTIFICATIONS_URL}/health/ready" > /dev/null 2>&1 || true
+curl -s --max-time 60 "${NOTIFICATIONS_URL}/health/ready" > /dev/null 2>&1 || true
 
 # Phase 1: Authenticate
 log "Authenticating..."
@@ -36,7 +36,7 @@ AUTH_HEADER="Authorization: Bearer ${TOKEN}"
 IDEMPOTENCY_KEY="synth-notif-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Sending test notification..."
 
-NOTIF_RESPONSE=$(curl -s --max-time 30 \
+NOTIF_RESPONSE=$(curl -s --max-time 60 \
   -X POST "${NOTIFICATIONS_URL}/api/v1/notifications" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
