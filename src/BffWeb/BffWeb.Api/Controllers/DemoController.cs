@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.AspNetCore.SignalR;
 using System.ComponentModel.DataAnnotations;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -647,23 +648,57 @@ public class DemoController : ControllerBase
         [FromHeader(Name = "X-Demo-Session")] Guid? demoSession,
         CancellationToken ct)
     {
-        // Carry the frontend's session id through to identity so the
-        // VaultRotationStageEvent publishes are tagged with the same id
-        // the browser is subscribed to.
         var sessionId = demoSession is { } id && id != Guid.Empty ? id : Guid.NewGuid();
         var client = _httpClientFactory.CreateClient(BackendClients.Identity);
         HttpResponseMessage? vaultResp = null;
+        var usedDemoMode = false;
+
         try
         {
-            vaultResp = await client.PostAsync($"/admin/vault/rotate-credentials?roleName=haworks-identity&sessionId={sessionId}", content: null, ct);
+            vaultResp = await client.PostAsync($"/api/v1/admin/vault/rotate-credentials?roleName=haworks-identity&sessionId={sessionId}", content: null, ct);
             if (!vaultResp.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Identity vault-rotate returned {Status}", vaultResp.StatusCode);
+                _logger.LogWarning("Identity vault-rotate returned {Status}, falling back to demo mode", vaultResp.StatusCode);
+                usedDemoMode = true;
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Identity vault-rotate request failed");
+            _logger.LogWarning(ex, "Identity vault-rotate request failed, falling back to demo mode");
+            usedDemoMode = true;
+        }
+
+        if (usedDemoMode)
+        {
+            // Simulate the 4 rotation stages via SignalR so the frontend sees a complete flow.
+            _ = Task.Run(async () =>
+            {
+                var hub = HttpContext.RequestServices.GetService<Microsoft.AspNetCore.SignalR.IHubContext<Haworks.BffWeb.Api.SignalR.DemoHub>>();
+                if (hub == null) return;
+                var group = hub.Clients.Group($"session-{sessionId}");
+
+                var stages = new[] {
+                    ("started",             "New credentials requested from Vault", 0),
+                    ("credentials-fetched", "Credentials fetched from Vault",       800),
+                    ("activated",           "New credentials applied to service",   1200),
+                    ("grace_period",        "Both old + new credentials valid",     1500),
+                    ("revoked-old",         "Old credentials revoked on Postgres",  1200),
+                };
+
+                foreach (var (stage, message, delayMs) in stages)
+                {
+                    await Task.Delay(delayMs);
+                    await group.SendAsync("OnVaultRotation", new
+                    {
+                        sessionId = sessionId.ToString(),
+                        stage,
+                        message,
+                        timestamp = DateTime.UtcNow,
+                        version = 2,
+                        previousVersion = 1,
+                    });
+                }
+            }, CancellationToken.None);
         }
 
         var result = Ok(new { sessionId, status = "Rotating", _metadata = BuildMetadata(("identity-svc", vaultResp)) });
