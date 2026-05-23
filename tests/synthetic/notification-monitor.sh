@@ -31,7 +31,7 @@ IDEMPOTENCY_KEY="synth-notif-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Sending test notification..."
 
 NOTIF_RESPONSE=$(curl -s --max-time 10 \
-  -X POST "${BASE_URL}/api/v1/notifications" \
+  -X POST "${NOTIFICATIONS_URL:-https://haworks-notifications.fly.dev}/api/v1/notifications" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
@@ -63,7 +63,7 @@ FINAL_STATE=""
 while [[ ${ELAPSED} -lt ${POLL_TIMEOUT} ]]; do
   STATUS_RESPONSE=$(curl -s --max-time 10 \
     -H "${AUTH_HEADER}" \
-    "${BASE_URL}/api/v1/notifications/${NOTIFICATION_ID}" 2>/dev/null || echo '{}')
+    "${NOTIFICATIONS_URL:-https://haworks-notifications.fly.dev}/api/v1/notifications/${NOTIFICATION_ID}" 2>/dev/null || echo '{}')
 
   CURRENT_STATUS=$(echo "${STATUS_RESPONSE}" | jq -r '.status // "Unknown"')
   log "  Status: ${CURRENT_STATUS} (${ELAPSED}s elapsed)"
