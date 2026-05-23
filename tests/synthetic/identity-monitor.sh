@@ -67,7 +67,7 @@ start=$(date +%s%N)
 LOGIN_RESP=$(curl --silent --max-time 10 -w "\n%{http_code}" \
   -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/login" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\"}")
+  -d "{\"username\":\"synthmon${RUN_ID}\",\"password\":\"${TEST_PASSWORD}\"}")
 LOGIN_STATUS=$(echo "$LOGIN_RESP" | tail -1)
 LOGIN_BODY=$(echo "$LOGIN_RESP" | sed '$d')
 elapsed=$(( ($(date +%s%N) - start) / 1000000 ))

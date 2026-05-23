@@ -33,7 +33,7 @@ log "Sending test notification..."
 NOTIF_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/notifications" \
   -H "${AUTH_HEADER}" \
-  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
+  -H "Content-Type: application/json" \
   -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
   -d '{
     "channel": "email",
@@ -44,7 +44,7 @@ NOTIF_RESPONSE=$(curl -s --max-time 10 \
       "message": "Automated health check"
     },
     "isTest": true
-  }')
+  }' 2>&1) || true
 
 NOTIFICATION_ID=$(echo "${NOTIF_RESPONSE}" | jq -r '.notificationId // .id // empty')
 

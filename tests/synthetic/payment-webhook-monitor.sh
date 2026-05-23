@@ -34,14 +34,14 @@ log "Creating test payment session..."
 SESSION_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/payments/sessions" \
   -H "${AUTH_HEADER}" \
-  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
+  -H "Content-Type: application/json" \
   -H "Idempotency-Key: ${IDEMPOTENCY_KEY}" \
   -d '{
     "amountCents": 100,
     "currency": "usd",
     "provider": "stripe",
     "isTest": true
-  }')
+  }' 2>&1) || true
 
 SESSION_ID=$(echo "${SESSION_RESPONSE}" | jq -r '.sessionId // .id // empty')
 PAYMENT_INTENT_ID=$(echo "${SESSION_RESPONSE}" | jq -r '.paymentIntentId // .externalId // empty')
@@ -83,9 +83,9 @@ STRIPE_SIGNATURE="t=${TIMESTAMP},v1=${SIGNATURE}"
 log "Sending simulated Stripe webhook..."
 WEBHOOK_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
   -X POST "${BASE_URL}/api/v1/payments/webhooks/stripe" \
-  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
+  -H "Content-Type: application/json" \
   -H "Stripe-Signature: ${STRIPE_SIGNATURE}" \
-  -d "${WEBHOOK_PAYLOAD}")
+  -d "${WEBHOOK_PAYLOAD}" 2>&1) || true
 
 if [[ "${WEBHOOK_RESPONSE}" -lt 200 || "${WEBHOOK_RESPONSE}" -ge 300 ]]; then
   log "FAIL: Webhook returned HTTP ${WEBHOOK_RESPONSE}"
