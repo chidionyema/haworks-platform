@@ -74,15 +74,9 @@ internal sealed class PayPalPaymentProcessor(
             throw new InvalidOperationException("Session validation failed");
         }
 
-<<<<<<< HEAD
         // 4. Financial integrity checks (compare in cents)
         long actualPaidCents = sessionEvent.AmountTotal;
         long expectedTotalCents = payment.AmountCents + payment.TaxCents;
-=======
-        // 4. Financial integrity checks
-        decimal actualPaid = Math.Round(sessionEvent.AmountTotal / CheckoutConstants.CentMultiplier, 2, MidpointRounding.AwayFromZero);
-        decimal expectedTotal = payment.Amount + payment.Tax;
->>>>>>> origin/main
 
         if (PaymentValidationHelper.HasAmountMismatch(actualPaidCents, expectedTotalCents))
         {

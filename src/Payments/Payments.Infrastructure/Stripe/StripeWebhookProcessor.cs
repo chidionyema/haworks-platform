@@ -265,11 +265,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
                 {
                     RefundId = sagaId,
                     ProviderRefundId = refund.Id,
-<<<<<<< HEAD
                     AmountRefundedCents = refund.Amount,
-=======
-                    AmountRefunded = Math.Round(refund.Amount / 100m, 2, MidpointRounding.AwayFromZero),
->>>>>>> origin/main
                     CompletedAt = DateTime.UtcNow
                 }, ct);
             }
