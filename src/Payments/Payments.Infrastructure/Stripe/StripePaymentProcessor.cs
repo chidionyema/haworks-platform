@@ -105,9 +105,15 @@ internal sealed class StripePaymentProcessor(
                 $"Currency mismatch: expected {payment.Currency}, received {sessionEvent.Currency}");
         }
 
+<<<<<<< HEAD
         // 4b. Amount validation (compare in cents — no floating-point rounding needed)
         long actualPaidCents = sessionEvent.AmountTotal;
         long expectedTotalCents = payment.AmountCents + payment.TaxCents;
+=======
+        // 4b. Amount validation
+        decimal actualPaid = Math.Round(sessionEvent.AmountTotal / CentMultiplier, 2, MidpointRounding.AwayFromZero);
+        decimal expectedTotal = payment.Amount + payment.Tax;
+>>>>>>> origin/main
 
         if (PaymentValidationHelper.HasAmountMismatch(actualPaidCents, expectedTotalCents))
         {

@@ -90,7 +90,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
             id = productId.ToString(),
             name = "CDC Test Widget",
             description = "Created via CDC",
-            unit_price = 42.50,
+            unit_price_cents = 4250,
             category_id = Guid.NewGuid().ToString(),
         });
 

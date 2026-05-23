@@ -131,7 +131,11 @@ internal sealed class PayPalRefundService(
                 PaymentId = payment.Id,
                 OrderId = payment.OrderId,
                 ProviderRefundId = refund!.Id!,
+<<<<<<< HEAD
                 AmountCents = request.AmountCents ?? payment.AmountCents,
+=======
+                AmountCents = request.AmountCents ?? (long)Math.Round(payment.Amount * CheckoutConstants.CentMultiplier, 0, MidpointRounding.AwayFromZero),
+>>>>>>> origin/main
                 Currency = payment.Currency,
                 Provider = PaymentProvider.PayPal,
                 Reason = request.Reason

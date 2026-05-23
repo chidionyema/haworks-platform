@@ -209,7 +209,11 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                             RefundId = ctx.Saga.CorrelationId,
                             OrderId = ctx.Saga.OrderId,
                             PaymentId = ctx.Saga.PaymentId,
+<<<<<<< HEAD
                             AmountCents = ctx.Saga.AmountCents,
+=======
+                            Amount = ctx.Saga.Amount,
+>>>>>>> origin/main
                             Reason = "retries_exhausted",
                             Currency = ctx.Saga.Currency
                         }))
@@ -271,7 +275,11 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                     RefundId = ctx.Saga.CorrelationId,
                     OrderId = ctx.Saga.OrderId,
                     PaymentId = ctx.Saga.PaymentId,
+<<<<<<< HEAD
                     AmountCents = ctx.Saga.AmountCents,
+=======
+                    Amount = ctx.Saga.Amount,
+>>>>>>> origin/main
                     Reason = "review_escalation_timeout",
                     Currency = ctx.Saga.Currency
                 }))
@@ -314,7 +322,11 @@ public sealed class RefundSaga : MassTransitStateMachine<RefundSagaState>
                             RefundId = ctx.Saga.CorrelationId,
                             OrderId = ctx.Saga.OrderId,
                             PaymentId = ctx.Saga.PaymentId,
+<<<<<<< HEAD
                             AmountCents = ctx.Saga.AmountCents,
+=======
+                            Amount = ctx.Saga.Amount,
+>>>>>>> origin/main
                             Reason = "Cancelled by operator",
                             Currency = ctx.Saga.Currency
                         }))

@@ -13,10 +13,9 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
-  -X POST "${BASE_URL}/api/v1/authentication/service-token" \
-  -H "Content-Type: application/json" \
-  -d "{\"secret\": \"${SERVICE_SECRET}\"}")
+AUTH_RESPONSE=$(curl -s --max-time 10 \
+  -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/service-token" \
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
 
 TOKEN=$(echo "${AUTH_RESPONSE}" | jq -r '.token // .accessToken // empty')
 if [[ -z "${TOKEN}" ]]; then
@@ -33,7 +32,7 @@ IDEMPOTENCY_KEY="synth-gdpr-$(date -u +%Y%m%d%H%M%S)-$$"
 TEST_USER_ID="synth-gdpr-user-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Initiating GDPR erasure request for test user: ${TEST_USER_ID}..."
 
-ERASURE_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+ERASURE_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/privacy/requests" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
@@ -43,7 +42,7 @@ ERASURE_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
     \"requestType\": \"erasure\",
     \"reason\": \"Synthetic monitor GDPR test\",
     \"isTest\": true
-  }")
+  }" 2>&1) || true
 
 REQUEST_ID=$(echo "${ERASURE_RESPONSE}" | jq -r '.requestId // .id // empty')
 if [[ -z "${REQUEST_ID}" ]]; then

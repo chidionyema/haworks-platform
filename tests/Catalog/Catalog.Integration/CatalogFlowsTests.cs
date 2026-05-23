@@ -213,7 +213,7 @@ public sealed class CatalogFlowsTests : IAsyncLifetime
     }
 
     private sealed record ProductDto(
-        Guid Id, string Name, string Description, decimal UnitPrice,
+        Guid Id, string Name, string Description, long UnitPriceCents,
         int StockQuantity, bool IsInStock, bool IsListed,
         Guid CategoryId, string? CategoryName);
 

@@ -11,10 +11,9 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
-  -X POST "${BASE_URL}/api/v1/authentication/service-token" \
-  -H "Content-Type: application/json" \
-  -d "{\"secret\": \"${SERVICE_SECRET}\"}")
+AUTH_RESPONSE=$(curl -s --max-time 10 \
+  -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/service-token" \
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
 
 TOKEN=$(echo "${AUTH_RESPONSE}" | jq -r '.token // .accessToken // empty')
 if [[ -z "${TOKEN}" ]]; then
@@ -31,7 +30,7 @@ UNIQUE_SLUG="synth-merchant-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Creating test merchant (slug: ${UNIQUE_SLUG})..."
 
 START_TIME=$(date +%s%N)
-CREATE_RESPONSE=$(curl -s --fail-with-body --max-time 5 \
+CREATE_RESPONSE=$(curl -s --max-time 5 \
   -X POST "${BASE_URL}/api/v1/merchants" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
@@ -40,7 +39,7 @@ CREATE_RESPONSE=$(curl -s --fail-with-body --max-time 5 \
     \"slug\": \"${UNIQUE_SLUG}\",
     \"email\": \"synth-${UNIQUE_SLUG}@test.haworks.dev\",
     \"isTest\": true
-  }")
+  }" 2>&1) || true
 END_TIME=$(date +%s%N)
 ELAPSED=$(echo "scale=2; (${END_TIME} - ${START_TIME}) / 1000000000" | bc -l)
 
@@ -59,7 +58,7 @@ log "OK: Merchant created in ${ELAPSED}s (id=${MERCHANT_ID})"
 
 # Phase 3: Verify merchant via GET
 log "Verifying merchant via GET..."
-GET_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+GET_RESPONSE=$(curl -s --max-time 10 \
   -H "${AUTH_HEADER}" \
   "${BASE_URL}/api/v1/merchants/${MERCHANT_ID}")
 

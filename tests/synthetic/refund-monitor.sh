@@ -13,10 +13,9 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
-  -X POST "${BASE_URL}/api/v1/authentication/service-token" \
-  -H "Content-Type: application/json" \
-  -d "{\"secret\": \"${SERVICE_SECRET}\"}")
+AUTH_RESPONSE=$(curl -s --max-time 10 \
+  -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/service-token" \
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
 
 TOKEN=$(echo "${AUTH_RESPONSE}" | jq -r '.token // .accessToken // empty')
 if [[ -z "${TOKEN}" ]]; then
@@ -32,7 +31,7 @@ AUTH_HEADER="Authorization: Bearer ${TOKEN}"
 IDEMPOTENCY_KEY="synth-refund-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Creating refund request (idempotency key: ${IDEMPOTENCY_KEY})..."
 
-REFUND_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
+REFUND_RESPONSE=$(curl -s --max-time 10 \
   -X POST "${BASE_URL}/api/v1/refunds" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
@@ -42,7 +41,7 @@ REFUND_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
     "amountCents": 100,
     "reason": "synthetic_monitor_test",
     "isTest": true
-  }')
+  }' 2>&1) || true
 
 REFUND_ID=$(echo "${REFUND_RESPONSE}" | jq -r '.refundId // .id // empty')
 if [[ -z "${REFUND_ID}" ]]; then

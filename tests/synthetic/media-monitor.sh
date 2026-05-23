@@ -11,10 +11,9 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
-  -X POST "${BASE_URL}/api/v1/authentication/service-token" \
-  -H "Content-Type: application/json" \
-  -d "{\"secret\": \"${SERVICE_SECRET}\"}")
+AUTH_RESPONSE=$(curl -s --max-time 10 \
+  -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/service-token" \
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
 
 TOKEN=$(echo "${AUTH_RESPONSE}" | jq -r '.token // .accessToken // empty')
 if [[ -z "${TOKEN}" ]]; then
@@ -30,7 +29,7 @@ AUTH_HEADER="Authorization: Bearer ${TOKEN}"
 log "Initiating media upload..."
 
 START_TIME=$(date +%s%N)
-UPLOAD_RESPONSE=$(curl -s --fail-with-body --max-time 5 \
+UPLOAD_RESPONSE=$(curl -s --max-time 5 \
   -X POST "${BASE_URL}/api/v1/media/upload/initiate" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
@@ -39,7 +38,7 @@ UPLOAD_RESPONSE=$(curl -s --fail-with-body --max-time 5 \
     "contentType": "image/png",
     "fileSizeBytes": 1024,
     "isTest": true
-  }')
+  }' 2>&1) || true
 END_TIME=$(date +%s%N)
 ELAPSED=$(echo "scale=2; (${END_TIME} - ${START_TIME}) / 1000000000" | bc -l)
 

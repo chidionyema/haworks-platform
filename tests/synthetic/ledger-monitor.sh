@@ -11,10 +11,9 @@ log "Target: ${BASE_URL}"
 
 # Phase 1: Authenticate
 log "Authenticating via service token..."
-AUTH_RESPONSE=$(curl -s --fail-with-body --max-time 10 \
-  -X POST "${BASE_URL}/api/v1/authentication/service-token" \
-  -H "Content-Type: application/json" \
-  -d "{\"secret\": \"${SERVICE_SECRET}\"}")
+AUTH_RESPONSE=$(curl -s --max-time 10 \
+  -X POST "${IDENTITY_URL:-https://haworks-identity.fly.dev}/api/v1/authentication/service-token" \
+  -H "X-Service-Secret: ${SERVICE_SECRET}" 2>&1) || true
 
 TOKEN=$(echo "${AUTH_RESPONSE}" | jq -r '.token // .accessToken // empty')
 if [[ -z "${TOKEN}" ]]; then
@@ -43,7 +42,7 @@ IDEMPOTENCY_KEY="synth-ledger-$(date -u +%Y%m%d%H%M%S)-$$"
 log "Crediting ledger with ${CREDIT_AMOUNT} cents (idempotency key: ${IDEMPOTENCY_KEY})..."
 
 START_TIME=$(date +%s%N)
-CREDIT_RESPONSE=$(curl -s --fail-with-body --max-time 5 \
+CREDIT_RESPONSE=$(curl -s --max-time 5 \
   -X POST "${BASE_URL}/api/v1/payouts/ledger/credit" \
   -H "${AUTH_HEADER}" \
   -H "Content-Type: application/json" \
@@ -54,7 +53,7 @@ CREDIT_RESPONSE=$(curl -s --fail-with-body --max-time 5 \
     \"currency\": \"usd\",
     \"description\": \"Synthetic monitor test credit\",
     \"isTest\": true
-  }")
+  }" 2>&1) || true
 END_TIME=$(date +%s%N)
 ELAPSED=$(echo "scale=2; (${END_TIME} - ${START_TIME}) / 1000000000" | bc -l)
 
@@ -67,7 +66,7 @@ log "OK: Ledger credited in ${ELAPSED}s"
 # Phase 4: Verify updated balance
 log "Verifying updated balance..."
 START_TIME=$(date +%s%N)
-BALANCE_AFTER_RESPONSE=$(curl -s --fail-with-body --max-time 5 \
+BALANCE_AFTER_RESPONSE=$(curl -s --max-time 5 \
   -H "${AUTH_HEADER}" \
   "${BASE_URL}/api/v1/payouts/ledger/balance/${SELLER_ID}")
 END_TIME=$(date +%s%N)

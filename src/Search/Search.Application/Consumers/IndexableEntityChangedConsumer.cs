@@ -152,7 +152,8 @@ public sealed class CdcSearchIndexWorker(
         var id = Guid.Parse(after.GetProperty("id").GetString()!);
         var name = after.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
         var description = after.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "";
-        var price = after.TryGetProperty("unit_price", out var p) ? p.GetDecimal() : 0;
+        var priceCents = after.TryGetProperty("unit_price_cents", out var p) ? p.GetInt64() : 0L;
+        var price = (decimal)priceCents / 100m;
         var categoryId = after.TryGetProperty("category_id", out var c) ? c.GetString() ?? "" : "";
 
         var doc = ProductSearchDocumentProjector.From(
