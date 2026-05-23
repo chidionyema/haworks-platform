@@ -21,6 +21,7 @@ jobs:
 
       - name: Run health monitor
         run: |
+          set -o pipefail
           chmod +x tests/synthetic/health-monitor.sh
           tests/synthetic/health-monitor.sh 2>&1 | tee /tmp/health-output.txt
         env:
@@ -51,6 +52,7 @@ jobs:
 
       - name: Run search monitor
         run: |
+          set -o pipefail
           chmod +x tests/synthetic/search-monitor.sh
           tests/synthetic/search-monitor.sh 2>&1 | tee /tmp/search-output.txt
         env:
@@ -83,6 +85,7 @@ jobs:
 
       - name: Run checkout monitor
         run: |
+          set -o pipefail
           chmod +x tests/synthetic/checkout-monitor.sh
           tests/synthetic/checkout-monitor.sh 2>&1 | tee /tmp/checkout-output.txt
         env:
@@ -116,6 +119,7 @@ jobs:
 
       - name: Run payment webhook monitor
         run: |
+          set -o pipefail
           chmod +x tests/synthetic/payment-webhook-monitor.sh
           tests/synthetic/payment-webhook-monitor.sh 2>&1 | tee /tmp/payment-output.txt
         env:
@@ -150,6 +154,7 @@ jobs:
 
       - name: Run identity monitor
         run: |
+          set -o pipefail
           chmod +x tests/synthetic/identity-monitor.sh
           tests/synthetic/identity-monitor.sh 2>&1 | tee /tmp/identity-output.txt
         env:
@@ -183,6 +188,7 @@ jobs:
 
       - name: Run notification monitor
         run: |
+          set -o pipefail
           chmod +x tests/synthetic/notification-monitor.sh
           tests/synthetic/notification-monitor.sh 2>&1 | tee /tmp/notification-output.txt
         env:
