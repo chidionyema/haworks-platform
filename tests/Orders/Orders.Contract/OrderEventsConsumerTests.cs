@@ -42,14 +42,14 @@ public sealed class OrderEventsConsumerTests
                 occurredAt    = "2026-05-03T12:00:00Z",
                 orderId       = "11111111-1111-1111-1111-111111111111",
                 customerId    = "22222222-2222-2222-2222-222222222222",
-                totalAmount   = 25.50m,
-                customerEmail = "buyer@example.com",
+                totalAmountCents = 2550L,
+                customerEmail    = "buyer@example.com",
             })
             .VerifyAsync<OrderCreatedEvent>(evt =>
             {
                 evt.OrderId.Should().Be(Guid.Parse("11111111-1111-1111-1111-111111111111"));
                 evt.CustomerId.Should().Be(Guid.Parse("22222222-2222-2222-2222-222222222222"));
-                evt.TotalAmount.Should().Be(25.50m);
+                evt.TotalAmountCents.Should().Be(2550L);
                 evt.CustomerEmail.Should().Be("buyer@example.com");
                 return Task.CompletedTask;
             });
@@ -67,17 +67,17 @@ public sealed class OrderEventsConsumerTests
                 occurredAt    = "2026-05-03T12:05:00Z",
                 orderId       = "11111111-1111-1111-1111-111111111111",
                 customerId    = "22222222-2222-2222-2222-222222222222",
-                totalAmount   = 25.50m,
-                customerEmail = "buyer@example.com",
-                completedAt   = "2026-05-03T12:05:00Z",
-                paymentId     = "33333333-3333-3333-3333-333333333333",
+                totalAmountCents = 2550L,
+                customerEmail    = "buyer@example.com",
+                completedAt      = "2026-05-03T12:05:00Z",
+                paymentId        = "33333333-3333-3333-3333-333333333333",
             })
             .VerifyAsync<OrderCompletedEvent>(evt =>
             {
                 evt.OrderId.Should().Be(Guid.Parse("11111111-1111-1111-1111-111111111111"));
                 evt.CustomerId.Should().Be(Guid.Parse("22222222-2222-2222-2222-222222222222"));
                 evt.PaymentId.Should().Be(Guid.Parse("33333333-3333-3333-3333-333333333333"));
-                evt.TotalAmount.Should().Be(25.50m);
+                evt.TotalAmountCents.Should().Be(2550L);
                 evt.CustomerEmail.Should().Be("buyer@example.com");
                 return Task.CompletedTask;
             });

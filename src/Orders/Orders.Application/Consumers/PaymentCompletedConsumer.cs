@@ -70,7 +70,7 @@ public sealed class PaymentCompletedConsumer(
         {
             OrderId = order.Id,
             CustomerId = TryParseGuid(order.UserId),
-            TotalAmount = order.TotalAmount,
+            TotalAmountCents = order.TotalAmountCents,
             CustomerEmail = order.CustomerEmail,
             CompletedAt = order.LastModifiedDate ?? DateTime.UtcNow,
             PaymentId = evt.PaymentId,

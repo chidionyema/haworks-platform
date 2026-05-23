@@ -8,9 +8,9 @@ namespace Haworks.Payouts.Application.Ledger.Services;
 
 public interface ILedgerService
 {
-    Task CreditSellerAsync(Guid sellerId, decimal amount, string currency, Guid referenceId, string description, CancellationToken ct = default);
-    Task DebitSellerAsync(Guid sellerId, decimal amount, string currency, Guid referenceId, string description, CancellationToken ct = default);
-    Task<decimal> GetBalanceAsync(Guid sellerId, AccountType type, string currency, CancellationToken ct = default);
+    Task CreditSellerAsync(Guid sellerId, long amountCents, string currency, Guid referenceId, string description, CancellationToken ct = default);
+    Task DebitSellerAsync(Guid sellerId, long amountCents, string currency, Guid referenceId, string description, CancellationToken ct = default);
+    Task<long> GetBalanceAsync(Guid sellerId, AccountType type, string currency, CancellationToken ct = default);
     Task<bool> HasCreditForReferenceAsync(Guid referenceId, CancellationToken ct = default);
 }
 
@@ -44,9 +44,9 @@ public class LedgerService : ILedgerService
     /// When called from HTTP/MediatR (no ambient tx), the caller is responsible for
     /// wrapping in a transaction if needed.
     /// </summary>
-    public async Task CreditSellerAsync(Guid sellerId, decimal amount, string currency, Guid referenceId, string description, CancellationToken ct = default)
+    public async Task CreditSellerAsync(Guid sellerId, long amountCents, string currency, Guid referenceId, string description, CancellationToken ct = default)
     {
-        if (amount <= 0) throw new ArgumentException("Amount must be positive", nameof(amount));
+        if (amountCents <= 0) throw new ArgumentException("Amount must be positive", nameof(amountCents));
 
         var alreadyProcessed = await _context.LedgerEntries
             .AnyAsync(e => e.ReferenceId == referenceId.ToString(), ct);
@@ -58,8 +58,9 @@ public class LedgerService : ILedgerService
 
         var profile = await _context.SellerProfiles.Where(p => p.SellerId == sellerId).FirstOrDefaultAsync(ct);
         var commissionRate = profile?.CommissionPercentage ?? 10.00m;
-        var commission = Math.Round(amount * commissionRate / 100m, 2, MidpointRounding.AwayFromZero);
-        var sellerAmount = amount - commission;
+        // Integer arithmetic: commission in cents, truncated toward zero (platform keeps remainder)
+        var commissionCents = (long)(amountCents * commissionRate / 100m);
+        var sellerAmountCents = amountCents - commissionCents;
 
         var transactionId = Guid.CreateVersion7();
         var sellerAccount = await GetOrCreateAccountWithLock(sellerId, AccountType.SellerPending, currency, ct);
@@ -70,35 +71,35 @@ public class LedgerService : ILedgerService
         // All three balances increase when a payment arrives.
         // UpdateBalance uses Credit=add, Debit=subtract for running balances.
         // LedgerEntry.Type records the accounting classification:
-        //   Debit PlatformHolding (asset increase) = $amount
-        //   Credit SellerPending (liability increase) = $sellerAmount
-        //   Credit PlatformRevenue (revenue increase) = $commission
-        // Invariant: Total Debits == Total Credits ($amount == $sellerAmount + $commission)
-        platformHoldingAccount.UpdateBalance(amount, EntryType.Credit);
-        sellerAccount.UpdateBalance(sellerAmount, EntryType.Credit);
-        platformRevenueAccount.UpdateBalance(commission, EntryType.Credit);
+        //   Debit PlatformHolding (asset increase) = amountCents
+        //   Credit SellerPending (liability increase) = sellerAmountCents
+        //   Credit PlatformRevenue (revenue increase) = commissionCents
+        // Invariant: Total Debits == Total Credits (amountCents == sellerAmountCents + commissionCents)
+        platformHoldingAccount.UpdateBalance(amountCents, EntryType.Credit);
+        sellerAccount.UpdateBalance(sellerAmountCents, EntryType.Credit);
+        platformRevenueAccount.UpdateBalance(commissionCents, EntryType.Credit);
 
         var refId = referenceId.ToString();
         _context.LedgerEntries.AddRange(
-            LedgerEntry.Create(platformHoldingAccount.Id, transactionId, amount, EntryType.Debit, description, refId),
-            LedgerEntry.Create(sellerAccount.Id, transactionId, sellerAmount, EntryType.Credit, description, refId),
-            LedgerEntry.Create(platformRevenueAccount.Id, transactionId, commission, EntryType.Credit, $"Commission: {description}", refId));
+            LedgerEntry.Create(platformHoldingAccount.Id, transactionId, amountCents, EntryType.Debit, description, refId),
+            LedgerEntry.Create(sellerAccount.Id, transactionId, sellerAmountCents, EntryType.Credit, description, refId),
+            LedgerEntry.Create(platformRevenueAccount.Id, transactionId, commissionCents, EntryType.Credit, $"Commission: {description}", refId));
 
         // DO NOT call SaveChangesAsync here when running inside a MassTransit consumer.
         // The EF Outbox commits all changes atomically.
         // When called from non-consumer code (e.g. MatureFundsCommand), the caller manages the transaction.
 
-        _logger.LogInformation("Ledger credit for seller {SellerId}: amount={Amount}, commission={Commission}, seller={SellerAmount}, ref={ReferenceId}",
-            sellerId, amount, commission, sellerAmount, referenceId);
+        _logger.LogInformation("Ledger credit for seller {SellerId}: amountCents={AmountCents}, commissionCents={CommissionCents}, sellerCents={SellerCents}, ref={ReferenceId}",
+            sellerId, amountCents, commissionCents, sellerAmountCents, referenceId);
     }
 
     /// <summary>
     /// Reverses a seller credit (e.g., on refund). Idempotent by referenceId.
     /// Same transaction rules as CreditSellerAsync — no nested transactions.
     /// </summary>
-    public async Task DebitSellerAsync(Guid sellerId, decimal amount, string currency, Guid referenceId, string description, CancellationToken ct = default)
+    public async Task DebitSellerAsync(Guid sellerId, long amountCents, string currency, Guid referenceId, string description, CancellationToken ct = default)
     {
-        if (amount <= 0) throw new ArgumentException("Amount must be positive", nameof(amount));
+        if (amountCents <= 0) throw new ArgumentException("Amount must be positive", nameof(amountCents));
 
         var refId = $"REFUND:{referenceId}";
 
@@ -111,8 +112,8 @@ public class LedgerService : ILedgerService
 
         var profile = await _context.SellerProfiles.Where(p => p.SellerId == sellerId).FirstOrDefaultAsync(ct);
         var commissionRate = profile?.CommissionPercentage ?? 10.00m;
-        var commission = Math.Round(amount * commissionRate / 100m, 2, MidpointRounding.AwayFromZero);
-        var sellerAmount = amount - commission;
+        var commissionCents = (long)(amountCents * commissionRate / 100m);
+        var sellerAmountCents = amountCents - commissionCents;
 
         var transactionId = Guid.CreateVersion7();
 
@@ -139,16 +140,16 @@ public class LedgerService : ILedgerService
         }
 
         // Reverse the credit (balanced double-entry):
-        sellerAccount.UpdateBalance(sellerAmount, EntryType.Debit);
-        platformRevenueAccount.UpdateBalance(commission, EntryType.Debit);
-        platformHoldingAccount.UpdateBalance(amount, EntryType.Debit);
+        sellerAccount.UpdateBalance(sellerAmountCents, EntryType.Debit);
+        platformRevenueAccount.UpdateBalance(commissionCents, EntryType.Debit);
+        platformHoldingAccount.UpdateBalance(amountCents, EntryType.Debit);
 
         _context.LedgerEntries.AddRange(
-            LedgerEntry.Create(sellerAccount.Id, transactionId, sellerAmount, EntryType.Debit, description, refId),
-            LedgerEntry.Create(platformRevenueAccount.Id, transactionId, commission, EntryType.Debit, $"Commission reversal: {description}", refId),
-            LedgerEntry.Create(platformHoldingAccount.Id, transactionId, amount, EntryType.Credit, description, refId));
+            LedgerEntry.Create(sellerAccount.Id, transactionId, sellerAmountCents, EntryType.Debit, description, refId),
+            LedgerEntry.Create(platformRevenueAccount.Id, transactionId, commissionCents, EntryType.Debit, $"Commission reversal: {description}", refId),
+            LedgerEntry.Create(platformHoldingAccount.Id, transactionId, amountCents, EntryType.Credit, description, refId));
 
-        _logger.LogInformation("Ledger debit for seller {SellerId}: amount={Amount}, ref={ReferenceId}", sellerId, amount, referenceId);
+        _logger.LogInformation("Ledger debit for seller {SellerId}: amountCents={AmountCents}, ref={ReferenceId}", sellerId, amountCents, referenceId);
     }
 
     public Task<bool> HasCreditForReferenceAsync(Guid referenceId, CancellationToken ct = default)
@@ -156,13 +157,13 @@ public class LedgerService : ILedgerService
         return _context.LedgerEntries.AnyAsync(e => e.ReferenceId == referenceId.ToString(), ct);
     }
 
-    public async Task<decimal> GetBalanceAsync(Guid sellerId, AccountType type, string currency, CancellationToken ct = default)
+    public async Task<long> GetBalanceAsync(Guid sellerId, AccountType type, string currency, CancellationToken ct = default)
     {
         var account = await _context.LedgerAccounts
             .AsNoTracking()
             .Where(a => a.OwnerId == sellerId && a.Type == type && a.Currency == currency)
             .FirstOrDefaultAsync(ct);
-        return account?.Balance ?? 0;
+        return account?.BalanceCents ?? 0;
     }
 
     /// <summary>

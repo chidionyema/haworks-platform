@@ -36,8 +36,9 @@ public class EventFanOutConsumerTests
         {
             OrderId = orderId,
             CustomerId = Guid.NewGuid(),
-            TotalAmount = 100,
-            CustomerEmail = "test@example.com"
+            TotalAmountCents = 10000L,
+            CustomerEmail = "test@example.com",
+            Currency = "USD"
         };
 
         var mockContext = new Mock<ConsumeContext<OrderCreatedEvent>>();

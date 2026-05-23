@@ -35,7 +35,7 @@ public class LedgerController(IMediator mediator) : ControllerBase
         }
 
         var balance = await mediator.Send(new GetBalanceQuery(ownerId, type, currency), ct);
-        return Ok(new { Balance = balance, Currency = currency });
+        return Ok(new { BalanceCents = balance, Currency = currency });
     }
 }
 
@@ -66,20 +66,20 @@ public sealed class DemoLedgerController(IPayoutsDbContext db) : ControllerBase
 
         db.LedgerAccounts.Add(account);
 
-        // Credit: payment received
-        var paymentAmount = Math.Round(request.AmountCents / 100m, 2, MidpointRounding.AwayFromZero);
-        account.UpdateBalance(paymentAmount, Haworks.Payouts.Domain.Enums.EntryType.Credit);
+        // Credit: payment received (already in cents from request)
+        var paymentCents = request.AmountCents;
+        account.UpdateBalance(paymentCents, Haworks.Payouts.Domain.Enums.EntryType.Credit);
         var creditEntry = Haworks.Payouts.Domain.Aggregates.LedgerEntry.Create(
-            account.Id, txId, paymentAmount,
+            account.Id, txId, paymentCents,
             Haworks.Payouts.Domain.Enums.EntryType.Credit,
             "Payment received", $"ORDER:{Guid.NewGuid():N}");
         db.LedgerEntries.Add(creditEntry);
 
         // Debit: platform commission (10%)
-        var commission = Math.Round(paymentAmount * 0.10m, 2, MidpointRounding.AwayFromZero);
-        account.UpdateBalance(commission, Haworks.Payouts.Domain.Enums.EntryType.Debit);
+        var commissionCents = paymentCents / 10;
+        account.UpdateBalance(commissionCents, Haworks.Payouts.Domain.Enums.EntryType.Debit);
         var debitEntry = Haworks.Payouts.Domain.Aggregates.LedgerEntry.Create(
-            account.Id, txId, commission,
+            account.Id, txId, commissionCents,
             Haworks.Payouts.Domain.Enums.EntryType.Debit,
             "Platform commission (10%)", $"COMMISSION:{txId:N}");
         db.LedgerEntries.Add(debitEntry);
@@ -90,11 +90,11 @@ public sealed class DemoLedgerController(IPayoutsDbContext db) : ControllerBase
         {
             sellerId,
             accountId = account.Id,
-            balance = account.Balance,
+            balanceCents = account.BalanceCents,
             entries = new[]
             {
-                new { type = "credit", amount = paymentAmount, description = creditEntry.Description, reference = creditEntry.ReferenceId },
-                new { type = "debit", amount = commission, description = debitEntry.Description, reference = debitEntry.ReferenceId },
+                new { type = "credit", amountCents = paymentCents, description = creditEntry.Description, reference = creditEntry.ReferenceId },
+                new { type = "debit", amountCents = commissionCents, description = debitEntry.Description, reference = debitEntry.ReferenceId },
             },
             invariant = "Sum of all entries = 0 (credit - debit balanced)",
         });

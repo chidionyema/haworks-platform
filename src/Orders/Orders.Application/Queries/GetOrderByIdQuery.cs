@@ -29,12 +29,12 @@ internal sealed class GetOrderByIdQueryHandler(IOrderRepository orders)
         order.UserId,
         order.SagaId,
         order.CustomerEmail,
-        order.TotalAmount,
+        order.TotalAmountCents,
         order.Currency,
         order.Status.ToString(),
         order.PaymentId,
         order.AbandonReason,
         order.CreatedAt,
         order.Items.Select(i => new OrderItemDto(
-            i.Id, i.ProductId, i.ProductName, i.Quantity, i.UnitPrice, i.LineTotal)).ToList());
+            i.Id, i.ProductId, i.ProductName, i.Quantity, i.UnitPriceCents, i.LineTotalCents)).ToList());
 }

@@ -41,8 +41,9 @@ public sealed class EndToEndCaptureTests
         {
             OrderId = orderId,
             CustomerId = Guid.NewGuid(),
-            TotalAmount = 99.99m,
-            CustomerEmail = "test@example.com"
+            TotalAmountCents = 9999L,
+            CustomerEmail = "test@example.com",
+            Currency = "USD"
         });
 
         // 2. PaymentCompletedEvent

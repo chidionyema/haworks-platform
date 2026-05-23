@@ -396,12 +396,12 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
 
     private sealed record OrderDtoForTests(
         Guid Id, string UserId, Guid SagaId, string CustomerEmail,
-        decimal TotalAmount, string Currency, string Status,
+        long TotalAmountCents, string Currency, string Status,
         Guid? PaymentId, string? AbandonReason, DateTime CreatedAt,
         IReadOnlyList<OrderItemDtoForTests> Items);
 
     private sealed record OrderItemDtoForTests(
-        Guid Id, Guid ProductId, string ProductName, int Quantity, decimal UnitPrice, decimal LineTotal);
+        Guid Id, Guid ProductId, string ProductName, int Quantity, long UnitPriceCents, long LineTotalCents);
 
     private sealed record PagedResultForTests(IReadOnlyList<OrderDtoForTests> Items, int Total, int Skip, int Take);
 }

@@ -16,8 +16,8 @@ public sealed record OrderCompletedEvent : DomainEvent
     /// <summary>The customer who placed the order (null for guest orders).</summary>
     public Guid? CustomerId { get; init; }
 
-    /// <summary>The total amount of the order.</summary>
-    public required decimal TotalAmount { get; init; }
+    /// <summary>The total amount of the order in minor units (cents).</summary>
+    public required long TotalAmountCents { get; init; }
 
     /// <summary>The customer's email for notifications.</summary>
     public required string CustomerEmail { get; init; }

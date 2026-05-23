@@ -49,7 +49,7 @@ public class OrdersControllerTests : TestBase
     {
         var orderId = Guid.NewGuid();
         var userId = "user-123";
-        var orderDto = new OrderDto(orderId, userId, Guid.NewGuid(), "email", 100m, "USD", "Pending", null, null, DateTime.UtcNow, new List<OrderItemDto>());
+        var orderDto = new OrderDto(orderId, userId, Guid.NewGuid(), "email", 10_000L, "USD", "Pending", null, null, DateTime.UtcNow, new List<OrderItemDto>());
 
         SetupHttpContext(forwardedUserId: userId);
 
@@ -65,7 +65,7 @@ public class OrdersControllerTests : TestBase
         var response = Assert.IsType<OrderDto>(okResult.Value);
         Assert.Equal(orderId, response.Id);
         Assert.Equal(userId, response.UserId);
-        Assert.Equal(100m, response.TotalAmount);
+        Assert.Equal(10_000L, response.TotalAmountCents);
         Assert.Equal("Pending", response.Status);
     }
 

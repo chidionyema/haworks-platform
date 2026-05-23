@@ -16,12 +16,13 @@ public class ReflectionAuditExtractorTests
     {
         // Arrange
         var extractor = new ReflectionAuditExtractor<OrderCreatedEvent>();
-        var evt = new OrderCreatedEvent 
-        { 
+        var evt = new OrderCreatedEvent
+        {
             OrderId = Guid.NewGuid(),
             CustomerId = Guid.NewGuid(),
-            TotalAmount = 100m,
+            TotalAmountCents = 10000L,
             CustomerEmail = "test@example.com",
+            Currency = "USD",
             OccurredAt = DateTime.UtcNow
         };
         var contextMock = new Mock<ConsumeContext<OrderCreatedEvent>>();

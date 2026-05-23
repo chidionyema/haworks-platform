@@ -30,7 +30,7 @@ public class DisbursementService : IDisbursementService
 
         var eligibleAccounts = await _context.LedgerAccounts
             .AsNoTracking()
-            .Where(a => a.Type == AccountType.SellerPayable && a.Balance > 0)
+            .Where(a => a.Type == AccountType.SellerPayable && a.BalanceCents > 0)
             .OrderBy(a => a.Id)
             .Take(500)
             .ToListAsync(ct);
@@ -45,7 +45,7 @@ public class DisbursementService : IDisbursementService
         var payoutTasks = eligibleAccounts
             .Where(account => profiles.TryGetValue(account.OwnerId, out var p) &&
                               p.PayoutsEnabled && !string.IsNullOrEmpty(p.ExternalProviderId) &&
-                              account.Balance >= p.PayoutThreshold)
+                              account.BalanceCents >= p.PayoutThresholdCents)
             .Select(account => (account.Id, profiles[account.OwnerId]));
 
         var payoutList = payoutTasks.ToList();
@@ -64,7 +64,7 @@ public class DisbursementService : IDisbursementService
         var dbContext = (Microsoft.EntityFrameworkCore.DbContext)_context;
         var strategy = dbContext.Database.CreateExecutionStrategy();
 
-        var payoutAmount = 0m;
+        long payoutAmountCents = 0;
         Guid? payoutId = null;
         var currency = string.Empty;
         // H2 Fix: Use payoutId (generated in Phase 1) in the idempotency key.
@@ -87,28 +87,28 @@ public class DisbursementService : IDisbursementService
                 .FirstAsync(innerCt);
 #pragma warning restore HWK054
 
-            if (account.Balance <= 0 || account.Balance < profile.PayoutThreshold)
+            if (account.BalanceCents <= 0 || account.BalanceCents < profile.PayoutThresholdCents)
             {
                 _logger.LogDebug(
-                    "Skipping payout for seller {SellerId}: balance={Balance}, threshold={Threshold}",
-                    profile.SellerId, account.Balance, profile.PayoutThreshold);
+                    "Skipping payout for seller {SellerId}: balanceCents={BalanceCents}, thresholdCents={ThresholdCents}",
+                    profile.SellerId, account.BalanceCents, profile.PayoutThresholdCents);
                 await tx.RollbackAsync(innerCt);
                 return;
             }
 
-            payoutAmount = account.Balance;
+            payoutAmountCents = account.BalanceCents;
             currency = account.Currency;
 
-            var payout = Payout.Create(profile.SellerId, payoutAmount, currency);
+            var payout = Payout.Create(profile.SellerId, payoutAmountCents, currency);
             payoutId = payout.Id;
             _context.Payouts.Add(payout);
 
             _logger.LogInformation(
-                "Phase 1 complete: payout reserved. PayoutId={PayoutId}, SellerId={SellerId}, Amount={Amount} {Currency}",
-                payout.Id, profile.SellerId, payoutAmount, currency);
+                "Phase 1 complete: payout reserved. PayoutId={PayoutId}, SellerId={SellerId}, AmountCents={AmountCents} {Currency}",
+                payout.Id, profile.SellerId, payoutAmountCents, currency);
 
-            account.UpdateBalance(payoutAmount, EntryType.Debit);
-            var entry = LedgerEntry.Create(account.Id, Guid.NewGuid(), payoutAmount, EntryType.Debit, "Payout initiated", payout.Id.ToString());
+            account.UpdateBalance(payoutAmountCents, EntryType.Debit);
+            var entry = LedgerEntry.Create(account.Id, Guid.NewGuid(), payoutAmountCents, EntryType.Debit, "Payout initiated", payout.Id.ToString());
             _context.LedgerEntries.Add(entry);
 
             await _context.SaveChangesAsync(CancellationToken.None);
@@ -130,8 +130,9 @@ public class DisbursementService : IDisbursementService
 
         try
         {
+            // Gateway expects cents (Stripe uses smallest currency unit)
             var (gatewayExternalId, status) = await _payoutGateway.InitiatePayoutAsync(
-                profile.ExternalProviderId!, payoutAmount, currency, $"Payout for {profile.SellerId}",
+                profile.ExternalProviderId!, payoutAmountCents, currency, $"Payout for {profile.SellerId}",
                 idempotencyKey, ct);
 
             isSuccess = status is PayoutStatus.Succeeded or PayoutStatus.InTransit;
@@ -176,8 +177,8 @@ public class DisbursementService : IDisbursementService
                     .FirstAsync(innerCt);
 #pragma warning restore HWK054
 
-                account.UpdateBalance(payoutAmount, EntryType.Credit);
-                var entry = LedgerEntry.Create(account.Id, Guid.NewGuid(), payoutAmount, EntryType.Credit, "Payout failed — refund", payout.Id.ToString());
+                account.UpdateBalance(payoutAmountCents, EntryType.Credit);
+                var entry = LedgerEntry.Create(account.Id, Guid.NewGuid(), payoutAmountCents, EntryType.Credit, "Payout failed — refund", payout.Id.ToString());
                 _context.LedgerEntries.Add(entry);
 
                 _logger.LogWarning(

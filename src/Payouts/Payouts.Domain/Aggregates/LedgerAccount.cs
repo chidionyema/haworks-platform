@@ -8,23 +8,23 @@ public sealed class LedgerAccount : AuditableEntity
     public required Guid OwnerId { get; init; } // System Guid or Seller Guid
     public required AccountType Type { get; init; }
     public required string Currency { get; init; }
-    public decimal Balance { get; private set; }
+    public long BalanceCents { get; private set; }
 
-    public void UpdateBalance(decimal amount, EntryType entryType)
+    public void UpdateBalance(long amountCents, EntryType entryType)
     {
-        if (amount < 0) throw new ArgumentException("Amount must be non-negative", nameof(amount));
+        if (amountCents < 0) throw new ArgumentException("Amount must be non-negative", nameof(amountCents));
 
         if (entryType == EntryType.Credit)
         {
-            Balance += amount;
+            BalanceCents += amountCents;
         }
         else
         {
-            if (Balance < amount)
+            if (BalanceCents < amountCents)
             {
-                throw new InvalidOperationException($"Insufficient balance in ledger account {Id}. Available: {Balance}, Required: {amount}");
+                throw new InvalidOperationException($"Insufficient balance in ledger account {Id}. Available: {BalanceCents}, Required: {amountCents}");
             }
-            Balance -= amount;
+            BalanceCents -= amountCents;
         }
     }
 
@@ -36,7 +36,7 @@ public sealed class LedgerAccount : AuditableEntity
             OwnerId = ownerId,
             Type = type,
             Currency = currency,
-            Balance = 0
+            BalanceCents = 0
         };
     }
 }

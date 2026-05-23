@@ -9,7 +9,7 @@ public sealed class Payout : AuditableEntity
         [PayoutStatus.Succeeded, PayoutStatus.Failed, PayoutStatus.Cancelled];
 
     public required Guid SellerId { get; init; }
-    public required decimal Amount { get; init; }
+    public required long AmountCents { get; init; }
     public required string Currency { get; init; }
     // L2 Fix: Persist idempotency key so recovery jobs can retry with the same key
     public string? IdempotencyKey { get; set; }
@@ -58,10 +58,10 @@ public sealed class Payout : AuditableEntity
         ProcessedAt = DateTimeOffset.UtcNow;
     }
 
-    public static Payout Create(Guid sellerId, decimal amount, string currency, DateTimeOffset? scheduledFor = null)
+    public static Payout Create(Guid sellerId, long amountCents, string currency, DateTimeOffset? scheduledFor = null)
     {
-        if (amount <= 0)
-            throw new ArgumentException("Payout amount must be positive.", nameof(amount));
+        if (amountCents <= 0)
+            throw new ArgumentException("Payout amount must be positive.", nameof(amountCents));
 
         if (string.IsNullOrWhiteSpace(currency) || currency.Length != 3 || !currency.All(char.IsAsciiLetterUpper))
             throw new ArgumentException("Currency must be a 3-letter uppercase ISO code.", nameof(currency));
@@ -70,7 +70,7 @@ public sealed class Payout : AuditableEntity
         {
             Id = Guid.NewGuid(),
             SellerId = sellerId,
-            Amount = amount,
+            AmountCents = amountCents,
             Currency = currency,
             Status = PayoutStatus.Pending,
             ScheduledFor = scheduledFor ?? DateTimeOffset.UtcNow

@@ -35,31 +35,31 @@ public class LedgerIntegrationTests : IAsyncLifetime
     public async Task CreditSellerAsync_Should_Create_Double_Entry_And_Update_Balances()
     {
         var sellerId = Guid.NewGuid();
-        var amount = 100.00m;
+        var amountCents = 10000L;
         var currency = "USD";
-        await _ledgerService.CreditSellerAsync(sellerId, amount, currency, Guid.NewGuid(), "Test credit");
+        await _ledgerService.CreditSellerAsync(sellerId, amountCents, currency, Guid.NewGuid(), "Test credit");
         await _db.SaveChangesAsync(); // outbox handles this in production
         var sellerBalance = await _ledgerService.GetBalanceAsync(sellerId, AccountType.SellerPending, currency);
-        sellerBalance.Should().Be(90.00m); // 100 - 10% default commission
+        sellerBalance.Should().Be(9000L); // 10000 - 10% default commission
         var platformId = Guid.Parse("00000000-0000-0000-0000-000000000001");
         var platformBalance = await _ledgerService.GetBalanceAsync(platformId, AccountType.PlatformHolding, currency);
-        platformBalance.Should().Be(amount);
+        platformBalance.Should().Be(amountCents);
     }
 
     [Fact]
     public async Task CreditSellerAsync_deducts_commission()
     {
         var sellerId = Guid.NewGuid();
-        var amount = 200.00m;
+        var amountCents = 20000L;
         var currency = "USD";
-        await _ledgerService.CreditSellerAsync(sellerId, amount, currency, Guid.NewGuid(), "Commission test");
+        await _ledgerService.CreditSellerAsync(sellerId, amountCents, currency, Guid.NewGuid(), "Commission test");
         await _db.SaveChangesAsync(); // outbox handles this in production
 
         var sellerBalance = await _ledgerService.GetBalanceAsync(sellerId, AccountType.SellerPending, currency);
-        sellerBalance.Should().Be(180.00m); // 200 - 10% default commission = 180
+        sellerBalance.Should().Be(18000L); // 20000 - 10% default commission = 18000
 
         var platformId = Guid.Parse("00000000-0000-0000-0000-000000000001");
         var revenueBalance = await _ledgerService.GetBalanceAsync(platformId, AccountType.PlatformRevenue, currency);
-        revenueBalance.Should().BeGreaterThanOrEqualTo(20.00m); // 10% of 200; shared platform account accumulates across tests
+        revenueBalance.Should().BeGreaterThanOrEqualTo(2000L); // 10% of 20000; shared platform account accumulates across tests
     }
 }
