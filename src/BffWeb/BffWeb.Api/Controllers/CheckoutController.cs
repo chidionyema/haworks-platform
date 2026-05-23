@@ -31,6 +31,7 @@ namespace Haworks.BffWeb.Api.Controllers;
 [Authorize]
 public sealed class CheckoutController(
     IHttpClientFactory httpClientFactory,
+    Haworks.BuildingBlocks.Authentication.IServiceTokenProvider serviceTokenProvider,
     ILogger<CheckoutController> logger) : ControllerBase
 {
     [HttpPost]
@@ -73,7 +74,12 @@ public sealed class CheckoutController(
             body.IdempotencyKey ?? string.Empty);
 
         var client = httpClientFactory.CreateClient(BackendClients.Checkout);
-        var resp = await client.PostAsJsonAsync("/api/v1/checkouts", new
+
+        // Checkout-svc requires Roles=Service. The UserIdentityForwardingHandler
+        // forwards the user JWT which lacks this role. Override with service token.
+        var svcToken = await serviceTokenProvider.GetTokenAsync(ct);
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/checkouts");
+        req.Content = JsonContent.Create(new
         {
             sagaId,
             orderId,
@@ -82,7 +88,11 @@ public sealed class CheckoutController(
             totalAmount = body.TotalAmount,
             idempotencyKey,
             items = body.Items,
-        }, ct);
+        });
+        if (!string.IsNullOrEmpty(svcToken))
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", svcToken);
+        req.Headers.TryAddWithoutValidation("X-User-Id", userId);
+        var resp = await client.SendAsync(req, ct);
 
         if (!resp.IsSuccessStatusCode)
         {

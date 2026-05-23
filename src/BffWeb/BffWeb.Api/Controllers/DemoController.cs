@@ -128,6 +128,7 @@ public class DemoController : ControllerBase
                 ProductName = "Demo Widget",
                 Quantity = string.Equals(request.ScenarioType, "stockRace", StringComparison.Ordinal) ? 3 : 1,
                 UnitPrice = 39.99m,
+                Currency = "GBP",
             },
         };
 
