@@ -34,9 +34,16 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 
 var app = builder.Build();
 
-app.MigrateDatabase<Haworks.Orders.Infrastructure.OrderDbContext>();
-
-
+if (!app.Environment.IsEnvironment("Test"))
+{
+    var startupRunner = app.Services.GetRequiredService<StartupTaskRunner>();
+    startupRunner.AddTask(async (sp, ct) =>
+    {
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        await db.Database.MigrateAsync(ct);
+    });
+}
 
 app.MapDefaultEndpoints();
 
