@@ -64,6 +64,11 @@ jobs:
       - name: Build (no restore)
         run: dotnet build HaworksPlatform.sln --no-restore --configuration Release -m
 
+      - name: Migration drift check
+        run: |
+          dotnet tool restore
+          bash scripts/check-migration-drift.sh
+
       - name: Unit + Architecture + Contract tests with coverage
         run: |
           dotnet test HaworksPlatform.sln \

@@ -1245,6 +1245,41 @@ public sealed class PlatformGuardTests
     }
 
     [Fact]
+    public void Test_factories_must_use_MigrateAsync_not_EnsureCreatedAsync()
+    {
+        // EnsureCreatedAsync builds the schema from the current C# model, bypassing
+        // migrations. This hides migration drift: tests pass but production crashes
+        // with 42703 (missing column) when the migration doesn't include model changes.
+        // MigrateAsync exercises the actual migration path.
+        var testRoot = Path.Combine(Directory.GetParent(SrcRoot)!.FullName, "tests");
+        if (!Directory.Exists(testRoot)) return;
+        var violations = new List<string>();
+        foreach (var file in Directory.GetFiles(testRoot, "*Factory.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains("obj") && !f.Contains("bin")))
+        {
+            if (IsExcludedFromGuards(file)) continue;
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].TrimStart();
+                if (line.StartsWith("//") || line.StartsWith("*")) continue;
+                if (line.Contains("EnsureCreatedAsync"))
+                {
+                    violations.Add($"{Relative(file)}:{i + 1}: uses EnsureCreatedAsync — use MigrateAsync instead to catch migration drift");
+                }
+            }
+        }
+        if (violations.Count > 0)
+        {
+            // Warn-only until existing violations are resolved across all services.
+            // Tracked: Payments, Payouts, Scheduler, Privacy factories need MigrateAsync.
+            Console.WriteLine("⚠ EnsureCreatedAsync violations (hides migration drift):");
+            foreach (var v in violations)
+                Console.WriteLine($"  {v}");
+        }
+    }
+
+    [Fact]
     public void Test_factories_use_ConfigureTestServices_not_ConfigureServices()
     {
         var testRoot = Path.Combine(Directory.GetParent(SrcRoot)!.FullName, "tests");
