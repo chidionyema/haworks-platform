@@ -123,8 +123,8 @@ app.UseExceptionHandler(err => err.Run(async context =>
     await context.Response.WriteAsJsonAsync(new
     {
         error = "internal_server_error",
-        message = app.Environment.IsDevelopment() ? ex?.Message : "An unexpected error occurred.",
-        detail = app.Environment.IsDevelopment() ? ex?.ToString() : null
+        message = ex?.Message ?? "An unexpected error occurred.",
+        type = ex?.GetType().Name
     });
 }));
 
