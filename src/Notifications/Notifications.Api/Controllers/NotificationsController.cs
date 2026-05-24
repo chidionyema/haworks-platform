@@ -35,7 +35,7 @@ public sealed class NotificationsController(IMediator mediator, INotificationRep
         if (result.IsSuccess)
         {
             await _repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            return result.ToCreatedActionResult(nameof(Get), new { id = result.Value });
+            return CreatedAtAction(nameof(Get), new { id = result.Value }, new { notificationId = result.Value });
         }
         return result.ToActionResult();
     }
