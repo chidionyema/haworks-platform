@@ -41,7 +41,7 @@ public class PayoutsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifeti
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<PayoutsDbContext>();
         await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS payouts;");
-        await db.Database.EnsureCreatedAsync();
+        await db.Database.MigrateAsync();
     }
 
     public Task ResetDatabaseAsync() => _resetter!.ResetAsync();

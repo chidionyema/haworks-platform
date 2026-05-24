@@ -1269,14 +1269,9 @@ public sealed class PlatformGuardTests
                 }
             }
         }
-        if (violations.Count > 0)
-        {
-            // Warn-only until existing violations are resolved across all services.
-            // Tracked: Payments, Payouts, Scheduler, Privacy factories need MigrateAsync.
-            Console.WriteLine("⚠ EnsureCreatedAsync violations (hides migration drift):");
-            foreach (var v in violations)
-                Console.WriteLine($"  {v}");
-        }
+        violations.Should().BeEmpty(
+            "test factories must use MigrateAsync (not EnsureCreatedAsync) so integration tests " +
+            "exercise the actual migration path and catch missing columns/tables before production");
     }
 
     [Fact]

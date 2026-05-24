@@ -84,7 +84,7 @@ public sealed class PrivacyWebAppFactory : WebApplicationFactory<Program>, IAsyn
         try
         {
             await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS privacy;");
-            await db.Database.EnsureCreatedAsync();
+            await db.Database.MigrateAsync();
         }
         finally
         {

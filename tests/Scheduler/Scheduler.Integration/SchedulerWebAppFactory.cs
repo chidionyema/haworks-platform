@@ -40,7 +40,7 @@ public class SchedulerWebAppFactory : WebApplicationFactory<Program>, IAsyncLife
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
         await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS scheduler;");
-        await db.Database.EnsureCreatedAsync();
+        await db.Database.MigrateAsync();
     }
 
     public new Task DisposeAsync() => Task.CompletedTask;
@@ -64,7 +64,7 @@ public class SchedulerWebAppFactory : WebApplicationFactory<Program>, IAsyncLife
             services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
 
             // Remove the LeaseBootstrapStartupTask — it queries VaultLeases
-            // at startup before EnsureCreatedAsync can create the schema.
+            // at startup before MigrateAsync can create the schema.
             var descriptor = services.SingleOrDefault(d =>
                 d.ImplementationType == typeof(LeaseBootstrapStartupTask));
             if (descriptor != null) services.Remove(descriptor);
