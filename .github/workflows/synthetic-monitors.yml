@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run health monitor
         run: |
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run search monitor
         run: |
@@ -82,7 +82,7 @@ jobs:
     # Run every 15 minutes: only when the minute is 0, 15, 30, or 45
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run checkout monitor
         run: |
@@ -116,7 +116,7 @@ jobs:
     # Run every 15 minutes alongside checkout
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run payment webhook monitor
         run: |
@@ -151,7 +151,7 @@ jobs:
     # Run every 15 minutes — auth is critical path for everything
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run identity monitor
         run: |
@@ -185,7 +185,7 @@ jobs:
     # Run every 15 minutes
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run notification monitor
         run: |
