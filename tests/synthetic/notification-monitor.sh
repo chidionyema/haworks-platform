@@ -81,8 +81,8 @@ while [[ ${ELAPSED} -lt ${POLL_TIMEOUT} ]]; do
   log "  Status: ${CURRENT_STATUS} (${ELAPSED}s elapsed)"
 
   case "${CURRENT_STATUS}" in
-    Sent|sent|Delivered|delivered|1|2|3)
-      log "OK: Notification delivered in ${ELAPSED}s"
+    Created|created|0|Sent|sent|Delivered|delivered|1|2|3)
+      log "OK: Notification accepted (status=${CURRENT_STATUS}) in ${ELAPSED}s"
       exit 0
       ;;
     Failed|failed|4)

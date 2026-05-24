@@ -132,18 +132,12 @@ public class NotificationsWebAppFactory : WebApplicationFactory<Program>, IAsync
         });
     }
 
-    /// <summary>
-    /// Spec asks for MigrateAsync, but Notifications.Infrastructure has no
-    /// EF migrations checked in (only MigrationsAssembly is wired). Use
-    /// EnsureCreated against a fresh per-fixture database so the schema lands
-    /// in one shot — same pattern as PaymentsWebAppFactory.EnsureSchemaAsync.
-    /// </summary>
     public async Task EnsureSchemaAsync()
     {
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
         await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS notifications;");
-        await db.Database.EnsureCreatedAsync();
+        await db.Database.MigrateAsync();
 
         // Drop outbox/inbox tables — in-memory test harness doesn't use the EF
         // Outbox middleware. TestSaveChangesFilter handles SaveChanges instead.
