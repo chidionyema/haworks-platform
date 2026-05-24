@@ -54,7 +54,7 @@ public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
         await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS payments;");
-        await db.Database.EnsureCreatedAsync();
+        await db.Database.MigrateAsync();
         // Drop outbox/inbox tables — they cause MassTransit's saga PublishAsync to
         // route through the EF outbox pipeline which faults on ctx.Init<T>() in
         // the in-memory test harness. The saga tests publish directly via IBus.
