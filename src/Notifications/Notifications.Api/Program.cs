@@ -112,6 +112,22 @@ if (!app.Environment.IsEnvironment("Test"))
 
 app.MapDefaultEndpoints();
 
+app.UseExceptionHandler(err => err.Run(async context =>
+{
+    var ex = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("UnhandledException");
+    logger.LogError(ex, "Unhandled exception on {Method} {Path}", context.Request.Method, context.Request.Path);
+
+    context.Response.StatusCode = 500;
+    context.Response.ContentType = "application/json";
+    await context.Response.WriteAsJsonAsync(new
+    {
+        error = "internal_server_error",
+        message = app.Environment.IsDevelopment() ? ex?.Message : "An unexpected error occurred.",
+        detail = app.Environment.IsDevelopment() ? ex?.ToString() : null
+    });
+}));
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
