@@ -17,6 +17,7 @@ public sealed class PriceRule : AuditableEntity
     public int Priority { get; private set; }
     public DiscountType DiscountType { get; private set; }
     public decimal DiscountValue { get; private set; }
+    public string Currency { get; private set; } = "USD";
     public int MinimumQuantity { get; private set; }
     public int? MaximumQuantity { get; private set; }
     public DateTimeOffset? StartsAt { get; private set; }
@@ -41,8 +42,11 @@ public sealed class PriceRule : AuditableEntity
         int? maximumQuantity = null,
         DateTimeOffset? startsAt = null,
         DateTimeOffset? expiresAt = null,
-        string sellerTimezone = "America/New_York")
+        string sellerTimezone = "America/New_York",
+        string currency = "USD")
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(currency);
+
         if (productId is null && categoryId is null)
             throw new ArgumentException("ProductId and CategoryId cannot both be null.");
 
@@ -78,6 +82,7 @@ public sealed class PriceRule : AuditableEntity
             StartsAt = startsAt,
             ExpiresAt = expiresAt,
             SellerTimezone = sellerTimezone,
+            Currency = currency,
             IsActive = status == PriceRuleStatus.Active,
             IsDeleted = false,
             Status = status,

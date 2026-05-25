@@ -8,10 +8,12 @@ using Microsoft.AspNetCore.Http;
 using Haworks.BffWeb.Api;
 using Haworks.BffWeb.Api.Demo;
 using Haworks.BffWeb.Application.Interfaces;
+using Haworks.BuildingBlocks.Common;
 using Haworks.Contracts.Checkout;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using Polly;
 using Polly.CircuitBreaker;
 
@@ -37,7 +39,7 @@ namespace Haworks.BffWeb.Api.Controllers;
 [Route("api/v{version:apiVersion}/demo")]
 public class DemoController : ControllerBase
 {
-    private const string DefaultCurrency = "USD";
+    private readonly string _defaultCurrency;
     private readonly IDemoHubNotifier _notifier;
     private readonly DemoStateStore _stateStore;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -47,12 +49,14 @@ public class DemoController : ControllerBase
         IDemoHubNotifier notifier,
         DemoStateStore stateStore,
         IHttpClientFactory httpClientFactory,
-        ILogger<DemoController> logger)
+        ILogger<DemoController> logger,
+        IOptions<BrandOptions> brandOptions)
     {
         _notifier = notifier;
         _stateStore = stateStore;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _defaultCurrency = brandOptions.Value.DefaultCurrency;
     }
 
     // ========================================================================
@@ -1363,7 +1367,7 @@ public class DemoController : ControllerBase
         var seedResp = await client.PostAsJsonAsync("/admin/demo/seed-completed-payment", new
         {
             amountCents = request.AmountCents,
-            currency = request.Currency ?? DefaultCurrency,
+            currency = request.Currency ?? _defaultCurrency,
         }, ct);
 
         if (!seedResp.IsSuccessStatusCode)
@@ -1377,7 +1381,7 @@ public class DemoController : ControllerBase
         {
             paymentId,
             amount = request.RefundAmountCents / 100m,
-            currency = request.Currency ?? DefaultCurrency,
+            currency = request.Currency ?? _defaultCurrency,
             reason = request.Reason ?? "Demo refund",
             requestedBy = "demo-user",
         }, ct);
@@ -1440,7 +1444,7 @@ public class DemoController : ControllerBase
         using var resp = await client.PostAsJsonAsync("/demo/ledger/simulate", new
         {
             amountCents = request.AmountCents,
-            currency = request.Currency ?? DefaultCurrency,
+            currency = request.Currency ?? _defaultCurrency,
         }, ct);
 
         if (!resp.IsSuccessStatusCode)

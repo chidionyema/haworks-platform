@@ -86,6 +86,7 @@ public sealed class CheckoutController(
             userId = userId,
             customerEmail = body.CustomerEmail,
             totalAmount = body.TotalAmount,
+            currency = body.Currency ?? "USD",
             idempotencyKey,
             items = body.Items,
         });
@@ -110,6 +111,7 @@ public sealed record CheckoutRequest
 {
     public required string CustomerEmail { get; init; }
     public required decimal TotalAmount { get; init; }
+    public string? Currency { get; init; }
     public string? IdempotencyKey { get; init; }
     public required IReadOnlyList<CheckoutLineItem> Items { get; init; }
 }
@@ -120,4 +122,5 @@ public sealed record CheckoutLineItem
     public required string ProductName { get; init; }
     public required int Quantity { get; init; }
     public required decimal UnitPrice { get; init; }
+    public string? Currency { get; init; }
 }

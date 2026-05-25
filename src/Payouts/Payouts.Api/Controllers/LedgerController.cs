@@ -2,24 +2,28 @@ using Haworks.Payouts.Application.Common.Interfaces;
 using Haworks.Payouts.Domain.Aggregates;
 using Haworks.Payouts.Application.Ledger.Queries.GetBalance;
 using Haworks.Payouts.Domain.Enums;
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Extensions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Haworks.Payouts.Api.Controllers;
 
 [ApiController]
 [Route("api/v{version:apiVersion}/[controller]")]
 [Authorize]
-public class LedgerController(IMediator mediator) : ControllerBase
+public class LedgerController(IMediator mediator, IOptions<BrandOptions> brandOptions) : ControllerBase
 {
     [HttpGet("balance/{ownerId}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetBalance(Guid ownerId, [FromQuery] AccountType type, CancellationToken ct, [FromQuery] string currency = "USD")
+    public async Task<IActionResult> GetBalance(Guid ownerId, [FromQuery] AccountType type, CancellationToken ct, [FromQuery] string? currency = null)
     {
+        currency ??= brandOptions.Value.DefaultCurrency;
+
         var userId = HttpContext.GetForwardedUserId();
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
@@ -47,10 +51,8 @@ public class LedgerController(IMediator mediator) : ControllerBase
 [ApiController]
 [Route("demo/ledger")]
 [Authorize(Roles = "Admin,Service")]
-public sealed class DemoLedgerController(IPayoutsDbContext db) : ControllerBase
+public sealed class DemoLedgerController(IPayoutsDbContext db, IOptions<BrandOptions> brandOptions) : ControllerBase
 {
-    private const string DefaultCurrency = "USD";
-
     [HttpPost("simulate")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> SimulateTransaction(
@@ -62,7 +64,7 @@ public sealed class DemoLedgerController(IPayoutsDbContext db) : ControllerBase
 
         // Find or create seller account
         var account = Haworks.Payouts.Domain.Aggregates.LedgerAccount.Create(
-            sellerId, Haworks.Payouts.Domain.Enums.AccountType.SellerPayable, request.Currency ?? DefaultCurrency);
+            sellerId, Haworks.Payouts.Domain.Enums.AccountType.SellerPayable, request.Currency ?? brandOptions.Value.DefaultCurrency);
 
         db.LedgerAccounts.Add(account);
 

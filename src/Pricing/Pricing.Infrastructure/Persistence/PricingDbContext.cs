@@ -29,6 +29,7 @@ public sealed class PricingDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.DiscountValue).HasColumnType("numeric(18,4)");
             e.Property(x => x.SellerTimezone).HasMaxLength(64);
+            e.Property(x => x.Currency).HasMaxLength(3).IsRequired().HasDefaultValue("USD");
             e.Property(x => x.RowVersion).HasDefaultValueSql("'\\x0000000000000000'::bytea");
             // Concurrency handled by domain guards + pessimistic locks.
             e.HasMany(x => x.TieredPrices).WithOne().HasForeignKey(t => t.PriceRuleId);
@@ -53,6 +54,7 @@ public sealed class PricingDbContext : DbContext
             e.Property(x => x.DiscountValue).HasColumnType("numeric(18,4)");
             e.Property(x => x.MinimumOrderAmount).HasColumnType("numeric(18,4)");
             e.Property(x => x.SellerTimezone).HasMaxLength(64);
+            e.Property(x => x.Currency).HasMaxLength(3).IsRequired().HasDefaultValue("USD");
             e.Property(x => x.RowVersion).HasDefaultValueSql("'\\x0000000000000000'::bytea");
             // Concurrency handled by domain guards + pessimistic locks.
             e.HasIndex(x => x.Code).IsUnique();

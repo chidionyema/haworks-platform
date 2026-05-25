@@ -16,6 +16,7 @@ public sealed class PromotionCode : AuditableEntity
     public string Code { get; private set; } = string.Empty;
     public DiscountType DiscountType { get; private set; }
     public decimal DiscountValue { get; private set; }
+    public string Currency { get; private set; } = "USD";
     public decimal? MinimumOrderAmount { get; private set; }
     public Guid? ApplicableProductId { get; private set; }
     public Guid? ApplicableCategoryId { get; private set; }
@@ -44,8 +45,11 @@ public sealed class PromotionCode : AuditableEntity
         int? maxUsesPerUser = null,
         DateTimeOffset? startsAt = null,
         DateTimeOffset? expiresAt = null,
-        string sellerTimezone = "America/New_York")
+        string sellerTimezone = "America/New_York",
+        string currency = "USD")
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(currency);
+
         if (string.IsNullOrWhiteSpace(code))
             throw new ArgumentException("Code cannot be empty.");
 
@@ -74,6 +78,7 @@ public sealed class PromotionCode : AuditableEntity
             StartsAt = startsAt,
             ExpiresAt = expiresAt,
             SellerTimezone = sellerTimezone,
+            Currency = currency,
             IsActive = true,
             IsDeleted = false,
             UsesCount = 0,
