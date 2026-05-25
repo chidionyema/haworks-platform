@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Haworks.BuildingBlocks.Common;
 
 /// <summary>
@@ -38,5 +40,6 @@ public sealed class BrandOptions
     /// The default currency code for the brand (ISO 4217).
     /// Used as fallback for pricing and payments.
     /// </summary>
+    [Required]
     public string DefaultCurrency { get; set; } = "USD";
 }

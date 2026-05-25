@@ -11,11 +11,13 @@ public static class BrandExtensions
     /// Supports dynamic reloading via IOptionsMonitor.
     /// </summary>
     public static IServiceCollection AddBrandConfiguration(
-        this IServiceCollection services, 
+        this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<BrandOptions>(
-            configuration.GetSection(BrandOptions.SectionName));
+        services.AddOptions<BrandOptions>()
+            .BindConfiguration(BrandOptions.SectionName)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         return services;
     }
