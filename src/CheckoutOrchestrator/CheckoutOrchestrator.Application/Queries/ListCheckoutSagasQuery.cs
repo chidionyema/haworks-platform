@@ -10,7 +10,9 @@ public sealed record ListCheckoutSagasQuery(
     DateTime? From,
     DateTime? To,
     int Limit,
-    int Offset) : IRequest<Result<IReadOnlyList<CheckoutSagaDto>>>;
+    int Offset,
+    string? UserId,
+    bool IsAdmin) : IRequest<Result<IReadOnlyList<CheckoutSagaDto>>>;
 
 internal sealed class ListCheckoutSagasQueryHandler(ICheckoutDbContext db)
     : IRequestHandler<ListCheckoutSagasQuery, Result<IReadOnlyList<CheckoutSagaDto>>>
@@ -32,6 +34,9 @@ internal sealed class ListCheckoutSagasQueryHandler(ICheckoutDbContext db)
 
         if (request.To.HasValue)
             query = query.Where(s => s.CreatedAt <= request.To.Value);
+
+        if (!request.IsAdmin && !string.IsNullOrWhiteSpace(request.UserId))
+            query = query.Where(s => s.UserId == request.UserId);
 
         var rows = await query
             .OrderByDescending(s => s.CreatedAt)

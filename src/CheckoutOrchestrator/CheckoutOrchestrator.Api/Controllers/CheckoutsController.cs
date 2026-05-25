@@ -72,8 +72,10 @@ public sealed class CheckoutsController(IMediator mediator) : ControllerBase
         [FromQuery] int offset = 0,
         CancellationToken ct = default)
     {
+        var userId = HttpContext.GetForwardedUserId();
+        bool isAdmin = User.IsInRole("Admin") || User.IsInRole("Service");
         var result = await mediator.Send(
-            new ListCheckoutSagasQuery(state, from, to, limit, offset), ct);
+            new ListCheckoutSagasQuery(state, from, to, limit, offset, userId, isAdmin), ct);
         return result.ToActionResult();
     }
 
@@ -82,7 +84,9 @@ public sealed class CheckoutsController(IMediator mediator) : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAudit(Guid sagaId, CancellationToken ct)
     {
-        var result = await mediator.Send(new GetCheckoutSagaAuditQuery(sagaId), ct);
+        var userId = HttpContext.GetForwardedUserId();
+        bool isAdmin = User.IsInRole("Admin") || User.IsInRole("Service");
+        var result = await mediator.Send(new GetCheckoutSagaAuditQuery(sagaId, userId, isAdmin), ct);
         return result.ToActionResult();
     }
 }
