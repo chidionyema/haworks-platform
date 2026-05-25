@@ -13,7 +13,8 @@ public sealed record CreatePriceRuleCommand : IIdempotentCommand, IRequest<Guid>
     public Guid? CategoryId { get; init; }
     public int Priority { get; init; }
     public DiscountType DiscountType { get; init; }
-    public decimal DiscountValue { get; init; }
+    public decimal DiscountPercentage { get; init; }
+    public long DiscountAmountCents { get; init; }
     public int MinimumQuantity { get; init; }
     public int? MaximumQuantity { get; init; }
     public DateTimeOffset? StartsAt { get; init; }

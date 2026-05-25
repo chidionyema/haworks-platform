@@ -61,7 +61,7 @@ public sealed class PromotionCodeRepository : IPromotionCodeRepository
     /// Atomic CAS redemption using ExecuteSqlRawAsync.
     /// Returns true if the redemption succeeded.
     /// </summary>
-    public async Task<bool> TryRedeemAsync(Guid promotionCodeId, Guid orderId, string? userId, decimal discountAmount, int? maxUsesPerUser, CancellationToken ct = default)
+    public async Task<bool> TryRedeemAsync(Guid promotionCodeId, Guid orderId, string? userId, long discountAmountCents, int? maxUsesPerUser, CancellationToken ct = default)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
         try
@@ -112,7 +112,7 @@ public sealed class PromotionCodeRepository : IPromotionCodeRepository
             }
 
             // Insert redemption record
-            var redemption = PromotionRedemption.Create(promotionCodeId, orderId, userId, discountAmount);
+            var redemption = PromotionRedemption.Create(promotionCodeId, orderId, userId, discountAmountCents);
             await _context.PromotionRedemptions.AddAsync(redemption, ct).ConfigureAwait(false);
             await _context.SaveChangesAsync(ct).ConfigureAwait(false);
 

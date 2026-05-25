@@ -17,18 +17,24 @@ public sealed class CreatePromotionCodeCommandValidator : AbstractValidator<Crea
             .Matches("^[A-Za-z0-9_-]+$")
             .WithMessage("Code must contain only alphanumeric characters, hyphens, and underscores.");
 
-        RuleFor(x => x.DiscountValue)
+        RuleFor(x => x.DiscountPercentage)
             .GreaterThan(0)
-            .WithMessage("DiscountValue must be greater than 0.");
+            .When(x => x.DiscountType == DiscountType.Percentage)
+            .WithMessage("DiscountPercentage must be greater than 0 for Percentage type.");
 
-        RuleFor(x => x.DiscountValue)
+        RuleFor(x => x.DiscountPercentage)
             .LessThanOrEqualTo(100)
             .When(x => x.DiscountType == DiscountType.Percentage)
             .WithMessage("Percentage discount cannot exceed 100.");
 
-        // H3 Fix: Cap fixed-amount discounts to prevent zeroing any order
-        RuleFor(x => x.DiscountValue)
-            .LessThanOrEqualTo(10000)
+        RuleFor(x => x.DiscountAmountCents)
+            .GreaterThan(0L)
+            .When(x => x.DiscountType == DiscountType.FixedAmount)
+            .WithMessage("DiscountAmountCents must be greater than 0 for FixedAmount type.");
+
+        // H3 Fix: Cap fixed-amount discounts to prevent zeroing any order ($10,000 = 1_000_000 cents)
+        RuleFor(x => x.DiscountAmountCents)
+            .LessThanOrEqualTo(1_000_000L)
             .When(x => x.DiscountType == DiscountType.FixedAmount)
             .WithMessage("Fixed-amount discount cannot exceed $10,000.");
 

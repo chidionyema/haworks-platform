@@ -20,7 +20,7 @@ public sealed class RedeemPromotionCodeCommandValidator : AbstractValidator<Rede
         RuleFor(x => x.CalculationId)
             .NotEmpty();
 
-        RuleFor(x => x.DiscountAmount)
-            .GreaterThanOrEqualTo(0);
+        RuleFor(x => x.DiscountAmountCents)
+            .GreaterThanOrEqualTo(0L);
     }
 }

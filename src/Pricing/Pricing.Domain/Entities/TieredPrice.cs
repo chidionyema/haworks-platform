@@ -12,16 +12,16 @@ public sealed class TieredPrice : AuditableEntity
     public Guid PriceRuleId { get; private set; }
     public int FromQuantity { get; private set; }
     public int? ToQuantity { get; private set; }
-    public decimal UnitPrice { get; private set; }
+    public long UnitPriceCents { get; private set; }
 
-    internal static TieredPrice Create(Guid priceRuleId, int fromQuantity, int? toQuantity, decimal unitPrice)
+    internal static TieredPrice Create(Guid priceRuleId, int fromQuantity, int? toQuantity, long unitPriceCents)
     {
         return new TieredPrice
         {
             PriceRuleId = priceRuleId,
             FromQuantity = fromQuantity,
             ToQuantity = toQuantity,
-            UnitPrice = unitPrice,
+            UnitPriceCents = unitPriceCents,
         };
     }
 

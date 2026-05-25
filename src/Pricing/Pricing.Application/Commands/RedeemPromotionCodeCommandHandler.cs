@@ -39,7 +39,7 @@ public sealed class RedeemPromotionCodeCommandHandler : IRequestHandler<RedeemPr
         // C2 Fix: Per-user limit is now enforced INSIDE TryRedeemAsync (atomic with FOR UPDATE lock)
         // to prevent TOCTOU race where two concurrent requests both pass the check.
         var redeemed = await _repository.TryRedeemAsync(
-            code.Id, request.OrderId, request.UserId, request.DiscountAmount,
+            code.Id, request.OrderId, request.UserId, request.DiscountAmountCents,
             code.MaxUsesPerUser, ct).ConfigureAwait(false);
 
         if (!redeemed)

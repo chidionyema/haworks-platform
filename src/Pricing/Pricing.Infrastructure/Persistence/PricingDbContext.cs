@@ -27,7 +27,8 @@ public sealed class PricingDbContext : DbContext
         modelBuilder.Entity<PriceRule>(e =>
         {
             e.HasKey(x => x.Id);
-            e.Property(x => x.DiscountValue).HasColumnType("numeric(18,4)");
+            e.Property(x => x.DiscountPercentage).HasColumnType("numeric(18,4)");
+            e.Property(x => x.DiscountAmountCents).HasColumnType("bigint");
             e.Property(x => x.SellerTimezone).HasMaxLength(64);
             e.Property(x => x.RowVersion).HasDefaultValueSql("'\\x0000000000000000'::bytea");
             // Concurrency handled by domain guards + pessimistic locks.
@@ -41,7 +42,7 @@ public sealed class PricingDbContext : DbContext
         modelBuilder.Entity<TieredPrice>(e =>
         {
             e.HasKey(x => x.Id);
-            e.Property(x => x.UnitPrice).HasColumnType("numeric(18,4)");
+            e.Property(x => x.UnitPriceCents).HasColumnType("bigint");
             // Concurrency handled by domain guards + pessimistic locks.
         });
 
@@ -50,8 +51,9 @@ public sealed class PricingDbContext : DbContext
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Code).HasMaxLength(32);
-            e.Property(x => x.DiscountValue).HasColumnType("numeric(18,4)");
-            e.Property(x => x.MinimumOrderAmount).HasColumnType("numeric(18,4)");
+            e.Property(x => x.DiscountPercentage).HasColumnType("numeric(18,4)");
+            e.Property(x => x.DiscountAmountCents).HasColumnType("bigint");
+            e.Property(x => x.MinimumOrderAmountCents).HasColumnType("bigint");
             e.Property(x => x.SellerTimezone).HasMaxLength(64);
             e.Property(x => x.RowVersion).HasDefaultValueSql("'\\x0000000000000000'::bytea");
             // Concurrency handled by domain guards + pessimistic locks.
@@ -65,7 +67,7 @@ public sealed class PricingDbContext : DbContext
         modelBuilder.Entity<PromotionRedemption>(e =>
         {
             e.HasKey(x => x.Id);
-            e.Property(x => x.DiscountAmountApplied).HasColumnType("numeric(18,4)");
+            e.Property(x => x.DiscountAmountAppliedCents).HasColumnType("bigint");
             e.Property(x => x.UserId).HasMaxLength(256);
             e.HasIndex(x => new { x.PromotionCodeId, x.OrderId }).IsUnique();
             e.HasIndex(x => new { x.PromotionCodeId, x.UserId });
@@ -90,13 +92,13 @@ public sealed class PricingDbContext : DbContext
         modelBuilder.Entity<PriceCalculationLog>(e =>
         {
             e.HasKey(x => x.Id);
-            e.Property(x => x.BaseUnitPrice).HasColumnType("numeric(18,4)");
-            e.Property(x => x.EffectiveUnitPrice).HasColumnType("numeric(18,4)");
-            e.Property(x => x.Subtotal).HasColumnType("numeric(18,4)");
-            e.Property(x => x.TaxAmount).HasColumnType("numeric(18,4)");
+            e.Property(x => x.BaseUnitPriceCents).HasColumnType("bigint");
+            e.Property(x => x.EffectiveUnitPriceCents).HasColumnType("bigint");
+            e.Property(x => x.SubtotalCents).HasColumnType("bigint");
+            e.Property(x => x.TaxAmountCents).HasColumnType("bigint");
             e.Property(x => x.TaxRateApplied).HasColumnType("numeric(8,6)");
-            e.Property(x => x.Total).HasColumnType("numeric(18,4)");
-            e.Property(x => x.SnapshotProductPrice).HasColumnType("numeric(18,4)");
+            e.Property(x => x.TotalCents).HasColumnType("bigint");
+            e.Property(x => x.SnapshotProductPriceCents).HasColumnType("bigint");
             e.Property(x => x.Currency).HasMaxLength(3);
             e.Property(x => x.CountryCode).HasMaxLength(2);
             e.Property(x => x.StateCode).HasMaxLength(3);

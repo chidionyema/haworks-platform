@@ -51,7 +51,7 @@ public sealed class PricingRequestedConsumer(
                     Code = msg.PromoCode!.ToUpperInvariant(),
                     OrderId = msg.OrderId,
                     UserId = msg.UserId,
-                    DiscountAmount = promoDiscount.AmountOff,
+                    DiscountAmountCents = promoDiscount.AmountOffCents,
                     CalculationId = result.CalculationId,
                 }, context.CancellationToken);
             }
@@ -61,14 +61,14 @@ public sealed class PricingRequestedConsumer(
                 SagaId = msg.SagaId,
                 OrderId = msg.OrderId,
                 CalculationId = result.CalculationId,
-                Subtotal = result.Subtotal,
-                TaxAmount = result.TaxAmount,
-                Total = result.Total,
+                Subtotal = result.SubtotalCents / 100m,
+                TaxAmount = result.TaxAmountCents / 100m,
+                Total = result.TotalCents / 100m,
                 Currency = result.Currency,
             }, context.CancellationToken);
 
             logger.LogInformation(
-                "Price calculated for order {OrderId}: total={Total}", msg.OrderId, result.Total);
+                "Price calculated for order {OrderId}: total={TotalCents}c", msg.OrderId, result.TotalCents);
         }
         // H5 Fix: InvalidOperationException = product not found (catalog failure) — business fault, not infra
         catch (Exception ex) when (ex is PromotionExhaustedException or TaxCalculationException or InvalidOperationException or Haworks.BuildingBlocks.Common.ValidationException)

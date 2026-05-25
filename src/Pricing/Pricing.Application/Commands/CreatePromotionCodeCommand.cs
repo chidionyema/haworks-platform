@@ -11,8 +11,9 @@ public sealed record CreatePromotionCodeCommand : IIdempotentCommand, IRequest<G
 {
     public required string Code { get; init; }
     public DiscountType DiscountType { get; init; }
-    public decimal DiscountValue { get; init; }
-    public decimal? MinimumOrderAmount { get; init; }
+    public decimal DiscountPercentage { get; init; }
+    public long DiscountAmountCents { get; init; }
+    public long? MinimumOrderAmountCents { get; init; }
     public Guid? ApplicableProductId { get; init; }
     public Guid? ApplicableCategoryId { get; init; }
     public int? MaxUses { get; init; }

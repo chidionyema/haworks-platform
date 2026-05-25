@@ -117,7 +117,7 @@ public sealed class PricingController : ControllerBase
             Code = request.Code,
             OrderId = request.OrderId,
             UserId = redeemUserId,
-            DiscountAmount = request.DiscountAmount,
+            DiscountAmountCents = request.DiscountAmountCents,
             CalculationId = request.CalculationId,
         }, ct).ConfigureAwait(false);
 
@@ -180,6 +180,6 @@ public sealed record RedeemPromotionRequest
     public required string Code { get; init; }
     public required Guid OrderId { get; init; }
     public string? UserId { get; init; }
-    public required decimal DiscountAmount { get; init; }
+    public required long DiscountAmountCents { get; init; }
     public required Guid CalculationId { get; init; }
 }

@@ -21,8 +21,9 @@ public sealed class CreatePromotionCodeCommandHandler : IRequestHandler<CreatePr
         var code = PromotionCode.Create(
             code: request.Code,
             discountType: request.DiscountType,
-            discountValue: request.DiscountValue,
-            minimumOrderAmount: request.MinimumOrderAmount,
+            discountPercentage: request.DiscountPercentage,
+            discountAmountCents: request.DiscountAmountCents,
+            minimumOrderAmountCents: request.MinimumOrderAmountCents,
             applicableProductId: request.ApplicableProductId,
             applicableCategoryId: request.ApplicableCategoryId,
             maxUses: request.MaxUses,

@@ -46,7 +46,8 @@ public sealed class ValidatePromotionCodeQueryHandler : IRequestHandler<Validate
         {
             Valid = true,
             DiscountType = code.DiscountType.ToString(),
-            Value = code.DiscountValue,
+            DiscountPercentage = code.DiscountPercentage,
+            DiscountAmountCents = code.DiscountAmountCents,
             ExpiresAt = code.ExpiresAt,
         };
     }

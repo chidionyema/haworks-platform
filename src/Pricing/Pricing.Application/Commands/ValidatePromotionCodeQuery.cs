@@ -19,7 +19,8 @@ public sealed record ValidatePromotionCodeResult
 {
     public bool Valid { get; init; }
     public string? DiscountType { get; init; }
-    public decimal? Value { get; init; }
+    public decimal? DiscountPercentage { get; init; }
+    public long? DiscountAmountCents { get; init; }
     public DateTimeOffset? ExpiresAt { get; init; }
     public string? Reason { get; init; }
 }

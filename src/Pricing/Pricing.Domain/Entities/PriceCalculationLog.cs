@@ -11,12 +11,12 @@ public sealed class PriceCalculationLog : AuditableEntity
 
     public Guid ProductId { get; private set; }
     public int Quantity { get; private set; }
-    public decimal BaseUnitPrice { get; private set; }
-    public decimal EffectiveUnitPrice { get; private set; }
-    public decimal Subtotal { get; private set; }
-    public decimal TaxAmount { get; private set; }
+    public long BaseUnitPriceCents { get; private set; }
+    public long EffectiveUnitPriceCents { get; private set; }
+    public long SubtotalCents { get; private set; }
+    public long TaxAmountCents { get; private set; }
     public decimal TaxRateApplied { get; private set; }
-    public decimal Total { get; private set; }
+    public long TotalCents { get; private set; }
     public string Currency { get; private set; } = "USD";
     public string AppliedRuleIds { get; private set; } = "[]";
     public string? PromotionCodeApplied { get; private set; }
@@ -24,35 +24,35 @@ public sealed class PriceCalculationLog : AuditableEntity
     public string? UserId { get; private set; }
     public string? CountryCode { get; private set; }
     public string? StateCode { get; private set; }
-    public decimal SnapshotProductPrice { get; private set; }
+    public long SnapshotProductPriceCents { get; private set; }
 
     public static PriceCalculationLog Create(
         Guid productId,
         int quantity,
-        decimal baseUnitPrice,
-        decimal effectiveUnitPrice,
-        decimal subtotal,
-        decimal taxAmount,
+        long baseUnitPriceCents,
+        long effectiveUnitPriceCents,
+        long subtotalCents,
+        long taxAmountCents,
         decimal taxRateApplied,
-        decimal total,
+        long totalCents,
         string currency,
         string appliedRuleIds,
         string? promotionCodeApplied,
         string? userId,
         string? countryCode,
         string? stateCode,
-        decimal snapshotProductPrice)
+        long snapshotProductPriceCents)
     {
         return new PriceCalculationLog
         {
             ProductId = productId,
             Quantity = quantity,
-            BaseUnitPrice = baseUnitPrice,
-            EffectiveUnitPrice = effectiveUnitPrice,
-            Subtotal = subtotal,
-            TaxAmount = taxAmount,
+            BaseUnitPriceCents = baseUnitPriceCents,
+            EffectiveUnitPriceCents = effectiveUnitPriceCents,
+            SubtotalCents = subtotalCents,
+            TaxAmountCents = taxAmountCents,
             TaxRateApplied = taxRateApplied,
-            Total = total,
+            TotalCents = totalCents,
             Currency = currency,
             AppliedRuleIds = appliedRuleIds,
             PromotionCodeApplied = promotionCodeApplied,
@@ -60,7 +60,7 @@ public sealed class PriceCalculationLog : AuditableEntity
             UserId = userId,
             CountryCode = countryCode,
             StateCode = stateCode,
-            SnapshotProductPrice = snapshotProductPrice,
+            SnapshotProductPriceCents = snapshotProductPriceCents,
         };
     }
 }

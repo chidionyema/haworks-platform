@@ -26,7 +26,7 @@ public sealed class PriceCalculationEngine
     public PriceBreakdownResult Calculate(
         Guid productId,
         int quantity,
-        decimal baseUnitPrice,
+        long baseUnitPriceCents,
         string currency,
         Guid? categoryId,
         IReadOnlyList<PriceRule> rules,
@@ -35,7 +35,7 @@ public sealed class PriceCalculationEngine
     {
         var discounts = new List<AppliedDiscount>();
         var appliedRuleIds = new List<Guid>();
-        var effectiveUnitPrice = baseUnitPrice;
+        var effectiveUnitPriceCents = baseUnitPriceCents;
 
         // 1. Sort rules by Priority DESC, then specificity (ProductId > CategoryId)
         var applicableRules = rules
@@ -52,23 +52,23 @@ public sealed class PriceCalculationEngine
 
             if (matchingTier is not null)
             {
-                var tierDiscount = effectiveUnitPrice - matchingTier.UnitPrice;
-                if (tierDiscount > 0)
+                var tierDiscountCents = effectiveUnitPriceCents - matchingTier.UnitPriceCents;
+                if (tierDiscountCents > 0)
                 {
-                    var pct = baseUnitPrice > 0
-                        ? Math.Round(tierDiscount / baseUnitPrice * 100m, 2, MidpointRounding.AwayFromZero)
-                        : 0;
+                    var pct = baseUnitPriceCents > 0
+                        ? Math.Round((decimal)tierDiscountCents / baseUnitPriceCents * 100m, 2, MidpointRounding.AwayFromZero)
+                        : 0m;
 
                     discounts.Add(new AppliedDiscount
                     {
                         Type = "TieredVolume",
                         Label = $"Buy {matchingTier.FromQuantity}+ get tiered price",
-                        AmountOff = Math.Round(tierDiscount, 4, MidpointRounding.AwayFromZero),
+                        AmountOffCents = tierDiscountCents,
                         Pct = pct,
                     });
                     appliedRuleIds.Add(rule.Id);
                 }
-                effectiveUnitPrice = matchingTier.UnitPrice;
+                effectiveUnitPriceCents = matchingTier.UnitPriceCents;
                 break; // Only one tier applies
             }
         }
@@ -81,26 +81,26 @@ public sealed class PriceCalculationEngine
             switch (rule.DiscountType)
             {
                 case DiscountType.Percentage:
-                    var pctOff = Math.Round(effectiveUnitPrice * rule.DiscountValue / 100m, 4, MidpointRounding.AwayFromZero);
-                    effectiveUnitPrice -= pctOff;
+                    var pctOffCents = (long)(effectiveUnitPriceCents * rule.DiscountPercentage / 100m);
+                    effectiveUnitPriceCents -= pctOffCents;
                     discounts.Add(new AppliedDiscount
                     {
                         Type = "Percentage",
-                        Label = $"{rule.DiscountValue}% off",
-                        AmountOff = Math.Round(pctOff, 4, MidpointRounding.AwayFromZero),
-                        Pct = rule.DiscountValue,
+                        Label = $"{rule.DiscountPercentage}% off",
+                        AmountOffCents = pctOffCents,
+                        Pct = rule.DiscountPercentage,
                     });
                     appliedRuleIds.Add(rule.Id);
                     break;
 
                 case DiscountType.FixedAmount:
-                    var fixedOff = Math.Min(rule.DiscountValue, effectiveUnitPrice);
-                    effectiveUnitPrice -= fixedOff;
+                    var fixedOffCents = Math.Min(rule.DiscountAmountCents, effectiveUnitPriceCents);
+                    effectiveUnitPriceCents -= fixedOffCents;
                     discounts.Add(new AppliedDiscount
                     {
                         Type = "FixedAmount",
-                        Label = $"${rule.DiscountValue} off",
-                        AmountOff = Math.Round(fixedOff, 4, MidpointRounding.AwayFromZero),
+                        Label = $"{rule.DiscountAmountCents}c off",
+                        AmountOffCents = fixedOffCents,
                     });
                     appliedRuleIds.Add(rule.Id);
                     break;
@@ -116,13 +116,11 @@ public sealed class PriceCalculationEngine
             }
 
             // Floor at zero
-            effectiveUnitPrice = Math.Max(0, effectiveUnitPrice);
+            effectiveUnitPriceCents = Math.Max(0, effectiveUnitPriceCents);
         }
 
-        effectiveUnitPrice = Math.Round(effectiveUnitPrice, 4, MidpointRounding.AwayFromZero);
-
-        // 4. Calculate subtotal
-        var subtotal = Math.Round(effectiveUnitPrice * quantity, 4, MidpointRounding.AwayFromZero);
+        // 4. Calculate subtotal (integer arithmetic, exact)
+        var subtotalCents = effectiveUnitPriceCents * quantity;
 
         // 5. Apply promotion code to subtotal (not per-unit)
         var promoApplied = false;
@@ -131,35 +129,33 @@ public sealed class PriceCalculationEngine
             switch (promotionCode.DiscountType)
             {
                 case DiscountType.Percentage:
-                    var promoOff = Math.Round(subtotal * promotionCode.DiscountValue / 100m, 4, MidpointRounding.AwayFromZero);
-                    subtotal -= promoOff;
+                    var promoOffCents = (long)(subtotalCents * promotionCode.DiscountPercentage / 100m);
+                    subtotalCents -= promoOffCents;
                     discounts.Add(new AppliedDiscount
                     {
                         Type = "PromotionCode",
                         Label = promotionCode.Code,
-                        AmountOff = Math.Round(promoOff, 4, MidpointRounding.AwayFromZero),
-                        Pct = promotionCode.DiscountValue,
+                        AmountOffCents = promoOffCents,
+                        Pct = promotionCode.DiscountPercentage,
                     });
                     promoApplied = true;
                     break;
 
                 case DiscountType.FixedAmount:
-                    var promoFixedOff = Math.Min(promotionCode.DiscountValue, subtotal);
-                    subtotal -= promoFixedOff;
+                    var promoFixedOffCents = Math.Min(promotionCode.DiscountAmountCents, subtotalCents);
+                    subtotalCents -= promoFixedOffCents;
                     discounts.Add(new AppliedDiscount
                     {
                         Type = "PromotionCode",
                         Label = promotionCode.Code,
-                        AmountOff = Math.Round(promoFixedOff, 4, MidpointRounding.AwayFromZero),
+                        AmountOffCents = promoFixedOffCents,
                     });
                     promoApplied = true;
                     break;
             }
 
-            subtotal = Math.Max(0, subtotal);
+            subtotalCents = Math.Max(0, subtotalCents);
         }
-
-        subtotal = Math.Round(subtotal, 4, MidpointRounding.AwayFromZero);
 
         return new PriceBreakdownResult
         {
@@ -167,13 +163,13 @@ public sealed class PriceCalculationEngine
             ProductId = productId,
             Quantity = quantity,
             Currency = currency,
-            BaseUnitPrice = baseUnitPrice,
-            EffectiveUnitPrice = effectiveUnitPrice,
+            BaseUnitPriceCents = baseUnitPriceCents,
+            EffectiveUnitPriceCents = effectiveUnitPriceCents,
             Discounts = discounts,
-            Subtotal = subtotal,
-            TaxAmount = 0m, // Filled in by caller after tax calculation
-            TaxRate = 0m,   // Filled in by caller
-            Total = subtotal, // Updated after tax
+            SubtotalCents = subtotalCents,
+            TaxAmountCents = 0L, // Filled in by caller after tax calculation
+            TaxRate = 0m,        // Filled in by caller
+            TotalCents = subtotalCents, // Updated after tax
             PromoCodeApplied = promoApplied ? promotionCode!.Code : null,
             SnapshotAt = now,
         };

@@ -11,14 +11,20 @@ public sealed class CreatePriceRuleCommandValidator : AbstractValidator<CreatePr
 {
     public CreatePriceRuleCommandValidator()
     {
-        RuleFor(x => x.DiscountValue)
+        RuleFor(x => x.DiscountPercentage)
             .GreaterThan(0)
-            .WithMessage("DiscountValue must be greater than 0.");
+            .When(x => x.DiscountType == DiscountType.Percentage)
+            .WithMessage("DiscountPercentage must be greater than 0 for Percentage type.");
 
-        RuleFor(x => x.DiscountValue)
+        RuleFor(x => x.DiscountPercentage)
             .LessThanOrEqualTo(100)
             .When(x => x.DiscountType == DiscountType.Percentage)
             .WithMessage("Percentage discount cannot exceed 100.");
+
+        RuleFor(x => x.DiscountAmountCents)
+            .GreaterThan(0L)
+            .When(x => x.DiscountType == DiscountType.FixedAmount)
+            .WithMessage("DiscountAmountCents must be greater than 0 for FixedAmount type.");
 
         RuleFor(x => x)
             .Must(x => x.ProductId.HasValue || x.CategoryId.HasValue)

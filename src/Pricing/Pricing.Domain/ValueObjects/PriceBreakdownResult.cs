@@ -9,13 +9,13 @@ public sealed record PriceBreakdownResult
     public required Guid ProductId { get; init; }
     public required int Quantity { get; init; }
     public required string Currency { get; init; }
-    public required decimal BaseUnitPrice { get; init; }
-    public required decimal EffectiveUnitPrice { get; init; }
+    public required long BaseUnitPriceCents { get; init; }
+    public required long EffectiveUnitPriceCents { get; init; }
     public required IReadOnlyList<AppliedDiscount> Discounts { get; init; }
-    public required decimal Subtotal { get; init; }
-    public required decimal TaxAmount { get; init; }
+    public required long SubtotalCents { get; init; }
+    public required long TaxAmountCents { get; init; }
     public required decimal TaxRate { get; init; }
-    public required decimal Total { get; init; }
+    public required long TotalCents { get; init; }
     public string? PromoCodeApplied { get; init; }
     public required DateTimeOffset SnapshotAt { get; init; }
 }
@@ -27,6 +27,6 @@ public sealed record AppliedDiscount
 {
     public required string Type { get; init; }
     public required string Label { get; init; }
-    public required decimal AmountOff { get; init; }
+    public required long AmountOffCents { get; init; }
     public decimal? Pct { get; init; }
 }

@@ -15,8 +15,9 @@ public sealed class PromotionCode : AuditableEntity
 
     public string Code { get; private set; } = string.Empty;
     public DiscountType DiscountType { get; private set; }
-    public decimal DiscountValue { get; private set; }
-    public decimal? MinimumOrderAmount { get; private set; }
+    public decimal DiscountPercentage { get; private set; }
+    public long DiscountAmountCents { get; private set; }
+    public long? MinimumOrderAmountCents { get; private set; }
     public Guid? ApplicableProductId { get; private set; }
     public Guid? ApplicableCategoryId { get; private set; }
     public int? MaxUses { get; private set; }
@@ -36,8 +37,9 @@ public sealed class PromotionCode : AuditableEntity
     public static PromotionCode Create(
         string code,
         DiscountType discountType,
-        decimal discountValue,
-        decimal? minimumOrderAmount = null,
+        decimal discountPercentage = 0,
+        long discountAmountCents = 0,
+        long? minimumOrderAmountCents = null,
         Guid? applicableProductId = null,
         Guid? applicableCategoryId = null,
         int? maxUses = null,
@@ -52,11 +54,16 @@ public sealed class PromotionCode : AuditableEntity
         if (code.Length > 32)
             throw new ArgumentException("Code cannot exceed 32 characters.");
 
-        if (discountValue <= 0)
-            throw new ArgumentException("DiscountValue must be greater than 0.");
-
-        if (discountType == DiscountType.Percentage && discountValue > 100)
-            throw new ArgumentException("Percentage discount cannot exceed 100.");
+        if (discountType == DiscountType.Percentage)
+        {
+            if (discountPercentage <= 0 || discountPercentage > 100)
+                throw new ArgumentException("DiscountPercentage must be > 0 and <= 100 for Percentage type.");
+        }
+        else if (discountType == DiscountType.FixedAmount)
+        {
+            if (discountAmountCents <= 0)
+                throw new ArgumentException("DiscountAmountCents must be > 0 for FixedAmount type.");
+        }
 
         if (startsAt.HasValue && expiresAt.HasValue && expiresAt.Value <= startsAt.Value)
             throw new ArgumentException("ExpiresAt must be after StartsAt.");
@@ -65,8 +72,9 @@ public sealed class PromotionCode : AuditableEntity
         {
             Code = code.ToUpperInvariant(),
             DiscountType = discountType,
-            DiscountValue = discountValue,
-            MinimumOrderAmount = minimumOrderAmount,
+            DiscountPercentage = discountPercentage,
+            DiscountAmountCents = discountAmountCents,
+            MinimumOrderAmountCents = minimumOrderAmountCents,
             ApplicableProductId = applicableProductId,
             ApplicableCategoryId = applicableCategoryId,
             MaxUses = maxUses,

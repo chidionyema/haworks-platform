@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Haworks.BuildingBlocks.Common;
 using Haworks.Pricing.Application.Interfaces;
 using Haworks.Pricing.Application.Services;
 using Haworks.Pricing.Domain.Entities;
@@ -64,7 +63,7 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
         }
 
         var currency = product!.Currency;
-        var baseUnitPrice = new Money(product.UnitPriceCents, currency).ToMajorUnits();
+        var baseUnitPriceCents = product.UnitPriceCents;
         var categoryId = product.CategoryId;
 
         // Step 2: Load active rules
@@ -86,30 +85,29 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
         var result = _engine.Calculate(
             request.ProductId,
             request.Quantity,
-            baseUnitPrice,
+            baseUnitPriceCents,
             currency,
             categoryId,
             rules,
             promoCode,
             now);
 
-        // Step 7: Calculate tax
+        // Step 7: Calculate tax (tax calculator works in major units)
+        var subtotalMajor = result.SubtotalCents / 100m;
         var taxResult = await _taxCalculator.CalculateAsync(
-            request.CountryCode, request.StateCode, result.Subtotal, result.Currency, ct).ConfigureAwait(false);
+            request.CountryCode, request.StateCode, subtotalMajor, result.Currency, ct).ConfigureAwait(false);
 
         // Step 8: Assemble final result with tax
-        // M1 Fix: Round final output to 2dp at the boundary (payment gateways expect 2dp).
-        // Internal intermediates use 4dp to prevent accumulation errors.
-        var subtotal2dp = Math.Round(result.Subtotal, 2, MidpointRounding.AwayFromZero);
-        var taxAmount2dp = Math.Round(taxResult.TaxAmount, 2, MidpointRounding.AwayFromZero);
-        var total = subtotal2dp + taxAmount2dp;
+        // Convert tax result back to cents
+        var taxAmountCents = (long)Math.Round(taxResult.TaxAmount * 100m, 0, MidpointRounding.AwayFromZero);
+        var totalCents = result.SubtotalCents + taxAmountCents;
 
         var finalResult = result with
         {
-            Subtotal = subtotal2dp,
-            TaxAmount = taxAmount2dp,
+            SubtotalCents = result.SubtotalCents,
+            TaxAmountCents = taxAmountCents,
             TaxRate = taxResult.EffectiveRate,
-            Total = total,
+            TotalCents = totalCents,
         };
 
         // Step 9: Persist audit log
@@ -120,19 +118,19 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
         var log = PriceCalculationLog.Create(
             productId: request.ProductId,
             quantity: request.Quantity,
-            baseUnitPrice: baseUnitPrice,
-            effectiveUnitPrice: result.EffectiveUnitPrice,
-            subtotal: result.Subtotal,
-            taxAmount: taxResult.TaxAmount,
+            baseUnitPriceCents: baseUnitPriceCents,
+            effectiveUnitPriceCents: result.EffectiveUnitPriceCents,
+            subtotalCents: result.SubtotalCents,
+            taxAmountCents: taxAmountCents,
             taxRateApplied: taxResult.EffectiveRate,
-            total: total,
+            totalCents: totalCents,
             currency: result.Currency,
             appliedRuleIds: appliedRuleIds,
             promotionCodeApplied: promoCode?.Code,
             userId: request.UserId,
             countryCode: request.CountryCode,
             stateCode: request.StateCode,
-            snapshotProductPrice: baseUnitPrice);
+            snapshotProductPriceCents: baseUnitPriceCents);
 
         await _logRepo.AddAsync(log, ct).ConfigureAwait(false);
         // Do NOT call SaveChangesAsync here — this handler is called from both
@@ -142,8 +140,8 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
         // The PricingController calls SaveChangesAsync after mediator.Send returns.
 
         _logger.LogInformation(
-            "Price calculated for product {ProductId}: base={Base}, effective={Effective}, total={Total}",
-            request.ProductId, baseUnitPrice, result.EffectiveUnitPrice, total);
+            "Price calculated for product {ProductId}: base={BaseCents}c, effective={EffectiveCents}c, total={TotalCents}c",
+            request.ProductId, baseUnitPriceCents, result.EffectiveUnitPriceCents, totalCents);
 
         return finalResult with { CalculationId = log.Id };
     }

@@ -16,7 +16,8 @@ public sealed class PriceRule : AuditableEntity
     public Guid? CategoryId { get; private set; }
     public int Priority { get; private set; }
     public DiscountType DiscountType { get; private set; }
-    public decimal DiscountValue { get; private set; }
+    public decimal DiscountPercentage { get; private set; }
+    public long DiscountAmountCents { get; private set; }
     public int MinimumQuantity { get; private set; }
     public int? MaximumQuantity { get; private set; }
     public DateTimeOffset? StartsAt { get; private set; }
@@ -36,7 +37,8 @@ public sealed class PriceRule : AuditableEntity
         Guid? categoryId,
         int priority,
         DiscountType discountType,
-        decimal discountValue,
+        decimal discountPercentage = 0,
+        long discountAmountCents = 0,
         int minimumQuantity = 0,
         int? maximumQuantity = null,
         DateTimeOffset? startsAt = null,
@@ -46,11 +48,16 @@ public sealed class PriceRule : AuditableEntity
         if (productId is null && categoryId is null)
             throw new ArgumentException("ProductId and CategoryId cannot both be null.");
 
-        if (discountValue <= 0)
-            throw new ArgumentException("DiscountValue must be greater than 0.");
-
-        if (discountType == DiscountType.Percentage && discountValue > 100)
-            throw new ArgumentException("Percentage discount cannot exceed 100.");
+        if (discountType == DiscountType.Percentage)
+        {
+            if (discountPercentage <= 0 || discountPercentage > 100)
+                throw new ArgumentException("DiscountPercentage must be > 0 and <= 100 for Percentage type.");
+        }
+        else if (discountType == DiscountType.FixedAmount)
+        {
+            if (discountAmountCents <= 0)
+                throw new ArgumentException("DiscountAmountCents must be > 0 for FixedAmount type.");
+        }
 
         if (minimumQuantity < 0)
             throw new ArgumentException("MinimumQuantity must be >= 0.");
@@ -72,7 +79,8 @@ public sealed class PriceRule : AuditableEntity
             CategoryId = categoryId,
             Priority = priority,
             DiscountType = discountType,
-            DiscountValue = discountValue,
+            DiscountPercentage = discountPercentage,
+            DiscountAmountCents = discountAmountCents,
             MinimumQuantity = minimumQuantity,
             MaximumQuantity = maximumQuantity,
             StartsAt = startsAt,
@@ -87,7 +95,7 @@ public sealed class PriceRule : AuditableEntity
     /// <summary>
     /// Add a tiered price. Tiers must not overlap.
     /// </summary>
-    public void AddTier(int fromQuantity, int? toQuantity, decimal unitPrice)
+    public void AddTier(int fromQuantity, int? toQuantity, long unitPriceCents)
     {
         if (fromQuantity < 0)
             throw new ArgumentException("FromQuantity must be >= 0.");
@@ -95,8 +103,8 @@ public sealed class PriceRule : AuditableEntity
         if (toQuantity.HasValue && toQuantity.Value < fromQuantity)
             throw new ArgumentException("ToQuantity must be >= FromQuantity.");
 
-        if (unitPrice < 0)
-            throw new ArgumentException("UnitPrice must be >= 0.");
+        if (unitPriceCents < 0)
+            throw new ArgumentException("UnitPriceCents must be >= 0.");
 
         // Check overlap
         foreach (var existing in _tieredPrices)
@@ -109,7 +117,7 @@ public sealed class PriceRule : AuditableEntity
                     $"Tier [{fromQuantity}-{toQuantity}] overlaps with existing tier [{existing.FromQuantity}-{existing.ToQuantity}].");
         }
 
-        _tieredPrices.Add(TieredPrice.Create(Id, fromQuantity, toQuantity, unitPrice));
+        _tieredPrices.Add(TieredPrice.Create(Id, fromQuantity, toQuantity, unitPriceCents));
     }
 
     /// <summary>

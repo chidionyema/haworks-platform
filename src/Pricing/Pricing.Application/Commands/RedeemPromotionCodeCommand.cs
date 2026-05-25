@@ -11,7 +11,7 @@ public sealed record RedeemPromotionCodeCommand : IIdempotentCommand, IRequest<R
     public required string Code { get; init; }
     public required Guid OrderId { get; init; }
     public string? UserId { get; init; }
-    public required decimal DiscountAmount { get; init; }
+    public required long DiscountAmountCents { get; init; }
     public required Guid CalculationId { get; init; }
     public string IdempotencyKey { get; init; } = string.Empty;
 }

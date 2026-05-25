@@ -13,13 +13,13 @@ public sealed class PromotionRedemption : AuditableEntity
     public Guid OrderId { get; private set; }
     public string? UserId { get; private set; }
     public DateTimeOffset RedeemedAt { get; private set; }
-    public decimal DiscountAmountApplied { get; private set; }
+    public long DiscountAmountAppliedCents { get; private set; }
 
     public static PromotionRedemption Create(
         Guid promotionCodeId,
         Guid orderId,
         string? userId,
-        decimal discountAmountApplied)
+        long discountAmountAppliedCents)
     {
         return new PromotionRedemption
         {
@@ -27,7 +27,7 @@ public sealed class PromotionRedemption : AuditableEntity
             OrderId = orderId,
             UserId = userId,
             RedeemedAt = DateTimeOffset.UtcNow,
-            DiscountAmountApplied = discountAmountApplied,
+            DiscountAmountAppliedCents = discountAmountAppliedCents,
         };
     }
 }
