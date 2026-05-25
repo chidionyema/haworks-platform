@@ -21,7 +21,7 @@ internal sealed class ListProductsQueryHandler(IProductRepository products)
 
         var dtos = items.Select(p => new ProductDto(
             p.Id, p.Name, p.Description, p.UnitPriceCents,
-            p.StockQuantity, p.IsInStock, p.IsListed,
+            p.Currency, p.StockQuantity, p.IsInStock, p.IsListed,
             p.CategoryId, null)).ToList();
 
         return Result.Success(new PagedResult<ProductDto>(dtos, total, skip, take));

@@ -21,7 +21,7 @@ public class GetProductByIdQueryHandlerTests
     public async Task Handle_WhenProductExists_ReturnsSuccess()
     {
         var productId = Guid.NewGuid();
-        var product = Product.Create("Test", "Desc", 10m, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000L, Guid.NewGuid());
         _repositoryMock.Setup(r => r.GetByIdAsync(productId, It.IsAny<CancellationToken>())).ReturnsAsync(product);
 
         var result = await _handler.Handle(new GetProductByIdQuery(productId), CancellationToken.None);

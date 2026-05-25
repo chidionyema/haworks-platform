@@ -7,6 +7,7 @@ using Haworks.BuildingBlocks.Startup;
 using Haworks.Catalog.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using Haworks.BuildingBlocks.Common;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +17,7 @@ builder.Services.AddHealthChecks()
 
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddApplication(builder.Configuration);
+builder.Services.AddBrandConfiguration(builder.Configuration);
 builder.Services.AddPostgresIdempotency<CatalogDbContext>();
 builder.Services.AddStartupTaskRunner();
 

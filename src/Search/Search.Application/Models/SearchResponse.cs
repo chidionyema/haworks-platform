@@ -31,6 +31,7 @@ public sealed record SearchHitResponse
     public required string CategoryId { get; init; }
     public required string CategoryName { get; init; }
     public required decimal UnitPrice { get; init; }
+    public required string Currency { get; init; }
     public required bool IsInStock { get; init; }
     public required double Score { get; init; }
 }

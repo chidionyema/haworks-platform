@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Haworks.BuildingBlocks.Common;
 using Haworks.Catalog.Application.Commands;
 using Haworks.Catalog.Application.Interfaces;
@@ -12,9 +13,11 @@ namespace Haworks.Catalog.Api.Controllers;
 [ApiController]
 [Route("api/v{version:apiVersion}/[controller]")]
 [Authorize]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6960", Justification = "IOptions<BrandOptions> is configuration, not a separate responsibility")]
 public sealed class ProductsController(
     IMediator mediator,
-    IProductCacheReader productCache) : ControllerBase
+    IProductCacheReader productCache,
+    IOptions<BrandOptions> brandOptions) : ControllerBase
 {
     [HttpGet]
     [AllowAnonymous]
@@ -70,12 +73,14 @@ public sealed class ProductsController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] CreateProductRequest body, CancellationToken ct)
     {
+        var currency = body.Currency ?? brandOptions.Value.DefaultCurrency;
         var command = new CreateProductCommand(
             body.Name,
             body.Description,
-            Money.FromMajorUnits(body.UnitPrice, "USD").MinorUnits,
+            Money.FromMajorUnits(body.UnitPrice, currency).MinorUnits,
             body.CategoryId,
-            body.InitialStock);
+            body.InitialStock,
+            currency);
         var result = await mediator.Send(command, ct);
         return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value : Guid.NewGuid() });
     }
@@ -89,7 +94,7 @@ public sealed class ProductsController(
             id,
             body.Name,
             body.Description,
-            Money.FromMajorUnits(body.UnitPrice, "USD").MinorUnits,
+            Money.FromMajorUnits(body.UnitPrice, body.Currency ?? brandOptions.Value.DefaultCurrency).MinorUnits,
             body.CategoryId,
             body.IsListed,
             body.CorrelationId);
@@ -147,7 +152,8 @@ public sealed record CreateProductRequest
     public required string Description { get; init; }
     public required decimal UnitPrice { get; init; }
     public required Guid CategoryId { get; init; }
-    public int InitialStock { get; init; }
+    public required int InitialStock { get; init; }
+    public string? Currency { get; init; }
 }
 
 public sealed record UpdateProductRequest
@@ -158,4 +164,5 @@ public sealed record UpdateProductRequest
     public required Guid CategoryId { get; init; }
     public required bool IsListed { get; init; }
     public Guid? CorrelationId { get; init; }
+    public string? Currency { get; init; }
 }

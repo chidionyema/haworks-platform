@@ -106,6 +106,7 @@ internal sealed class UpdateProductCommandHandler : IRequestHandler<UpdateProduc
             product.Name,
             product.Description,
             product.UnitPriceCents,
+            product.Currency,
             product.StockQuantity,
             product.IsInStock,
             product.IsListed,

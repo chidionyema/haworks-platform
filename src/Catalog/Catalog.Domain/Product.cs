@@ -20,13 +20,14 @@ public class Product : AuditableEntity
     /// <summary>EF Core materialization constructor.</summary>
     protected Product() : base() { }
 
-    private Product(string name, string description, long unitPriceCents, Guid categoryId)
+    private Product(string name, string description, long unitPriceCents, Guid categoryId, string currency)
         : base()
     {
         Name = name;
         Description = description;
         UnitPriceCents = unitPriceCents;
         CategoryId = categoryId;
+        Currency = currency;
         IsListed = false;
         IsInStock = false;
         StockQuantity = 0;
@@ -35,6 +36,7 @@ public class Product : AuditableEntity
     public string Name { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
     public long UnitPriceCents { get; private set; }
+    public string Currency { get; private set; } = "USD";
     public int StockQuantity { get; private set; }
     public bool IsInStock { get; private set; }
     public bool IsListed { get; private set; }
@@ -46,11 +48,19 @@ public class Product : AuditableEntity
     public IReadOnlyCollection<ProductMetadata> Metadata => _metadata.AsReadOnly();
     public IReadOnlyCollection<ProductSpecification> Specifications => _specifications.AsReadOnly();
 
-    public static Product Create(string name, string description, long unitPriceCents, Guid categoryId)
+    public static Product Create(string name, string description, long unitPriceCents, Guid categoryId, string currency = "USD")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(currency);
         if (unitPriceCents < 0) throw new ArgumentException("Price cannot be negative", nameof(unitPriceCents));
-        return new Product(name, description, unitPriceCents, categoryId);
+        return new Product(name, description, unitPriceCents, categoryId, currency);
+    }
+
+    public void UpdateCurrency(string currency)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(currency);
+        Currency = currency;
+        LastModifiedDate = DateTime.UtcNow;
     }
 
     public void UpdateBasicInfo(string name, string description)
