@@ -210,7 +210,7 @@ public sealed class ReservationSweeperTests : IAsyncLifetime
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-        var product = Product.Create($"Sweep-P-{Guid.NewGuid():N}", "x", 9.99m, categoryId);
+        var product = Product.Create($"Sweep-P-{Guid.NewGuid():N}", "x", 999L, categoryId);
         product.RestockTo(initialStock);
         db.Products.Add(product);
         await db.SaveChangesAsync();
