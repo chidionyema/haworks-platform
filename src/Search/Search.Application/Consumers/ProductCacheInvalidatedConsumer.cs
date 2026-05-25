@@ -73,12 +73,13 @@ public sealed class ProductCacheInvalidatedConsumer : IConsumer<ProductCacheInva
             return;
         }
 
-        var unitPriceDecimal = new Money(fetched.UnitPriceCents, "USD").ToMajorUnits();
+        var unitPriceDecimal = new Money(fetched.UnitPriceCents, fetched.Currency).ToMajorUnits();
         var doc = ProductSearchDocumentProjector.From(
             id:            fetched.Id,
             name:          fetched.Name,
             description:   fetched.Description,
             unitPrice:     unitPriceDecimal,
+            currency:      fetched.Currency,
             isInStock:     fetched.IsInStock,
             isListed:      fetched.IsListed,
             categoryId:    fetched.CategoryId,
@@ -102,7 +103,7 @@ public sealed class ProductCacheInvalidatedConsumer : IConsumer<ProductCacheInva
                     ProductId = fetched.Id,
                     ProductName = fetched.Name,
                     UnitPrice = unitPriceDecimal,
-                    Currency = "USD",
+                    Currency = fetched.Currency,
                     MatchedAt = DateTimeOffset.UtcNow
                 }, context.CancellationToken).ConfigureAwait(false);
             }

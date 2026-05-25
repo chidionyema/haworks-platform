@@ -5,6 +5,7 @@ public sealed record ProductDto(
     string Name,
     string Description,
     long UnitPriceCents,
+    string Currency,
     int StockQuantity,
     bool IsInStock,
     bool IsListed,

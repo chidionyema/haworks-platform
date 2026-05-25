@@ -156,14 +156,23 @@ public sealed class CdcSearchIndexWorker(
         var price = (decimal)priceCents / 100m;
         var categoryId = after.TryGetProperty("category_id", out var c) ? c.GetString() ?? "" : "";
 
+        if (string.IsNullOrEmpty(categoryId) || !Guid.TryParse(categoryId, out var parsedCategoryId))
+        {
+            logger.LogWarning("CDC: Product {ProductId} skipped — missing or invalid category_id '{Raw}'", id, categoryId);
+            return;
+        }
+
+        var currency = after.TryGetProperty("currency", out var cur) ? cur.GetString() ?? "USD" : "USD";
+
         var doc = ProductSearchDocumentProjector.From(
             id: id,
             name: name,
             description: description,
             unitPrice: price,
+            currency: currency,
             isInStock: after.TryGetProperty("is_in_stock", out var stockProp) && stockProp.ValueKind == System.Text.Json.JsonValueKind.True,
             isListed: after.TryGetProperty("is_listed", out var listedProp) && listedProp.ValueKind == System.Text.Json.JsonValueKind.True,
-            categoryId: string.IsNullOrEmpty(categoryId) ? Guid.NewGuid() : Guid.Parse(categoryId),
+            categoryId: parsedCategoryId,
             categoryName: "Unknown (CDC)",
             sourceVersion: 1);
 
