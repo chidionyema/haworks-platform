@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Common;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.BuildingBlocks.Telemetry;
@@ -6,6 +7,7 @@ using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Infrastructure.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Polly;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -21,11 +23,12 @@ internal sealed class PayPalRefundService(
     IPaymentRepository paymentRepository,
     IPublishEndpoint eventPublisher,
     IResiliencePolicyFactory resiliencePolicyFactory,
+    IOptions<BrandOptions> brandOptions,
     ILogger<PayPalRefundService> logger,
     ITelemetryService telemetry) : IRefundService
 {
-    private const string DefaultCurrency = "USD";
-    private readonly IAsyncPolicy _resiliencePolicy = 
+    private readonly string _defaultCurrency = brandOptions.Value.DefaultCurrency;
+    private readonly IAsyncPolicy _resiliencePolicy =
         resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
 
     /// <inheritdoc />
@@ -68,7 +71,7 @@ internal sealed class PayPalRefundService(
                 {
                     refundReq.Amount = new PayPalRefundAmount
                     {
-                        CurrencyCode = request.Currency ?? DefaultCurrency,
+                        CurrencyCode = request.Currency ?? _defaultCurrency,
                         Value = Math.Round(request.AmountCents.Value / CheckoutConstants.CentMultiplier, 2, MidpointRounding.AwayFromZero).ToString("F2")
                     };
                 }

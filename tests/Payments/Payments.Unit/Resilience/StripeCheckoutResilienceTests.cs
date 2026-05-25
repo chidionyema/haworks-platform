@@ -1,9 +1,11 @@
 using FluentAssertions;
 using Haworks.BuildingBlocks.Caching;
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Infrastructure.Stripe;
+using Microsoft.Extensions.Options;
 using Moq;
 using Polly;
 using Xunit;
@@ -46,7 +48,8 @@ public sealed class StripeCheckoutResilienceTests
         _ = new StripeCheckoutSessionService(
             Mock.Of<IStripeClientFactory>(),
             Mock.Of<IPaymentSessionCache>(),
-            factory.Object);
+            factory.Object,
+            Options.Create(new BrandOptions()));
 
         factory.Verify(
             f => f.CreateCombinedPolicy(
@@ -89,7 +92,8 @@ public sealed class StripeCheckoutResilienceTests
         var sut = new StripeCheckoutSessionService(
             clientFactory.Object,
             Mock.Of<IPaymentSessionCache>(),
-            policyFactory.Object);
+            policyFactory.Object,
+            Options.Create(new BrandOptions()));
 
         var act = async () => await sut.CreateSessionAsync(
             new CreateCheckoutSessionRequest
@@ -141,7 +145,8 @@ public sealed class StripeCheckoutResilienceTests
         var sut = new StripeCheckoutSessionService(
             clientFactory.Object,
             Mock.Of<IPaymentSessionCache>(),
-            policyFactory.Object);
+            policyFactory.Object,
+            Options.Create(new BrandOptions()));
 
         var act = async () => await sut.GetSessionAsync("sess_test");
         await act.Should().ThrowAsync<HttpRequestException>();

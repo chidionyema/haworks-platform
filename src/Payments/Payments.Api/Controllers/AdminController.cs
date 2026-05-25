@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Middleware;
 using Haworks.Contracts.Payments;
@@ -7,6 +8,7 @@ using MassTransit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Haworks.Payments.Api.Controllers;
 
@@ -26,9 +28,10 @@ namespace Haworks.Payments.Api.Controllers;
 public sealed class AdminController(
     PaymentDbContext db,
     IPublishEndpoint eventPublisher,
+    IOptions<BrandOptions> brandOptions,
     ILogger<AdminController> logger) : ControllerBase
 {
-    private const string DefaultCurrency = "USD";
+    private readonly string _defaultCurrency = brandOptions.Value.DefaultCurrency;
     /// <summary>
     /// T2.5's event-flow demo entry point. Begins a transaction on the
     /// payments DbContext, publishes a <see cref="DemoOutboxEvent"/> via
@@ -86,7 +89,7 @@ public sealed class AdminController(
             userId: "demo-user",
             amountCents: request.AmountCents,
             taxCents: 0,
-            currency: request.Currency ?? DefaultCurrency,
+            currency: request.Currency ?? _defaultCurrency,
             provider: PaymentProvider.Stripe,
             sagaId: Guid.NewGuid());
 

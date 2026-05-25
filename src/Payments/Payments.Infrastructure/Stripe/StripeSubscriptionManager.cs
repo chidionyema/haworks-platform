@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Common;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using MassTransit;
@@ -5,6 +6,7 @@ using Haworks.BuildingBlocks.Telemetry;
 using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Polly;
 using Stripe;
 using NativeStripeSubService = Stripe.SubscriptionService;
@@ -21,11 +23,12 @@ public sealed class StripeSubscriptionManager(
     IPaymentRepository paymentRepository,
     IStripeClientFactory clientFactory,
     IResiliencePolicyFactory resiliencePolicyFactory,
+    IOptions<BrandOptions> brandOptions,
     ILogger<StripeSubscriptionManager> logger,
     ITelemetryService telemetry) : ISubscriptionManager
 {
-    private const string DefaultCurrency = "USD";
-    private readonly IAsyncPolicy _resiliencePolicy = 
+    private readonly string _defaultCurrency = brandOptions.Value.DefaultCurrency;
+    private readonly IAsyncPolicy _resiliencePolicy =
         resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.Stripe);
 
     /// <inheritdoc />
@@ -167,7 +170,7 @@ public sealed class StripeSubscriptionManager(
         {
             UserId = existing?.UserId ?? subscriptionEvent.UserId,
             AmountCents = resultAmount,
-            Currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency),
+            Currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", _defaultCurrency),
             PeriodEnd = existing?.ExpiresAt ?? subscriptionEvent.CurrentPeriodEnd,
         };
     }
@@ -225,7 +228,7 @@ public sealed class StripeSubscriptionManager(
         }
 
         _ = long.TryParse(subscriptionEvent.Metadata.GetValueOrDefault("amount_cents"), out var amount);
-        var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency);
+        var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", _defaultCurrency);
 
         // MassTransit EF outbox commits entity state + outbox messages atomically
         await publisher.Publish(new SubscriptionRenewedEvent

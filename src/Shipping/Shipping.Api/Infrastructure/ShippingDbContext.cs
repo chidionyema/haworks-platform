@@ -22,6 +22,7 @@ public class ShippingDbContext : DbContext
             e.HasIndex(x => x.EasyPostShipmentId).IsUnique();
             e.Property(x => x.Status).HasConversion<string>();
             e.Property(x => x.RateAmountCents).HasColumnType("bigint");
+            e.Property(x => x.RateCurrency).HasMaxLength(3).IsRequired().HasDefaultValue("USD");
         });
 
         modelBuilder.AddInboxStateEntity();

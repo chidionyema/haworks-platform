@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Telemetry;
 using MassTransit;
 using Haworks.Payments.Application.Interfaces;
@@ -55,6 +56,7 @@ public class StripeWebhookProcessorTests
             _idempotencyGuardMock.Object,
             _paymentRepositoryMock.Object,
             _options,
+            Options.Create(new BrandOptions()),
             _loggerMock.Object,
             _telemetryMock.Object);
     }

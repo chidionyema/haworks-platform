@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Common;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.BuildingBlocks.Telemetry;
@@ -6,6 +7,7 @@ using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Infrastructure.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Polly;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -22,11 +24,12 @@ internal sealed class PayPalSubscriptionManager(
     IPaymentRepository paymentRepository,
     IPayPalClientFactory clientFactory,
     IResiliencePolicyFactory resiliencePolicyFactory,
+    IOptions<BrandOptions> brandOptions,
     ILogger<PayPalSubscriptionManager> logger,
     ITelemetryService telemetry) : ISubscriptionManager
 {
-    private const string DefaultCurrency = "USD";
-    private readonly IAsyncPolicy _resiliencePolicy = 
+    private readonly string _defaultCurrency = brandOptions.Value.DefaultCurrency;
+    private readonly IAsyncPolicy _resiliencePolicy =
         resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
 
     /// <inheritdoc />
@@ -184,7 +187,7 @@ internal sealed class PayPalSubscriptionManager(
         {
             UserId = existing?.UserId ?? subscriptionEvent.UserId,
             AmountCents = resultAmount,
-            Currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", "USD"),
+            Currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", _defaultCurrency),
             PeriodEnd = existing?.ExpiresAt ?? subscriptionEvent.CurrentPeriodEnd,
         };
     }
@@ -242,7 +245,7 @@ internal sealed class PayPalSubscriptionManager(
         }
 
         _ = long.TryParse(subscriptionEvent.Metadata.GetValueOrDefault("amount_cents"), out var amount);
-        var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency);
+        var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", _defaultCurrency);
 
         // MassTransit EF outbox commits entity state + outbox messages atomically
         await publisher.Publish(new SubscriptionRenewedEvent

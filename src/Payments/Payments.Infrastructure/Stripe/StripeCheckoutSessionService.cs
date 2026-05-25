@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Common;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Infrastructure.Options;
@@ -13,7 +14,7 @@ namespace Haworks.Payments.Infrastructure.Stripe;
 
 internal sealed class StripeCheckoutSessionService : ICheckoutSessionService
 {
-    private const string DefaultCurrency = "USD";
+    private readonly string _defaultCurrency;
     private readonly IStripeClientFactory _clientFactory;
     private readonly IPaymentSessionCache _cache;
     // Combined policy: retry (3x w/ jitter), circuit breaker (open at 5
@@ -25,11 +26,13 @@ internal sealed class StripeCheckoutSessionService : ICheckoutSessionService
     public StripeCheckoutSessionService(
         IStripeClientFactory clientFactory,
         IPaymentSessionCache cache,
-        IResiliencePolicyFactory policyFactory)
+        IResiliencePolicyFactory policyFactory,
+        IOptions<BrandOptions> brandOptions)
     {
         _clientFactory = clientFactory;
         _cache = cache;
         _policy = policyFactory.CreateCombinedPolicy(ResilienceOptions.Stripe);
+        _defaultCurrency = brandOptions.Value.DefaultCurrency;
     }
 
     public Task<CheckoutSessionResult> CreateSessionAsync(
@@ -48,7 +51,7 @@ internal sealed class StripeCheckoutSessionService : ICheckoutSessionService
                     PriceData = new SessionLineItemPriceDataOptions
                     {
                         UnitAmount = item.UnitAmountCents,
-                        Currency = item.Currency ?? DefaultCurrency,
+                        Currency = item.Currency ?? _defaultCurrency,
                         ProductData = new SessionLineItemPriceDataProductDataOptions { Name = item.Name }
                     },
                     Quantity = item.Quantity

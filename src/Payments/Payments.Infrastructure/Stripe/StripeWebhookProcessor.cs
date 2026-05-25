@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.Contracts.Payments;
 using MassTransit;
@@ -18,7 +19,7 @@ namespace Haworks.Payments.Infrastructure.Stripe;
 /// </summary>
 internal sealed class StripeWebhookProcessor : IWebhookProcessor
 {
-    private const string DefaultCurrency = "USD";
+    private readonly string _defaultCurrency;
     private readonly IPaymentSessionProcessor _paymentProcessor;
     private readonly ISubscriptionManager _subscriptionManager;
     private readonly IWebhookIdempotencyGuard _idempotencyGuard;
@@ -39,6 +40,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         IWebhookIdempotencyGuard idempotencyGuard,
         IPaymentRepository paymentRepository,
         IOptions<PaymentProviderOptions> providerOptions,
+        IOptions<BrandOptions> brandOptions,
         ILogger<StripeWebhookProcessor> logger,
         ITelemetryService telemetry)
     {
@@ -48,6 +50,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
         _paymentRepository = paymentRepository ?? throw new ArgumentNullException(nameof(paymentRepository));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
+        _defaultCurrency = brandOptions.Value.DefaultCurrency;
     }
 
     /// <inheritdoc />
@@ -162,7 +165,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
                 TransactionId = session.PaymentIntentId ?? string.Empty,
                 Mode = SessionMode.Payment,
                 AmountTotal = session.AmountTotal ?? 0,
-                Currency = session.Currency ?? DefaultCurrency,
+                Currency = session.Currency ?? _defaultCurrency,
                 Provider = Provider,
                 Metadata = session.Metadata
             };
