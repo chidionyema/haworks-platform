@@ -64,7 +64,7 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             Currency = "USD",
             CustomerEmail = "test@example.com",
             Items = new[] { new StockReservationItem { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, RemainingStock = 5 } },
-            OrderLineItems = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPriceCents = 10000L } }
+            OrderLineItems = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPriceCents = 10000L, Currency = "USD" } }
         });
 
         // 3. Assert state transition to StockReservedState (which represents "StockHeld" in monolith)

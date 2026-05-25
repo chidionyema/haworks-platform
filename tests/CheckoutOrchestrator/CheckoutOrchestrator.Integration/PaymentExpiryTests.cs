@@ -146,7 +146,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
             CustomerEmail = "buyer@example.com", TotalAmountCents = 2550L,
             Items = new[] { new CheckoutItemData
             {
-                ProductId = productId, ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L,
+                ProductId = productId, ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L, Currency = "USD",
             }},
             IdempotencyKey = "key-" + Guid.NewGuid().ToString("N"),
             Currency = "USD", IsGuest = false,
@@ -163,7 +163,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
             }},
             OrderLineItems = new[] { new CheckoutItemData
             {
-                ProductId = productId, ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L,
+                ProductId = productId, ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L, Currency = "USD",
             }},
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));

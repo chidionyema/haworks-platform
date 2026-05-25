@@ -111,19 +111,12 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     var msg = ctx.Message;
                     var sagaState = ctx.Saga;
 
-                    if (msg.TotalAmount <= 0)
+                    if (msg.TotalAmountCents <= 0)
                     {
-                        sagaState.OrderId = msg.OrderId;
-                        sagaState.UserId = msg.UserId;
-                        sagaState.CustomerEmail = msg.CustomerEmail;
-                        sagaState.TotalAmount = msg.TotalAmount;
-                        sagaState.Currency = msg.Currency ?? "USD";
-                        sagaState.IdempotencyKey = msg.IdempotencyKey;
-                        sagaState.CreatedAt = DateTime.UtcNow;
                         sagaState.FailureReason = "invalid_amount";
                         logger.LogError(
-                            "CheckoutSaga rejected: TotalAmount={TotalAmount} is invalid (OrderId={OrderId}, SagaId={SagaId})",
-                            msg.TotalAmount, msg.OrderId, sagaState.CorrelationId);
+                            "CheckoutSaga rejected: TotalAmountCents={TotalAmountCents} is invalid (OrderId={OrderId}, SagaId={SagaId})",
+                            msg.TotalAmountCents, msg.OrderId, sagaState.CorrelationId);
                         return;
                     }
 

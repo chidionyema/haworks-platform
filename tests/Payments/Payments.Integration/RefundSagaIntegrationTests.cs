@@ -64,7 +64,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
         var request = new CreateRefundRequest
         {
             PaymentId = payment.Id,
-            Amount = 5000L,
+            AmountCents = 5000L,
             Currency = "USD",
             Reason = "Test refund",
             RequestedBy = "TestRunner"

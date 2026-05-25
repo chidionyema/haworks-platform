@@ -82,7 +82,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
             }},
             OrderLineItems = new[] { new CheckoutItemData
             {
-                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L,
+                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L, Currency = "USD",
             }},
         });
 
@@ -173,7 +173,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
             }},
             OrderLineItems = new[] { new CheckoutItemData
             {
-                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L,
+                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L, Currency = "USD",
             }},
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
@@ -213,7 +213,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
             }},
             OrderLineItems = new[] { new CheckoutItemData
             {
-                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L,
+                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L, Currency = "USD",
             }},
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
@@ -233,7 +233,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
         {
             PaymentId = paymentId, OrderId = orderId,
             Provider = "Stripe", ActualPaidCents = 7500L, ExpectedTotalCents = 2550L,
-            DifferenceCents = 4950L, Reason = "captured 75; expected 25.50",
+            DifferenceCents = 4950L, Reason = "captured 75; expected 25.50", Currency = "USD",
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "RequiresReview", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
@@ -267,7 +267,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
             TotalAmountCents = 2550L,
             Items = new[] { new CheckoutItemData
             {
-                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L,
+                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPriceCents = 2550L, Currency = "USD",
             }},
             Currency = "USD",
             IdempotencyKey = "key-" + Guid.NewGuid().ToString("N"),
