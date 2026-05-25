@@ -3,11 +3,13 @@ using System.Globalization;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using Haworks.BffWeb.Application.Telemetry;
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Idempotency;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 
 namespace Haworks.BffWeb.Api.Controllers;
 
@@ -32,8 +34,11 @@ namespace Haworks.BffWeb.Api.Controllers;
 public sealed class CheckoutController(
     IHttpClientFactory httpClientFactory,
     Haworks.BuildingBlocks.Authentication.IServiceTokenProvider serviceTokenProvider,
+    IOptions<BrandOptions> brandOptions,
     ILogger<CheckoutController> logger) : ControllerBase
 {
+    private readonly string _defaultCurrency = brandOptions.Value.DefaultCurrency;
+
     [HttpPost]
     [EnableRateLimiting("expensive")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -45,6 +50,10 @@ public sealed class CheckoutController(
         {
             return Unauthorized();
         }
+
+        var currency = body.Currency ?? _defaultCurrency;
+        if (currency.Length != 3)
+            return BadRequest("Currency must be a 3-letter ISO 4217 code");
 
         var sagaId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
@@ -86,9 +95,15 @@ public sealed class CheckoutController(
             userId = userId,
             customerEmail = body.CustomerEmail,
             totalAmount = body.TotalAmount,
-            currency = body.Currency ?? "USD",
             idempotencyKey,
-            items = body.Items,
+            items = body.Items.Select(i => new
+            {
+                productId = i.ProductId,
+                productName = i.ProductName,
+                quantity = i.Quantity,
+                unitPrice = i.UnitPrice,
+                currency = i.Currency ?? currency,
+            }).ToArray(),
         });
         if (!string.IsNullOrEmpty(svcToken))
             req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", svcToken);
