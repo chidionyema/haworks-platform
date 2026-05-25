@@ -59,9 +59,18 @@ public sealed class HWK035_NoHardcodedCurrencyAnalyzer : DiagnosticAnalyzer
                 if (context.Node.Parent is EqualsValueClauseSyntax)
                     return;
 
-                // Skip switch expression arms (e.g., Money.GetExponent currency lookup table)
+                // Skip switch expression arms only inside BuildingBlocks.Common (e.g., Money.GetExponent
+                // currency lookup table). Exempting all switch expressions would allow service-layer
+                // code like `currency switch { "USD" => 0.029m, ... }` to slip through undetected.
                 if (context.Node.FirstAncestorOrSelf<SwitchExpressionArmSyntax>() != null)
-                    return;
+                {
+                    var containingNs = context.SemanticModel
+                        .GetEnclosingSymbol(context.Node.SpanStart)
+                        ?.ContainingNamespace
+                        ?.ToDisplayString() ?? "";
+                    if (containingNs.Contains("BuildingBlocks.Common"))
+                        return;
+                }
 
                 context.ReportDiagnostic(
                     Diagnostic.Create(Diagnostics.NoHardcodedCurrency, literal.GetLocation(), value));
