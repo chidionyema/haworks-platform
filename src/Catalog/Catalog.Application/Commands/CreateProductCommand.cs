@@ -10,7 +10,8 @@ public sealed record CreateProductCommand(
     long UnitPriceCents,
     Guid CategoryId,
     int InitialStock,
-    string IdempotencyKey = "") : IIdempotentCommand, IRequest<Result<Guid>>;
+    string IdempotencyKey = "",
+    string Currency = "USD") : IIdempotentCommand, IRequest<Result<Guid>>;
 
 
 internal sealed class CreateProductCommandHandler(
@@ -27,7 +28,7 @@ internal sealed class CreateProductCommandHandler(
             return Result.Failure<Guid>(Error.Categories.NotFoundWithId(request.CategoryId));
         }
 
-        var product = Product.Create(request.Name, request.Description, request.UnitPriceCents, request.CategoryId);
+        var product = Product.Create(request.Name, request.Description, request.UnitPriceCents, request.CategoryId, request.Currency);
         if (request.InitialStock > 0)
         {
             product.RestockTo(request.InitialStock);

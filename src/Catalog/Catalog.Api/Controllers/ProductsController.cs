@@ -73,9 +73,10 @@ public sealed class ProductsController(
         var command = new CreateProductCommand(
             body.Name,
             body.Description,
-            Money.FromMajorUnits(body.UnitPrice, "USD").MinorUnits,
+            Money.FromMajorUnits(body.UnitPrice, body.Currency ?? "USD").MinorUnits,
             body.CategoryId,
-            body.InitialStock);
+            body.InitialStock ?? 0,
+            Currency: body.Currency ?? "USD");
         var result = await mediator.Send(command, ct);
         return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value : Guid.NewGuid() });
     }
@@ -89,10 +90,11 @@ public sealed class ProductsController(
             id,
             body.Name,
             body.Description,
-            Money.FromMajorUnits(body.UnitPrice, "USD").MinorUnits,
+            Money.FromMajorUnits(body.UnitPrice, body.Currency ?? "USD").MinorUnits,
             body.CategoryId,
             body.IsListed,
-            body.CorrelationId);
+            body.CorrelationId,
+            Currency: body.Currency);
         return (await mediator.Send(command, ct)).ToActionResult();
     }
 
@@ -147,7 +149,8 @@ public sealed record CreateProductRequest
     public required string Description { get; init; }
     public required decimal UnitPrice { get; init; }
     public required Guid CategoryId { get; init; }
-    public int InitialStock { get; init; }
+    public int? InitialStock { get; init; }
+    public string? Currency { get; init; }
 }
 
 public sealed record UpdateProductRequest
@@ -158,4 +161,5 @@ public sealed record UpdateProductRequest
     public required Guid CategoryId { get; init; }
     public required bool IsListed { get; init; }
     public Guid? CorrelationId { get; init; }
+    public string? Currency { get; init; }
 }

@@ -18,7 +18,8 @@ public sealed record UpdateProductCommand(
     Guid CategoryId,
     bool IsListed,
     Guid? CorrelationId = null,
-    string IdempotencyKey = ""
+    string IdempotencyKey = "",
+    string? Currency = null
 ) : IIdempotentCommand, IRequest<Result<ProductDto>>;
 
 internal sealed class UpdateProductCommandHandler : IRequestHandler<UpdateProductCommand, Result<ProductDto>>
@@ -64,6 +65,9 @@ internal sealed class UpdateProductCommandHandler : IRequestHandler<UpdateProduc
         product.UpdateBasicInfo(request.Name, request.Description);
         product.UpdatePricing(request.UnitPriceCents);
 
+        if (request.Currency is not null)
+            product.UpdateCurrency(request.Currency);
+
         // CategoryId can't be changed via basic update per ADR-0009 or requires specific handling
         // For this port, we will update it if needed. The Product entity currently doesn't have an UpdateCategory method
         // So we will leave Category updates aside, or if required, add it to Domain Entity.
@@ -106,6 +110,7 @@ internal sealed class UpdateProductCommandHandler : IRequestHandler<UpdateProduc
             product.Name,
             product.Description,
             product.UnitPriceCents,
+            product.Currency,
             product.StockQuantity,
             product.IsInStock,
             product.IsListed,

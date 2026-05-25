@@ -18,4 +18,5 @@ public sealed record CatalogProductDto
     public bool IsListed { get; init; }
     public Guid CategoryId { get; init; }
     public string? CategoryName { get; init; }
+    public string Currency { get; init; } = "USD";
 }
