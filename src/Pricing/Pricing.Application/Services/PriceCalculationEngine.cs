@@ -126,7 +126,8 @@ public sealed class PriceCalculationEngine
 
         // 5. Apply promotion code to subtotal (not per-unit)
         var promoApplied = false;
-        if (promotionCode is not null && promotionCode.CanRedeem(now))
+        if (promotionCode is not null && promotionCode.CanRedeem(now) &&
+            (!promotionCode.MinimumOrderAmount.HasValue || subtotal >= promotionCode.MinimumOrderAmount.Value))
         {
             switch (promotionCode.DiscountType)
             {
