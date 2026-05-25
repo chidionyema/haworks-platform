@@ -147,7 +147,7 @@ public sealed record CreateProductRequest
     public required string Description { get; init; }
     public required decimal UnitPrice { get; init; }
     public required Guid CategoryId { get; init; }
-    public int InitialStock { get; init; }
+    public int InitialStock { get; init; } = 0;
 }
 
 public sealed record UpdateProductRequest
