@@ -127,7 +127,7 @@ public class DemoController : ControllerBase
                 ProductId = demoProductId,
                 ProductName = "Demo Widget",
                 Quantity = string.Equals(request.ScenarioType, "stockRace", StringComparison.Ordinal) ? 3 : 1,
-                UnitPrice = 39.99m,
+                UnitPriceCents = 3999L,
                 Currency = "USD",
             },
         };
@@ -234,7 +234,7 @@ public class DemoController : ControllerBase
                 orderId,
                 userId = "demo-user",
                 customerEmail = "demo@haworks.dev",
-                totalAmount = items.Sum(i => i.UnitPrice * i.Quantity),
+                totalAmount = items.Sum(i => (i.UnitPriceCents / 100m) * i.Quantity),
                 currency = "GBP",
                 idempotencyKey,
                 items,
@@ -701,6 +701,7 @@ public class DemoController : ControllerBase
                 }
             }, CancellationToken.None);
         }
+
 
         var result = Ok(new { sessionId, status = "Rotating", _metadata = BuildMetadata(("identity-svc", vaultResp)) });
         vaultResp?.Dispose();

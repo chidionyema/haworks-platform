@@ -22,11 +22,6 @@ public sealed record PaymentCompletedEvent : DomainEvent
     /// <summary>The amount paid in minor currency units (cents).</summary>
     public required long AmountCents { get; init; }
 
-    /// <summary>Backward-compat for consumers not yet migrated to AmountCents.</summary>
-    [Obsolete("Use AmountCents. Will be removed in next major version.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Info Code Smell", "S1133", Justification = "Intentional deprecation for backward compatibility")]
-    public decimal Amount => Math.Round(AmountCents / 100m, 2, MidpointRounding.AwayFromZero);
-
     /// <summary>The currency code (e.g., "USD", "EUR").</summary>
     public required string Currency { get; init; }
 

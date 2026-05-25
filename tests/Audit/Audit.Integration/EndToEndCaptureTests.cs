@@ -52,7 +52,7 @@ public sealed class EndToEndCaptureTests
             PaymentId = paymentId,
             OrderId = orderId,
             SagaId = Guid.NewGuid(),
-            Amount = 99.99m,
+            AmountCents = 9999L,
             Currency = "USD",
             Provider = "Stripe",
             TransactionReference = "tx_123"

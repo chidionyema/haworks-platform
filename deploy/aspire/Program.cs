@@ -508,7 +508,10 @@ internal sealed class ResourceFileLogger(
                 }
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { /* shutdown */ }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Normal shutdown — suppress.
+        }
     }
 
     private async Task CaptureLogsAsync(string resourceId, CancellationToken ct)

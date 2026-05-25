@@ -70,6 +70,7 @@ public sealed class PricingController : ControllerBase
         // because it's also used from consumers where the outbox commits automatically).
         await _logRepo.SaveChangesAsync(ct).ConfigureAwait(false);
 
+
         return Result.Success(result).ToActionResult();
     }
 

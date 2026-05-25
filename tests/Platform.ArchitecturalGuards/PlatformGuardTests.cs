@@ -1,3 +1,4 @@
+#pragma warning disable HWK023 // Skip/Take without OrderBy — in-memory LINQ, not EF
 using System.Reflection;
 using System.Text.RegularExpressions;
 using FluentAssertions;

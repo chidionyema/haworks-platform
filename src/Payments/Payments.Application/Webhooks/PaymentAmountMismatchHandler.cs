@@ -58,9 +58,9 @@ public sealed class PaymentAmountMismatchHandler : IPaymentAmountMismatchHandler
             OrderId = payment.OrderId,
             SagaId = payment.SagaId,
             Provider = provider.ToString(),
-            ActualPaid = actualPaid,
-            ExpectedTotal = expectedTotal,
-            Difference = difference,
+            ActualPaidCents = (long)Math.Round(actualPaid * 100m, 0),
+            ExpectedTotalCents = (long)Math.Round(expectedTotal * 100m, 0),
+            DifferenceCents = (long)Math.Round(difference * 100m, 0),
             Reason = reason,
             Currency = payment.Currency
         }, ct);

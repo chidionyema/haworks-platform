@@ -14,8 +14,8 @@ public sealed record CheckoutItemData
     /// <summary>Quantity being purchased.</summary>
     public required int Quantity { get; init; }
 
-    /// <summary>Unit price at time of checkout.</summary>
-    public required decimal UnitPrice { get; init; }
+    /// <summary>Unit price at time of checkout in minor currency units (cents).</summary>
+    public required long UnitPriceCents { get; init; }
 
     /// <summary>ISO 4217 currency code (e.g., "USD", "EUR").</summary>
     public required string Currency { get; init; }

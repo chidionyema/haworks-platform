@@ -32,7 +32,7 @@ public class RefundEdgeCaseTests : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private async Task<Payment> SeedPayment(decimal amount, bool complete)
+    private async Task<Payment> SeedPayment(long amount, bool complete)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
@@ -58,7 +58,7 @@ public class RefundEdgeCaseTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
 
         var payment = Payment.Create(
-            Guid.NewGuid(), "user_edge", amount: 100m, tax: 0m, currency: "USD",
+            Guid.NewGuid(), "user_edge", 10000L, 0L, "USD",
             PaymentProvider.Stripe, Guid.NewGuid());
         payment.MarkFailed();
         db.Payments.Add(payment);
@@ -69,7 +69,7 @@ public class RefundEdgeCaseTests : IAsyncLifetime
     [Fact]
     public async Task Refund_exceeding_payment_amount_is_rejected()
     {
-        var payment = await SeedPayment(50m, complete: true);
+        var payment = await SeedPayment(5000L, complete: true);
 
         var response = await _client.PostAsJsonAsync("/api/v1/refunds",
             new CreateRefundRequest { PaymentId = payment.Id, Amount = 75m, Currency = "USD" });
@@ -80,7 +80,7 @@ public class RefundEdgeCaseTests : IAsyncLifetime
     [Fact]
     public async Task Partial_refund_within_amount_accepted()
     {
-        var payment = await SeedPayment(100m, complete: true);
+        var payment = await SeedPayment(10000L, complete: true);
 
         var response = await _client.PostAsJsonAsync("/api/v1/refunds",
             new CreateRefundRequest { PaymentId = payment.Id, Amount = 30m, Currency = "USD" });
@@ -91,7 +91,7 @@ public class RefundEdgeCaseTests : IAsyncLifetime
     [Fact]
     public async Task Refund_of_pending_payment_rejected()
     {
-        var payment = await SeedPayment(100m, complete: false);
+        var payment = await SeedPayment(10000L, complete: false);
 
         var response = await _client.PostAsJsonAsync("/api/v1/refunds",
             new CreateRefundRequest { PaymentId = payment.Id, Amount = 50m, Currency = "USD" });
@@ -122,7 +122,7 @@ public class RefundEdgeCaseTests : IAsyncLifetime
     [Fact]
     public async Task Refund_with_zero_amount_rejected()
     {
-        var payment = await SeedPayment(100m, complete: true);
+        var payment = await SeedPayment(10000L, complete: true);
 
         var response = await _client.PostAsJsonAsync("/api/v1/refunds",
             new CreateRefundRequest { PaymentId = payment.Id, Amount = 0m, Currency = "USD" });
@@ -133,7 +133,7 @@ public class RefundEdgeCaseTests : IAsyncLifetime
     [Fact]
     public async Task Refund_with_negative_amount_rejected()
     {
-        var payment = await SeedPayment(100m, complete: true);
+        var payment = await SeedPayment(10000L, complete: true);
 
         var response = await _client.PostAsJsonAsync("/api/v1/refunds",
             new CreateRefundRequest { PaymentId = payment.Id, Amount = -5m, Currency = "USD" });
