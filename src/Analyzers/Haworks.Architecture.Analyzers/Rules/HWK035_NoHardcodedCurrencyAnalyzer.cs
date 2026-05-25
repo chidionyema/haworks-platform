@@ -59,6 +59,10 @@ public sealed class HWK035_NoHardcodedCurrencyAnalyzer : DiagnosticAnalyzer
                 if (context.Node.Parent is EqualsValueClauseSyntax)
                     return;
 
+                // Skip switch expression arms (e.g., Money.GetExponent currency lookup table)
+                if (context.Node.FirstAncestorOrSelf<SwitchExpressionArmSyntax>() != null)
+                    return;
+
                 context.ReportDiagnostic(
                     Diagnostic.Create(Diagnostics.NoHardcodedCurrency, literal.GetLocation(), value));
                 return;

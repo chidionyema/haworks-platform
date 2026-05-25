@@ -12,7 +12,15 @@ public sealed class LedgerEntry : AuditableEntity
     public required string Description { get; init; }
     public required string ReferenceId { get; init; } // External reference (Order, Payout ID)
 
-    public static LedgerEntry Create(Guid accountId, Guid transactionId, long amountCents, EntryType type, string description, string referenceId)
+    /// <summary>
+    /// Snapshot of the commission rate (basis points, e.g. 1000 = 10.00%) at the time this
+    /// entry was created. Used to ensure refund debits use the same rate as the original credit,
+    /// preventing double-entry drift when commission rates change between credit and refund.
+    /// Null for entries that don't involve commission (e.g. payout disbursements).
+    /// </summary>
+    public int? CommissionRateBps { get; init; }
+
+    public static LedgerEntry Create(Guid accountId, Guid transactionId, long amountCents, EntryType type, string description, string referenceId, int? commissionRateBps = null)
     {
         if (accountId == Guid.Empty) throw new ArgumentException("AccountId required", nameof(accountId));
         if (transactionId == Guid.Empty) throw new ArgumentException("TransactionId required", nameof(transactionId));
@@ -28,7 +36,8 @@ public sealed class LedgerEntry : AuditableEntity
             AmountCents = amountCents,
             Type = type,
             Description = description,
-            ReferenceId = referenceId
+            ReferenceId = referenceId,
+            CommissionRateBps = commissionRateBps
         };
     }
 }

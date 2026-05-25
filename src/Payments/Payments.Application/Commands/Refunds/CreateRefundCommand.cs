@@ -48,7 +48,7 @@ public sealed class CreateRefundCommandHandler(
         // and throws if total would exceed payment amount.
         try
         {
-            payment.RecordRefund(request.AmountCents);
+            payment.RecordRefund(request.AmountCents, request.Currency);
         }
         catch (InvalidOperationException ex)
         {

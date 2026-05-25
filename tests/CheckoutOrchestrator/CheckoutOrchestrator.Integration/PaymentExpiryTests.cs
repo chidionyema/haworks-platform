@@ -80,7 +80,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
             OrderId = orderId, SagaId = sagaId, PaymentId = paymentId,
             UserId = "user-1",
             SessionId = "sess_test", CheckoutUrl = "https://stripe.test/sess_test",
-            Provider = "Stripe", Amount = 25.50m, Currency = "USD",
+            Provider = "Stripe", AmountCents = 2550L, Currency = "USD",
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "ReadyForPayment", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
@@ -146,7 +146,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
             CustomerEmail = "buyer@example.com", TotalAmount = 25.50m,
             Items = new[] { new CheckoutItemData
             {
-                ProductId = productId, ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
+                ProductId = productId, ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m, Currency = "USD",
             }},
             IdempotencyKey = "key-" + Guid.NewGuid().ToString("N"),
             Currency = "USD", IsGuest = false,
@@ -163,7 +163,7 @@ public sealed class PaymentExpiryTests : IClassFixture<CheckoutWebAppFactory>, I
             }},
             OrderLineItems = new[] { new CheckoutItemData
             {
-                ProductId = productId, ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
+                ProductId = productId, ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m, Currency = "USD",
             }},
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));

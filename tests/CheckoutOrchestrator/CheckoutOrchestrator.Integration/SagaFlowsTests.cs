@@ -82,7 +82,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
             }},
             OrderLineItems = new[] { new CheckoutItemData
             {
-                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
+                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m, Currency = "USD",
             }},
         });
 
@@ -100,7 +100,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
             OrderId = orderId, SagaId = sagaId, PaymentId = paymentId,
             UserId = "user-1",
             SessionId = "sess_test", CheckoutUrl = "https://stripe.test/sess_test",
-            Provider = "Stripe", Amount = 25.50m, Currency = "USD",
+            Provider = "Stripe", AmountCents = 2550L, Currency = "USD",
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "ReadyForPayment", StringComparison.Ordinal), TimeSpan.FromSeconds(20));
 
@@ -108,7 +108,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
         await PublishAsync(new PaymentCompletedEvent
         {
             PaymentId = paymentId, OrderId = orderId, SagaId = sagaId,
-            Amount = 25.50m, Currency = "USD", Provider = "Stripe",
+            AmountCents = 2550L, Currency = "USD", Provider = "Stripe",
             TransactionReference = "pi_test",
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "Completed", StringComparison.Ordinal) || string.Equals(SagaStateOrNull(sagaId), "Final", StringComparison.Ordinal),
@@ -173,7 +173,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
             }},
             OrderLineItems = new[] { new CheckoutItemData
             {
-                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
+                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m, Currency = "USD",
             }},
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
@@ -213,7 +213,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
             }},
             OrderLineItems = new[] { new CheckoutItemData
             {
-                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
+                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m, Currency = "USD",
             }},
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "StockReservedState", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
@@ -224,7 +224,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
             OrderId = orderId, SagaId = sagaId, PaymentId = paymentId,
             UserId = "user-1",
             SessionId = "sess_x", CheckoutUrl = "https://stripe.test/sess_x",
-            Provider = "Stripe", Amount = 25.50m, Currency = "USD",
+            Provider = "Stripe", AmountCents = 2550L, Currency = "USD",
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "ReadyForPayment", StringComparison.Ordinal), TimeSpan.FromSeconds(20));
 
@@ -234,6 +234,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
             PaymentId = paymentId, OrderId = orderId,
             Provider = "Stripe", ActualPaid = 75m, ExpectedTotal = 25.50m,
             Difference = 49.50m, Reason = "captured 75; expected 25.50",
+            Currency = "USD",
         });
         await PollUntilAsync(() => string.Equals(SagaStateOrNull(sagaId), "RequiresReview", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
 
@@ -267,7 +268,7 @@ public sealed class SagaFlowsTests : IClassFixture<CheckoutWebAppFactory>, IAsyn
             TotalAmount = 25.50m,
             Items = new[] { new CheckoutItemData
             {
-                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m,
+                ProductId = Guid.NewGuid(), ProductName = "Widget", Quantity = 1, UnitPrice = 25.50m, Currency = "USD",
             }},
             Currency = "USD",
             IdempotencyKey = "key-" + Guid.NewGuid().ToString("N"),

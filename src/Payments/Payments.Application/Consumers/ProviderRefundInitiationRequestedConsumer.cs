@@ -36,10 +36,24 @@ public sealed class ProviderRefundInitiationRequestedConsumer(
             return;
         }
 
+        if (!string.Equals(msg.Currency, payment.Currency, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogError("Refund currency mismatch: refund={RefundCurrency}, payment={PaymentCurrency}, RefundId={RefundId}",
+                msg.Currency, payment.Currency, msg.RefundId);
+            await context.Publish(new ProviderRefundFailedEvent
+            {
+                RefundId = msg.RefundId,
+                ErrorCode = "CurrencyMismatch",
+                ErrorMessage = $"Refund currency '{msg.Currency}' does not match payment currency '{payment.Currency}'"
+            });
+            return;
+        }
+
         var result = await gateway.Refunds.CreateRefundAsync(new RefundRequest
         {
             TransactionId = payment.ProviderTransactionId ?? string.Empty,
             AmountCents = msg.AmountCents,
+            Currency = msg.Currency,
             Reason = "Refund requested via saga",
             IdempotencyKey = msg.RefundId.ToString(),
             Metadata = new Dictionary<string, string>

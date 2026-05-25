@@ -39,6 +39,7 @@ public class PayoutsDbContext : DbContext, IPayoutsDbContext
             entity.HasIndex(e => e.TransactionId);
             entity.HasIndex(e => new { e.ReferenceId, e.AccountId }).IsUnique();
             entity.Property(e => e.AmountCents).HasColumnType("bigint");
+            entity.Property(e => e.CommissionRateBps).HasColumnType("integer");
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.ReferenceId).HasMaxLength(255);
         });

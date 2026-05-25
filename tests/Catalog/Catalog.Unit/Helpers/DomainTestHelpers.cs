@@ -7,11 +7,11 @@ public static class DomainTestHelpers
     public static Product CreateProduct(
         string name = "Test Product",
         string description = "Test Description",
-        decimal price = 10.99m,
+        long priceCents = 1099L,
         Guid? categoryId = null,
         int stock = 100)
     {
-        var product = Product.Create(name, description, price, categoryId ?? Guid.NewGuid());
+        var product = Product.Create(name, description, priceCents, categoryId ?? Guid.NewGuid());
         product.RestockTo(stock);
         return product;
     }

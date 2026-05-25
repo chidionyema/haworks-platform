@@ -121,13 +121,16 @@ public class Payment : AuditableEntity
     }
 
     /// <summary>Marks the payment as cancelled (user abandoned checkout).</summary>
-    /// <summary>Records a partial or full refund amount (in cents). Transitions to Refunded when fully refunded.</summary>
-    public void RecordRefund(long amountCents)
+    /// <summary>Records a partial or full refund amount (in cents). Validates currency matches. Transitions to Refunded when fully refunded.</summary>
+    public void RecordRefund(long amountCents, string currency)
     {
         if (Status != PaymentStatus.Completed && Status != PaymentStatus.Refunded)
             throw new InvalidOperationException($"Cannot refund a payment with status {Status}");
         if (amountCents <= 0)
             throw new ArgumentException("Refund amount must be positive", nameof(amountCents));
+        ArgumentException.ThrowIfNullOrWhiteSpace(currency);
+        if (!string.Equals(currency, Currency, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Refund currency '{currency}' does not match payment currency '{Currency}'");
         if (TotalRefundedCents + amountCents > AmountCents)
             throw new InvalidOperationException($"Total refunded ({TotalRefundedCents + amountCents}) would exceed payment amount ({AmountCents})");
 

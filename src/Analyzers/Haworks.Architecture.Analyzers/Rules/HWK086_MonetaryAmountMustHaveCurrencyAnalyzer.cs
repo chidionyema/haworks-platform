@@ -20,7 +20,7 @@ public sealed class HWK086_MonetaryAmountMustHaveCurrencyAnalyzer : DiagnosticAn
         title: "Monetary amount property must have a paired Currency property",
         messageFormat: "Property '{0}' looks like a monetary amount but type '{1}' has no Currency property",
         category: "Finance",
-        defaultSeverity: DiagnosticSeverity.Warning,
+        defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Every monetary amount must be paired with a currency code to prevent silent denomination errors.");
 

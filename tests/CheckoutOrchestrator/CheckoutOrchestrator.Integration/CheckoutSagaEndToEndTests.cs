@@ -47,7 +47,7 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             UserId = "test-user",
             CustomerEmail = "test@example.com",
             TotalAmount = 100m,
-            Items = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPrice = 100m } },
+            Items = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPrice = 100m, Currency = "USD" } },
             Currency = "USD",
             IdempotencyKey = "key-" + Guid.NewGuid()
         });
@@ -64,7 +64,7 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             Currency = "USD",
             CustomerEmail = "test@example.com",
             Items = new[] { new StockReservationItem { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, RemainingStock = 5 } },
-            OrderLineItems = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPrice = 100m } }
+            OrderLineItems = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPrice = 100m, Currency = "USD" } }
         });
 
         // 3. Assert state transition to StockReservedState (which represents "StockHeld" in monolith)
@@ -88,7 +88,7 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             UserId = "test-user",
             CustomerEmail = "test@example.com",
             TotalAmount = 100m,
-            Items = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPrice = 100m } },
+            Items = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPrice = 100m, Currency = "USD" } },
             Currency = "USD",
             IdempotencyKey = "key-" + Guid.NewGuid()
         });

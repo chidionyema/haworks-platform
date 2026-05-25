@@ -312,8 +312,13 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 }))
                 .TransitionTo(Abandoned),
             When(PaymentAmountMismatch)
-                .Then(ctx => ctx.Saga.FailureReason =
-                    $"PaymentAmountMismatch: expected={ctx.Message.ExpectedTotal}, actual={ctx.Message.ActualPaid}")
+                .Then(ctx =>
+                {
+                    var currencyMismatch = !string.Equals(ctx.Message.Currency, ctx.Saga.Currency, StringComparison.OrdinalIgnoreCase);
+                    ctx.Saga.FailureReason = currencyMismatch
+                        ? $"CURRENCY MISMATCH: saga={ctx.Saga.Currency}, webhook={ctx.Message.Currency}. Amount: expected={ctx.Message.ExpectedTotal}, actual={ctx.Message.ActualPaid}"
+                        : $"PaymentAmountMismatch: expected={ctx.Message.ExpectedTotal} {ctx.Message.Currency}, actual={ctx.Message.ActualPaid} {ctx.Message.Currency}";
+                })
                 .Unschedule(PaymentExpirySchedule)
                 // Do NOT release stock here — customer has paid. Stock remains
                 // reserved in RequiresReview so ops can either complete the order

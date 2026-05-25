@@ -58,6 +58,8 @@ public class LedgerService : ILedgerService
 
         var profile = await _context.SellerProfiles.Where(p => p.SellerId == sellerId).FirstOrDefaultAsync(ct);
         var commissionRate = profile?.CommissionPercentage ?? 10.00m;
+        // Snapshot as basis points (10.00% = 1000 bps) for immutable audit trail
+        var commissionRateBps = (int)(commissionRate * 100m);
         // Integer arithmetic: commission in cents, truncated toward zero (platform keeps remainder)
         var commissionCents = (long)(amountCents * commissionRate / 100m);
         var sellerAmountCents = amountCents - commissionCents;
@@ -81,9 +83,9 @@ public class LedgerService : ILedgerService
 
         var refId = referenceId.ToString();
         _context.LedgerEntries.AddRange(
-            LedgerEntry.Create(platformHoldingAccount.Id, transactionId, amountCents, EntryType.Debit, description, refId),
-            LedgerEntry.Create(sellerAccount.Id, transactionId, sellerAmountCents, EntryType.Credit, description, refId),
-            LedgerEntry.Create(platformRevenueAccount.Id, transactionId, commissionCents, EntryType.Credit, $"Commission: {description}", refId));
+            LedgerEntry.Create(platformHoldingAccount.Id, transactionId, amountCents, EntryType.Debit, description, refId, commissionRateBps),
+            LedgerEntry.Create(sellerAccount.Id, transactionId, sellerAmountCents, EntryType.Credit, description, refId, commissionRateBps),
+            LedgerEntry.Create(platformRevenueAccount.Id, transactionId, commissionCents, EntryType.Credit, $"Commission: {description}", refId, commissionRateBps));
 
         // DO NOT call SaveChangesAsync here when running inside a MassTransit consumer.
         // The EF Outbox commits all changes atomically.
@@ -110,8 +112,27 @@ public class LedgerService : ILedgerService
             return;
         }
 
-        var profile = await _context.SellerProfiles.Where(p => p.SellerId == sellerId).FirstOrDefaultAsync(ct);
-        var commissionRate = profile?.CommissionPercentage ?? 10.00m;
+        // Look up the original commission rate from the credit entry to ensure
+        // refund debits use the same rate. This prevents double-entry drift when
+        // the seller's commission rate has changed between the original payment and refund.
+        var originalEntry = await _context.LedgerEntries
+            .Where(e => e.ReferenceId == referenceId.ToString() && e.CommissionRateBps != null)
+            .Select(e => new { e.CommissionRateBps })
+            .FirstOrDefaultAsync(ct);
+
+        decimal commissionRate;
+        if (originalEntry?.CommissionRateBps != null)
+        {
+            commissionRate = originalEntry.CommissionRateBps.Value / 100m;
+        }
+        else
+        {
+            // Fallback for entries created before CommissionRateBps was introduced
+            var profile = await _context.SellerProfiles.Where(p => p.SellerId == sellerId).FirstOrDefaultAsync(ct);
+            commissionRate = profile?.CommissionPercentage ?? 10.00m;
+            _logger.LogWarning("No CommissionRateBps snapshot found for reference {ReferenceId}, using current rate {Rate}%", referenceId, commissionRate);
+        }
+        var commissionRateBps = (int)(commissionRate * 100m);
         var commissionCents = (long)(amountCents * commissionRate / 100m);
         var sellerAmountCents = amountCents - commissionCents;
 
@@ -145,9 +166,9 @@ public class LedgerService : ILedgerService
         platformHoldingAccount.UpdateBalance(amountCents, EntryType.Debit);
 
         _context.LedgerEntries.AddRange(
-            LedgerEntry.Create(sellerAccount.Id, transactionId, sellerAmountCents, EntryType.Debit, description, refId),
-            LedgerEntry.Create(platformRevenueAccount.Id, transactionId, commissionCents, EntryType.Debit, $"Commission reversal: {description}", refId),
-            LedgerEntry.Create(platformHoldingAccount.Id, transactionId, amountCents, EntryType.Credit, description, refId));
+            LedgerEntry.Create(sellerAccount.Id, transactionId, sellerAmountCents, EntryType.Debit, description, refId, commissionRateBps),
+            LedgerEntry.Create(platformRevenueAccount.Id, transactionId, commissionCents, EntryType.Debit, $"Commission reversal: {description}", refId, commissionRateBps),
+            LedgerEntry.Create(platformHoldingAccount.Id, transactionId, amountCents, EntryType.Credit, description, refId, commissionRateBps));
 
         _logger.LogInformation("Ledger debit for seller {SellerId}: amountCents={AmountCents}, ref={ReferenceId}", sellerId, amountCents, referenceId);
     }
