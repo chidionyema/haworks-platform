@@ -54,40 +54,41 @@ internal sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, 
             Email = request.Email
         };
 
-        var result = await _userManager.CreateAsync(user, request.Password);
-        if (!result.Succeeded)
-        {
-            foreach (var err in result.Errors)
-            {
-                _logger.LogWarning("Registration error for {Username}: {ErrorCode} - {ErrorDescription}",
-                    request.Username, err.Code, err.Description);
-            }
-
-            var errorMessages = string.Join(", ", result.Errors.Select(e => e.Description));
-
-            await _auditLogger.LogAsync(new AuditEvent
-            {
-                Action = AuditActions.RegisterFailed,
-                UserId = string.Empty,
-                Resource = $"User:{request.Username}",
-                IsSuccess = false,
-                Details = errorMessages,
-                IpAddress = ipAddress,
-                UserAgent = userAgent,
-                CorrelationId = correlationId
-            }, cancellationToken);
-
-            return Result.Failure<AuthResponseDto>(
-                new Error("Auth.RegistrationFailed", errorMessages, ErrorType.Validation));
-        }
-
-        _logger.LogInformation("User registration succeeded for user: {Username}, Id: {UserId}",
-            user.UserName, user.Id);
-
-        // Wrap role + claim assignment in a transaction so they are atomic.
+        // Wrap user creation + role/claim assignment in a single transaction
+        // so a role failure doesn't leave an orphaned user.
         using (var txScope = new System.Transactions.TransactionScope(
             System.Transactions.TransactionScopeAsyncFlowOption.Enabled))
         {
+            var result = await _userManager.CreateAsync(user, request.Password);
+            if (!result.Succeeded)
+            {
+                foreach (var err in result.Errors)
+                {
+                    _logger.LogWarning("Registration error for {Username}: {ErrorCode} - {ErrorDescription}",
+                        request.Username, err.Code, err.Description);
+                }
+
+                var errorMessages = string.Join(", ", result.Errors.Select(e => e.Description));
+
+                await _auditLogger.LogAsync(new AuditEvent
+                {
+                    Action = AuditActions.RegisterFailed,
+                    UserId = string.Empty,
+                    Resource = $"User:{request.Username}",
+                    IsSuccess = false,
+                    Details = errorMessages,
+                    IpAddress = ipAddress,
+                    UserAgent = userAgent,
+                    CorrelationId = correlationId
+                }, cancellationToken);
+
+                return Result.Failure<AuthResponseDto>(
+                    new Error("Auth.RegistrationFailed", errorMessages, ErrorType.Validation));
+            }
+
+            _logger.LogInformation("User registration succeeded for user: {Username}, Id: {UserId}",
+                user.UserName, user.Id);
+
             var roleResult = await _userManager.AddToRoleAsync(user, "ContentUploader");
             if (!roleResult.Succeeded)
             {

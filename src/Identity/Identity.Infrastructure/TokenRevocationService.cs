@@ -87,18 +87,6 @@ public class TokenRevocationService : ITokenRevocationService
         return false;
     }
 
-    public bool IsTokenRevoked(string tokenValue)
-    {
-        if (string.IsNullOrEmpty(tokenValue))
-        {
-            return false;
-        }
-
-        // Fallback to synchronous DB check — we avoid sync-over-async for the cache layer
-        // to prevent deadlocks in synchronous contexts.
-        return _context.RevokedTokens.Any(rt => rt.Token == tokenValue);
-    }
-
     private async Task CacheRevocationAsync(string tokenValue, DateTime expiryDate, CancellationToken ct)
     {
         var cacheKey = BuildCacheKey(tokenValue);

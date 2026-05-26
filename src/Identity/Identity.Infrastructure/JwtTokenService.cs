@@ -82,57 +82,6 @@ public class JwtTokenService : IJwtTokenService
         return token;
     }
 
-    public ClaimsPrincipal? ValidateToken(string tokenString, bool validateLifetime = true)
-    {
-        if (string.IsNullOrEmpty(tokenString))
-        {
-            return null;
-        }
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-        try
-        {
-            var validationParameters = GetTokenValidationParameters(validateLifetime);
-            var principal = tokenHandler.ValidateToken(tokenString, validationParameters, out _);
-
-            // Extract JTI for revocation check
-            var jti = principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
-            if (!string.IsNullOrEmpty(jti))
-            {
-                if (_revocationService.IsTokenRevoked(jti))
-                {
-                    _logger.LogWarning("Token {Jti} has been revoked (sync check)", jti);
-                    return null;
-                }
-            }
-
-            _logger.LogDebug("Token signature and revocation validated for {User}",
-                principal?.Identity?.Name ?? "unknown");
-
-            return principal;
-        }
-        catch (SecurityTokenExpiredException)
-        {
-            _logger.LogWarning("Token expired");
-            return null;
-        }
-        catch (SecurityTokenInvalidSignatureException)
-        {
-            _logger.LogWarning("Invalid token signature");
-            return null;
-        }
-        catch (SecurityTokenValidationException ex)
-        {
-            _logger.LogWarning(ex, "Token validation failed");
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error validating token");
-            return null;
-        }
-    }
-
     public async Task<ClaimsPrincipal?> ValidateTokenAsync(
         string tokenString,
         bool validateLifetime = true,

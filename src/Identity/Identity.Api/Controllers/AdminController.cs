@@ -114,7 +114,6 @@ public sealed class AdminController(
             // /v1/sys/health uses non-2xx codes for non-active states
             // (sealed/standby/etc) but the body still parses. Any reachable
             // response counts as "vault is alive" for our purposes.
-            var body = await resp.Content.ReadAsStringAsync(ct);
             const string roleName = "haworks-identity";
             var leaseExpiry = vault.LeaseExpiryFor(roleName);
             var leaseTtlSeconds = (int)Math.Max(
@@ -122,10 +121,6 @@ public sealed class AdminController(
             return Ok(new
             {
                 status = "Healthy",
-                vaultAddress = probe.Address.ToString(),
-                vaultStatusCode = (int)resp.StatusCode,
-                vaultBody = body,
-                roleName,
                 leaseTtlSeconds,
                 leaseExpiry,
             });

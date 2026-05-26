@@ -15,12 +15,6 @@ public interface IJwtTokenService
     Task<JwtSecurityToken> GenerateTokenAsync(User user, DateTime expiration, CancellationToken ct = default);
 
     /// <summary>
-    /// Validates a JWT token string and returns the claims principal.
-    /// Does NOT check token revocation - use ValidateTokenAsync for full validation.
-    /// </summary>
-    ClaimsPrincipal? ValidateToken(string tokenString, bool validateLifetime = true);
-
-    /// <summary>
     /// Validates a JWT token string asynchronously, including revocation check.
     /// Returns null if the token is invalid, expired, or revoked.
     /// </summary>
