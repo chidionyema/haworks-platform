@@ -1,4 +1,5 @@
 using Haworks.BuildingBlocks.CurrentUser;
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.Location.Application.Interfaces;
 using Haworks.Location.Domain.Entities;
@@ -13,7 +14,7 @@ namespace Haworks.Location.Infrastructure.Persistence;
 /// DbContext for the Location bounded context.
 /// Uses PostGIS for geospatial data and EF Core Outbox for transactional messaging.
 /// </summary>
-public class LocationDbContext : DbContext, ILocationDbContext
+public class LocationDbContext : DbContext, ILocationDbContext, IIdempotencyJournalDbContext
 {
     private readonly IHostEnvironment _environment;
     private readonly ILoggerFactory _loggerFactory;
@@ -33,6 +34,7 @@ public class LocationDbContext : DbContext, ILocationDbContext
     }
 
     public DbSet<Address> Addresses => Set<Address>();
+    public DbSet<IdempotencyJournalEntry> IdempotencyJournal => Set<IdempotencyJournalEntry>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -78,7 +80,20 @@ public class LocationDbContext : DbContext, ILocationDbContext
 
             entity.HasIndex(a => a.Geohash);
 
-            // Concurrency handled by domain guards + pessimistic locks.
+            // Prevent duplicate addresses at the database level
+            entity.HasIndex(a => new { a.Street, a.City, a.Postcode, a.Country })
+                .IsUnique()
+                .HasDatabaseName("IX_Addresses_Unique_Address");
+        });
+
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
         });
 
         // MassTransit Outbox entities

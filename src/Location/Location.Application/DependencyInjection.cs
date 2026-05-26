@@ -1,5 +1,6 @@
 using System.Reflection;
 using Haworks.BuildingBlocks.Behaviors;
+using Haworks.BuildingBlocks.Idempotency;
 using Microsoft.Extensions.DependencyInjection;
 using FluentValidation;
 
@@ -15,6 +16,7 @@ public static class DependencyInjection
             cfg.AddOpenBehavior(typeof(TelemetryBehavior<,>));
             cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
             cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+            cfg.AddOpenBehavior(typeof(IdempotencyBehavior<,>));
         });
 
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());

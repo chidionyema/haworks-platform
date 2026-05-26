@@ -14,11 +14,14 @@ public class CreateAddressCommandValidator : AbstractValidator<CreateAddressComm
         RuleFor(x => x.City).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Postcode).NotEmpty().MaximumLength(20);
         RuleFor(x => x.Country).NotEmpty().MaximumLength(100);
-        
+
+        RuleFor(x => x.IdempotencyKey).NotEmpty().MaximumLength(128)
+            .WithMessage("IdempotencyKey is required for address creation.");
+
         RuleFor(x => x.Latitude)
             .InclusiveBetween(-90, 90)
             .When(x => x.Latitude.HasValue);
-            
+
         RuleFor(x => x.Longitude)
             .InclusiveBetween(-180, 180)
             .When(x => x.Longitude.HasValue);

@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Haworks.Location.Application.Interfaces;
@@ -12,13 +13,12 @@ public sealed class NominatimGeocodingService(HttpClient httpClient, ILogger<Nom
 {
     public async Task<(double Latitude, double Longitude)?> GeocodeAsync(string address, CancellationToken ct = default)
     {
-        // Nominatim requires a User-Agent, which is set in DependencyInjection.
         var url = $"search?q={Uri.EscapeDataString(address)}&format=json&limit=1";
-        
+
         try
         {
             var results = await httpClient.GetFromJsonAsync<List<NominatimResult>>(url, ct);
-            
+
             if (results == null || results.Count == 0)
                 return null;
 
@@ -28,9 +28,19 @@ public sealed class NominatimGeocodingService(HttpClient httpClient, ILogger<Nom
                 return (lat, lon);
             }
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            logger.LogWarning(ex, "An error occurred in {MethodName}", nameof(GeocodeAsync));
+            logger.LogWarning(ex, "HTTP error geocoding address: {Address}", address);
+            return null;
+        }
+        catch (TaskCanceledException ex)
+        {
+            logger.LogWarning(ex, "Geocoding request timed out for address: {Address}", address);
+            return null;
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "Invalid JSON response from Nominatim for address: {Address}", address);
             return null;
         }
 

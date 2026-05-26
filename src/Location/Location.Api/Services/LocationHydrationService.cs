@@ -1,7 +1,9 @@
 using Grpc.Core;
 using LocationGrpc;
 using Haworks.Location.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Haworks.Location.Api.Services;
 
@@ -9,16 +11,29 @@ namespace Haworks.Location.Api.Services;
 /// gRPC service for "Hydrating" search results.
 /// Returns full address details for a given list of Location IDs.
 /// </summary>
-public class LocationHydrationService(LocationDbContext dbContext) 
+[Authorize]
+public class LocationHydrationService(LocationDbContext dbContext, ILogger<LocationHydrationService> logger)
     : LocationHydration.LocationHydrationBase
 {
     public override async Task<AddressList> GetAddresses(AddressRequest request, ServerCallContext context)
     {
-        var guids = request.LocationIds
-            .Select(id => Guid.TryParse(id, out var g) ? (Guid?)g : null)
-            .Where(g => g.HasValue)
-            .Select(g => g!.Value)
-            .ToList();
+        if (request.LocationIds.Count > 1000)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "LocationIds array size must not exceed 1000"));
+        }
+
+        var invalidCount = 0;
+        var guids = new List<Guid>(request.LocationIds.Count);
+        foreach (var id in request.LocationIds)
+        {
+            if (Guid.TryParse(id, out var g))
+                guids.Add(g);
+            else
+                invalidCount++;
+        }
+
+        if (invalidCount > 0)
+            logger.LogWarning("Skipped {InvalidCount} unparseable LocationIds in gRPC hydration request", invalidCount);
 
         if (guids.Count == 0)
         {
