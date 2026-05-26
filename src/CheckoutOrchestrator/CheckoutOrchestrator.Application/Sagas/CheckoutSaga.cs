@@ -111,55 +111,38 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                     var msg = ctx.Message;
                     var sagaState = ctx.Saga;
 
-                    if (msg.TotalAmount <= 0)
+                    if (msg.TotalAmountCents <= 0)
                     {
-                        sagaState.OrderId = msg.OrderId;
-                        sagaState.UserId = msg.UserId;
-                        sagaState.CustomerEmail = msg.CustomerEmail;
-                        sagaState.TotalAmount = msg.TotalAmount;
-                        sagaState.Currency = msg.Currency ?? "USD";
-                        sagaState.IdempotencyKey = msg.IdempotencyKey;
-                        sagaState.CreatedAt = DateTime.UtcNow;
                         sagaState.FailureReason = "invalid_amount";
                         logger.LogError(
-                            "CheckoutSaga rejected: TotalAmount={TotalAmount} is invalid (OrderId={OrderId}, SagaId={SagaId})",
-                            msg.TotalAmount, msg.OrderId, sagaState.CorrelationId);
+                            "CheckoutSaga rejected: TotalAmountCents={TotalAmountCents} is invalid (OrderId={OrderId}, SagaId={SagaId})",
+                            msg.TotalAmountCents, msg.OrderId, sagaState.CorrelationId);
                         return;
                     }
 
                     sagaState.OrderId = msg.OrderId;
                     sagaState.UserId = msg.UserId;
                     sagaState.CustomerEmail = msg.CustomerEmail;
-                    sagaState.TotalAmount = msg.TotalAmount;
-                    sagaState.Currency = msg.Currency ?? "USD";
+                    sagaState.TotalAmountCents = msg.TotalAmountCents;
+                    sagaState.Currency = msg.Currency ?? throw new InvalidOperationException("Currency is required on CheckoutStartedEvent");
                     sagaState.IdempotencyKey = msg.IdempotencyKey;
                     sagaState.LineItemsJson = JsonSerializer.Serialize(msg.Items);
                     sagaState.CreatedAt = DateTime.UtcNow;
                     EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Initial", "Initiated");
                 })
-                .If(ctx => ctx.Saga.FailureReason == "invalid_amount",
-                    binder => binder.TransitionTo(Abandoned))
-                .If(ctx => ctx.Saga.FailureReason != "invalid_amount",
-                    binder => binder
-                        .PublishAsync(ctx => ctx.Init<StockReservationRequestedEvent>(new StockReservationRequestedEvent
-                        {
-                            OrderId = ctx.Message.OrderId,
-                            SagaId = ctx.Saga.CorrelationId,
-                            UserId = ctx.Message.UserId,
-                            CustomerEmail = ctx.Message.CustomerEmail,
-                            TotalAmount = ctx.Message.TotalAmount,
-                            Currency = ctx.Saga.Currency,
-                            Items = ctx.Message.Items,
-                            IdempotencyKey = ctx.Message.IdempotencyKey,
-                        }))
-                        .Schedule(
-                            StockReservationTimeoutSchedule,
-                            ctx => ctx.Init<StockReservationTimedOutEvent>(new StockReservationTimedOutEvent
-                            {
-                                SagaId = ctx.Saga.CorrelationId,
-                                OrderId = ctx.Saga.OrderId,
-                            }))
-                        .TransitionTo(Initiated)));
+                .PublishAsync(ctx => ctx.Init<StockReservationRequestedEvent>(new StockReservationRequestedEvent
+                {
+                    OrderId = ctx.Message.OrderId,
+                    SagaId = ctx.Saga.CorrelationId,
+                    UserId = ctx.Message.UserId,
+                    CustomerEmail = ctx.Message.CustomerEmail,
+                    TotalAmountCents = ctx.Message.TotalAmountCents,
+                    Currency = ctx.Saga.Currency,
+                    Items = ctx.Message.Items,
+                    IdempotencyKey = ctx.Message.IdempotencyKey,
+                }))
+                .TransitionTo(Initiated));
+
 
         During(Initiated,
             When(StockReservationTimeoutSchedule!.Received)
@@ -180,7 +163,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 {
                     OrderId = ctx.Saga.OrderId,
                     SagaId = ctx.Saga.CorrelationId,
-                    AmountCents = (long)Math.Round(ctx.Saga.TotalAmount * 100m, 0, MidpointRounding.AwayFromZero),
+                    AmountCents = ctx.Saga.TotalAmountCents,
                     Currency = ctx.Saga.Currency,
                     UserId = ctx.Saga.UserId,
                     CustomerEmail = ctx.Saga.CustomerEmail,
@@ -188,7 +171,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                         .Select(li => new PaymentLineItemData
                         {
                             Name = li.ProductName,
-                            UnitAmountCents = (long)Math.Round(li.UnitPrice * 100m, 0, MidpointRounding.AwayFromZero),
+                            UnitAmountCents = li.UnitPriceCents,
                             Quantity = li.Quantity,
                         }).ToList(),
                     SuccessUrl = options.SuccessUrl,
@@ -313,7 +296,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 .TransitionTo(Abandoned),
             When(PaymentAmountMismatch)
                 .Then(ctx => ctx.Saga.FailureReason =
-                    $"PaymentAmountMismatch: expected={ctx.Message.ExpectedTotal}, actual={ctx.Message.ActualPaid}")
+                    $"PaymentAmountMismatch: expected={ctx.Message.ExpectedTotalCents / 100m:F2}, actual={ctx.Message.ActualPaidCents / 100m:F2}")
                 .Unschedule(PaymentExpirySchedule)
                 // Do NOT release stock here — customer has paid. Stock remains
                 // reserved in RequiresReview so ops can either complete the order

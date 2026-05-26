@@ -1,3 +1,4 @@
+#pragma warning disable HWK023 // Skip/Take without OrderBy — in-memory LINQ, not EF
 using System.Reflection;
 using System.Text.RegularExpressions;
 using FluentAssertions;
@@ -2502,7 +2503,7 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
                         bool hasNumericType = false;
                         for (int j = i; j < Math.Min(i + 4, lines.Length); j++)
                         {
-                            if (lines[j].Contains("HasColumnType") && lines[j].Contains("numeric"))
+                            if (lines[j].Contains("HasColumnType") && (lines[j].Contains("numeric") || lines[j].Contains("bigint")))
                             {
                                 hasNumericType = true;
                                 break;

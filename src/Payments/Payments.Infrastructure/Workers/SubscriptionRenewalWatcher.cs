@@ -51,6 +51,8 @@ public sealed class SubscriptionRenewalWatcher : BackgroundService
     {
         try
         {
+            // Stagger first run so the watcher doesn't fire during cold-start
+            // app initialization (services still registering, MT bus warming up).
             if (!await DelaySafeAsync(TimeSpan.FromSeconds(30), stoppingToken)) return;
 
             while (!stoppingToken.IsCancellationRequested)
@@ -58,10 +60,9 @@ public sealed class SubscriptionRenewalWatcher : BackgroundService
                 await TickSafeAsync(stoppingToken);
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { /* shutdown */ }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogCritical(ex, "{Watcher} crashed — background processing stopped", nameof(SubscriptionRenewalWatcher));
+            _logger.LogError(ex, "SubscriptionRenewalWatcher failed unexpectedly");
         }
     }
 

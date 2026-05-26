@@ -58,7 +58,7 @@ public sealed class StockReservedConsumerTests
                 orderId        = orderId.ToString(),
                 sagaId         = sagaId.ToString(),
                 userId         = "user-123",
-                totalAmount    = 30.00m,
+                totalAmountCents = 3000,
                 currency       = "USD",
                 customerEmail  = "buyer@example.com",
                 idempotencyKey = "key-abc",
@@ -70,6 +70,7 @@ public sealed class StockReservedConsumerTests
                         productName    = "Widget",
                         quantity       = 3,
                         remainingStock = 7,
+                        currency       = "USD",
                     }
                 },
                 orderLineItems = new[]
@@ -79,7 +80,8 @@ public sealed class StockReservedConsumerTests
                         productId   = productId.ToString(),
                         productName = "Widget",
                         quantity    = 3,
-                        unitPrice   = 10.00m,
+                        unitPriceCents = 1000,
+                        currency       = "USD",
                     }
                 },
             })
@@ -89,7 +91,7 @@ public sealed class StockReservedConsumerTests
                 evt.OrderId.Should().Be(orderId);
                 evt.SagaId.Should().Be(sagaId);
                 evt.UserId.Should().Be("user-123");
-                evt.TotalAmount.Should().Be(30.00m);
+                evt.TotalAmountCents.Should().Be(3000);
                 evt.Currency.Should().Be("USD");
                 evt.CustomerEmail.Should().Be("buyer@example.com");
                 evt.IdempotencyKey.Should().Be("key-abc");
@@ -104,7 +106,7 @@ public sealed class StockReservedConsumerTests
                 evt.OrderLineItems.Should().ContainSingle();
                 var lineItem = evt.OrderLineItems[0];
                 lineItem.ProductId.Should().Be(productId);
-                lineItem.UnitPrice.Should().Be(10.00m);
+                lineItem.UnitPriceCents.Should().Be(1000);
                 lineItem.Quantity.Should().Be(3);
 
                 return Task.CompletedTask;

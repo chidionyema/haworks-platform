@@ -41,10 +41,9 @@ public sealed class SagaHealthWatcher : BackgroundService
                 await TickSafeAsync(stoppingToken);
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { /* shutdown */ }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogCritical(ex, "{Watcher} crashed — background processing stopped", nameof(SagaHealthWatcher));
+            _logger.LogError(ex, "SagaHealthWatcher failed unexpectedly");
         }
     }
 
@@ -96,7 +95,7 @@ public sealed class SagaHealthWatcher : BackgroundService
         {
             PaymentsActivities.RefundStuckInReview.Add(1);
             _logger.LogCritical(
-                "Refund saga {SagaId} stuck in RequiresReview for order {OrderId}, amount {Amount}, since {CreatedAt}",
+                "Refund saga {SagaId} stuck in RequiresReview for order {OrderId}, amountCents {AmountCents}, since {CreatedAt}",
                 saga.CorrelationId, saga.OrderId, saga.AmountCents, saga.CreatedAt);
         }
     }
@@ -114,7 +113,7 @@ public sealed class SagaHealthWatcher : BackgroundService
         {
             PaymentsActivities.RefundStuckAwaitingProvider.Add(1);
             _logger.LogWarning(
-                "Refund saga {SagaId} stuck in AwaitingProviderConfirmation for order {OrderId}, amount {Amount}, since {CreatedAt}",
+                "Refund saga {SagaId} stuck in AwaitingProviderConfirmation for order {OrderId}, amountCents {AmountCents}, since {CreatedAt}",
                 saga.CorrelationId, saga.OrderId, saga.AmountCents, saga.CreatedAt);
         }
     }

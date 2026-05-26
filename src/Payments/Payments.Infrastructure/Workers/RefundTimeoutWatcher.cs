@@ -36,10 +36,9 @@ public sealed class RefundTimeoutWatcher : BackgroundService
                 await TickSafeAsync(stoppingToken);
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { /* shutdown */ }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogCritical(ex, "{Watcher} crashed — background processing stopped", nameof(RefundTimeoutWatcher));
+            _logger.LogError(ex, "RefundTimeoutWatcher failed unexpectedly");
         }
     }
 

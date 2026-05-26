@@ -33,7 +33,7 @@ public sealed class RefundEmailConsumer(
             Variables: new Dictionary<string, object>
             {
                 ["RefundId"] = msg.RefundId,
-                ["Amount"] = msg.AmountCents,
+                ["Amount"] = msg.AmountCents / 100m,
                 ["Currency"] = msg.Currency
             },
             IdempotencyKey: $"refund-completed-{msg.RefundId}"

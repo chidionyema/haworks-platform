@@ -144,8 +144,8 @@ public sealed class WebhookIdempotencyTests : IAsyncLifetime
         var payment = Payment.Create(
             orderId: Guid.NewGuid(),
             userId: "user-test",
-            amount: amount,
-            tax: 0m,
+            amountCents: (long)(amount * 100),
+            taxCents: 0L,
             currency: "USD",
             provider: PaymentProvider.Stripe,
             sagaId: Guid.NewGuid());

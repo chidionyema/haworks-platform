@@ -46,8 +46,8 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             OrderId = orderId,
             UserId = "test-user",
             CustomerEmail = "test@example.com",
-            TotalAmount = 100m,
-            Items = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPrice = 100m } },
+            TotalAmountCents = 10000L,
+            Items = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPriceCents = 10000L, Currency = "USD" } },
             Currency = "USD",
             IdempotencyKey = "key-" + Guid.NewGuid()
         });
@@ -60,11 +60,11 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             OrderId = orderId,
             SagaId = sagaId,
             UserId = "test-user",
-            TotalAmount = 100m,
+            TotalAmountCents = 10000L,
             Currency = "USD",
             CustomerEmail = "test@example.com",
             Items = new[] { new StockReservationItem { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, RemainingStock = 5 } },
-            OrderLineItems = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPrice = 100m } }
+            OrderLineItems = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPriceCents = 10000L, Currency = "USD" } }
         });
 
         // 3. Assert state transition to StockReservedState (which represents "StockHeld" in monolith)
@@ -87,8 +87,8 @@ public sealed class CheckoutSagaEndToEndTests : IClassFixture<CheckoutWebAppFact
             OrderId = orderId,
             UserId = "test-user",
             CustomerEmail = "test@example.com",
-            TotalAmount = 100m,
-            Items = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPrice = 100m } },
+            TotalAmountCents = 10000L,
+            Items = new[] { new CheckoutItemData { ProductId = Guid.NewGuid(), ProductName = "Test", Quantity = 1, UnitPriceCents = 10000L, Currency = "USD" } },
             Currency = "USD",
             IdempotencyKey = "key-" + Guid.NewGuid()
         });

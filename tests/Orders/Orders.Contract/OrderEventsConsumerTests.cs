@@ -43,6 +43,7 @@ public sealed class OrderEventsConsumerTests
                 orderId       = "11111111-1111-1111-1111-111111111111",
                 customerId    = "22222222-2222-2222-2222-222222222222",
                 totalAmountCents = 2550L,
+                currency         = "USD",
                 customerEmail    = "buyer@example.com",
             })
             .VerifyAsync<OrderCreatedEvent>(evt =>
@@ -68,6 +69,7 @@ public sealed class OrderEventsConsumerTests
                 orderId       = "11111111-1111-1111-1111-111111111111",
                 customerId    = "22222222-2222-2222-2222-222222222222",
                 totalAmountCents = 2550L,
+                currency         = "USD",
                 customerEmail    = "buyer@example.com",
                 completedAt      = "2026-05-03T12:05:00Z",
                 paymentId        = "33333333-3333-3333-3333-333333333333",

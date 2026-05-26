@@ -27,7 +27,7 @@ public sealed record ReserveStockCommand(
     Guid OrderId,
     Guid SagaId,
     string UserId,
-    decimal TotalAmount,
+    long TotalAmountCents,
     string Currency,
     string CustomerEmail,
     string? IdempotencyKey) : IRequest<Result<Guid>>;
@@ -72,7 +72,7 @@ internal sealed class ReserveStockCommandHandler(
             OrderId = request.OrderId,
             SagaId = request.SagaId,
             UserId = request.UserId,
-            TotalAmount = request.TotalAmount,
+            TotalAmountCents = request.TotalAmountCents,
             Currency = request.Currency,
             CustomerEmail = request.CustomerEmail,
             IdempotencyKey = request.IdempotencyKey,
@@ -93,7 +93,7 @@ internal sealed class ReserveStockCommandHandler(
                     ProductId = product.Id,
                     ProductName = product.Name,
                     Quantity = request.Quantity,
-                    UnitPrice = new Money(product.UnitPriceCents, request.Currency ?? "USD").ToMajorUnits(),
+                    UnitPriceCents = product.UnitPriceCents,
                     Currency = request.Currency ?? "USD"
                 }
             }

@@ -120,7 +120,7 @@ public sealed class ProductsController(
             body.OrderId,
             body.SagaId,
             body.UserId,
-            body.TotalAmount,
+            body.TotalAmountCents,
             body.Currency,
             body.CustomerEmail,
             body.IdempotencyKey);
@@ -135,7 +135,7 @@ public sealed record ReserveStockRequest
     public required Guid OrderId { get; init; }
     public required Guid SagaId { get; init; }
     public required string UserId { get; init; }
-    public required decimal TotalAmount { get; init; }
+    public required long TotalAmountCents { get; init; }
     public required string Currency { get; init; }
     public required string CustomerEmail { get; init; }
     public string? IdempotencyKey { get; init; }
@@ -147,7 +147,7 @@ public sealed record CreateProductRequest
     public required string Description { get; init; }
     public required decimal UnitPrice { get; init; }
     public required Guid CategoryId { get; init; }
-    public int InitialStock { get; init; }
+    public int InitialStock { get; init; } = 0;
 }
 
 public sealed record UpdateProductRequest

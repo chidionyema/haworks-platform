@@ -92,7 +92,8 @@ public class LoginCommandHandlerTests : TestBase
         _jwtTokenServiceMock.Verify(
             j => j.GenerateTokenAsync(
                 It.Is<User>(u => u.Id == user.Id),
-                It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

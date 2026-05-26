@@ -6,7 +6,7 @@ public sealed record ProductMatchedSavedSearchEvent : DomainEvent
     public required string UserId { get; init; }
     public required Guid ProductId { get; init; }
     public required string ProductName { get; init; }
-    public required decimal UnitPrice { get; init; }
+    public required long UnitPriceCents { get; init; }
     public required string Currency { get; init; }
     public required DateTimeOffset MatchedAt { get; init; }
 }

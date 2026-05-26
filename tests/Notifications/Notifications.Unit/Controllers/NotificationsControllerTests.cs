@@ -46,7 +46,7 @@ public sealed class NotificationsControllerTests
         created.ActionName.Should().Be(nameof(NotificationsController.Get));
         created.RouteValues.Should().NotBeNull();
         created.RouteValues!["id"].Should().Be(notificationId);
-        created.Value.Should().Be(notificationId);
+        created.Value.Should().BeEquivalentTo(new { notificationId });
     }
 
     [Fact]
