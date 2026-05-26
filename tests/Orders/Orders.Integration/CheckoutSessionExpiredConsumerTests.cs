@@ -192,7 +192,7 @@ public sealed class CheckoutSessionExpiredConsumerTests(OrdersWebAppFactory fact
             idempotencyKey = "key-" + Guid.NewGuid().ToString("N"),
             items = new[]
             {
-                new { productId = Guid.NewGuid(), productName = "Widget", quantity = 1, unitPrice = 25.50m },
+                new { productId = Guid.NewGuid(), productName = "Widget", quantity = 1, unitPriceCents = 2550L },
             }
         });
         resp.EnsureSuccessStatusCode();

@@ -204,10 +204,14 @@ public sealed class PipelineTests(NotificationsWebAppFactory factory)
     private static async Task<Guid> ExtractIdAsync(HttpResponseMessage resp)
     {
         var raw = (await resp.Content.ReadAsStringAsync()).Trim();
-        if (raw.StartsWith('"') && raw.EndsWith('"'))
+        if (raw.StartsWith('{'))
         {
-            raw = raw[1..^1];
+            var doc = System.Text.Json.JsonDocument.Parse(raw);
+            if (doc.RootElement.TryGetProperty("notificationId", out var prop))
+                return prop.GetGuid();
         }
+        if (raw.StartsWith('"') && raw.EndsWith('"'))
+            raw = raw[1..^1];
         return Guid.Parse(raw);
     }
 
