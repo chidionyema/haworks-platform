@@ -134,7 +134,7 @@ namespace Haworks.Payments.Infrastructure.Migrations
                     b.Property<long>("TotalRefundedCents")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
-                        .HasDefaultValue(0L);
+                        ;
 
                     b.Property<string>("UserId")
                         .IsRequired()
