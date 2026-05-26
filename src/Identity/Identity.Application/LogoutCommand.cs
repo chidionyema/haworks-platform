@@ -47,31 +47,34 @@ internal sealed class LogoutCommandHandler : IRequestHandler<LogoutCommand, Resu
         var jti = request.User.FindFirstValue(JwtRegisteredClaimNames.Jti);
         var expiryClaim = request.User.FindFirstValue(JwtRegisteredClaimNames.Exp);
 
-        if (!string.IsNullOrEmpty(jti) && !string.IsNullOrEmpty(userId) &&
-            !string.IsNullOrEmpty(expiryClaim) && long.TryParse(expiryClaim, out long expiryUnixTime))
+        if (!string.IsNullOrEmpty(userId))
         {
-            var expiryDate = DateTimeOffset.FromUnixTimeSeconds(expiryUnixTime).UtcDateTime;
-            await _tokenRevocationService.RevokeTokenAsync(jti, userId, expiryDate, cancellationToken);
-            _logger.LogInformation("Access token (JTI: {Jti}) for User ID: {UserId} marked as revoked.", jti, userId);
+            // Both TokenRevocationService and RefreshTokenRepository share the
+            // same AppIdentityDbContext, so we wrap both operations in a single
+            // EF transaction to ensure atomicity.
+            using (await _refreshTokenRepository.BeginTransactionAsync(cancellationToken))
+            {
+                if (!string.IsNullOrEmpty(jti) && !string.IsNullOrEmpty(expiryClaim) &&
+                    long.TryParse(expiryClaim, out long expiryUnixTime))
+                {
+                    var expiryDate = DateTimeOffset.FromUnixTimeSeconds(expiryUnixTime).UtcDateTime;
+                    await _tokenRevocationService.RevokeTokenAsync(jti, userId, expiryDate, cancellationToken);
+                    _logger.LogInformation("Access token (JTI: {Jti}) for User ID: {UserId} marked as revoked.", jti, userId);
+                }
+                else
+                {
+                    _logger.LogWarning("Could not revoke access token for User ID: {UserId} due to missing JTI or Expiry claim.", userId);
+                }
+
+                await _refreshTokenRepository.RemoveAllForUserAsync(userId, cancellationToken);
+                _logger.LogInformation("Revoked all refresh tokens for user {UserId}", userId);
+
+                await _refreshTokenRepository.CommitTransactionAsync(cancellationToken);
+            }
         }
         else
         {
-            _logger.LogWarning("Could not revoke token for User ID: {UserId} due to missing JTI, UserID, or Expiry claim.",
-                userId ?? "Unknown");
-        }
-
-        if (!string.IsNullOrEmpty(userId))
-        {
-            // Known limitation: access token revocation (above) and refresh
-            // token removal are not in a single transaction because they use
-            // separate persistence stores (RevokedToken table via
-            // TokenRevocationService vs RefreshToken table). If this call
-            // fails, the access token is already revoked (safe side) and
-            // refresh tokens remain — the short access-token TTL limits the
-            // exposure window. A retry will clean them up.
-            await _refreshTokenRepository.RemoveAllForUserAsync(userId, cancellationToken);
-            await _refreshTokenRepository.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Revoked all refresh tokens for user {UserId}", userId);
+            _logger.LogWarning("Could not revoke tokens: missing UserID claim.");
         }
 
         _jwtTokenService.DeleteAuthCookie(request.HttpContext);

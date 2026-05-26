@@ -64,24 +64,24 @@ public sealed class JwtTokenServiceTests
         var token = await sut.GenerateTokenAsync(user, expiry);
         var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
-        var principal = sut.ValidateToken(tokenString);
+        var principal = await sut.ValidateTokenAsync(tokenString);
 
         principal.Should().NotBeNull();
         principal!.FindFirst(JwtRegisteredClaimNames.Sub)?.Value.Should().Be(user.Id);
     }
 
     [Fact]
-    public void ValidateToken_rejects_a_completely_garbage_string()
+    public async Task ValidateToken_rejects_a_completely_garbage_string()
     {
         var sut = CreateSut();
 
-        var principal = sut.ValidateToken("not.a.real.jwt");
+        var principal = await sut.ValidateTokenAsync("not.a.real.jwt");
 
         principal.Should().BeNull();
     }
 
     [Fact]
-    public void ValidateToken_rejects_token_signed_with_a_DIFFERENT_key()
+    public async Task ValidateToken_rejects_token_signed_with_a_DIFFERENT_key()
     {
         // Build a JWT signed with an UNRELATED RSA key — same claims/issuer,
         // wrong signature. Validation must reject (signature is the only
@@ -98,7 +98,7 @@ public sealed class JwtTokenServiceTests
         var rogueTokenString = new JwtSecurityTokenHandler().WriteToken(rogueToken);
 
         var sut = CreateSut();
-        var principal = sut.ValidateToken(rogueTokenString);
+        var principal = await sut.ValidateTokenAsync(rogueTokenString);
 
         principal.Should().BeNull("a JWT signed by a different key must not validate");
     }

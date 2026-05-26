@@ -59,8 +59,8 @@ public class RefreshTokenCommandHandlerTests : TestBase
         }));
 
         _jwtTokenServiceMock
-            .Setup(j => j.ValidateToken(It.IsAny<string>(), false))
-            .Returns(principal);
+            .Setup(j => j.ValidateTokenAsync(It.IsAny<string>(), false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(principal);
 
         _userManagerMock
             .Setup(um => um.FindByIdAsync(user.Id))

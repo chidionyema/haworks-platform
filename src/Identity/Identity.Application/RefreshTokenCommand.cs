@@ -73,7 +73,7 @@ internal sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenC
         try
         {
             // 2. Validate Access Token (Ignore lifetime because it's expected to be expired)
-            var principal = _jwtTokenService.ValidateToken(request.AccessToken, validateLifetime: false);
+            var principal = await _jwtTokenService.ValidateTokenAsync(request.AccessToken, validateLifetime: false, ct: cancellationToken);
             if (principal == null)
                 return Result.Failure<AuthResponseDto>(Error.Auth.InvalidAccessToken);
 
