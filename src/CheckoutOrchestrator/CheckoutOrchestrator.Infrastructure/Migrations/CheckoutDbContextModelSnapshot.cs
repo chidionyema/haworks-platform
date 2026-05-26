@@ -119,8 +119,8 @@ namespace Haworks.CheckoutOrchestrator.Infrastructure.Migrations
                     b.Property<string>("ReservedItemsJson")
                         .HasColumnType("jsonb");
 
-                    b.Property<decimal>("TotalAmount")
-                        .HasColumnType("numeric(18,2)");
+                    b.Property<long>("TotalAmountCents")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("UserId")
                         .IsRequired()

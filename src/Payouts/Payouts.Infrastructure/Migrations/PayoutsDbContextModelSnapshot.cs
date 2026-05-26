@@ -31,8 +31,8 @@ namespace Haworks.Payouts.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("Balance")
-                        .HasColumnType("numeric(18,2)");
+                    b.Property<long>("BalanceCents")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -90,8 +90,8 @@ namespace Haworks.Payouts.Infrastructure.Migrations
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric(18,2)");
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -148,8 +148,8 @@ namespace Haworks.Payouts.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric(18,2)");
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -246,8 +246,8 @@ namespace Haworks.Payouts.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<decimal>("PayoutThreshold")
-                        .HasColumnType("numeric(18,2)");
+                    b.Property<long>("PayoutThresholdCents")
+                        .HasColumnType("bigint");
 
                     b.Property<bool>("PayoutsEnabled")
                         .HasColumnType("boolean");
