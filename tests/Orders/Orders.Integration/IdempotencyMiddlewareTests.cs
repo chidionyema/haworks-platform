@@ -33,7 +33,7 @@ public sealed class IdempotencyMiddlewareTests(OrdersWebAppFactory factory) : IA
         {
             userId = "test-user",
             customerEmail = "buyer@example.com",
-            totalAmount = 9.99m,
+            totalAmountCents = 999L,
             currency = "USD",
             sagaId = Guid.NewGuid(),
             idempotencyKey = "client-side-nonce",

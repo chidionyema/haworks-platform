@@ -59,15 +59,24 @@ public class SchedulerWebAppFactory : WebApplicationFactory<Program>, IAsyncLife
 
         builder.ConfigureTestServices(services =>
         {
+            // Replace DbContext to suppress PendingModelChangesWarning during currency migration
+            var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<SchedulerDbContext>));
+            if (descriptor != null) services.Remove(descriptor);
+            services.AddDbContext<SchedulerDbContext>((sp, options) =>
+            {
+                options.UseNpgsql(ConnString);
+                options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+            });
+
             var mockBackgroundJobClient = new Mock<IBackgroundJobClient>();
             services.AddSingleton(mockBackgroundJobClient.Object);
             services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
 
             // Remove the LeaseBootstrapStartupTask — it queries VaultLeases
             // at startup before MigrateAsync can create the schema.
-            var descriptor = services.SingleOrDefault(d =>
+            var leaseDescriptor = services.SingleOrDefault(d =>
                 d.ImplementationType == typeof(LeaseBootstrapStartupTask));
-            if (descriptor != null) services.Remove(descriptor);
+            if (leaseDescriptor != null) services.Remove(leaseDescriptor);
         });
     }
 }
