@@ -51,6 +51,12 @@ public class CreateAddressCommandHandler(
             {
                 lat = coords.Value.Latitude;
                 lon = coords.Value.Longitude;
+
+                // Validate geocoded coordinates are within valid ranges
+                if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+                {
+                    return Result.Failure<Guid>(Error.Validation("Address.InvalidCoordinates", $"Geocoded coordinates are invalid: lat={lat}, lon={lon}"));
+                }
             }
             else
             {
