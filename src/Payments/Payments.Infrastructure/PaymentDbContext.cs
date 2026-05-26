@@ -57,7 +57,7 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
 
             entity.Property(p => p.AmountCents).HasColumnType("bigint");
             entity.Property(p => p.TaxCents).HasColumnType("bigint");
-            entity.Property(p => p.TotalRefundedCents).HasColumnType("bigint").HasDefaultValue(0L);
+            entity.Property(p => p.TotalRefundedCents).HasColumnType("bigint");
             entity.Property(p => p.Currency).HasMaxLength(3);
             entity.Property(p => p.Status).HasConversion<string>();
             entity.Property(p => p.Provider).HasConversion<string>();
