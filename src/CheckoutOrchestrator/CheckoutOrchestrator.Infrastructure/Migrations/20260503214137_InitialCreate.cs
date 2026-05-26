@@ -142,7 +142,8 @@ namespace Haworks.CheckoutOrchestrator.Infrastructure.Migrations
                 name: "IX_CheckoutSagas_OrderId",
                 schema: "checkout",
                 table: "CheckoutSagas",
-                column: "OrderId");
+                column: "OrderId",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_InboxState_Delivered",
