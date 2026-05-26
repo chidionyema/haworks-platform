@@ -69,7 +69,7 @@ public class CreateAddressCommandHandler(
             Country = request.Country,
             Coordinates = new Point(lon, lat) { SRID = 4326 },
             Geohash = geohash,
-            Metadata = "{}"
+            Metadata = null
         };
 
         dbContext.Addresses.Add(address);

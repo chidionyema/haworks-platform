@@ -2,6 +2,7 @@ using Grpc.Core;
 using LocationGrpc;
 using Haworks.Location.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Haworks.Location.Api.Services;
 
@@ -9,16 +10,23 @@ namespace Haworks.Location.Api.Services;
 /// gRPC service for "Hydrating" search results.
 /// Returns full address details for a given list of Location IDs.
 /// </summary>
-public class LocationHydrationService(LocationDbContext dbContext) 
+public class LocationHydrationService(LocationDbContext dbContext, ILogger<LocationHydrationService> logger)
     : LocationHydration.LocationHydrationBase
 {
     public override async Task<AddressList> GetAddresses(AddressRequest request, ServerCallContext context)
     {
-        var guids = request.LocationIds
-            .Select(id => Guid.TryParse(id, out var g) ? (Guid?)g : null)
-            .Where(g => g.HasValue)
-            .Select(g => g!.Value)
-            .ToList();
+        var guids = new List<Guid>();
+        foreach (var id in request.LocationIds)
+        {
+            if (Guid.TryParse(id, out var guid))
+            {
+                guids.Add(guid);
+            }
+            else
+            {
+                logger.LogWarning("Invalid GUID provided in address request: {InvalidId}", id);
+            }
+        }
 
         if (guids.Count == 0)
         {

@@ -28,9 +28,19 @@ public sealed class NominatimGeocodingService(HttpClient httpClient, ILogger<Nom
                 return (lat, lon);
             }
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            logger.LogWarning(ex, "An error occurred in {MethodName}", nameof(GeocodeAsync));
+            logger.LogWarning(ex, "HTTP error during geocoding: {Address}", address);
+            return null;
+        }
+        catch (TaskCanceledException ex)
+        {
+            logger.LogWarning(ex, "Geocoding request timed out: {Address}", address);
+            return null;
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            logger.LogWarning(ex, "Invalid response format from Nominatim: {Address}", address);
             return null;
         }
 

@@ -14,6 +14,7 @@ namespace Haworks.Location.Api.Controllers;
 public class AddressesController(IMediator mediator) : ControllerBase
 {
     [HttpPost]
+    [Authorize(Roles = "User,Admin")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create(CreateAddressCommand command, CancellationToken ct = default)

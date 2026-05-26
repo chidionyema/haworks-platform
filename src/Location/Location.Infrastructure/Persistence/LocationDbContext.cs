@@ -78,6 +78,11 @@ public class LocationDbContext : DbContext, ILocationDbContext
 
             entity.HasIndex(a => a.Geohash);
 
+            // Unique constraint to prevent duplicate addresses
+            entity.HasIndex(a => new { a.Street, a.City, a.Postcode, a.Country })
+                .IsUnique()
+                .HasDatabaseName("IX_Addresses_Unique_Address");
+
             // Concurrency handled by domain guards + pessimistic locks.
         });
 
