@@ -64,7 +64,8 @@ public class CreateAddressCommandHandlerTests
             Postcode = "SW1A 1AA",
             Country = "United Kingdom",
             Latitude = 51.5074,
-            Longitude = -0.1278
+            Longitude = -0.1278,
+            IdempotencyKey = "test-key-1"
         };
         _geohashMock.Setup(x => x.Encode(It.IsAny<double>(), It.IsAny<double>(), It.IsAny<int>()))
             .Returns("gcpvj0d9");
@@ -89,7 +90,8 @@ public class CreateAddressCommandHandlerTests
             Street = "Buckingham Palace",
             City = "London",
             Postcode = "SW1A 1AA",
-            Country = "UK"
+            Country = "UK",
+            IdempotencyKey = "test-key-2"
         };
         _geocodingMock.Setup(x => x.GeocodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((51.5014, -0.1419));

@@ -10,5 +10,6 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" />
     <PackageReference Include="MassTransit.RabbitMQ" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
   </ItemGroup>
 </Project>

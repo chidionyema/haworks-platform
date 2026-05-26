@@ -12,23 +12,39 @@ public class Address : AuditableEntity
 
     public Address(Guid id) : base(id) { }
 
-    public string Street { get; set; } = null!;
-    public string City { get; set; } = null!;
-    public string Postcode { get; set; } = null!;
-    public string Country { get; set; } = null!;
-    
+    public string Street { get; private set; } = null!;
+    public string City { get; private set; } = null!;
+    public string Postcode { get; private set; } = null!;
+    public string Country { get; private set; } = null!;
+
     /// <summary>
     /// Geodetic coordinates (SRID 4326).
     /// </summary>
-    public Point Coordinates { get; set; } = null!;
-    
+    public Point Coordinates { get; private set; } = null!;
+
     /// <summary>
     /// 12-character precision geohash for grid-based pre-filtering.
     /// </summary>
-    public string Geohash { get; set; } = null!;
-    
+    public string Geohash { get; private set; } = null!;
+
     /// <summary>
     /// Flexible JSON metadata for region, district, or business-specific tags.
     /// </summary>
-    public string? Metadata { get; set; }
+    public string? Metadata { get; private set; }
+
+    public static Address Create(
+        string street, string city, string postcode, string country,
+        Point coordinates, string geohash, string? metadata = null)
+    {
+        return new Address
+        {
+            Street = street,
+            City = city,
+            Postcode = postcode,
+            Country = country,
+            Coordinates = coordinates,
+            Geohash = geohash,
+            Metadata = metadata
+        };
+    }
 }

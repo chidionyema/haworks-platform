@@ -61,16 +61,9 @@ public class CreateAddressCommandHandler(
         // 2. Generate Geohash (Level 12 for high precision storage)
         var geohash = geohashService.Encode(lat, lon, 12);
 
-        var address = new Address
-        {
-            Street = request.Street,
-            City = request.City,
-            Postcode = request.Postcode,
-            Country = request.Country,
-            Coordinates = new Point(lon, lat) { SRID = 4326 },
-            Geohash = geohash,
-            Metadata = "{}"
-        };
+        var address = Address.Create(
+            request.Street, request.City, request.Postcode, request.Country,
+            new Point(lon, lat) { SRID = 4326 }, geohash);
 
         dbContext.Addresses.Add(address);
 

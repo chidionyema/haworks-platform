@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Vault;
@@ -58,10 +59,11 @@ public static class DependencyInjection
         });
 
         services.AddScoped<ILocationDbContext>(sp => sp.GetRequiredService<LocationDbContext>());
+        services.AddScoped<IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<LocationDbContext>());
 
         // Geospatial services
         services.AddSingleton<IGeohashService, GeohashService>();
-        
+
         services.AddHttpClient<IGeocodingService, NominatimGeocodingService>((sp, c) =>
         {
             var nominatimUrl = configuration["Location:NominatimBaseUrl"] ?? "https://nominatim.openstreetmap.org/";
@@ -69,7 +71,8 @@ public static class DependencyInjection
             c.DefaultRequestHeaders.Add("User-Agent", "HaworksPlatform/1.0");
             var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
             c.Timeout = TimeSpan.FromSeconds(t.LocationNominatimSeconds);
-        });
+        })
+        .AddStandardResilienceHandler();
 
         if (env.IsEnvironment("Test"))
         {

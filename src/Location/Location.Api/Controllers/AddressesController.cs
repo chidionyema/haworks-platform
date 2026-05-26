@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using Haworks.BuildingBlocks.Common;
 using Haworks.Location.Application.Commands;
 using Haworks.Location.Application.Queries;
@@ -5,11 +6,13 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Haworks.Location.Api.Controllers;
 
 [ApiController]
 [Authorize]
+[EnableRateLimiting("api")]
 [Route("api/v{version:apiVersion}/[controller]")]
 public class AddressesController(IMediator mediator) : ControllerBase
 {

@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Haworks.BuildingBlocks.Authentication;
 using Haworks.BuildingBlocks.Extensions;
 using Haworks.BuildingBlocks.Middleware;
@@ -30,6 +32,25 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("api", context =>
+    {
+        var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                     ?? context.User.FindFirst("sub")?.Value
+                     ?? context.Connection.RemoteIpAddress?.ToString()
+                     ?? "anonymous";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: userId,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1)
+            });
+    });
+});
 
 // Serilog configuration
 builder.Host.UseSerilog((context, services, loggerConfiguration) =>
@@ -67,6 +88,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 app.MapGrpcService<Haworks.Location.Api.Services.LocationHydrationService>();
 
