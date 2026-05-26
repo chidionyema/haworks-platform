@@ -113,9 +113,10 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
 
                     if (msg.TotalAmountCents <= 0)
                     {
+sagaState.TotalAmountCents = 0;
                         sagaState.FailureReason = "invalid_amount";
-                        logger.LogError(
-                            "CheckoutSaga rejected: TotalAmountCents={TotalAmountCents} is invalid (OrderId={OrderId}, SagaId={SagaId})",
+                        logger.LogWarning(
+                            "CheckoutSaga rejected: TotalAmountCents={TotalAmountCents} is invalid (OrderId={OrderId}, SagaId={SagaId}); storing 0 to prevent invalid data",
                             msg.TotalAmountCents, msg.OrderId, sagaState.CorrelationId);
                         return;
                     }
