@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Haworks.Location.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Roles = "Admin,Service")]
 [Route("api/v{version:apiVersion}/[controller]")]
 public class AddressesController(IMediator mediator) : ControllerBase
 {

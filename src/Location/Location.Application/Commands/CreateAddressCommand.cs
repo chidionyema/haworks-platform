@@ -21,7 +21,7 @@ public record CreateAddressCommand : IIdempotentCommand, IRequest<Result<Guid>>
     public required string Country { get; init; }
     public double? Latitude { get; init; }
     public double? Longitude { get; init; }
-    public string IdempotencyKey { get; init; } = string.Empty;
+    public required string IdempotencyKey { get; init; }
 }
 
 public class CreateAddressCommandHandler(

@@ -2,6 +2,8 @@ using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Haworks.Location.Application.Interfaces;
+using Haworks.BuildingBlocks.Resilience;
+using Polly;
 
 namespace Haworks.Location.Infrastructure.Services;
 
@@ -14,11 +16,11 @@ public sealed class NominatimGeocodingService(HttpClient httpClient, ILogger<Nom
     {
         // Nominatim requires a User-Agent, which is set in DependencyInjection.
         var url = $"search?q={Uri.EscapeDataString(address)}&format=json&limit=1";
-        
+
         try
         {
             var results = await httpClient.GetFromJsonAsync<List<NominatimResult>>(url, ct);
-            
+
             if (results == null || results.Count == 0)
                 return null;
 
@@ -28,9 +30,19 @@ public sealed class NominatimGeocodingService(HttpClient httpClient, ILogger<Nom
                 return (lat, lon);
             }
         }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "HTTP error occurred while geocoding address: {Address}", address);
+            throw; // Let caller retry
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            logger.LogError(ex, "Timeout occurred while geocoding address: {Address}", address);
+            throw; // Let caller retry
+        }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "An error occurred in {MethodName}", nameof(GeocodeAsync));
+            logger.LogError(ex, "Unexpected error occurred while geocoding address: {Address}", address);
             return null;
         }
 

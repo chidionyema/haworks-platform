@@ -15,7 +15,8 @@ public class CreateAddressCommandValidatorTests
         Postcode = "SW1A 1AA",
         Country = "United Kingdom",
         Latitude = 51.5074,
-        Longitude = -0.1278
+        Longitude = -0.1278,
+        IdempotencyKey = "test-key-123"
     };
 
     [Fact]

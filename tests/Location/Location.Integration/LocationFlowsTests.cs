@@ -21,7 +21,8 @@ public class LocationFlowsTests(LocationWebAppFactory factory) : IClassFixture<L
             Postcode = "SW1A 2AA",
             Country = "United Kingdom",
             Latitude = 51.5033,
-            Longitude = -0.1276
+            Longitude = -0.1276,
+            IdempotencyKey = "integration-test-1"
         };
 
         // Act
@@ -44,7 +45,8 @@ public class LocationFlowsTests(LocationWebAppFactory factory) : IClassFixture<L
             Postcode = "SW1A 2AA",
             Country = "UK",
             Latitude = 51.5033,
-            Longitude = -0.1276
+            Longitude = -0.1276,
+            IdempotencyKey = "integration-test-london"
         };
 
         var bristol = new CreateAddressCommand
@@ -54,7 +56,8 @@ public class LocationFlowsTests(LocationWebAppFactory factory) : IClassFixture<L
             Postcode = "BS1 1AA",
             Country = "UK",
             Latitude = 51.4545,
-            Longitude = -2.5879
+            Longitude = -2.5879,
+            IdempotencyKey = "integration-test-bristol"
         };
 
         await _client.PostAsJsonAsync("/api/v1/addresses", london);
