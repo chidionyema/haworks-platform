@@ -34,10 +34,10 @@ public sealed class CheckoutAuthTests : IClassFixture<BffWebFactory>
         var payload = new
         {
             customerEmail = "attacker@example.com",
-            totalAmount = 99.99m,
+            totalAmountCents = 9999L,
             items = new[]
             {
-                new { productId = Guid.NewGuid(), productName = "Widget", quantity = 1, unitPrice = 99.99m },
+                new { productId = Guid.NewGuid(), productName = "Widget", quantity = 1, unitPriceCents = 9999L, currency = "USD" },
             },
         };
 

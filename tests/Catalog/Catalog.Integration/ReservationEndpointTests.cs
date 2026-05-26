@@ -151,7 +151,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
 
         var resp = await client.PostAsJsonAsync(
             $"/api/v1/checkout/reservations/{reservation.Id}/confirm",
-            new { totalAmount = 30m, currency = "USD" });
+            new { totalAmountCents = 3000L, currency = "USD" });
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -173,7 +173,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
         var client = CreateAuthedClient(includeEmail: true);
         var resp = await client.PostAsJsonAsync(
             $"/api/v1/checkout/reservations/{reservation.Id}/confirm",
-            new { totalAmount = 30m, currency = "USD" });
+            new { totalAmountCents = 3000L, currency = "USD" });
 
         resp.StatusCode.Should().Be(HttpStatusCode.Gone);
     }
@@ -185,7 +185,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
 
         var resp = await client.PostAsJsonAsync(
             $"/api/v1/checkout/reservations/{Guid.NewGuid()}/confirm",
-            new { totalAmount = 10m, currency = "USD" });
+            new { totalAmountCents = 1000L, currency = "USD" });
 
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -200,7 +200,7 @@ public sealed class ReservationEndpointTests : IAsyncLifetime
 
         var resp = await client.PostAsJsonAsync(
             $"/api/v1/checkout/reservations/{reservation.Id}/confirm",
-            new { totalAmount = 30m, currency = "USD" });
+            new { totalAmountCents = 3000L, currency = "USD" });
 
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }

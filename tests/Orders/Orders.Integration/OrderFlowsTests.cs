@@ -340,7 +340,7 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
         {
             userId = Guid.NewGuid().ToString(),
             customerEmail = "buyer@example.com",
-            totalAmount = 0m,
+            totalAmountCents = 0L,
             currency = "USD",
             sagaId = Guid.NewGuid(),
             idempotencyKey = "key-" + Guid.NewGuid().ToString("N"),
@@ -378,7 +378,7 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
         {
             userId,
             customerEmail = "buyer@example.com",
-            totalAmount = 25.50m,
+            totalAmountCents = 2550L,
             currency = "USD",
             sagaId,
             idempotencyKey = "key-" + Guid.NewGuid().ToString("N"),

@@ -186,7 +186,7 @@ public sealed class CheckoutSessionExpiredConsumerTests(OrdersWebAppFactory fact
         {
             userId,
             customerEmail = "buyer@example.com",
-            totalAmount = 25.50m,
+            totalAmountCents = 2550L,
             currency = "USD",
             sagaId = Guid.NewGuid(),
             idempotencyKey = "key-" + Guid.NewGuid().ToString("N"),
