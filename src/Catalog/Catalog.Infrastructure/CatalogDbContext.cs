@@ -76,7 +76,7 @@ public sealed class CatalogDbContext : DbContext
             entity.HasKey(p => p.Id);
             entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
             entity.Property(p => p.Description).HasMaxLength(4000);
-            entity.Property(p => p.UnitPriceCents).IsRequired();
+            entity.Property(p => p.UnitPriceCents).IsRequired().HasColumnType("bigint");
             entity.Property(p => p.StockQuantity).IsRequired();
             entity.Property(p => p.IsInStock).IsRequired();
             entity.Property(p => p.IsListed).IsRequired();

@@ -112,6 +112,7 @@ public sealed class PaymentEventsConsumerTests
                 actualPaidCents    = 7500,
                 expectedTotalCents = 5000,
                 differenceCents    = 2500,
+                currency      = "USD",
                 reason        = "Stripe captured 75.00 USD; expected 50.00 USD",
             })
             .VerifyAsync<PaymentAmountMismatchEvent>(evt =>

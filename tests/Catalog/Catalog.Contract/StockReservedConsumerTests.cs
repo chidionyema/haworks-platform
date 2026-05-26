@@ -70,6 +70,7 @@ public sealed class StockReservedConsumerTests
                         productName    = "Widget",
                         quantity       = 3,
                         remainingStock = 7,
+                        currency       = "USD",
                     }
                 },
                 orderLineItems = new[]
@@ -80,6 +81,7 @@ public sealed class StockReservedConsumerTests
                         productName = "Widget",
                         quantity    = 3,
                         unitPriceCents = 1000,
+                        currency       = "USD",
                     }
                 },
             })

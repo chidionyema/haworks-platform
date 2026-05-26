@@ -2503,7 +2503,7 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
                         bool hasNumericType = false;
                         for (int j = i; j < Math.Min(i + 4, lines.Length); j++)
                         {
-                            if (lines[j].Contains("HasColumnType") && lines[j].Contains("numeric"))
+                            if (lines[j].Contains("HasColumnType") && (lines[j].Contains("numeric") || lines[j].Contains("bigint")))
                             {
                                 hasNumericType = true;
                                 break;

@@ -6,10 +6,11 @@
     {
       "contents": {
         "content": {
-          "actualPaid": 75.0,
-          "difference": 25.0,
+          "actualPaidCents": 7500,
+          "currency": "USD",
+          "differenceCents": 2500,
           "eventId": "00000000-0000-0000-0000-000000000000",
-          "expectedTotal": 50.0,
+          "expectedTotalCents": 5000,
           "occurredAt": "2026-05-03T12:00:00Z",
           "orderId": "77777777-7777-7777-7777-777777777777",
           "paymentId": "66666666-6666-6666-6666-666666666666",
@@ -31,7 +32,7 @@
     {
       "contents": {
         "content": {
-          "amount": 50.0,
+          "amountCents": 5000,
           "currency": "USD",
           "eventId": "00000000-0000-0000-0000-000000000000",
           "occurredAt": "2026-05-03T12:00:00Z",
