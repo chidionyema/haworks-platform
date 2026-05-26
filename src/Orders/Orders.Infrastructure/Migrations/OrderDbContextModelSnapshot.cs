@@ -146,8 +146,8 @@ namespace Haworks.Orders.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<decimal>("TotalAmount")
-                        .HasColumnType("numeric(18,2)");
+                    b.Property<long>("TotalAmountCents")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -214,8 +214,8 @@ namespace Haworks.Orders.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("bytea");
 
-                    b.Property<decimal>("UnitPrice")
-                        .HasColumnType("numeric(18,2)");
+                    b.Property<long>("UnitPriceCents")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 

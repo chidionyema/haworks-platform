@@ -66,8 +66,8 @@ namespace Haworks.Payments.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric(18,2)");
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -128,13 +128,13 @@ namespace Haworks.Payments.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("Tax")
-                        .HasColumnType("numeric");
+                    b.Property<long>("TaxCents")
+                        .HasColumnType("bigint");
 
-                    b.Property<decimal>("TotalRefunded")
+                    b.Property<long>("TotalRefundedCents")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(18,2)")
-                        .HasDefaultValue(0m);
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -159,8 +159,8 @@ namespace Haworks.Payments.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric(18,2)");
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");

@@ -125,8 +125,8 @@ namespace Haworks.Catalog.Infrastructure.Migrations
                     b.Property<int>("StockQuantity")
                         .HasColumnType("integer");
 
-                    b.Property<decimal>("UnitPrice")
-                        .HasColumnType("numeric(18,2)");
+                    b.Property<long>("UnitPriceCents")
+                        .HasColumnType("bigint");
 
                     b.Property<uint>("xmin")
                         .IsConcurrencyToken()
