@@ -47,7 +47,7 @@ public sealed class SagaRealTransportTests : IAsyncLifetime
             orderId,
             userId = "test-user",
             customerEmail = "test@example.com",
-            totalAmountCents = 3999L,
+            totalAmount = 39.99m,
             currency = "GBP",
             idempotencyKey = $"test-{sagaId:N}",
             items = new[]

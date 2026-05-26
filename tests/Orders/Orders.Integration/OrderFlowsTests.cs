@@ -346,7 +346,7 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
             idempotencyKey = "key-" + Guid.NewGuid().ToString("N"),
             items = new[]
             {
-                new { productId = Guid.NewGuid(), productName = "Widget", quantity = 1, unitPrice = 0m },
+                new { productId = Guid.NewGuid(), productName = "Widget", quantity = 1, unitPriceCents = 0L },
             }
         });
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -384,7 +384,7 @@ public sealed class OrderFlowsTests(OrdersWebAppFactory factory) : IAsyncLifetim
             idempotencyKey = "key-" + Guid.NewGuid().ToString("N"),
             items = new[]
             {
-                new { productId = Guid.NewGuid(), productName = "Widget", quantity = 1, unitPrice = 25.50m },
+                new { productId = Guid.NewGuid(), productName = "Widget", quantity = 1, unitPriceCents = 2550L },
             }
         });
         resp.EnsureSuccessStatusCode();

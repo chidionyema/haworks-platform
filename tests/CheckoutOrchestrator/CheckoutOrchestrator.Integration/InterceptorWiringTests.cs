@@ -51,7 +51,7 @@ public sealed class InterceptorWiringTests : IAsyncLifetime
             orderId = Guid.NewGuid(),
             userId = "test",
             customerEmail = "test@test.com",
-            totalAmountCents = 1000L,
+            totalAmount = 10.00m,
             currency = "GBP",
             idempotencyKey = $"int-{sagaId:N}",
             items = new[] { new { productId = Guid.NewGuid(), productName = "W", quantity = 1, unitPriceCents = 1000L, currency = "USD" } }
