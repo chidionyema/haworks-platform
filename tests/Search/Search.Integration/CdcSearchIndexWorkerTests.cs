@@ -291,6 +291,11 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
         await index.UpsertAsync([doc], ct);
     }
 
+    private static readonly JsonSerializerOptions _snakeCase = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+    };
+
     private static string MakeEnvelope(string op, object after) =>
         JsonSerializer.Serialize(new
         {
@@ -298,7 +303,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
             after,
             ts_ms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             source = new { db = "catalog", schema = "public", table = "products" }
-        });
+        }, _snakeCase);
 
     private static string MakeDeleteEnvelope(Guid productId) =>
         JsonSerializer.Serialize(new
@@ -308,5 +313,5 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
             after = (object?)null,
             ts_ms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             source = new { db = "catalog", schema = "public", table = "products" }
-        });
+        }, _snakeCase);
 }
