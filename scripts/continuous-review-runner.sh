@@ -60,9 +60,15 @@ if [ $EXIT_CODE -ne 0 ]; then
   exit $EXIT_CODE
 fi
 
-PHASE1_COUNT=$(grep -c "^##\+ .*:" "$REPORT_FILE" 2>/dev/null || true)
+PHASE1_COUNT=$(grep -c "^###" "$REPORT_FILE" 2>/dev/null || true)
 PHASE1_COUNT=${PHASE1_COUNT:-0}
+PHASE1_COUNT=$(echo "$PHASE1_COUNT" | tr -d '[:space:]')
 echo ">>> Phase 1 complete: $PHASE1_COUNT findings"
+
+if [ "$PHASE1_COUNT" -eq 0 ]; then
+  echo ">>> No findings. Done."
+  exit 0
+fi
 
 # ============================================================
 # PHASE 2: Self-Review (validate findings, discard false positives)
