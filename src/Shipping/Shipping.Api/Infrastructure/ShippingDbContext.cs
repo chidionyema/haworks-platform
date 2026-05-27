@@ -18,9 +18,9 @@ public class ShippingDbContext : DbContext
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.OrderId);
+            e.HasIndex(x => new { x.OrderId, x.CreatedAt });
             e.HasIndex(x => x.TrackingNumber);
             e.HasIndex(x => x.EasyPostShipmentId).IsUnique();
-            e.Property(x => x.Status).HasConversion<string>();
             e.Property(x => x.RateAmountCents).HasColumnType("bigint");
         });
 

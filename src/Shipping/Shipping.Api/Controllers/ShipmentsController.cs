@@ -54,6 +54,8 @@ public class ShipmentsController(
             result.Carrier, result.Service, result.TrackingNumber,
             result.TrackingUrl, result.LabelUrl, rateCents, result.Currency, result.EstimatedDelivery);
 
+        await db.SaveChangesAsync(ct);
+
         await publisher.Publish(new ShipmentCreatedEvent
         {
             ShipmentId = shipment.Id,
@@ -62,8 +64,6 @@ public class ShipmentsController(
             TrackingNumber = result.TrackingNumber,
             TrackingUrl = result.TrackingUrl,
         }, ct);
-
-        await db.SaveChangesAsync(ct);
 
         return Ok(new { shipment.TrackingNumber, shipment.TrackingUrl, shipment.LabelUrl, shipment.EstimatedDelivery });
     }

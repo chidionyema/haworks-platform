@@ -2,6 +2,7 @@ using EasyPost;
 using EasyPost.Models.API;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Globalization;
 
 namespace Haworks.Shipping.Api.Infrastructure;
 
@@ -56,7 +57,7 @@ public sealed class EasyPostShippingProvider : IShippingProvider
             r.Id ?? "unknown",
             r.Carrier ?? "unknown",
             r.Service ?? "standard",
-            decimal.TryParse(r.Price, out var amt) ? amt : 0m,
+            decimal.Parse(r.Price ?? "0", CultureInfo.InvariantCulture),
             r.Currency ?? string.Empty,
             r.DeliveryDays
         )).ToList() ?? [];
@@ -83,7 +84,7 @@ public sealed class EasyPostShippingProvider : IShippingProvider
             bought.PostageLabel?.LabelUrl ?? "",
             rate.Carrier ?? "unknown",
             rate.Service ?? "standard",
-            decimal.TryParse(rate.Price, out var amt) ? amt : 0m,
+            decimal.Parse(rate.Price ?? "0", CultureInfo.InvariantCulture),
             rate.Currency ?? string.Empty,
             bought.Tracker?.EstDeliveryDate);
     }
