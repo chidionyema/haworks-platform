@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Haworks.BuildingBlocks.Common;
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.CheckoutOrchestrator.Application.Telemetry;
 using Haworks.CheckoutOrchestrator.Application.Interfaces;
 using Haworks.Contracts.Checkout;
@@ -19,7 +20,7 @@ public sealed record StartCheckoutCommand(
     string IdempotencyKey,
     IReadOnlyList<CheckoutItemData> Items,
     string? Currency = null
-) : IRequest<Result<StartCheckoutResponse>>;
+) : IIdempotentCommand, IRequest<Result<StartCheckoutResponse>>;
 
 public sealed record StartCheckoutResponse(Guid SagaId, Guid OrderId);
 
@@ -40,7 +41,7 @@ internal sealed class StartCheckoutCommandHandler(
         // Always derive from IdempotencyKey, ignore user-provided SagaId to prevent interference.
         var hashInput = !string.IsNullOrEmpty(request.IdempotencyKey)
             ? request.IdempotencyKey
-            : Guid.NewGuid().ToString("N");
+            : request.OrderId.ToString("N");
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(hashInput));
         var sagaId = new Guid(hash.AsSpan(0, 16));
         var orderId = request.OrderId == Guid.Empty ? Guid.NewGuid() : request.OrderId;

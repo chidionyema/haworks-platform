@@ -62,6 +62,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<Haworks.BuildingBlocks.Idempotency.IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<OrderDbContext>());
 
         if (env.IsEnvironment("Test"))
         {

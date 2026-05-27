@@ -2,13 +2,14 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.Orders.Domain;
 using Haworks.BuildingBlocks.CurrentUser;
 using Haworks.BuildingBlocks.Persistence;
 
 namespace Haworks.Orders.Infrastructure;
 
-public class OrderDbContext : DbContext
+public class OrderDbContext : DbContext, IIdempotencyJournalDbContext
 {
     private readonly IHostEnvironment _environment;
     private readonly ILoggerFactory _loggerFactory;
@@ -32,6 +33,7 @@ public class OrderDbContext : DbContext
     public DbSet<OrderStatusHistory> OrderStatusHistory => Set<OrderStatusHistory>();
     public DbSet<GuestOrderInfo> GuestOrders => Set<GuestOrderInfo>();
     public DbSet<StockReleaseFailure> StockReleaseFailures => Set<StockReleaseFailure>();
+    public DbSet<IdempotencyJournalEntry> IdempotencyJournal => Set<IdempotencyJournalEntry>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -140,6 +142,16 @@ public class OrderDbContext : DbContext
                 items.Property<Guid>("Id");
                 items.HasKey("Id");
             });
+        });
+
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
         });
 
         modelBuilder.AddInboxStateEntity();

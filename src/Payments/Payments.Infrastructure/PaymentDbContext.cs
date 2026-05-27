@@ -2,6 +2,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.Payments.Domain;
 using Haworks.Payments.Application.Interfaces;
@@ -10,7 +11,7 @@ using Haworks.BuildingBlocks.Persistence;
 
 namespace Haworks.Payments.Infrastructure;
 
-public class PaymentDbContext : DbContext, IPaymentDbContext
+public class PaymentDbContext : DbContext, IPaymentDbContext, IIdempotencyJournalDbContext
 {
     private readonly IHostEnvironment _environment;
     private readonly ILoggerFactory _loggerFactory;
@@ -36,6 +37,7 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
     public DbSet<RefundSagaState> RefundSagas => Set<RefundSagaState>();
     public DbSet<SubscriptionSagaState> SubscriptionSagas => Set<SubscriptionSagaState>();
     public DbSet<SagaTransitionAuditEntry> SagaTransitionAudit => Set<SagaTransitionAuditEntry>();
+    public DbSet<IdempotencyJournalEntry> IdempotencyJournal => Set<IdempotencyJournalEntry>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -167,6 +169,16 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
             e.Property(x => x.Id).UseIdentityAlwaysColumn();
             e.Property(x => x.InitiatedBy).HasMaxLength(450);
             e.HasIndex(x => new { x.SagaType, x.CorrelationId });
+        });
+
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
         });
 
         modelBuilder.AddInboxStateEntity();

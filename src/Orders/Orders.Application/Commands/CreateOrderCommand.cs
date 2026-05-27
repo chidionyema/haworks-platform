@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using FluentValidation;
+using Haworks.BuildingBlocks.Idempotency;
 using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +17,7 @@ public sealed record CreateOrderCommand(
     string Currency,
     Guid SagaId,
     string IdempotencyKey,
-    IReadOnlyList<CreateOrderLineItem> Items) : IRequest<Result<Guid>>;
+    IReadOnlyList<CreateOrderLineItem> Items) : IIdempotentCommand, IRequest<Result<Guid>>;
 
 public sealed record CreateOrderLineItem(
     Guid ProductId,

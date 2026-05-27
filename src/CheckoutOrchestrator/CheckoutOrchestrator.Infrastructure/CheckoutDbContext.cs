@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.CheckoutOrchestrator.Application.Interfaces;
 using MassTransit;
@@ -13,7 +14,7 @@ namespace Haworks.CheckoutOrchestrator.Infrastructure;
 /// tables. Per ADR-0009 the saga has no business state of its own beyond
 /// the snapshot it needs to drive orchestration.
 /// </summary>
-public class CheckoutDbContext : DbContext, ICheckoutDbContext
+public class CheckoutDbContext : DbContext, ICheckoutDbContext, IIdempotencyJournalDbContext
 {
     private readonly IHostEnvironment _environment;
     private readonly ILoggerFactory _loggerFactory;
@@ -31,6 +32,7 @@ public class CheckoutDbContext : DbContext, ICheckoutDbContext
 
     public DbSet<CheckoutSagaState> CheckoutSagas => Set<CheckoutSagaState>();
     public DbSet<SagaTransitionAuditEntry> SagaTransitionAudit => Set<SagaTransitionAuditEntry>();
+    public DbSet<IdempotencyJournalEntry> IdempotencyJournal => Set<IdempotencyJournalEntry>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -83,6 +85,16 @@ public class CheckoutDbContext : DbContext, ICheckoutDbContext
             e.Property(x => x.Id).UseIdentityAlwaysColumn();
             e.Property(x => x.InitiatedBy).HasMaxLength(450);
             e.HasIndex(x => new { x.SagaType, x.CorrelationId });
+        });
+
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
         });
 
         modelBuilder.AddInboxStateEntity();

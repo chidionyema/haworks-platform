@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.Options;
 using Haworks.BuildingBlocks.Common;
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.Payments.Application.DTOs.Subscriptions;
 using Haworks.Payments.Application.Interfaces;
 
@@ -11,7 +12,7 @@ public sealed record CreateSubscriptionCheckoutCommand(
     string PriceId,
     decimal Amount,
     string? RedirectPath,
-    string IdempotencyKey) : IRequest<Result<CreateSubscriptionCheckoutResultDto>>;
+    string IdempotencyKey) : IIdempotentCommand, IRequest<Result<CreateSubscriptionCheckoutResultDto>>;
 
 internal sealed class CreateSubscriptionCheckoutCommandHandler(
     ISubscriptionService subscriptionService,

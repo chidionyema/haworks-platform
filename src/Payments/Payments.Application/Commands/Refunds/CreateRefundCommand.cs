@@ -1,6 +1,7 @@
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.BuildingBlocks.Common;
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.Contracts.Payments;
 using MassTransit;
 using MediatR;
@@ -15,7 +16,7 @@ public sealed record CreateRefundCommand(
     string Currency,
     string IdempotencyKey,
     string? Reason = null,
-    string? RequestedBy = null) : IRequest<Result<Guid>>;
+    string? RequestedBy = null) : IIdempotentCommand, IRequest<Result<Guid>>;
 
 public sealed class CreateRefundCommandHandler(
     IPaymentRepository paymentRepository,

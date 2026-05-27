@@ -70,6 +70,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IPaymentDbContext>(sp => sp.GetRequiredService<PaymentDbContext>());
+        services.AddScoped<Haworks.BuildingBlocks.Idempotency.IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<PaymentDbContext>());
         services.AddScoped<IPaymentRepository, PaymentRepository>();
 
         // Cross-cutting BuildingBlocks dependencies. These are also registered
