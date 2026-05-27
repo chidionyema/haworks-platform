@@ -6,8 +6,10 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 using Haworks.CheckoutOrchestrator.Infrastructure;
+using Haworks.BuildingBlocks.Testing;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 
@@ -42,9 +44,6 @@ public sealed class CheckoutRealTransportFactory : WebApplicationFactory<Program
         // outbox-delivered messages don't overwhelm the consumer on startup.
         await PurgeRabbitMqQueuesAsync();
 
-        // Force host build and migrate DB BEFORE MassTransit consumers start querying
-        _ = Services;
-        await EnsureSchemaAsync();
     }
 
     async Task IAsyncLifetime.DisposeAsync()
@@ -74,6 +73,10 @@ public sealed class CheckoutRealTransportFactory : WebApplicationFactory<Program
             // The app's DI already registers MassTransit with UsingRabbitMq.
             // We just need auth for the [Authorize] endpoints.
             services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
+
+            // Run migrations BEFORE any IHostedService (including MassTransit's bus).
+            // IStartupFilter runs during app pipeline build, before hosted services start.
+            services.AddTransient<IStartupFilter, MigrationStartupFilter<CheckoutDbContext>>();
         });
     }
 

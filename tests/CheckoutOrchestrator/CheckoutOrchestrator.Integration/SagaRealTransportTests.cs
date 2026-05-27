@@ -35,7 +35,7 @@ public sealed class SagaRealTransportTests : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task POST_checkouts_creates_saga_instance_via_real_RabbitMQ()
     {
         var sagaId = Guid.NewGuid();

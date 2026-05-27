@@ -43,7 +43,7 @@ public sealed class WebhookIdempotencyTests : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task Stripe_DuplicateWebhooks_AreProcessedExactlyOnce()
     {
         // Arrange
@@ -88,7 +88,7 @@ public sealed class WebhookIdempotencyTests : IAsyncLifetime
             "The unique index on (Provider, ProviderEventId) must prevent duplicate processing rows.");
     }
 
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task Stripe_ConcurrentWebhooks_RaceIsResolvedByDatabaseIndex()
     {
         // Arrange

@@ -47,14 +47,14 @@ public sealed class WebhookFlowsTests : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task Health_returns_200()
     {
         var resp = await _client.GetAsync("/health");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task Stripe_webhook_with_invalid_signature_returns_400_and_does_not_publish()
     {
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
@@ -67,7 +67,7 @@ public sealed class WebhookFlowsTests : IAsyncLifetime
         harness.Published.Select<PaymentWebhookValidatedEvent>().Count().Should().Be(publishedBefore);
     }
 
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task Stripe_webhook_missing_signature_returns_400()
     {
         var resp = await _client.PostAsync("/webhooks/stripe",
@@ -75,7 +75,7 @@ public sealed class WebhookFlowsTests : IAsyncLifetime
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task Stripe_webhook_valid_signature_publishes_PaymentWebhookValidatedEvent()
     {
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
@@ -94,7 +94,7 @@ public sealed class WebhookFlowsTests : IAsyncLifetime
         ctx.Context.Message.EventType.Should().Be("checkout.session.completed");
     }
 
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task Stripe_webhook_for_known_payment_session_publishes_PaymentCompletedEvent()
     {
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
@@ -140,7 +140,7 @@ public sealed class WebhookFlowsTests : IAsyncLifetime
         stored.Status.Should().Be(PaymentStatus.Completed);
     }
 
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task Stripe_webhook_amount_mismatch_flags_payment_and_publishes_mismatch_event()
     {
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
@@ -183,7 +183,7 @@ public sealed class WebhookFlowsTests : IAsyncLifetime
             .Any(p => p.Context.Message.PaymentId == payment.Id).Should().BeFalse();
     }
 
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task Webhook_idempotency_replaying_same_eventId_3x_yields_one_PaymentCompleted()
     {
         var harness = _factory.Services.GetRequiredService<ITestHarness>();

@@ -156,7 +156,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 1. SubscriptionStarted -> Active
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task SubscriptionStarted_Should_StartSaga_And_Active()
     {
         var (sagaId, providerSubId) = await StartSubscriptionAsync();
@@ -173,7 +173,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 2. RenewalFailed in Active -> GracePeriod
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task RenewalFailed_Should_Transition_To_GracePeriod_And_Dunning()
     {
         var (sagaId, _) = await StartSubscriptionAsync();
@@ -203,7 +203,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 3. RenewalTimer fires in Active -> publishes RenewalRequested, transitions to Renewing
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task RenewalTimer_PublishesRenewalRequested_TransitionsToRenewing()
     {
         var (sagaId, _) = await StartSubscriptionAsync();
@@ -229,7 +229,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 4. Happy path: Renewing + SubscriptionRenewed -> back to Active
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task HappyPath_Renewing_SubscriptionRenewed_BackToActive()
     {
         var (sagaId, providerSubId) = await StartSubscriptionAsync();
@@ -259,7 +259,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 5. RenewalFailed in Renewing -> GracePeriod
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task RenewalFailed_InRenewing_EntersGracePeriod()
     {
         var (sagaId, _) = await StartSubscriptionAsync();
@@ -289,7 +289,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 6. DunningTimer fires in GracePeriod -> publishes RenewalRequested, stays GracePeriod
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task DunningTimer_PublishesRenewalRequested_StaysGracePeriod()
     {
         var (sagaId, _) = await StartSubscriptionAsync();
@@ -318,7 +318,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 7. Dunning exhausted (4 failures) -> Canceled + Finalized
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task DunningExhausted_FourFailures_FinalizesToCanceled()
     {
         var (sagaId, _) = await StartSubscriptionAsync();
@@ -368,7 +368,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 8. PaymentRecovered in GracePeriod -> Active
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task PaymentRecovered_InGracePeriod_ReturnsToActive()
     {
         var (sagaId, _) = await StartSubscriptionAsync();
@@ -392,7 +392,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 9. SubscriptionRenewed in GracePeriod -> Active
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task SubscriptionRenewed_InGracePeriod_ReturnsToActive()
     {
         var (sagaId, providerSubId) = await StartSubscriptionAsync();
@@ -422,7 +422,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 10. Cancel during Renewing -> Canceled + Finalized
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task CancelDuringAny_FromRenewing_Finalizes()
     {
         var (sagaId, providerSubId) = await StartSubscriptionAsync();
@@ -447,7 +447,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 11. Cancel during GracePeriod -> Canceled + Finalized
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task CancelDuringAny_FromGracePeriod_Finalizes()
     {
         var (sagaId, providerSubId) = await StartSubscriptionAsync();
@@ -472,7 +472,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 12. Duplicate cancel after already Canceled -> discarded
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task DuplicateCancel_AfterCanceled_IsDiscarded()
     {
         var (sagaId, providerSubId) = await StartSubscriptionAsync();
@@ -527,7 +527,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 13. Late SubscriptionRenewed after Canceled -> discarded
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task LateRenewed_AfterCanceled_IsDiscarded()
     {
         var (sagaId, providerSubId) = await StartSubscriptionAsync();
@@ -572,7 +572,7 @@ public class SubscriptionSagaTests : IAsyncLifetime
     // 14. State persists across harness restart
     // ───────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task StatePersists_AcrossRestart()
     {
         var (sagaId, providerSubId) = await StartSubscriptionAsync();

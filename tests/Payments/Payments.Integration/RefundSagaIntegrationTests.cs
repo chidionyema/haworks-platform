@@ -39,7 +39,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task CreateRefund_Should_StartSaga_And_ReachAwaitingProvider()
     {
         // Arrange
@@ -97,7 +97,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     // 1. Happy path: RefundRequested -> ProviderRefundInitiated ->
     //    ProviderRefundSucceeded -> Refunded (finalized)
     // ---------------------------------------------------------------
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task HappyPath_ProviderConfirms_ReachesRefunded()
     {
         var (refundId, orderId, paymentId) = await PublishRefundRequestedAsync();
@@ -148,7 +148,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     // ---------------------------------------------------------------
     // 2. Provider fails while saga is in Requested state
     // ---------------------------------------------------------------
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task ProviderFails_InRequested_TransitionsToRequiresReview()
     {
         var (refundId, orderId, _) = await PublishRefundRequestedAsync();
@@ -179,7 +179,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     // ---------------------------------------------------------------
     // 3. Provider fails while saga is in AwaitingProviderConfirmation
     // ---------------------------------------------------------------
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task ProviderFails_InAwaitingConfirmation_TransitionsToRequiresReview()
     {
         var (refundId, orderId, _) = await PublishRefundRequestedAsync();
@@ -218,7 +218,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     // ---------------------------------------------------------------
     // 4. Timeout fires while in AwaitingProviderConfirmation
     // ---------------------------------------------------------------
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task Timeout_TransitionsToRequiresReview()
     {
         var (refundId, _, _) = await PublishRefundRequestedAsync();
@@ -255,7 +255,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     // ---------------------------------------------------------------
     // 5. Operator cancels from Requested state -> Cancelled (finalized)
     // ---------------------------------------------------------------
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task OperatorCancel_FromRequested_FinalizesToCancelled()
     {
         var (refundId, orderId, _) = await PublishRefundRequestedAsync();
@@ -288,7 +288,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     // 6. Operator cancels from AwaitingProviderConfirmation ->
     //    publishes ProviderRefundCancellationRequested then Cancelled
     // ---------------------------------------------------------------
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task OperatorCancel_FromAwaitingConfirmation_PublishesProviderCancellation()
     {
         var (refundId, orderId, _) = await PublishRefundRequestedAsync();
@@ -330,7 +330,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     // ---------------------------------------------------------------
     // 7. Duplicate ProviderRefundSucceeded after Refunded is discarded
     // ---------------------------------------------------------------
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task DuplicateProviderConfirm_AfterRefunded_IsDiscarded()
     {
         var (refundId, _, _) = await PublishRefundRequestedAsync();
@@ -389,7 +389,7 @@ public class RefundSagaIntegrationTests : IAsyncLifetime
     // ---------------------------------------------------------------
     // 8. Saga state persists across harness restart
     // ---------------------------------------------------------------
-    [Fact(Skip = "Real RabbitMQ transport")]
+    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
     public async Task StatePersists_AcrossRestart()
     {
         var (refundId, orderId, _) = await PublishRefundRequestedAsync();
