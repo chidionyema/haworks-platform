@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Amazon.S3;
 using Haworks.BuildingBlocks.Behaviors;
 using Haworks.BuildingBlocks.Extensions;
@@ -39,6 +40,8 @@ builder.Services.AddDbContext<MediaDbContext>((sp, options) =>
     options.UseNpgsql(connectionString);
     options.AddPlatformInterceptors(sp);
 });
+
+        builder.Services.AddScoped<IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<MediaDbContext>());
 
 // ── Health checks ──
 builder.Services.AddHealthChecks()
@@ -101,6 +104,7 @@ builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
     cfg.AddOpenBehavior(typeof(TelemetryBehavior<,>));
     cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            cfg.AddOpenBehavior(typeof(IdempotencyBehavior<,>));
 });
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);

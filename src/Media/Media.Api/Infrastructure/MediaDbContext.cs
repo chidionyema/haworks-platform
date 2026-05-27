@@ -1,15 +1,17 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.Media.Api.Domain;
 using MassTransit;
 
 namespace Haworks.Media.Api.Infrastructure;
 
-public class MediaDbContext : DbContext
+public class MediaDbContext : DbContext, IIdempotencyJournalDbContext
 {
     public MediaDbContext(DbContextOptions<MediaDbContext> options) : base(options) { }
 
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
     public DbSet<MediaMetadata> MediaMetadata => Set<MediaMetadata>();
     public DbSet<MediaVersion> MediaVersions => Set<MediaVersion>();
+    public DbSet<IdempotencyJournalEntry> IdempotencyJournal => Set<IdempotencyJournalEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,5 +61,15 @@ public class MediaDbContext : DbContext
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxStateEntity();
         modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+                {{
+                    entity.ToTable("IdempotencyJournal");
+                    entity.HasKey(e => e.Id);
+                    entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+                    entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+                    entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+                    entity.HasIndex(e => e.ExpiresAt);
+                }});
+
     }
 }

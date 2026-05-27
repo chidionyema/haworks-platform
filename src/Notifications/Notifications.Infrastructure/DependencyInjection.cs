@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -51,6 +52,8 @@ public static partial class DependencyInjection
             services.AddVaultIntegration(configuration);
             services.AddVaultNpgsqlDataSource(connectionString, "haworks-notifications");
         }
+
+        services.AddScoped<IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<NotificationsDbContext>());
 
         services.AddScoped<Haworks.Notifications.Application.Commands.INotificationRepository, Haworks.Notifications.Infrastructure.Persistence.NotificationRepository>();
 

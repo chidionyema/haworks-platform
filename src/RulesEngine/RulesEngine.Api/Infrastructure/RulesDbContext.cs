@@ -1,13 +1,15 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.RulesEngine.Api.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace Haworks.RulesEngine.Api.Infrastructure;
 
-public sealed class RulesDbContext : DbContext
+public sealed class RulesDbContext : DbContext, IIdempotencyJournalDbContext
 {
     public RulesDbContext(DbContextOptions<RulesDbContext> options) : base(options) { }
 
     public DbSet<Rule> Rules => Set<Rule>();
+    public DbSet<IdempotencyJournalEntry> IdempotencyJournal => Set<IdempotencyJournalEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,5 +27,15 @@ public sealed class RulesDbContext : DbContext
             b.Property(r => r.UpdatedAt).HasColumnName("updated_at");
             b.HasIndex(r => r.Name).IsUnique();
         });
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+                {{
+                    entity.ToTable("IdempotencyJournal");
+                    entity.HasKey(e => e.Id);
+                    entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+                    entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+                    entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+                    entity.HasIndex(e => e.ExpiresAt);
+                }});
+
     }
 }

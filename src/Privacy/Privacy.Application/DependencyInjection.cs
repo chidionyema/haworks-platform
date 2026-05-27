@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using FluentValidation;
 using Haworks.BuildingBlocks.Behaviors;
 using MediatR;
@@ -15,6 +16,7 @@ public static class DependencyInjection
             cfg.RegisterServicesFromAssembly(assembly);
             cfg.AddOpenBehavior(typeof(TelemetryBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+            cfg.AddOpenBehavior(typeof(IdempotencyBehavior<,>));
         });
 
         services.AddValidatorsFromAssembly(assembly);

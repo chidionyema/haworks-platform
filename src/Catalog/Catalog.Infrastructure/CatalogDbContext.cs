@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +10,7 @@ namespace Haworks.Catalog.Infrastructure;
 /// types from other contexts (User, Order, Content) — UserId on
 /// ProductReview is an opaque string FK to identity-svc.
 /// </summary>
-public sealed class CatalogDbContext : DbContext
+public sealed class CatalogDbContext : DbContext, IIdempotencyJournalDbContext
 {
     private readonly IHostEnvironment _environment;
     private readonly ILoggerFactory _loggerFactory;
@@ -34,6 +35,7 @@ public sealed class CatalogDbContext : DbContext
     public DbSet<ProductMetadata> ProductMetadata => Set<ProductMetadata>();
     public DbSet<ProductSpecification> ProductSpecifications => Set<ProductSpecification>();
     public DbSet<StockReservation> StockReservations => Set<StockReservation>();
+    public DbSet<IdempotencyJournalEntry> IdempotencyJournal => Set<IdempotencyJournalEntry>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -194,6 +196,16 @@ public sealed class CatalogDbContext : DbContext
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxStateEntity();
         modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+                {{
+                    entity.ToTable("IdempotencyJournal");
+                    entity.HasKey(e => e.Id);
+                    entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+                    entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+                    entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+                    entity.HasIndex(e => e.ExpiresAt);
+                }});
+
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Behaviors;
 using Haworks.BuildingBlocks.Extensions;
 using Haworks.BuildingBlocks.Messaging;
@@ -33,6 +34,8 @@ builder.Services.AddDbContext<RulesDbContext>((sp, options) =>
     options.AddPlatformInterceptors(sp);
 });
 
+        builder.Services.AddScoped<IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<RulesDbContext>());
+
 // ── Health checks ─────────────────────────────────────────────────────────────
 builder.Services.AddHealthChecks()
     .AddDbHealthCheck<RulesDbContext>("rules-db");
@@ -45,6 +48,7 @@ builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
     cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            cfg.AddOpenBehavior(typeof(IdempotencyBehavior<,>));
 });
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 builder.Services.AddScoped<IRulesEvaluator, RulesEvaluator>();
