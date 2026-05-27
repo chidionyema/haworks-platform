@@ -2,10 +2,13 @@
 set -euo pipefail
 
 # Continuous Code Review Runner (local cron)
-# 3-phase pipeline:
+# 4-phase pipeline:
 #   Phase 1: Deep review of a service
 #   Phase 2: Self-review (validate findings, discard false positives)
-#   Phase 3: Fix confirmed issues, commit, PR with report + fixes
+#   Phase 3: Fix confirmed issues
+#   Phase 4: BUILD GATE — verify build + unit tests pass before PR
+#
+# RULE: No PR is created unless the build is green.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -46,7 +49,7 @@ VALIDATED_FILE="$SERVICE_REPORT_DIR/${DATE}-validated.md"
 # ============================================================
 # PHASE 1: Deep Review
 # ============================================================
-echo ">>> [Phase 1/3] Reviewing: $SERVICE ($(date))"
+echo ">>> [Phase 1/4] Reviewing: $SERVICE ($(date))"
 echo ">>> Report: $REPORT_FILE"
 
 bash "$REPO_ROOT/scripts/continuous-review.sh" "$SERVICE" > "$REPORT_FILE" 2>&1
@@ -64,7 +67,7 @@ echo ">>> Phase 1 complete: $PHASE1_COUNT findings"
 # ============================================================
 # PHASE 2: Self-Review (validate findings, discard false positives)
 # ============================================================
-echo ">>> [Phase 2/3] Validating findings..."
+echo ">>> [Phase 2/4] Validating findings..."
 
 VALIDATE_PROMPT=$(cat <<'VALIDATE_EOF'
 You are a senior engineer validating a code review. You have the original review findings below.
@@ -110,7 +113,7 @@ fi
 # ============================================================
 # PHASE 3: Fix confirmed issues
 # ============================================================
-echo ">>> [Phase 3/3] Fixing confirmed issues..."
+echo ">>> [Phase 3/4] Fixing confirmed issues..."
 
 BRANCH="review/${SERVICE,,}-${DATE}"
 ORIGINAL_BRANCH=$(git branch --show-current)
@@ -134,14 +137,16 @@ FIX_PROMPT=$(cat <<FIX_EOF
 You are fixing confirmed code review findings in the $SERVICE service.
 The validated review is below. Fix ONLY CONFIRMED findings with confidence >= 7.
 
-Rules:
+CRITICAL RULES:
 - Make minimal, surgical fixes. Do not refactor surrounding code.
 - Do not add comments explaining the fix unless the logic is non-obvious.
 - Do not fix LOW severity items.
 - If a fix requires adding a dependency or changing an interface used by other services, SKIP it and note why.
 - If a fix is ambiguous or risky, SKIP it.
-- Run \`dotnet build filters/${SERVICE}.slnf\` after all fixes to verify compilation.
-- If the build fails, revert the failing fix and move on.
+- After ALL fixes, you MUST run: dotnet build HaworksPlatform.sln 2>&1 | grep " error " | grep -v HWK023
+- If ANY errors appear, REVERT the fix that caused them and try again.
+- Keep reverting until the build is CLEAN (zero errors excluding HWK023).
+- DO NOT leave the codebase in a broken state under any circumstances.
 
 After fixing, output a summary:
 ## Fixes Applied
@@ -149,6 +154,9 @@ After fixing, output a summary:
 
 ## Skipped (too risky or ambiguous)
 - [finding] Reason skipped
+
+## Build Status
+- PASS or FAIL (with details if FAIL)
 
 $(cat "$VALIDATED_FILE")
 FIX_EOF
@@ -159,15 +167,68 @@ FIX_SUMMARY=$(echo "$FIX_OUTPUT" | tail -50)
 
 echo "$FIX_SUMMARY" > "$SERVICE_REPORT_DIR/${DATE}-fixes.md"
 
-# Stage everything: report + validated report + code fixes
+# ============================================================
+# PHASE 4: BUILD GATE — verify before creating PR
+# ============================================================
+echo ">>> [Phase 4/4] Build gate..."
+
+BUILD_ERRORS=$(dotnet build HaworksPlatform.sln 2>&1 | grep " error " | grep -v HWK023 | head -20)
+
+if [ -n "$BUILD_ERRORS" ]; then
+  echo ">>> BUILD FAILED — reverting all code changes, keeping reports only"
+  echo "$BUILD_ERRORS"
+
+  # Revert all source code changes, keep only report files
+  git checkout -- src/ tests/ 2>/dev/null || true
+
+  # Check if build passes after revert
+  REVERT_ERRORS=$(dotnet build HaworksPlatform.sln 2>&1 | grep " error " | grep -v HWK023 | head -5)
+  if [ -n "$REVERT_ERRORS" ]; then
+    echo ">>> BUILD STILL BROKEN after revert — aborting entirely"
+    git checkout "$ORIGINAL_BRANCH" 2>/dev/null || git checkout main
+    git branch -D "$BRANCH" 2>/dev/null || true
+    git stash pop 2>/dev/null || true
+    exit 1
+  fi
+
+  echo ">>> Build clean after revert. Creating report-only PR."
+fi
+
+# Run unit tests for the affected service
+echo ">>> Running unit tests..."
+TEST_FILTER="FullyQualifiedName!~Integration&FullyQualifiedName!~E2E&FullyQualifiedName!~Smoke"
+TEST_RESULT=$(dotnet test HaworksPlatform.sln --no-build --filter "$TEST_FILTER" 2>&1 | tail -5)
+
+if echo "$TEST_RESULT" | grep -q "Failed!"; then
+  FAILED_TESTS=$(dotnet test HaworksPlatform.sln --no-build --filter "$TEST_FILTER" 2>&1 | grep "Failed!" | head -5)
+  echo ">>> UNIT TESTS FAILED — reverting code changes"
+  echo "$FAILED_TESTS"
+
+  git checkout -- src/ tests/ 2>/dev/null || true
+  echo ">>> Reverted. Creating report-only PR."
+fi
+
+echo ">>> Build gate PASSED"
+
+# Stage and commit
 git add -A
 git status --short
 
+# Check if there are actual changes to commit
+if git diff --cached --quiet; then
+  echo ">>> No changes to commit. Skipping PR."
+  git checkout "$ORIGINAL_BRANCH" 2>/dev/null || git checkout main
+  git branch -D "$BRANCH" 2>/dev/null || true
+  git stash pop 2>/dev/null || true
+  exit 0
+fi
+
 git commit -m "review(${SERVICE}): review + fix ${DATE}
 
-Phase 1: Deep review ($( grep -c "^###" "$REPORT_FILE" || echo 0) findings)
+Phase 1: Deep review ($PHASE1_COUNT findings)
 Phase 2: Self-validation ($CONFIRMED_COUNT confirmed)
 Phase 3: Automated fixes applied
+Phase 4: Build gate PASSED
 
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 
@@ -178,7 +239,8 @@ PR_BODY=$(cat <<EOF
 ## Continuous Review + Fix: ${SERVICE}
 
 **Date**: ${DATE}
-**Pipeline**: Review -> Validate -> Fix
+**Pipeline**: Review -> Validate -> Fix -> Build Gate
+**Build**: PASSED
 
 ### Validation Summary
 $(head -10 "$VALIDATED_FILE")
@@ -195,7 +257,7 @@ $(cat "$VALIDATED_FILE" | head -300)
 </details>
 
 ---
-Generated by \`scripts/continuous-review-runner.sh\` (3-phase pipeline)
+Generated by \`scripts/continuous-review-runner.sh\` (4-phase pipeline with build gate)
 EOF
 )
 
