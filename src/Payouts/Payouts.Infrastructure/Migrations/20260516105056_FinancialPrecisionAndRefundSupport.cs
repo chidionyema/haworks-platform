@@ -18,21 +18,25 @@ namespace Haworks.Payouts.Infrastructure.Migrations
 
             migrationBuilder.RenameTable(
                 name: "SellerProfiles",
+                schema: "payouts",
                 newName: "SellerProfiles",
                 newSchema: "payouts");
 
             migrationBuilder.RenameTable(
                 name: "Payouts",
+                schema: "payouts",
                 newName: "Payouts",
                 newSchema: "payouts");
 
             migrationBuilder.RenameTable(
                 name: "LedgerEntries",
+                schema: "payouts",
                 newName: "LedgerEntries",
                 newSchema: "payouts");
 
             migrationBuilder.RenameTable(
                 name: "LedgerAccounts",
+                schema: "payouts",
                 newName: "LedgerAccounts",
                 newSchema: "payouts");
 
