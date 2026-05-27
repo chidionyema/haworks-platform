@@ -4,6 +4,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Haworks.RulesEngine.Api.Controllers;
 
@@ -22,6 +23,7 @@ public class RulesController : ControllerBase
     // ── Evaluation ────────────────────────────────────────────────────────────
 
     [HttpPost("evaluate")]
+    [EnableRateLimiting("evaluation")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Evaluate([FromBody] EvaluateRuleQuery query, CancellationToken ct = default)
@@ -35,9 +37,13 @@ public class RulesController : ControllerBase
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> List([FromQuery] bool? activeOnly = null, CancellationToken ct = default)
+    public async Task<IActionResult> List(
+        [FromQuery] bool? activeOnly = null,
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = 50,
+        CancellationToken ct = default)
     {
-        var result = await _mediator.Send(new ListRulesQuery(activeOnly), ct);
+        var result = await _mediator.Send(new ListRulesQuery(activeOnly, skip, take), ct);
         return result.ToActionResult();
     }
 

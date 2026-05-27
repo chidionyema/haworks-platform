@@ -35,7 +35,7 @@ public class EvaluateRuleQueryHandler : IRequestHandler<EvaluateRuleQuery, Resul
                     result.Value.Outcome,
                     request.Inputs,
                     sw.Elapsed,
-                    DateTime.UtcNow);
+                    DateTimeOffset.UtcNow);
 
                 _logger.LogInformation("RuleTrace: {@Trace}", trace);
             }

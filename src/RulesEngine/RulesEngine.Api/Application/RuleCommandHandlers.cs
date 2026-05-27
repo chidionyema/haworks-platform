@@ -19,8 +19,8 @@ public class CreateRuleCommandHandler : IRequestHandler<CreateRuleCommand, Resul
             Name = request.Name,
             Expression = request.Expression,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
         };
 
         _db.Rules.Add(rule);
@@ -43,10 +43,17 @@ public class UpdateRuleCommandHandler : IRequestHandler<UpdateRuleCommand, Resul
         rule.Name = request.Name;
         rule.Expression = request.Expression;
         rule.IsActive = request.IsActive;
-        rule.UpdatedAt = DateTime.UtcNow;
+        rule.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await _db.SaveChangesAsync(cancellationToken);
-        return Result.Success(rule);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            return Result.Success(rule);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result.Failure<Rule>(Error.Conflict("RulesEngine.ConcurrencyConflict", "The rule has been modified by another user. Please refresh and try again."));
+        }
     }
 }
 
@@ -62,8 +69,15 @@ public class DeleteRuleCommandHandler : IRequestHandler<DeleteRuleCommand, Resul
             return Result.Failure<bool>(Error.NotFound("RulesEngine.RuleNotFound", $"Rule '{request.Id}' not found."));
 
         _db.Rules.Remove(rule);
-        await _db.SaveChangesAsync(cancellationToken);
-        return Result.Success(true);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            return Result.Success(true);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result.Failure<bool>(Error.Conflict("RulesEngine.ConcurrencyConflict", "The rule has been modified by another user. Please refresh and try again."));
+        }
     }
 }
 
@@ -91,12 +105,21 @@ public class ListRulesQueryHandler : IRequestHandler<ListRulesQuery, Result<IRea
 
     public async Task<Result<IReadOnlyList<Rule>>> Handle(ListRulesQuery request, CancellationToken cancellationToken)
     {
+        // Validate pagination parameters
+        if (request.Skip < 0)
+            return Result.Failure<IReadOnlyList<Rule>>(Error.Validation("RulesEngine.InvalidSkip", "Skip must be non-negative."));
+
+        if (request.Take <= 0 || request.Take > 1000)
+            return Result.Failure<IReadOnlyList<Rule>>(Error.Validation("RulesEngine.InvalidTake", "Take must be between 1 and 1000."));
+
         var query = _db.Rules.AsNoTracking();
         if (request.ActiveOnly == true)
             query = query.Where(r => r.IsActive);
 
         var rules = (IReadOnlyList<Rule>)await query
             .OrderBy(r => r.Name)
+            .Skip(request.Skip)
+            .Take(request.Take)
             .ToListAsync(cancellationToken);
 
         return Result.Success(rules);

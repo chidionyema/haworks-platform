@@ -80,21 +80,17 @@ public class RulesEvaluator : IRulesEvaluator
             bool outcome;
             try
             {
-                // Build a single-element array, use DynamicExpressionParser to parse
-                // the expression as a lambda over Dictionary<string,object>.
-                // SafeTypeProvider restricts resolvable types to primitives only,
-                // blocking access to File, Process, Environment, etc.
-                var parsingConfig = new ParsingConfig
-                {
-                    CustomTypeProvider = new SafeTypeProvider(),
-                    ResolveTypesBySimpleName = false,
-                };
+                // Transform the expression with input values and evaluate
+                var transformedExpression = TransformExpression(rule.Expression, inputs);
+
+                // Use cached parsing config for better performance
+                var parsingConfig = GetParsingConfig();
                 var parameter = Expression.Parameter(typeof(Dictionary<string, object>), "inputs");
                 var lambdaExpression = DynamicExpressionParser.ParseLambda(
                     parsingConfig,
                     new[] { parameter },
                     typeof(bool),
-                    TransformExpression(rule.Expression, inputs),
+                    transformedExpression,
                     []);
 
                 var compiled = (Func<Dictionary<string, object>, bool>)lambdaExpression.Compile();
@@ -123,6 +119,18 @@ public class RulesEvaluator : IRulesEvaluator
             return Result.Failure<RuleEvaluationResult>(
                 Error.Internal("RulesEngine.EvaluationError", $"Evaluation failed: {ex.Message}"));
         }
+    }
+
+    /// <summary>
+    /// Gets a cached parsing configuration to avoid recreating it for each evaluation.
+    /// </summary>
+    private static ParsingConfig GetParsingConfig()
+    {
+        return new ParsingConfig
+        {
+            CustomTypeProvider = new SafeTypeProvider(),
+            ResolveTypesBySimpleName = false,
+        };
     }
 
     /// <summary>
@@ -181,7 +189,7 @@ public class RulesEvaluator : IRulesEvaluator
     private static string ToLiteral(object value) => value switch
     {
         bool b => b ? "true" : "false",
-        string s => $"\"{s.Replace("\"", "\\\"")}\"",
+        string s => System.Text.Json.JsonSerializer.Serialize(s),
         null => "null",
         _ => value.ToString() ?? "null"
     };

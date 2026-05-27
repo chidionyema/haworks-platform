@@ -7,19 +7,28 @@ using MediatR;
 namespace Haworks.RulesEngine.Api.Application;
 
 public record CreateRuleCommand(
-    [property: JsonRequired] string Name, 
+    [property: JsonRequired] string Name,
     [property: JsonRequired] string Expression,
-    string IdempotencyKey = "") : IIdempotentCommand, IRequest<Result<Rule>>;
+    string IdempotencyKey = default!) : IIdempotentCommand, IRequest<Result<Rule>>
+{
+    public string IdempotencyKey { get; init; } = IdempotencyKey ?? Guid.NewGuid().ToString();
+}
 
 public record UpdateRuleCommand(
-    [property: JsonRequired] Guid Id, 
-    [property: JsonRequired] string Name, 
-    [property: JsonRequired] string Expression, 
+    [property: JsonRequired] Guid Id,
+    [property: JsonRequired] string Name,
+    [property: JsonRequired] string Expression,
     [property: JsonRequired] bool IsActive,
-    string IdempotencyKey = "") : IIdempotentCommand, IRequest<Result<Rule>>;
+    string IdempotencyKey = default!) : IIdempotentCommand, IRequest<Result<Rule>>
+{
+    public string IdempotencyKey { get; init; } = IdempotencyKey ?? Guid.NewGuid().ToString();
+}
 
-public record DeleteRuleCommand(Guid Id, string IdempotencyKey = "") : IIdempotentCommand, IRequest<Result<bool>>;
+public record DeleteRuleCommand(Guid Id, string IdempotencyKey = default!) : IIdempotentCommand, IRequest<Result<bool>>
+{
+    public string IdempotencyKey { get; init; } = IdempotencyKey ?? Guid.NewGuid().ToString();
+}
 
 public record GetRuleQuery(Guid Id) : IRequest<Result<Rule>>;
 
-public record ListRulesQuery(bool? ActiveOnly) : IRequest<Result<IReadOnlyList<Rule>>>;
+public record ListRulesQuery(bool? ActiveOnly, int Skip = 0, int Take = 50) : IRequest<Result<IReadOnlyList<Rule>>>;

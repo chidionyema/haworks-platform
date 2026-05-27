@@ -23,6 +23,7 @@ public sealed class RulesDbContext : DbContext
             b.Property(r => r.IsActive).HasColumnName("is_active").HasDefaultValue(true);
             b.Property(r => r.CreatedAt).HasColumnName("created_at");
             b.Property(r => r.UpdatedAt).HasColumnName("updated_at");
+            b.Property(r => r.RowVersion).HasColumnName("row_version").IsRowVersion();
             b.HasIndex(r => r.Name).IsUnique();
         });
     }

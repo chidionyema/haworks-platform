@@ -40,6 +40,27 @@ builder.Services.AddHealthChecks()
 // ── Auth ─────────────────────────────────────────────────────────────────────
 builder.Services.AddPlatformAuthentication(builder.Configuration);
 
+// ── Rate Limiting ─────────────────────────────────────────────────────────────
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("evaluation", context =>
+    {
+        // Partition by authenticated user ID so limits are per-user, not global.
+        var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                     ?? context.User.FindFirst("sub")?.Value
+                     ?? context.Connection.RemoteIpAddress?.ToString()
+                     ?? "anonymous";
+
+        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: userId,
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 50,  // 50 evaluations per minute per user
+                Window = TimeSpan.FromMinutes(1)
+            });
+    });
+});
+
 // ── Application ───────────────────────────────────────────────────────────────
 builder.Services.AddMediatR(cfg =>
 {
@@ -97,10 +118,10 @@ if (!app.Environment.IsEnvironment("Test"))
     {
         var fraudRules = new[]
         {
-            new Rule { Id = Guid.NewGuid(), Name = "fraud:high-value-guest", Expression = "totalAmount > 500 AND isGuest == true", IsActive = true, CreatedAt = DateTime.UtcNow },
-            new Rule { Id = Guid.NewGuid(), Name = "fraud:excessive-amount", Expression = "totalAmount > 5000", IsActive = true, CreatedAt = DateTime.UtcNow },
-            new Rule { Id = Guid.NewGuid(), Name = "fraud:bulk-items", Expression = "itemCount > 20", IsActive = true, CreatedAt = DateTime.UtcNow },
-            new Rule { Id = Guid.NewGuid(), Name = "fraud:high-risk-country", Expression = "countryCode == \"XX\" OR countryCode == \"YY\"", IsActive = true, CreatedAt = DateTime.UtcNow },
+            new Rule { Id = Guid.NewGuid(), Name = "fraud:high-value-guest", Expression = "totalAmount > 500 AND isGuest == true", IsActive = true, CreatedAt = DateTimeOffset.UtcNow },
+            new Rule { Id = Guid.NewGuid(), Name = "fraud:excessive-amount", Expression = "totalAmount > 5000", IsActive = true, CreatedAt = DateTimeOffset.UtcNow },
+            new Rule { Id = Guid.NewGuid(), Name = "fraud:bulk-items", Expression = "itemCount > 20", IsActive = true, CreatedAt = DateTimeOffset.UtcNow },
+            new Rule { Id = Guid.NewGuid(), Name = "fraud:high-risk-country", Expression = "countryCode == \"XX\" OR countryCode == \"YY\"", IsActive = true, CreatedAt = DateTimeOffset.UtcNow },
         };
         db.Set<Rule>().AddRange(fraudRules);
         await db.SaveChangesAsync(CancellationToken.None);
@@ -118,6 +139,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

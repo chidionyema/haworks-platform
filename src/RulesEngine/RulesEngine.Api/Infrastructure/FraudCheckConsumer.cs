@@ -3,6 +3,7 @@ using Haworks.Contracts.Checkout;
 using Haworks.RulesEngine.Api.Domain;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Haworks.RulesEngine.Api.Infrastructure;
@@ -15,6 +16,7 @@ namespace Haworks.RulesEngine.Api.Infrastructure;
 public sealed class FraudCheckConsumer(
     RulesDbContext db,
     IRulesEvaluator evaluator,
+    IConfiguration configuration,
     ILogger<FraudCheckConsumer> logger) : IConsumer<FraudCheckRequestedEvent>
 {
     private static readonly Meter Meter = new("Haworks.RulesEngine", "1.0.0");
@@ -39,7 +41,7 @@ public sealed class FraudCheckConsumer(
         // Build the evaluation context from the event
         var variables = new Dictionary<string, object>
         {
-            ["totalAmount"] = (double)(msg.TotalAmountCents / 100m),
+            ["totalAmount"] = msg.TotalAmountCents / 100m,
             ["itemCount"] = msg.ItemCount,
             ["isGuest"] = msg.IsGuest,
             ["currency"] = msg.Currency,
@@ -52,13 +54,13 @@ public sealed class FraudCheckConsumer(
             if (result.IsSuccess && result.Value.Outcome)
             {
                 triggeredRules.Add(rule.Name);
-                riskScore += 25; // Each triggered rule adds 25 points
+                riskScore += configuration.GetValue("FraudDetection:RiskScorePerRule", 25);
             }
         }
 
         ChecksRun.Add(1);
 
-        if (triggeredRules.Count > 0 && riskScore >= 50)
+        if (triggeredRules.Count > 0 && riskScore >= configuration.GetValue("FraudDetection:RiskThreshold", 50))
         {
             ChecksFailed.Add(1);
             logger.LogWarning(

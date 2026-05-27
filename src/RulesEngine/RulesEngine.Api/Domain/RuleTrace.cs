@@ -5,5 +5,5 @@ public sealed record RuleTrace(
     bool Result,
     Dictionary<string, object> Inputs,
     TimeSpan Duration,
-    DateTime OccurredAt
+    DateTimeOffset OccurredAt
 );
