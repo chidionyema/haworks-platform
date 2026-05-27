@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Haworks.BuildingBlocks.Idempotency;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -11,7 +12,7 @@ using Haworks.Notifications.Domain.ValueObjects;
 
 namespace Haworks.Notifications.Infrastructure.Persistence;
 
-public class NotificationsDbContext : DbContext
+public class NotificationsDbContext : DbContext, IIdempotencyJournalDbContext
 {
     private readonly IHostEnvironment _environment;
     private readonly ILoggerFactory _loggerFactory;
@@ -35,6 +36,7 @@ public class NotificationsDbContext : DbContext
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
     public DbSet<Suppression> SuppressionList => Set<Suppression>();
     public DbSet<RateLimitBucket> RateLimitBuckets => Set<RateLimitBucket>();
+    public DbSet<IdempotencyJournalEntry> IdempotencyJournal => Set<IdempotencyJournalEntry>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -115,6 +117,16 @@ public class NotificationsDbContext : DbContext
         {
             entity.ToTable("RateLimitBuckets");
             entity.HasKey(b => new { b.BucketKey, b.WindowStart });
+        });
+
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
         });
 
         modelBuilder.AddInboxStateEntity();

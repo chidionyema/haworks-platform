@@ -1,4 +1,5 @@
 using Haworks.Identity.Application;
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.Identity.Domain;
 using MassTransit;
@@ -13,7 +14,7 @@ namespace Haworks.Identity.Infrastructure;
 /// Manages Users, UserProfiles, RefreshTokens, and RevokedTokens.
 /// Extends IdentityDbContext for ASP.NET Identity integration.
 /// </summary>
-public class AppIdentityDbContext : IdentityDbContext<User>
+public class AppIdentityDbContext : IdentityDbContext<User>, IIdempotencyJournalDbContext
 {
     private readonly IHostEnvironment _environment;
     private readonly ILoggerFactory _loggerFactory;
@@ -37,6 +38,7 @@ public class AppIdentityDbContext : IdentityDbContext<User>
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<RevokedToken> RevokedTokens => Set<RevokedToken>();
+    public DbSet<IdempotencyJournalEntry> IdempotencyJournal => Set<IdempotencyJournalEntry>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -198,6 +200,16 @@ public class AppIdentityDbContext : IdentityDbContext<User>
                 .WithMany()
                 .HasForeignKey(rt => rt.UserId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
         });
 
         // MassTransit EF Outbox/Inbox entities

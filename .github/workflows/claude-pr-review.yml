@@ -30,20 +30,38 @@ jobs:
           review_on_open: true
           review_on_update: true
           review_prompt: |
-            Review this PR with two lenses: rules compliance AND exploratory analysis.
-            Read CLAUDE.md for the project rules.
+            You are a Principal Engineer performing a DEEP code review. Read CLAUDE.md for project rules.
+            Do NOT rubber-stamp. Every changed file must be traced end-to-end.
 
-            ## Rules Check
-            1. **Security**: missing [Authorize], IDOR (userId from body not JWT), SSRF, injection, wrong auth middleware order
-            2. **Domain bugs**: invalid state transitions, missing idempotency, wrong financial math ($0 amounts, refund > payment)
-            3. **Edge cases**: zero/negative amounts, concurrent access, double-call behavior, validators with GreaterThanOrEqualTo(0)
+            ## A. Rules Compliance
+            1. **Security**: missing [Authorize], IDOR (userId from body not JWT), SSRF, injection, wrong auth middleware order, sensitive data in logs
+            2. **Domain bugs**: invalid state transitions, missing idempotency, wrong financial math ($0 amounts, refund > payment, decimal precision loss)
+            3. **Edge cases**: zero/negative amounts, concurrent access, double-call behavior, validators with GreaterThanOrEqualTo(0), null collections
 
-            ## Exploratory Analysis
-            4. **Data flow**: trace input from request to DB — any missing validation along the way?
-            5. **Failure modes**: what happens if an external dependency (DB, Kafka, Redis, Vault) is down when this code runs?
-            6. **Race conditions**: can two concurrent requests cause corruption? Missing optimistic concurrency tokens?
-            7. **Business logic**: does this change introduce any nonsensical states? Can a user abuse it?
-            8. **Test coverage**: are new code paths tested? What edge case tests are missing? Suggest specific test cases.
+            ## B. Database & Migration Integrity (HIGH PRIORITY — we keep finding bugs here)
+            4. **Missing migrations**: If a DbContext model property was added/changed, verify a corresponding migration exists. Check for pending model changes.
+            5. **Schema correctness**: All services use `HasDefaultSchema("<service>")`. Verify every `CreateTable`/`CreateIndex` in migrations specifies `schema:`. Missing schema = 42P01 in production.
+            6. **Missing tables**: If code references a new entity/DbSet, verify the table exists in migrations. Watch for `DbSet<T>` added to DbContext without a migration.
+            7. **Column mismatches**: Verify new/changed properties in entity classes match migration column types (especially `string` vs `int` for enums, `decimal` vs `long` for money).
+            8. **Foreign key integrity**: New relationships must have corresponding FK constraints in migrations. Watch for `HasOne`/`HasMany` without migration support.
+            9. **Index coverage**: Queries filtering by a column should have a corresponding index. Watch for `WHERE` clauses on unindexed columns.
+            10. **Raw SQL safety**: Any `FromSqlRaw`/`ExecuteSqlRaw` must use parameterized queries. Check enum casts use `(int)EnumValue` not string.
 
-            For each finding: file, line, severity (CRITICAL/HIGH/MEDIUM/LOW), and the specific fix.
+            ## C. Exploratory Analysis
+            11. **Data flow**: trace input from request to DB — any missing validation along the way?
+            12. **Failure modes**: what happens if an external dependency (DB, Kafka, Redis, Vault) is down when this code runs?
+            13. **Race conditions**: can two concurrent requests cause corruption? Missing FOR UPDATE or unique constraints?
+            14. **Business logic**: does this change introduce any nonsensical states? Can a user abuse it?
+            15. **MassTransit consumers**: no BeginTransactionAsync, no SaveChangesAsync (unless `// OUTBOX-SAFE`), no IPublishEndpoint injection
+            16. **External I/O**: no DB locks held across external API calls — must use Three-Phase pattern
+
+            ## D. Test Coverage Gaps
+            17. **New code paths**: are they tested? What edge case tests are missing?
+            18. **Negative tests**: error paths, invalid input, authorization failures
+            19. **Integration gaps**: new DB operations without integration test coverage
+            20. **Suggest specific test cases** with method signatures for anything missing
+
+            ## Output Format
+            For each finding: `file:line`, severity (CRITICAL/HIGH/MEDIUM/LOW), what's wrong, and the concrete fix.
             Be specific — link to exact lines. Don't flag style nits or formatting.
+            Group findings by category (Database, Security, Logic, Tests).

@@ -6,6 +6,7 @@ using Xunit;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Authentication;
 using Haworks.BuildingBlocks.CurrentUser;
 using Haworks.Location.Application.Interfaces;
 using MassTransit;
@@ -50,6 +51,13 @@ public class LocationWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
 
         builder.ConfigureTestServices(services =>
         {
+            services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
+            services.PostConfigureAll<AuthenticationOptions>(o =>
+            {
+                o.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                o.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+            });
+
             var currentUserMock = new Mock<ICurrentUserService>();
             currentUserMock.Setup(x => x.UserId).Returns("test-user");
             currentUserMock.Setup(x => x.ClientIp).Returns("127.0.0.1");

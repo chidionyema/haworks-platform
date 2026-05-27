@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.Privacy.Application.Common.Interfaces;
 using Haworks.Privacy.Domain.Aggregates;
@@ -7,13 +8,14 @@ using MassTransit;
 
 namespace Haworks.Privacy.Infrastructure.Persistence;
 
-public class PrivacyDbContext : DbContext, IPrivacyDbContext
+public class PrivacyDbContext : DbContext, IPrivacyDbContext, IIdempotencyJournalDbContext
 {
     public PrivacyDbContext(DbContextOptions<PrivacyDbContext> options) : base(options) { }
 
     public DbSet<PrivacyRequest> PrivacyRequests => Set<PrivacyRequest>();
     public DbSet<PrivacyRequestStep> PrivacyRequestSteps => Set<PrivacyRequestStep>();
     public DbSet<SagaTransitionAuditEntry> SagaTransitionAudit => Set<SagaTransitionAuditEntry>();
+    public DbSet<IdempotencyJournalEntry> IdempotencyJournal => Set<IdempotencyJournalEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -65,6 +67,16 @@ public class PrivacyDbContext : DbContext, IPrivacyDbContext
             e.Property(x => x.Id).UseIdentityAlwaysColumn();
             e.Property(x => x.InitiatedBy).HasMaxLength(450);
             e.HasIndex(x => new { x.SagaType, x.CorrelationId });
+        });
+
+        builder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
         });
     }
 }

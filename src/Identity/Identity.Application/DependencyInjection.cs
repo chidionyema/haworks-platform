@@ -3,6 +3,7 @@ using System.Reflection;
 using FluentValidation;
 using MediatR;
 using Haworks.BuildingBlocks.Behaviors;
+using Haworks.BuildingBlocks.Idempotency;
 
 namespace Haworks.Identity.Application;
 
@@ -28,6 +29,7 @@ public static class DependencyInjection
             cfg.AddOpenBehavior(typeof(TelemetryBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
+            cfg.AddOpenBehavior(typeof(IdempotencyBehavior<,>));
         });
 
         // Audit infrastructure for handlers that record actor + IP.

@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Messaging;
 using MassTransit;
@@ -62,6 +63,8 @@ public static class DependencyInjection
             options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
                 options.AddPlatformInterceptors(sp);
         });
+
+        services.AddScoped<IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<CatalogDbContext>());
 
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();

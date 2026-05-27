@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.Pricing.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,7 +7,7 @@ namespace Haworks.Pricing.Infrastructure.Persistence;
 /// <summary>
 /// EF Core DbContext for the Pricing service.
 /// </summary>
-public sealed class PricingDbContext : DbContext
+public sealed class PricingDbContext : DbContext, IIdempotencyJournalDbContext
 {
     public PricingDbContext(DbContextOptions<PricingDbContext> options) : base(options) { }
 
@@ -16,6 +17,7 @@ public sealed class PricingDbContext : DbContext
     public DbSet<PromotionRedemption> PromotionRedemptions => Set<PromotionRedemption>();
     public DbSet<TaxRate> TaxRates => Set<TaxRate>();
     public DbSet<PriceCalculationLog> CalculationLogs => Set<PriceCalculationLog>();
+    public DbSet<IdempotencyJournalEntry> IdempotencyJournal => Set<IdempotencyJournalEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -106,6 +108,16 @@ public sealed class PricingDbContext : DbContext
             e.HasIndex(x => x.ProductId);
             // M6 Fix: Index for user-scoped audit queries (support, compliance)
             e.HasIndex(x => x.UserId);
+        });
+
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
         });
     }
 }
