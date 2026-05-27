@@ -41,7 +41,7 @@ public sealed class InterceptorWiringTests : IAsyncLifetime
         interceptor.Should().BeOfType<SagaPersistenceInterceptor>();
     }
 
-    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
+    [Fact]
     public async Task Interceptor_fires_on_saga_creation_via_real_RabbitMQ()
     {
         var sagaId = Guid.NewGuid();
