@@ -116,7 +116,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
             id = productId.ToString(),
             name = "Original Name",
             description = "Original",
-            unit_price = 10.00,
+            unit_price_cents = 1000,
             category_id = Guid.NewGuid().ToString(),
         });
         await ProduceAndConsumeAsync(topic, createEnvelope);
@@ -127,7 +127,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
             id = productId.ToString(),
             name = "Updated Name",
             description = "Updated via CDC",
-            unit_price = 25.00,
+            unit_price_cents = 2500,
             category_id = Guid.NewGuid().ToString(),
         });
         await ProduceAndConsumeAsync(topic, updateEnvelope);
@@ -152,7 +152,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
             id = productId.ToString(),
             name = "To Be Deleted",
             description = "Will be removed",
-            unit_price = 5.00,
+            unit_price_cents = 500,
             category_id = Guid.NewGuid().ToString(),
         });
         await ProduceAndConsumeAsync(topic, createEnvelope);
@@ -177,7 +177,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
             id = productId.ToString(),
             name = "Snapshot Product",
             description = "From initial snapshot",
-            unit_price = 99.99,
+            unit_price_cents = 9999,
             category_id = Guid.NewGuid().ToString(),
         });
 
@@ -280,7 +280,8 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
         var id = Guid.Parse(after.GetProperty("id").GetString()!);
         var name = after.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
         var description = after.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "";
-        var price = after.TryGetProperty("unit_price", out var p) ? p.GetDecimal() : 0;
+        var priceCents = after.TryGetProperty("unit_price_cents", out var p) ? p.GetInt64() : 0L;
+        var price = (decimal)priceCents / 100m;
         var categoryId = after.TryGetProperty("category_id", out var c) ? c.GetString() ?? "" : "";
 
         var doc = Haworks.Search.Application.Indexing.ProductSearchDocumentProjector.From(

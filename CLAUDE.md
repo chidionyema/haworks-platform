@@ -123,3 +123,12 @@ Network idempotency (Inbox) is not enough. You must protect against logical busi
 - Integration tests MUST have "Integration" in their namespace or project name
 - NEVER add tests that require infrastructure (Docker, Vault, external APIs) to unit test projects
 - The fast CI step filter is: `FullyQualifiedName!~Integration&FullyQualifiedName!~E2E&FullyQualifiedName!~Smoke`
+
+# MANDATORY: Pre-Push Verification (NEVER SKIP)
+- **NEVER push to any branch without running these locally first:**
+  1. `dotnet build HaworksPlatform.sln` — zero errors (excluding HWK023)
+  2. `dotnet test HaworksPlatform.sln --no-build --filter "FullyQualifiedName!~Integration&FullyQualifiedName!~E2E&FullyQualifiedName!~Smoke"` — zero failures
+  3. For each service touched: `dotnet test tests/{Service}/{Service}.Integration/*.csproj` — zero failures
+- **If any step fails, fix it BEFORE pushing. Do not push broken code.**
+- **Do not announce you will push. Run tests. Fix failures. Then push.**
+- **The continuous review pipeline (Phase 4) enforces this automatically for review PRs.**

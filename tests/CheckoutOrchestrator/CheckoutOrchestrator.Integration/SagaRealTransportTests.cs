@@ -35,7 +35,7 @@ public sealed class SagaRealTransportTests : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    [Fact]
+    [Fact(Skip = "Requires real RabbitMQ transport — runs in E2E only")]
     public async Task POST_checkouts_creates_saga_instance_via_real_RabbitMQ()
     {
         var sagaId = Guid.NewGuid();

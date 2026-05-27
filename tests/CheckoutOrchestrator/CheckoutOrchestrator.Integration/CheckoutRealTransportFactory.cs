@@ -41,6 +41,10 @@ public sealed class CheckoutRealTransportFactory : WebApplicationFactory<Program
         // Purge stale messages from the reused RabbitMQ container so old
         // outbox-delivered messages don't overwhelm the consumer on startup.
         await PurgeRabbitMqQueuesAsync();
+
+        // Force host build and migrate DB BEFORE MassTransit consumers start querying
+        _ = Services;
+        await EnsureSchemaAsync();
     }
 
     async Task IAsyncLifetime.DisposeAsync()
