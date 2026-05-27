@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.Privacy.Application.Common.Interfaces;
@@ -31,6 +32,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IPrivacyDbContext>(provider => provider.GetRequiredService<PrivacyDbContext>());
+        services.AddScoped<IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<PrivacyDbContext>());
         services.AddScoped<ISagaStateRepository, SagaStateRepository>();
 
         if (env.IsEnvironment("Test"))

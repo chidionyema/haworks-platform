@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.Privacy.Application.Common.Interfaces;
 using Haworks.Privacy.Domain.Aggregates;
@@ -7,7 +8,7 @@ using MassTransit;
 
 namespace Haworks.Privacy.Infrastructure.Persistence;
 
-public class PrivacyDbContext : DbContext, IPrivacyDbContext
+public class PrivacyDbContext : DbContext, IIdempotencyJournalDbContext, IPrivacyDbContext
 {
     public PrivacyDbContext(DbContextOptions<PrivacyDbContext> options) : base(options) { }
 
@@ -24,6 +25,15 @@ public class PrivacyDbContext : DbContext, IPrivacyDbContext
         builder.AddInboxStateEntity();
         builder.AddOutboxStateEntity();
         builder.AddOutboxMessageEntity();
+        builder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
+        });
 
         builder.Entity<PrivacyRequest>(entity =>
         {

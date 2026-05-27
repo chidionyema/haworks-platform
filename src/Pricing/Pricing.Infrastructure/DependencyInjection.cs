@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.BuildingBlocks.Messaging;
 using FluentValidation;
@@ -37,6 +38,8 @@ public static class DependencyInjection
                 npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "pricing"));
             options.AddPlatformInterceptors(sp);
         });
+
+        services.AddScoped<IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<PricingDbContext>());
 
         // Repositories
         services.AddScoped<IPriceRuleRepository, PriceRuleRepository>();
@@ -111,7 +114,10 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddMediatR(cfg =>
-            cfg.RegisterServicesFromAssemblyContaining<PriceCalculationEngine>());
+        {
+            cfg.RegisterServicesFromAssemblyContaining<PriceCalculationEngine>();
+            cfg.AddOpenBehavior(typeof(IdempotencyBehavior<,>));
+        });
 
         services.AddValidatorsFromAssemblyContaining<PriceCalculationEngine>();
 

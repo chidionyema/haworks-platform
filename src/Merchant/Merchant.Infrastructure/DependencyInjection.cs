@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.Merchant.Application.Common.Interfaces;
 using Haworks.Merchant.Infrastructure.Persistence;
@@ -23,6 +24,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IMerchantDbContext>(provider => provider.GetRequiredService<MerchantDbContext>());
+        services.AddScoped<IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<MerchantDbContext>());
 
         if (!string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Test", StringComparison.Ordinal))
         {

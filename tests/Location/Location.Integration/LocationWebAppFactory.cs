@@ -5,8 +5,11 @@ using Microsoft.Extensions.Configuration;
 using Xunit;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.BuildingBlocks.Testing.Containers;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Haworks.BuildingBlocks.CurrentUser;
+using Haworks.Location.Infrastructure.Persistence;
 using Haworks.Location.Application.Interfaces;
 using MassTransit;
 using Moq;
@@ -27,6 +30,17 @@ public class LocationWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
         Environment.SetEnvironmentVariable("ConnectionStrings__location", ConnectionString);
         Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", "amqp://guest:guest@localhost:5672");
         Environment.SetEnvironmentVariable("Vault__Enabled", "false");
+
+        // Force host build so ConfigureTestServices runs, then migrate
+        _ = Services;
+        await EnsureSchemaAsync();
+    }
+
+    public async Task EnsureSchemaAsync()
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<LocationDbContext>();
+        await db.Database.MigrateAsync();
     }
 
     async Task IAsyncLifetime.DisposeAsync()
@@ -50,6 +64,13 @@ public class LocationWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
 
         builder.ConfigureTestServices(services =>
         {
+            services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
+            services.PostConfigureAll<AuthenticationOptions>(o =>
+            {
+                o.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                o.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+            });
+
             var currentUserMock = new Mock<ICurrentUserService>();
             currentUserMock.Setup(x => x.UserId).Returns("test-user");
             currentUserMock.Setup(x => x.ClientIp).Returns("127.0.0.1");

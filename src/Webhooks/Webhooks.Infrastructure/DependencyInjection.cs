@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.Webhooks.Application.Interfaces;
 using Haworks.Webhooks.Infrastructure.Persistence;
@@ -30,6 +31,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IWebhooksDbContext>(sp => sp.GetRequiredService<WebhooksDbContext>());
+        services.AddScoped<IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<WebhooksDbContext>());
 
         // Svix — all webhook dispatch, retry, signing, SSRF protection delegated to Svix server.
         // Both Svix:ServerUrl and Svix:AuthToken MUST be provided via configuration (env vars, Vault, etc.).

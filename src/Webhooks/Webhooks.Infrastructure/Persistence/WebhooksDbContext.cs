@@ -1,13 +1,24 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.Webhooks.Domain;
 using Haworks.Webhooks.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace Haworks.Webhooks.Infrastructure.Persistence;
 
-public sealed class WebhooksDbContext(DbContextOptions<WebhooksDbContext> options) : DbContext(options), IWebhooksDbContext
+public sealed class WebhooksDbContext(DbContextOptions<WebhooksDbContext> options) : DbContext(options), IWebhooksDbContext, IIdempotencyJournalDbContext
 {
     public DbSet<WebhookSubscription> Subscriptions => Set<WebhookSubscription>();
 
+
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
+        });
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("webhooks");

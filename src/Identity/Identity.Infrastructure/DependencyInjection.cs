@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.BuildingBlocks.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -59,6 +60,8 @@ public static class DependencyInjection
                 options.UseNpgsql(connectionString);
             }
         });
+
+        services.AddScoped<IIdempotencyJournalDbContext>(sp => sp.GetRequiredService<AppIdentityDbContext>());
 
         services.AddIdentity<User, IdentityRole>(options =>
                 {

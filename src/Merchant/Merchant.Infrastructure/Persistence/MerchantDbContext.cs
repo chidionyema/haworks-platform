@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.Merchant.Application.Common.Interfaces;
 using Haworks.Merchant.Domain.Aggregates;
 using Microsoft.EntityFrameworkCore;
@@ -5,7 +6,7 @@ using MassTransit;
 
 namespace Haworks.Merchant.Infrastructure.Persistence;
 
-public class MerchantDbContext : DbContext, IMerchantDbContext
+public class MerchantDbContext : DbContext, IIdempotencyJournalDbContext, IMerchantDbContext
 {
     public MerchantDbContext(DbContextOptions<MerchantDbContext> options) : base(options) { }
 
@@ -20,6 +21,15 @@ public class MerchantDbContext : DbContext, IMerchantDbContext
         builder.AddInboxStateEntity();
         builder.AddOutboxStateEntity();
         builder.AddOutboxMessageEntity();
+        builder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
+        });
 
         builder.Entity<MerchantProfile>(entity =>
         {

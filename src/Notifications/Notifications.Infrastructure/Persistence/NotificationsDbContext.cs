@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using System.Text.Json;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,7 @@ using Haworks.Notifications.Domain.ValueObjects;
 
 namespace Haworks.Notifications.Infrastructure.Persistence;
 
-public class NotificationsDbContext : DbContext
+public class NotificationsDbContext : DbContext, IIdempotencyJournalDbContext
 {
     private readonly IHostEnvironment _environment;
     private readonly ILoggerFactory _loggerFactory;
@@ -120,6 +121,15 @@ public class NotificationsDbContext : DbContext
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxStateEntity();
         modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
+        });
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

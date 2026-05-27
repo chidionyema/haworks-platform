@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 using FluentValidation;
@@ -27,6 +28,7 @@ public static class DependencyInjection
             cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
             cfg.AddOpenBehavior(typeof(TelemetryBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+            cfg.AddOpenBehavior(typeof(IdempotencyBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         });
 

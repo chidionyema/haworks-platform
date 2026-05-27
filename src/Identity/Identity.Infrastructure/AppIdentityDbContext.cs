@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Idempotency;
 using Haworks.Identity.Application;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.Identity.Domain;
@@ -13,7 +14,7 @@ namespace Haworks.Identity.Infrastructure;
 /// Manages Users, UserProfiles, RefreshTokens, and RevokedTokens.
 /// Extends IdentityDbContext for ASP.NET Identity integration.
 /// </summary>
-public class AppIdentityDbContext : IdentityDbContext<User>
+public class AppIdentityDbContext : IdentityDbContext<User>, IIdempotencyJournalDbContext
 {
     private readonly IHostEnvironment _environment;
     private readonly ILoggerFactory _loggerFactory;
@@ -204,6 +205,15 @@ public class AppIdentityDbContext : IdentityDbContext<User>
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxStateEntity();
         modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.Entity<IdempotencyJournalEntry>(entity =>
+        {
+            entity.ToTable("IdempotencyJournal");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CommandType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+            entity.HasIndex(e => e.ExpiresAt);
+        });
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
