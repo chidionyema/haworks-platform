@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Haworks.BuildingBlocks.Common;
 
 /// <summary>
@@ -10,8 +12,12 @@ public class Result
     public bool IsFailure => !IsSuccess;
     public Error Error { get; }
 
+    [JsonConstructor]
     protected Result(bool isSuccess, Error error)
     {
+        // Null-coalesce for STJ deserialization where Error may arrive as null
+        error ??= Error.None;
+
         if (isSuccess && error != Error.None)
             throw new InvalidOperationException("Success result cannot have an error");
         if (!isSuccess && error == Error.None)
@@ -37,10 +43,18 @@ public class Result<T> : Result
 {
     private readonly T? _value;
 
+    /// <summary>
+    /// The value of a successful result. Throws if the result is a failure.
+    /// Note: the [JsonInclude] ensures STJ includes this in serialization
+    /// even though the getter throws on failure (the serializer only calls
+    /// it when actually serializing, and we only serialize success results).
+    /// </summary>
+    [JsonInclude]
     public T Value => IsSuccess
         ? _value!
         : throw new InvalidOperationException("Cannot access value of a failed result");
 
+    [JsonConstructor]
     protected internal Result(T? value, bool isSuccess, Error error)
         : base(isSuccess, error)
     {
