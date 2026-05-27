@@ -194,18 +194,41 @@ if [ -n "$BUILD_ERRORS" ]; then
   echo ">>> Build clean after revert. Creating report-only PR."
 fi
 
-# Run unit tests for the affected service
+# Run unit tests
 echo ">>> Running unit tests..."
-TEST_FILTER="FullyQualifiedName!~Integration&FullyQualifiedName!~E2E&FullyQualifiedName!~Smoke"
-TEST_RESULT=$(dotnet test HaworksPlatform.sln --no-build --filter "$TEST_FILTER" 2>&1 | tail -5)
+UNIT_FILTER="FullyQualifiedName!~Integration&FullyQualifiedName!~E2E&FullyQualifiedName!~Smoke"
+UNIT_RESULT=$(dotnet test HaworksPlatform.sln --no-build --filter "$UNIT_FILTER" 2>&1)
 
-if echo "$TEST_RESULT" | grep -q "Failed!"; then
-  FAILED_TESTS=$(dotnet test HaworksPlatform.sln --no-build --filter "$TEST_FILTER" 2>&1 | grep "Failed!" | head -5)
+if echo "$UNIT_RESULT" | grep -q "Failed!"; then
+  FAILED_TESTS=$(echo "$UNIT_RESULT" | grep "Failed!" | head -5)
   echo ">>> UNIT TESTS FAILED — reverting code changes"
   echo "$FAILED_TESTS"
 
   git checkout -- src/ tests/ 2>/dev/null || true
   echo ">>> Reverted. Creating report-only PR."
+else
+  echo ">>> Unit tests PASSED"
+fi
+
+# Run integration tests for the affected service
+echo ">>> Running integration tests for $SERVICE..."
+INTEG_PROJECT=$(find tests -path "*${SERVICE}*Integration*" -name "*.csproj" | head -1)
+
+if [ -n "$INTEG_PROJECT" ]; then
+  INTEG_RESULT=$(dotnet test "$INTEG_PROJECT" 2>&1)
+
+  if echo "$INTEG_RESULT" | grep -q "Failed!"; then
+    FAILED_INTEG=$(echo "$INTEG_RESULT" | grep "Failed!" | head -5)
+    echo ">>> INTEGRATION TESTS FAILED — reverting code changes"
+    echo "$FAILED_INTEG"
+
+    git checkout -- src/ tests/ 2>/dev/null || true
+    echo ">>> Reverted. Creating report-only PR."
+  else
+    echo ">>> Integration tests PASSED"
+  fi
+else
+  echo ">>> No integration test project found for $SERVICE — skipping"
 fi
 
 echo ">>> Build gate PASSED"
