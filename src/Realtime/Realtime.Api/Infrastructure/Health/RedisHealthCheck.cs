@@ -6,24 +6,28 @@ namespace Haworks.Realtime.Api.Infrastructure.Health;
 public sealed class RedisHealthCheck : IHealthCheck
 {
     private readonly IConnectionMultiplexer _redis;
+    private readonly ILogger<RedisHealthCheck> _logger;
 
-    public RedisHealthCheck(IConnectionMultiplexer redis)
+    public RedisHealthCheck(IConnectionMultiplexer redis, ILogger<RedisHealthCheck> logger)
     {
         _redis = redis;
+        _logger = logger;
     }
 
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         try
         {
-            var result = _redis.IsConnected
-                ? HealthCheckResult.Healthy()
-                : HealthCheckResult.Unhealthy("Redis not connected");
-            return Task.FromResult(result);
+            var db = _redis.GetDatabase();
+            var pingResult = await db.PingAsync();
+            return pingResult.TotalMilliseconds < 1000
+                ? HealthCheckResult.Healthy($"Redis responded in {pingResult.TotalMilliseconds}ms")
+                : HealthCheckResult.Degraded($"Redis slow response: {pingResult.TotalMilliseconds}ms");
         }
         catch (Exception ex)
         {
-            return Task.FromResult(HealthCheckResult.Unhealthy(ex.Message));
+            _logger.LogError(ex, "Redis health check failed");
+            return HealthCheckResult.Unhealthy(ex.Message);
         }
     }
 }

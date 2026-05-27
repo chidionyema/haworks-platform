@@ -35,16 +35,29 @@ public sealed class RedisInboxService : IInboxService
         }
 
         // C1 Fix: Store messageType explicitly in envelope (not derived from GetType after deserialization)
-        var envelope = new InboxEnvelope(messageId, messageType, JsonSerializer.Serialize(message));
-        var json = JsonSerializer.Serialize(envelope);
+        try
+        {
+            var envelope = new InboxEnvelope(messageId, messageType, JsonSerializer.Serialize(message));
+            var json = JsonSerializer.Serialize(envelope);
 
-        // Atomic: LPUSH + LTRIM + EXPIRE via transaction
-        var tran = db.CreateTransaction();
-        _ = tran.ListLeftPushAsync(inboxKey, json);
-        _ = tran.ListTrimAsync(inboxKey, 0, InboxConstants.MaxInboxSize - 1);
-        _ = tran.KeyExpireAsync(inboxKey, TimeSpan.FromDays(InboxTtlDays));
-        _ = tran.KeyExpireAsync(dedupKey, TimeSpan.FromDays(DedupTtlDays));
-        await tran.ExecuteAsync();
+            // Atomic: LPUSH + LTRIM + EXPIRE via transaction
+            var tran = db.CreateTransaction();
+            _ = tran.ListLeftPushAsync(inboxKey, json);
+            _ = tran.ListTrimAsync(inboxKey, 0, InboxConstants.MaxInboxSize - 1);
+            _ = tran.KeyExpireAsync(inboxKey, TimeSpan.FromDays(InboxTtlDays));
+            _ = tran.KeyExpireAsync(dedupKey, TimeSpan.FromDays(DedupTtlDays));
+            await tran.ExecuteAsync();
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to serialize message for user {UserId}", userId);
+            throw new InvalidOperationException("Message serialization failed", ex);
+        }
+        catch (RedisException ex)
+        {
+            _logger.LogError(ex, "Redis operation failed for user {UserId}", userId);
+            throw new InvalidOperationException("Message storage temporarily unavailable", ex);
+        }
 
         _logger.LogInformation(
             "Inbox message stored. UserId={UserId}, MessageId={MessageId}, MessageType={MessageType}",
@@ -63,12 +76,21 @@ public sealed class RedisInboxService : IInboxService
         var messages = new List<InboxMessage>(items.Length);
         for (var i = items.Length - 1; i >= 0; i--)
         {
-            var envelope = JsonSerializer.Deserialize<InboxEnvelope>((string)items[i]!);
-            if (envelope is not null)
+            try
             {
-                // C1 Fix: Use stored MessageType and raw JSON data
-                var data = JsonSerializer.Deserialize<JsonElement>(envelope.DataJson);
-                messages.Add(new InboxMessage { MessageId = envelope.MessageId, MessageType = envelope.MessageType, Data = data });
+                var envelope = JsonSerializer.Deserialize<InboxEnvelope>((string)items[i]!);
+                if (envelope is not null)
+                {
+                    // C1 Fix: Use stored MessageType and raw JSON data
+                    var data = JsonSerializer.Deserialize<JsonElement>(envelope.DataJson);
+                    messages.Add(new InboxMessage { MessageId = envelope.MessageId, MessageType = envelope.MessageType, Data = data });
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to deserialize message for user {UserId}, skipping corrupted message", userId);
+                // Skip corrupted message and continue processing
+                continue;
             }
         }
 

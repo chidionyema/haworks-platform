@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Haworks.Realtime.Api.Application.Common;
 using System.Security.Claims;
+using StackExchange.Redis;
 
 namespace Haworks.Realtime.Api.Infrastructure.SignalR;
 
@@ -18,11 +19,13 @@ public class NotificationHub : Hub
 {
     private readonly IInboxService _inboxService;
     private readonly ILogger<NotificationHub> _logger;
+    private readonly IConnectionMultiplexer _redis;
 
-    public NotificationHub(IInboxService inboxService, ILogger<NotificationHub> logger)
+    public NotificationHub(IInboxService inboxService, ILogger<NotificationHub> logger, IConnectionMultiplexer redis)
     {
         _inboxService = inboxService;
         _logger = logger;
+        _redis = redis;
     }
 
     public override async Task OnConnectedAsync()
@@ -37,26 +40,51 @@ public class NotificationHub : Hub
 
         _logger.LogInformation("User {UserId} connected. Flushing inbox.", userId);
 
-        var messages = await _inboxService.GetMessagesAsync(userId);
-        if (messages.Count == 0)
+        var db = _redis.GetDatabase();
+        var lockKey = $"realtime:flush-lock:{userId}";
+        var lockValue = Guid.NewGuid().ToString();
+        var acquired = await db.StringSetAsync(lockKey, lockValue, TimeSpan.FromSeconds(30), When.NotExists);
+
+        if (!acquired)
         {
+            _logger.LogDebug("Another connection is already flushing inbox for user {UserId}", userId);
             await base.OnConnectedAsync();
             return;
         }
 
-        // Send all messages; only ack after all succeed.
-        foreach (var msg in messages)
+        try
         {
-            _logger.LogInformation(
-                "Pushing message to user. UserId={UserId}, MessageId={MessageId}, MessageType={MessageType}, Success={Success}",
-                userId, msg.MessageId, msg.MessageType, true);
+            var messages = await _inboxService.GetMessagesAsync(userId);
+            if (messages.Count == 0)
+            {
+                await base.OnConnectedAsync();
+                return;
+            }
 
-            await Clients.Caller.SendAsync("ReceiveNotification", msg);
+            // Send all messages; only ack after all succeed.
+            foreach (var msg in messages)
+            {
+                _logger.LogInformation(
+                    "Pushing message to user. UserId={UserId}, MessageId={MessageId}, MessageType={MessageType}, Success={Success}",
+                    userId, msg.MessageId, msg.MessageType, true);
+
+                await Clients.Caller.SendAsync("ReceiveNotification", msg);
+            }
+
+            // H2 Fix: Trim only the count we actually delivered (not DEL),
+            // preserving any messages that arrived during the flush window.
+            await _inboxService.AcknowledgeMessagesAsync(userId, messages.Count);
+        }
+        finally
+        {
+            await db.ScriptEvaluateAsync(@"
+                if redis.call('get', KEYS[1]) == ARGV[1] then
+                    return redis.call('del', KEYS[1])
+                else
+                    return 0
+                end", new RedisKey[] { lockKey }, new RedisValue[] { lockValue });
         }
 
-        // H2 Fix: Trim only the count we actually delivered (not DEL),
-        // preserving any messages that arrived during the flush window.
-        await _inboxService.AcknowledgeMessagesAsync(userId, messages.Count);
         await base.OnConnectedAsync();
     }
 }
