@@ -143,9 +143,19 @@ public sealed class PaymentSessionRequestedConsumer(
 
     private static Guid DeterministicGuid(Guid sagaId, string suffix)
     {
-        var bytes = System.Security.Cryptography.SHA256.HashData(
+        var hash = System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes($"{sagaId}:{suffix}"));
-        return new Guid(bytes.AsSpan(0, 16));
+
+        // Use UUID v5 approach: set version (4 bits) and variant (2 bits)
+        var bytes = new byte[16];
+        Array.Copy(hash, bytes, 16);
+
+        // Set version to 5 (bits 12-15 of time_hi_and_version)
+        bytes[6] = (byte)((bytes[6] & 0x0F) | 0x50);
+        // Set variant to 10 (bits 6-7 of clock_seq_hi_and_reserved)
+        bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
+
+        return new Guid(bytes);
     }
 
     private async Task HandleDemoModeAsync(ConsumeContext<PaymentSessionRequestedEvent> context, PaymentSessionRequestedEvent evt)
@@ -174,7 +184,8 @@ public sealed class PaymentSessionRequestedConsumer(
         }, context.CancellationToken);
 
         // 2. Delay to simulate provider processing
-        await Task.Delay(1000, context.CancellationToken);
+        var delayMs = configuration.GetValue("Payments:DemoDelayMs", 1000);
+        await Task.Delay(delayMs, context.CancellationToken);
 
         // 3. Complete or Fail based on scenario
         var isFailureScenario = evt.IdempotencyKey?.Contains("paymentFailure", StringComparison.OrdinalIgnoreCase) ?? false;

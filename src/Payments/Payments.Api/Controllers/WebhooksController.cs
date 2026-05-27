@@ -192,13 +192,22 @@ public sealed class WebhooksController(
     /// Maps (provider, providerEventId) -> deterministic GUID so MT's
     /// inbox correctly identifies replays as duplicates regardless of the
     /// trace-level DomainEvent.EventId on the published message.
+    /// Uses UUID v5 approach with proper version/variant bits to reduce collision risk.
     /// </summary>
     private static Guid DeterministicGuidFor(string provider, string providerEventId)
     {
         var key = $"{provider}:{providerEventId}";
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key));
-        // First 16 bytes of SHA-256 form a v4-shaped GUID (top bits aren't
-        // meaningful but MassTransit doesn't care about UUID variant).
-        return new Guid(bytes[..16]);
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key));
+
+        // Use UUID v5 approach: set version (4 bits) and variant (2 bits)
+        var bytes = new byte[16];
+        Array.Copy(hash, bytes, 16);
+
+        // Set version to 5 (bits 12-15 of time_hi_and_version)
+        bytes[6] = (byte)((bytes[6] & 0x0F) | 0x50);
+        // Set variant to 10 (bits 6-7 of clock_seq_hi_and_reserved)
+        bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
+
+        return new Guid(bytes);
     }
 }

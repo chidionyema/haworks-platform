@@ -36,11 +36,19 @@ public sealed class StripeKeyRotationController : ControllerBase
         var command = new RotateStripeKeyCommand
         {
             NewSecretKey = request.NewSecretKey,
-            IdempotencyKey = Guid.NewGuid().ToString("N")
+            IdempotencyKey = DeriveIdempotencyKey(request.NewSecretKey)
         };
 
         var result = await _mediator.Send(command, ct);
         return Accepted(result);
+    }
+
+    private static string DeriveIdempotencyKey(string secretKey)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes($"stripe-rotation:{secretKey}"));
+        var guid = new Guid(hash[..16]);
+        return guid.ToString("N");
     }
 }
 

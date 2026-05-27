@@ -15,14 +15,15 @@ public sealed class RefundsController(IMediator mediator) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> Create(
-        [FromBody] CreateRefundRequest body, 
+        [FromBody] CreateRefundRequest body,
         CancellationToken ct)
     {
+        var idempotencyKey = body.IdempotencyKey ?? DeriveIdempotencyKey(body.PaymentId, body.AmountCents, body.Currency);
         var command = new CreateRefundCommand(
             body.PaymentId,
             body.AmountCents,
             body.Currency,
-            Guid.NewGuid().ToString("N"),
+            idempotencyKey,
             body.Reason,
             body.RequestedBy);
 
@@ -53,6 +54,14 @@ public sealed class RefundsController(IMediator mediator) : ControllerBase
             new ListRefundSagasQuery(state, from, to, limit, offset), ct);
         return result.ToActionResult();
     }
+
+    private static string DeriveIdempotencyKey(Guid paymentId, long amountCents, string currency)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes($"refund:{paymentId}:{amountCents}:{currency}"));
+        var guid = new Guid(hash[..16]);
+        return guid.ToString("N");
+    }
 }
 
 public sealed record CreateRefundRequest
@@ -62,4 +71,5 @@ public sealed record CreateRefundRequest
     public required string Currency { get; init; }
     public string? Reason { get; init; }
     public string? RequestedBy { get; init; }
+    public string? IdempotencyKey { get; init; }
 }
