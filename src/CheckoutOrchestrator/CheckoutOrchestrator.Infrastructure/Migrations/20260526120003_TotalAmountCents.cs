@@ -16,7 +16,11 @@ namespace Haworks.CheckoutOrchestrator.Infrastructure.Migrations
                 ALTER TABLE checkout."CheckoutSagas"
                     ADD COLUMN "TotalAmountCents" bigint NOT NULL DEFAULT 0;
                 UPDATE checkout."CheckoutSagas"
-                    SET "TotalAmountCents" = ROUND("TotalAmount" * 100)::bigint;
+                    SET "TotalAmountCents" = CASE
+                        WHEN "TotalAmount" >= 0
+                        THEN FLOOR("TotalAmount" * 100 + 0.5)::bigint
+                        ELSE CEIL("TotalAmount" * 100 - 0.5)::bigint
+                    END;
                 ALTER TABLE checkout."CheckoutSagas"
                     DROP COLUMN "TotalAmount";
                 ALTER TABLE checkout."CheckoutSagas"

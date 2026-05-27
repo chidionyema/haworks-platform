@@ -47,7 +47,7 @@ public class CheckoutDbContext : DbContext, ICheckoutDbContext
 
         modelBuilder.Entity<CheckoutSagaState>(entity =>
         {
-            entity.ToTable("CheckoutSagas");
+            entity.ToTable("CheckoutSagas", t => t.HasCheckConstraint("CK_CheckoutSagas_TotalAmountCents_Positive", "\"TotalAmountCents\" > 0"));
             entity.HasKey(s => s.CorrelationId);
 
             entity.Property(s => s.CurrentState).HasMaxLength(64).IsRequired();

@@ -20,7 +20,9 @@ public sealed record StartCheckoutRequest
 
     public required string IdempotencyKey { get; init; }
 
-    public string? Currency { get; init; }
+    [Required]
+    [RegularExpression("^(USD|EUR|GBP|CAD)$", ErrorMessage = "Invalid currency")]
+    public required string Currency { get; init; }
 
     public required IReadOnlyList<CheckoutItemData> Items { get; init; }
 }
