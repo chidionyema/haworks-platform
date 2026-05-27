@@ -69,7 +69,7 @@ if [[ ${#FAILED[@]} -gt 0 ]]; then
 
   # Hard-fail mode: set MIGRATION_DRIFT_STRICT=1 to block CI.
   # Default: warn-only until all existing drift is resolved.
-  if [[ "${MIGRATION_DRIFT_STRICT:-0}" == "1" ]]; then
+  if [[ "${MIGRATION_DRIFT_STRICT:-1}" == "1" ]]; then
     exit 1
   else
     echo ""

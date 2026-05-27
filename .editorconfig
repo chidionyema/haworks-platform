@@ -137,3 +137,7 @@ dotnet_diagnostic.HWK082.severity = warning
 dotnet_diagnostic.HWK083.severity = warning
 dotnet_diagnostic.HWK084.severity = error          # Unrounded decimal math in financial code — money bug
 
+# ── Auto-generated EF Migrations — suppress all analyzers ──────────
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none

@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <PackageReference Include="EasyPost-Official" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
     <PackageReference Include="MassTransit.EntityFrameworkCore" />
     <PackageReference Include="MassTransit.RabbitMQ" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
