@@ -56,17 +56,34 @@ public sealed class SetOperatingHoursCommandHandler : IRequestHandler<SetOperati
             .Where(h => h.MerchantId == request.MerchantId)
             .ToListAsync(cancellationToken);
 
-        _context.OperatingHours.RemoveRange(existing);
+        var existingByDay = existing.ToDictionary(h => h.DayOfWeek);
+        var newByDay = request.Hours.ToDictionary(h => (int)h.Day);
 
+        // Remove hours for days not in the new list
+        var toRemove = existing.Where(e => !newByDay.ContainsKey(e.DayOfWeek)).ToList();
+        _context.OperatingHours.RemoveRange(toRemove);
+
+        // Add or update hours
         foreach (var dto in request.Hours)
         {
-            var hours = OperatingHours.Create(
-                request.MerchantId,
-                (int)dto.Day,
-                dto.Open,
-                dto.Close,
-                dto.IsOpen);
-            _context.OperatingHours.Add(hours);
+            var dayOfWeek = (int)dto.Day;
+            if (existingByDay.TryGetValue(dayOfWeek, out var existingHour))
+            {
+                // Update existing
+                existingHour.OpenTime = dto.Open;
+                existingHour.CloseTime = dto.Close;
+            }
+            else
+            {
+                // Add new
+                var hours = OperatingHours.Create(
+                    request.MerchantId,
+                    dayOfWeek,
+                    dto.Open,
+                    dto.Close,
+                    dto.IsOpen);
+                _context.OperatingHours.Add(hours);
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);

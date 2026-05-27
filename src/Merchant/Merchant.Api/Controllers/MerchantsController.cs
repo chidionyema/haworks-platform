@@ -27,12 +27,12 @@ public class MerchantsController : ControllerBase
     public MerchantsController(IMediator mediator) => _mediator = mediator;
 
     [HttpPost]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create(CreateMerchantCommand command, CancellationToken ct)
     {
         var id = await _mediator.Send(command, ct);
-        return Ok(new { MerchantId = id });
+        return CreatedAtAction(nameof(GetById), new { id }, new { MerchantId = id });
     }
 
     [HttpGet("{id:guid}")]
@@ -60,7 +60,7 @@ public class MerchantsController : ControllerBase
     {
         var userId = HttpContext.GetForwardedUserId();
         if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var ownerGuid))
-            return Unauthorized();
+            return BadRequest("Invalid user ID format");
 
         var result = await _mediator.Send(new GetMerchantByOwnerQuery(ownerGuid), ct);
         return result.ToActionResult();
@@ -90,7 +90,7 @@ public class MerchantsController : ControllerBase
     {
         var userId = HttpContext.GetForwardedUserId();
         if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
-            return Unauthorized();
+            return BadRequest("Invalid user ID format");
 
         var command = new UpdateMerchantCommand(
             id, userGuid, request.Name, request.Bio, request.LogoUrl,
@@ -108,7 +108,7 @@ public class MerchantsController : ControllerBase
     {
         var userId = HttpContext.GetForwardedUserId();
         if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
-            return Unauthorized();
+            return BadRequest("Invalid user ID format");
 
         var result = await _mediator.Send(new SetOperatingHoursCommand(id, userGuid, hours), ct);
         return result.ToNoContentActionResult();
@@ -163,7 +163,7 @@ public class MerchantsController : ControllerBase
     {
         var userId = HttpContext.GetForwardedUserId();
         if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
-            return Unauthorized();
+            return BadRequest("Invalid user ID format");
 
         var result = await _mediator.Send(new DeactivateMerchantCommand(id, userGuid), ct);
         return result.ToNoContentActionResult();
