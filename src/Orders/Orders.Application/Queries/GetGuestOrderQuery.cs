@@ -28,7 +28,7 @@ internal sealed class GetGuestOrderQueryHandler(
             return Result.Failure<OrderDto>(new Error("Orders.NotFound", "Order not found"));
         }
 
-        if (!string.Equals(guestInfo.Email, request.Email, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(guestInfo.Email, request.Email, StringComparison.Ordinal))
         {
             logger.LogWarning("Email mismatch for guest order lookup");
             return Result.Failure<OrderDto>(new Error("Orders.NotFound", "Order not found"));

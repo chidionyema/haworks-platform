@@ -66,7 +66,7 @@ internal sealed class CreateOrderCommandHandler(
         // derive a deterministic one from the UserId string so the saga always sees the order.
         var customerGuid = Guid.TryParse(request.UserId, out var parsed)
             ? parsed
-            : new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(request.UserId)).AsSpan(0, 16));
+            : CreateDeterministicGuid(request.UserId);
 
         if (!Guid.TryParse(request.UserId, out _))
         {
@@ -104,5 +104,17 @@ internal sealed class CreateOrderCommandHandler(
 
         logger.LogInformation("Order {OrderId} created for sagaId {SagaId}", order.Id, request.SagaId);
         return Result.Success(order.Id);
+    }
+
+    private static Guid CreateDeterministicGuid(string input)
+    {
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        var guidBytes = new byte[16];
+        // XOR first and second half of SHA256 hash to use all entropy
+        for (int i = 0; i < 16; i++)
+        {
+            guidBytes[i] = (byte)(hashBytes[i] ^ hashBytes[i + 16]);
+        }
+        return new Guid(guidBytes);
     }
 }

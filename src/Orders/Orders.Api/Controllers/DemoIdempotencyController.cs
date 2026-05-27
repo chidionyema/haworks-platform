@@ -116,7 +116,6 @@ public sealed class DemoIdempotencyController(
             return StatusCode(503, new
             {
                 error = "Idempotency store unreachable",
-                message = ex.Message,
             });
         }
     }
@@ -175,8 +174,9 @@ public sealed class DemoIdempotencyController(
                 {
                     requestIndex = i,
                     isWinner,
-                    orderId = claimId,
+                    orderId = (Guid?)claimId,
                     durationMs = sw.ElapsedMilliseconds,
+                    error = (string?)null
                 };
             }
             catch (Exception ex)
@@ -187,8 +187,9 @@ public sealed class DemoIdempotencyController(
                 {
                     requestIndex = i,
                     isWinner = false,
-                    orderId = Guid.NewGuid(),
+                    orderId = (Guid?)null,
                     durationMs = sw.ElapsedMilliseconds,
+                    error = (string?)"Race attempt failed"
                 };
             }
         });
