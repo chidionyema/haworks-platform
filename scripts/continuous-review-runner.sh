@@ -60,7 +60,7 @@ if [ $EXIT_CODE -ne 0 ]; then
   exit $EXIT_CODE
 fi
 
-PHASE1_COUNT=$(grep -c "^###" "$REPORT_FILE" 2>/dev/null || true)
+PHASE1_COUNT=$(grep -c "^##\+ .*:" "$REPORT_FILE" 2>/dev/null || true)
 PHASE1_COUNT=${PHASE1_COUNT:-0}
 echo ">>> Phase 1 complete: $PHASE1_COUNT findings"
 
@@ -99,7 +99,7 @@ Here is the review to validate:
 $(cat "$REPORT_FILE")
 " | claude --print --model claude-sonnet-4-20250514 > "$VALIDATED_FILE" 2>&1
 
-CONFIRMED_COUNT=$(grep -c "^###" "$VALIDATED_FILE" 2>/dev/null || true)
+CONFIRMED_COUNT=$(grep -c "^##\+ .*:" "$VALIDATED_FILE" 2>/dev/null || true)
 CONFIRMED_COUNT=${CONFIRMED_COUNT:-0}
 CONFIRMED_COUNT=$(echo "$CONFIRMED_COUNT" | tr -d '[:space:]')
 echo ">>> Phase 2 complete: $CONFIRMED_COUNT confirmed findings"
@@ -293,7 +293,7 @@ echo ">>> PR: $PR_URL"
 
 # Create issues only for confirmed findings that were NOT fixed
 echo ">>> Creating issues for unfixed findings..."
-SEVERITY_PATTERN="^### (CRITICAL|HIGH|MEDIUM):"
+SEVERITY_PATTERN="^##+ (CRITICAL|HIGH|MEDIUM):"
 
 while IFS= read -r line; do
   if [[ "$line" =~ $SEVERITY_PATTERN ]]; then
