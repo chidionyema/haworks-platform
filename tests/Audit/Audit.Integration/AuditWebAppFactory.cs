@@ -47,7 +47,26 @@ public class AuditWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // Audit uses partitioned tables created by migrations (not EF model).
         // MigrateAsync runs the actual migration SQL including PARTITION BY RANGE.
         // CreateTablesAsync/EnsureCreatedAsync can't handle partitioned tables.
+#pragma warning disable HWK027, EF1002
+        await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS audit;");
+#pragma warning restore HWK027, EF1002
         await db.Database.MigrateAsync();
+
+        // Ensure a partition exists for the current month (migration only seeds May/Jun 2026).
+        var now = DateTime.UtcNow;
+        var partitionName = $"audit_events_{now:yyyy_MM}";
+        var rangeStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).ToString("yyyy-MM-dd");
+        var rangeEnd = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1).ToString("yyyy-MM-dd");
+#pragma warning disable HWK027, EF1002
+        await db.Database.ExecuteSqlRawAsync($"""
+            CREATE TABLE IF NOT EXISTS audit.{partitionName}
+                PARTITION OF audit.audit_events
+                FOR VALUES FROM ('{rangeStart}') TO ('{rangeEnd}');
+            CREATE UNIQUE INDEX IF NOT EXISTS audit_events_msg_id_uniq_{now:yyyy_MM}
+                ON audit.{partitionName} ((metadata->>'message_id'))
+                WHERE metadata->>'message_id' IS NOT NULL;
+            """);
+#pragma warning restore HWK027, EF1002
     }
 
     async Task IAsyncLifetime.DisposeAsync()
