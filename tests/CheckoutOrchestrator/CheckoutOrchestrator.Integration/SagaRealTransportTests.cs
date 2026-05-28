@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Security.Cryptography;
+using System.Text;
 using Xunit;
 using Haworks.Contracts.Checkout;
 using Haworks.CheckoutOrchestrator.Domain;
@@ -35,21 +37,25 @@ public sealed class SagaRealTransportTests : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
+    [Fact]
     public async Task POST_checkouts_creates_saga_instance_via_real_RabbitMQ()
     {
-        var sagaId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
+        var idempotencyKey = $"test-{Guid.NewGuid():N}";
+
+        // The handler derives sagaId from SHA256(idempotencyKey), ignoring any provided sagaId
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(idempotencyKey));
+        var sagaId = new Guid(hash.AsSpan(0, 16));
 
         var response = await _client.PostAsJsonAsync("/api/v1/checkouts", new
         {
-            sagaId,
+            sagaId = Guid.NewGuid(), // ignored by handler
             orderId,
             userId = "test-user",
             customerEmail = "test@example.com",
             totalAmount = 39.99m,
             currency = "GBP",
-            idempotencyKey = $"test-{sagaId:N}",
+            idempotencyKey,
             items = new[]
             {
                 new { productId = Guid.NewGuid(), productName = "Widget", quantity = 1, unitPriceCents = 3999L, currency = "USD" }

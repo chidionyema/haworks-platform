@@ -19,7 +19,7 @@ public sealed class IdempotencyTests
         _factory = factory;
     }
 
-    [Fact(Skip = "Requires partition for current date — tracked for fix")]
+    [Fact]
     public async Task SameMessageId_ShouldBeCapturedOnlyOnce()
     {
         // Arrange

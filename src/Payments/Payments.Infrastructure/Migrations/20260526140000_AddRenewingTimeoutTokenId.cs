@@ -9,20 +9,12 @@ namespace Haworks.Payments.Infrastructure.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<Guid>(
-                name: "RenewingTimeoutTokenId",
-                table: "SubscriptionSagas",
-                schema: "payments",
-                type: "uuid",
-                nullable: true);
+            // Superseded by 20260528000000_FixSubscriptionSagaSchema
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "RenewingTimeoutTokenId",
-                table: "SubscriptionSagas",
-                schema: "payments");
+            // No-op: reversed by FixSubscriptionSagaSchema
         }
     }
 }
