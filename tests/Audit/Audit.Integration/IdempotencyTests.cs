@@ -26,9 +26,6 @@ public sealed class IdempotencyTests
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         await harness.Start();
 
-        using var scope = _factory.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AuditDbContext>();
-
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
@@ -51,22 +48,30 @@ public sealed class IdempotencyTests
             Currency = "USD"
         }, context => context.MessageId = messageId);
 
-        // Poll for up to 10 seconds
-        for (int i = 0; i < 20; i++)
+        // Poll until at least one row lands in the DB via the batched writer.
+        // The AuditWriter batches every 200ms; give it up to 15s for consumer
+        // processing + batch flush + COPY.
+        int count = 0;
+        for (var i = 0; i < 30; i++)
         {
-            var count = await dbContext.AuditEvents.CountAsync(e => e.EventType == nameof(OrderCreatedEvent) && e.EntityId == orderId.ToString());
-            if (count > 0) break;
             await Task.Delay(500);
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AuditDbContext>();
+            count = await db.AuditEvents
+                .CountAsync(e => e.EventType == nameof(OrderCreatedEvent) && e.EntityId == orderId.ToString());
+            if (count > 0) break;
         }
 
-        // Wait a bit more to see if a second one arrives (it shouldn't)
+        // Wait a bit more to see if a duplicate sneaks in
         await Task.Delay(2000);
 
-        var finalEvents = await dbContext.AuditEvents
+        using var finalScope = _factory.Services.CreateScope();
+        var finalDb = finalScope.ServiceProvider.GetRequiredService<AuditDbContext>();
+        var events = await finalDb.AuditEvents
             .Where(e => e.EventType == nameof(OrderCreatedEvent) && e.EntityId == orderId.ToString())
             .ToListAsync();
 
-        finalEvents.Should().HaveCount(1, "because the second message with the same MessageId should be ignored by the unique index");
+        events.Should().HaveCount(1, "the second message with the same MessageId should be ignored by the unique index");
 
         await harness.Stop();
     }
