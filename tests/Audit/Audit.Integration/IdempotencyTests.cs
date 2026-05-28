@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Haworks.Audit.Application.Capture;
 using Haworks.Audit.Infrastructure.Persistence;
 using Haworks.Contracts.Orders;
 using MassTransit;
@@ -26,9 +27,6 @@ public sealed class IdempotencyTests
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         await harness.Start();
 
-        using var scope = _factory.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AuditDbContext>();
-
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
@@ -51,22 +49,28 @@ public sealed class IdempotencyTests
             Currency = "USD"
         }, context => context.MessageId = messageId);
 
-        // Poll for up to 10 seconds
-        for (int i = 0; i < 20; i++)
+        // Wait for the consumer to process at least one message
+        // Poll until consumer has processed at least one OrderCreatedEvent
+        for (var i = 0; i < 20; i++)
         {
-            var count = await dbContext.AuditEvents.CountAsync(e => e.EventType == nameof(OrderCreatedEvent) && e.EntityId == orderId.ToString());
-            if (count > 0) break;
+            if (harness.Consumed.Select<OrderCreatedEvent>().Any()) break;
             await Task.Delay(500);
         }
 
-        // Wait a bit more to see if a second one arrives (it shouldn't)
-        await Task.Delay(2000);
+        // Flush the AuditWriter batch channel so rows are committed to DB.
+        // IAuditWriter is registered as singleton; FlushAsync completes the
+        // channel and drains the remaining batch.
+        var writer = _factory.Services.GetRequiredService<IAuditWriter>();
+        await writer.FlushAsync(CancellationToken.None);
 
-        var finalEvents = await dbContext.AuditEvents
+        // Assert with a fresh scope to avoid EF tracking cache
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuditDbContext>();
+        var events = await db.AuditEvents
             .Where(e => e.EventType == nameof(OrderCreatedEvent) && e.EntityId == orderId.ToString())
             .ToListAsync();
 
-        finalEvents.Should().HaveCount(1, "because the second message with the same MessageId should be ignored by the unique index");
+        events.Should().HaveCount(1, "the second message with the same MessageId should be ignored by the unique index");
 
         await harness.Stop();
     }
