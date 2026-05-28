@@ -11,13 +11,18 @@ fi
 
 echo "=== Continuous Review: ${SERVICE} ($(date -u +%Y-%m-%dT%H:%M:%SZ)) ==="
 
-# Gather file list for context
+# Gather file list for context (include migrations for schema verification)
 FILES=$(find "$SERVICE_DIR" -name "*.cs" \
   ! -path "*/bin/*" \
   ! -path "*/obj/*" \
   ! -path "*/Migrations/*.Designer.cs" \
   ! -path "*ModelSnapshot.cs" \
   | sort)
+
+# Also gather test files for coverage analysis
+SERVICE_NAME=$(basename "$SERVICE_DIR")
+TEST_FILES=$(find "tests" -path "*${SERVICE_NAME}*" -name "*.cs" \
+  ! -path "*/bin/*" ! -path "*/obj/*" 2>/dev/null | sort || true)
 
 FILE_COUNT=$(echo "$FILES" | wc -l | tr -d ' ')
 echo "Files to review: $FILE_COUNT"
@@ -96,6 +101,21 @@ This is NOT a surface-level review. Dig deep. Be thorough. Be critical.
 - Missing negative test cases
 - Integration points without contract tests
 
+### 11. Database & Migration Integrity (HIGH PRIORITY)
+- DbSet<T> in DbContext without a corresponding migration creating the table
+- Entity properties added/changed without a migration (pending model changes)
+- Migrations missing `schema:` parameter on CreateTable/CreateIndex (causes 42P01)
+- Column type mismatches: string enum values in raw SQL (must cast to int), decimal vs long for money
+- Missing foreign key constraints for navigation properties
+- Missing indexes for columns used in WHERE clauses or ORDER BY
+- Raw SQL using string interpolation instead of parameterized queries
+
+### 12. Configuration & Dependency Wiring
+- Services registered in DI but missing DbContext registration
+- DbContext registered but missing connection string configuration
+- Consumers registered but missing queue configuration
+- Missing health checks for new dependencies
+
 ## Output Format
 
 For each finding, use this format:
@@ -135,8 +155,43 @@ $(cat "$f")
   fi
 done <<< "$FILES"
 
+# Include test files for coverage gap analysis
+TEST_CONTEXT=""
+if [ -n "$TEST_FILES" ]; then
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    LINES=$(wc -l < "$f")
+    if [ "$LINES" -le 500 ]; then
+      TEST_CONTEXT+="
+--- $f ---
+$(cat "$f")
+"
+    fi
+  done <<< "$TEST_FILES"
+fi
+
+# Run migration drift check if dotnet ef is available
+DRIFT_INFO=""
+INFRA_PROJECT=$(find "$SERVICE_DIR" -path "*Infrastructure*" -name "*.csproj" | head -1)
+API_PROJECT=$(find "$SERVICE_DIR" -name "*.Api.csproj" -o -name "${SERVICE_NAME}.csproj" | head -1)
+if [ -n "$INFRA_PROJECT" ] && [ -n "$API_PROJECT" ]; then
+  DRIFT_RESULT=$(dotnet ef migrations has-pending-model-changes \
+    --startup-project "$API_PROJECT" \
+    --project "$INFRA_PROJECT" 2>&1 || true)
+  DRIFT_INFO="
+--- MIGRATION DRIFT CHECK ---
+$DRIFT_RESULT
+"
+fi
+
 echo "$PROMPT
 
 Review the service at: $SERVICE_DIR
 
-$CONTEXT" | claude --print --model claude-sonnet-4-20250514
+$DRIFT_INFO
+
+== SOURCE FILES ==
+$CONTEXT
+
+== TEST FILES ==
+$TEST_CONTEXT" | claude --print --model claude-sonnet-4-20250514

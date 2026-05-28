@@ -5,10 +5,11 @@ set -euo pipefail
 # 4-phase pipeline:
 #   Phase 1: Deep review of a service
 #   Phase 2: Self-review (validate findings, discard false positives)
-#   Phase 3: Fix confirmed issues
+#   Phase 3: Fix confirmed issues (in isolated git worktree)
 #   Phase 4: BUILD GATE — verify build + unit tests pass before PR
 #
 # RULE: No PR is created unless the build is green.
+# Uses git worktrees so it can run concurrently with test-coverage-runner.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -47,7 +48,7 @@ REPORT_FILE="$SERVICE_REPORT_DIR/${DATE}.md"
 VALIDATED_FILE="$SERVICE_REPORT_DIR/${DATE}-validated.md"
 
 # ============================================================
-# PHASE 1: Deep Review
+# PHASE 1: Deep Review (runs in main working dir — read-only)
 # ============================================================
 echo ">>> [Phase 1/4] Reviewing: $SERVICE ($(date))"
 echo ">>> Report: $REPORT_FILE"
@@ -71,7 +72,7 @@ if [ "$PHASE1_COUNT" -eq 0 ]; then
 fi
 
 # ============================================================
-# PHASE 2: Self-Review (validate findings, discard false positives)
+# PHASE 2: Self-Review (runs in main working dir — read-only)
 # ============================================================
 echo ">>> [Phase 2/4] Validating findings..."
 
@@ -117,26 +118,38 @@ if [ "$CONFIRMED_COUNT" -eq 0 ]; then
 fi
 
 # ============================================================
-# PHASE 3: Fix confirmed issues
+# PHASE 3: Fix confirmed issues (in isolated git worktree)
 # ============================================================
 echo ">>> [Phase 3/4] Fixing confirmed issues..."
 
 BRANCH="review/${SERVICE,,}-${DATE}"
-ORIGINAL_BRANCH=$(git branch --show-current)
+WORKTREE_DIR="/tmp/haworks-review-${SERVICE,,}-$$"
 
-# Save reports before switching branches
-REPORT_CONTENT=$(cat "$REPORT_FILE")
-VALIDATED_CONTENT=$(cat "$VALIDATED_FILE")
+# Create isolated worktree — no interference with main working directory
+git branch -D "$BRANCH" 2>/dev/null || true
+git worktree add "$WORKTREE_DIR" -b "$BRANCH" main 2>/dev/null
 
-git stash --include-untracked -m "continuous-review: stash before branch" 2>/dev/null || true
-git checkout -b "$BRANCH" main
+cleanup_worktree() {
+  cd "$REPO_ROOT"
+  git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
+}
+trap cleanup_worktree EXIT
 
-# Recreate reports on clean branch
-mkdir -p "$SERVICE_REPORT_DIR"
-echo "$REPORT_CONTENT" > "$REPORT_FILE"
-echo "$VALIDATED_CONTENT" > "$VALIDATED_FILE"
-mkdir -p "$(dirname "$STATE_FILE")"
-echo "$INDEX" > "$STATE_FILE"
+# Copy reports into worktree
+WT_REPORT_DIR="$WORKTREE_DIR/docs/reviews/$SERVICE"
+mkdir -p "$WT_REPORT_DIR"
+cp "$REPORT_FILE" "$WT_REPORT_DIR/"
+cp "$VALIDATED_FILE" "$WT_REPORT_DIR/"
+mkdir -p "$WORKTREE_DIR/docs/reviews"
+echo "$INDEX" > "$WORKTREE_DIR/docs/reviews/.review-state"
+
+# All Phase 3/4 work happens inside the worktree
+cd "$WORKTREE_DIR"
+
+# Re-resolve paths relative to worktree
+SERVICE_REPORT_DIR="$WT_REPORT_DIR"
+REPORT_FILE="$SERVICE_REPORT_DIR/${DATE}.md"
+VALIDATED_FILE="$SERVICE_REPORT_DIR/${DATE}-validated.md"
 
 # Run Claude Code to fix the confirmed issues
 FIX_PROMPT=$(cat <<FIX_EOF
@@ -178,7 +191,9 @@ echo "$FIX_SUMMARY" > "$SERVICE_REPORT_DIR/${DATE}-fixes.md"
 # ============================================================
 echo ">>> [Phase 4/4] Build gate..."
 
-BUILD_ERRORS=$(dotnet build HaworksPlatform.sln 2>&1 | grep " error " | grep -v HWK023 | head -20)
+# Worktree needs restore since obj/ is not shared
+dotnet restore HaworksPlatform.sln --verbosity quiet 2>/dev/null || true
+BUILD_ERRORS=$(dotnet build HaworksPlatform.sln --no-restore 2>&1 | grep " error " | grep -v HWK023 | head -20 || true)
 
 if [ -n "$BUILD_ERRORS" ]; then
   echo ">>> BUILD FAILED — reverting all code changes, keeping reports only"
@@ -188,12 +203,9 @@ if [ -n "$BUILD_ERRORS" ]; then
   git checkout -- src/ tests/ 2>/dev/null || true
 
   # Check if build passes after revert
-  REVERT_ERRORS=$(dotnet build HaworksPlatform.sln 2>&1 | grep " error " | grep -v HWK023 | head -5)
+  REVERT_ERRORS=$(dotnet build HaworksPlatform.sln 2>&1 | grep " error " | grep -v HWK023 | head -5 || true)
   if [ -n "$REVERT_ERRORS" ]; then
     echo ">>> BUILD STILL BROKEN after revert — aborting entirely"
-    git checkout "$ORIGINAL_BRANCH" 2>/dev/null || git checkout main
-    git branch -D "$BRANCH" 2>/dev/null || true
-    git stash pop 2>/dev/null || true
     exit 1
   fi
 
@@ -203,7 +215,7 @@ fi
 # Run unit tests
 echo ">>> Running unit tests..."
 UNIT_FILTER="FullyQualifiedName!~Integration&FullyQualifiedName!~E2E&FullyQualifiedName!~Smoke"
-UNIT_RESULT=$(dotnet test HaworksPlatform.sln --no-build --filter "$UNIT_FILTER" 2>&1)
+UNIT_RESULT=$(dotnet test HaworksPlatform.sln --no-build --filter "$UNIT_FILTER" 2>&1 || true)
 
 if echo "$UNIT_RESULT" | grep -q "Failed!"; then
   FAILED_TESTS=$(echo "$UNIT_RESULT" | grep "Failed!" | head -5)
@@ -221,7 +233,7 @@ echo ">>> Running integration tests for $SERVICE..."
 INTEG_PROJECT=$(find tests -path "*${SERVICE}*Integration*" -name "*.csproj" | head -1)
 
 if [ -n "$INTEG_PROJECT" ]; then
-  INTEG_RESULT=$(dotnet test "$INTEG_PROJECT" 2>&1)
+  INTEG_RESULT=$(dotnet test "$INTEG_PROJECT" 2>&1 || true)
 
   if echo "$INTEG_RESULT" | grep -q "Failed!"; then
     FAILED_INTEG=$(echo "$INTEG_RESULT" | grep "Failed!" | head -5)
@@ -246,9 +258,6 @@ git status --short
 # Check if there are actual changes to commit
 if git diff --cached --quiet; then
   echo ">>> No changes to commit. Skipping PR."
-  git checkout "$ORIGINAL_BRANCH" 2>/dev/null || git checkout main
-  git branch -D "$BRANCH" 2>/dev/null || true
-  git stash pop 2>/dev/null || true
   exit 0
 fi
 
@@ -329,8 +338,5 @@ while IFS= read -r line; do
   fi
 done < "$VALIDATED_FILE"
 
-# Return to original branch and restore stash
-git checkout "$ORIGINAL_BRANCH" 2>/dev/null || git checkout main
-git stash pop 2>/dev/null || true
-
+# Worktree cleanup handled by trap
 echo ">>> Done. Next service in rotation: ${SERVICES[$(( (INDEX + 1) % ${#SERVICES[@]} ))]}"
