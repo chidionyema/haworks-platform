@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Haworks.Audit.Application.Capture;
 using Haworks.Audit.Infrastructure.Persistence;
 using Haworks.Contracts.Orders;
 using MassTransit;
@@ -49,24 +48,26 @@ public sealed class IdempotencyTests
             Currency = "USD"
         }, context => context.MessageId = messageId);
 
-        // Wait for the consumer to process at least one message
-        // Poll until consumer has processed at least one OrderCreatedEvent
-        for (var i = 0; i < 20; i++)
+        // Poll until at least one row lands in the DB via the batched writer.
+        // The AuditWriter batches every 200ms; give it up to 15s for consumer
+        // processing + batch flush + COPY.
+        int count = 0;
+        for (var i = 0; i < 30; i++)
         {
-            if (harness.Consumed.Select<OrderCreatedEvent>().Any()) break;
             await Task.Delay(500);
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AuditDbContext>();
+            count = await db.AuditEvents
+                .CountAsync(e => e.EventType == nameof(OrderCreatedEvent) && e.EntityId == orderId.ToString());
+            if (count > 0) break;
         }
 
-        // Flush the AuditWriter batch channel so rows are committed to DB.
-        // IAuditWriter is registered as singleton; FlushAsync completes the
-        // channel and drains the remaining batch.
-        var writer = _factory.Services.GetRequiredService<IAuditWriter>();
-        await writer.FlushAsync(CancellationToken.None);
+        // Wait a bit more to see if a duplicate sneaks in
+        await Task.Delay(2000);
 
-        // Assert with a fresh scope to avoid EF tracking cache
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuditDbContext>();
-        var events = await db.AuditEvents
+        using var finalScope = _factory.Services.CreateScope();
+        var finalDb = finalScope.ServiceProvider.GetRequiredService<AuditDbContext>();
+        var events = await finalDb.AuditEvents
             .Where(e => e.EventType == nameof(OrderCreatedEvent) && e.EntityId == orderId.ToString())
             .ToListAsync();
 

@@ -1,4 +1,3 @@
-using Haworks.Audit.Application.Capture;
 using FluentAssertions;
 using Haworks.Audit.Domain;using Haworks.Audit.Infrastructure.Persistence;
 using Haworks.Contracts.Catalog;
@@ -29,9 +28,6 @@ public sealed class EndToEndCaptureTests
         using var scope = _factory.Services.CreateScope();
         var bus = scope.ServiceProvider.GetRequiredService<IBus>();
         var dbContext = scope.ServiceProvider.GetRequiredService<AuditDbContext>();
-
-        // Clean slate — truncate audit events from previous runs
-        try { await dbContext.Database.ExecuteSqlRawAsync("TRUNCATE TABLE audit.audit_events CASCADE"); } catch (Exception) { /* table may not exist yet */ }
 
         var orderId = Guid.NewGuid();
         var paymentId = Guid.NewGuid();
@@ -79,11 +75,6 @@ public sealed class EndToEndCaptureTests
             PreviousVersion = "1",
             Timestamp = DateTime.UtcNow
         });
-
-        // Give consumers time to process, then flush the batched writer
-        await Task.Delay(3000);
-        var writer = _factory.Services.GetRequiredService<IAuditWriter>();
-        await writer.FlushAsync(CancellationToken.None);
 
         // Assert — poll with fresh DbContext scopes (EF caches results within a scope).
         // We expect at least 3 events (Order, Payment, StockReservationFailed).
