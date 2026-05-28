@@ -3,7 +3,11 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-https://haworks-bffweb.fly.dev}"
 SERVICE_SECRET="${SERVICE_SECRET:?SERVICE_SECRET is required}"
-STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET:?STRIPE_WEBHOOK_SECRET is required}"
+STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET:-}"
+if [[ -z "${STRIPE_WEBHOOK_SECRET}" ]]; then
+  echo "[$(date -u +%H:%M:%S)] SKIP: STRIPE_WEBHOOK_SECRET not set — cannot run payment webhook monitor"
+  exit 0
+fi
 POLL_TIMEOUT=30
 POLL_INTERVAL=3
 

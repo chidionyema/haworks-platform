@@ -87,7 +87,14 @@ public sealed class CheckoutController(
             customerEmail = body.CustomerEmail,
             totalAmount = body.TotalAmount,
             idempotencyKey,
-            items = body.Items,
+            items = body.Items.Select(i => new
+            {
+                productId = i.ProductId,
+                productName = i.ProductName,
+                quantity = i.Quantity,
+                unitPriceCents = (long)Math.Round(i.UnitPrice * 100m, 0, MidpointRounding.AwayFromZero),
+                currency = body.Currency ?? "USD",
+            }),
         });
         if (!string.IsNullOrEmpty(svcToken))
             req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", svcToken);
@@ -110,6 +117,7 @@ public sealed record CheckoutRequest
 {
     public required string CustomerEmail { get; init; }
     public required decimal TotalAmount { get; init; }
+    public string Currency { get; init; } = "USD";
     public string? IdempotencyKey { get; init; }
     public required IReadOnlyList<CheckoutLineItem> Items { get; init; }
 }
