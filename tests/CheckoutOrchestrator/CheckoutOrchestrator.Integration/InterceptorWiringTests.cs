@@ -3,6 +3,8 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using System.Security.Cryptography;
+using System.Text;
 using Xunit;
 using Xunit.Abstractions;
 using Haworks.BuildingBlocks.Messaging;
@@ -41,10 +43,12 @@ public sealed class InterceptorWiringTests : IAsyncLifetime
         interceptor.Should().BeOfType<SagaPersistenceInterceptor>();
     }
 
-    [Fact(Skip = "Needs deferred MassTransit bus start — tracked in backlog")]
+    [Fact]
     public async Task Interceptor_fires_on_saga_creation_via_real_RabbitMQ()
     {
-        var sagaId = Guid.NewGuid();
+        var idempotencyKey = $"int-{Guid.NewGuid():N}";
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(idempotencyKey));
+        var sagaId = new Guid(hash.AsSpan(0, 16));
         var response = await _client.PostAsJsonAsync("/api/v1/checkouts", new
         {
             sagaId,
@@ -53,7 +57,7 @@ public sealed class InterceptorWiringTests : IAsyncLifetime
             customerEmail = "test@test.com",
             totalAmount = 10.00m,
             currency = "GBP",
-            idempotencyKey = $"int-{sagaId:N}",
+            idempotencyKey,
             items = new[] { new { productId = Guid.NewGuid(), productName = "W", quantity = 1, unitPriceCents = 1000L, currency = "USD" } }
         });
 

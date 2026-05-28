@@ -27,6 +27,7 @@
     <PackageReference Include="xunit.abstractions" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+      <PackageReference Include="MassTransit" />
   </ItemGroup>
 
   <ItemGroup>

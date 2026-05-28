@@ -27,7 +27,7 @@ public sealed class LedgerServiceTests : IDisposable
 
     public void Dispose() => _context.Dispose();
 
-    [Fact(Skip = "Requires PostgreSQL - uses FromSqlRaw with FOR UPDATE")]
+    [Fact]
     public async Task CreditSellerAsync_creates_three_entries()
     {
         var sellerId = Guid.NewGuid();
@@ -46,7 +46,7 @@ public sealed class LedgerServiceTests : IDisposable
         sellerBalance.Should().Be(9000L); // 10000 - 10% commission
     }
 
-    [Fact(Skip = "Requires PostgreSQL - uses FromSqlRaw with FOR UPDATE")]
+    [Fact]
     public async Task CreditSellerAsync_is_idempotent_on_same_referenceId()
     {
         var sellerId = Guid.NewGuid();
@@ -64,14 +64,14 @@ public sealed class LedgerServiceTests : IDisposable
         sellerBalance.Should().Be(9000L); // Not 18000
     }
 
-    [Fact(Skip = "Requires PostgreSQL - uses FromSqlRaw with FOR UPDATE")]
+    [Fact]
     public Task CreditSellerAsync_with_zero_amount_throws()
     {
         var act = () => _service.CreditSellerAsync(Guid.NewGuid(), 0L, "USD", Guid.NewGuid(), "test");
         return act.Should().ThrowAsync<ArgumentException>();
     }
 
-    [Fact(Skip = "Requires PostgreSQL - uses FromSqlRaw with FOR UPDATE")]
+    [Fact]
     public async Task DebitSellerAsync_reverses_credit()
     {
         var sellerId = Guid.NewGuid();
@@ -86,7 +86,7 @@ public sealed class LedgerServiceTests : IDisposable
         sellerBalance.Should().Be(0L);
     }
 
-    [Fact(Skip = "Requires PostgreSQL - uses FromSqlRaw with FOR UPDATE")]
+    [Fact]
     public async Task DebitSellerAsync_is_idempotent()
     {
         var sellerId = Guid.NewGuid();
@@ -103,7 +103,7 @@ public sealed class LedgerServiceTests : IDisposable
         entries.Should().Be(6); // 3 credit + 3 debit (not 9)
     }
 
-    [Fact(Skip = "Requires PostgreSQL - uses FromSqlRaw with FOR UPDATE")]
+    [Fact]
     public async Task GetBalanceAsync_returns_zero_for_nonexistent_account()
     {
         var balance = await _service.GetBalanceAsync(Guid.NewGuid(), AccountType.SellerPending, "USD");

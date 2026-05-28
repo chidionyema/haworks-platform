@@ -74,6 +74,9 @@ public sealed class CheckoutRealTransportFactory : WebApplicationFactory<Program
             // We just need auth for the [Authorize] endpoints.
             services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
 
+            // Migrate DB before MassTransit bus starts consuming
+            services.AddDeferredBusStart<CheckoutDbContext>();
+
             // Run migrations BEFORE any IHostedService (including MassTransit's bus).
             // IStartupFilter runs during app pipeline build, before hosted services start.
             services.AddTransient<IStartupFilter, MigrationStartupFilter<CheckoutDbContext>>();

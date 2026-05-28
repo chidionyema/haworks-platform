@@ -4,6 +4,7 @@ using Haworks.BuildingBlocks.Testing;
 using Haworks.Identity.Application.Options;
 using Haworks.Identity.Domain;
 using Haworks.Identity.Infrastructure;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -192,11 +193,11 @@ public sealed class RefreshTokenServiceTests : TestBase
         context.RefreshTokens.Should().BeEmpty();
     }
 
-    [Fact(Skip = "ExecuteDeleteAsync not supported by EF InMemory provider — requires integration test")]
+    [Fact]
     public async Task RevokeRefreshTokensForUserAsync_RemovesAllUserTokens()
     {
-        // Arrange
-        await using var context = CreateInMemoryContext();
+        // Arrange — use SQLite because ExecuteDeleteAsync is not supported by InMemory
+        await using var context = CreateSqliteContext();
         var service = CreateService(context);
         var userId = Guid.NewGuid().ToString();
 
@@ -216,11 +217,11 @@ public sealed class RefreshTokenServiceTests : TestBase
         countAfter.Should().Be(0);
     }
 
-    [Fact(Skip = "ExecuteDeleteAsync not supported by EF InMemory provider — requires integration test")]
+    [Fact]
     public async Task RevokeRefreshTokensForUserAsync_DoesNotAffectOtherUsers()
     {
-        // Arrange
-        await using var context = CreateInMemoryContext();
+        // Arrange — use SQLite because ExecuteDeleteAsync is not supported by InMemory
+        await using var context = CreateSqliteContext();
         var service = CreateService(context);
         var userId1 = Guid.NewGuid().ToString();
         var userId2 = Guid.NewGuid().ToString();
@@ -240,11 +241,11 @@ public sealed class RefreshTokenServiceTests : TestBase
         remainingTokens.Should().AllSatisfy(t => t.UserId.Should().Be(userId2));
     }
 
-    [Fact(Skip = "ExecuteDeleteAsync not supported by EF InMemory provider — requires integration test")]
+    [Fact]
     public async Task RevokeRefreshTokensForUserAsync_WithNoTokens_DoesNotThrow()
     {
-        // Arrange
-        await using var context = CreateInMemoryContext();
+        // Arrange — use SQLite because ExecuteDeleteAsync is not supported by InMemory
+        await using var context = CreateSqliteContext();
         var service = CreateService(context);
         var userId = Guid.NewGuid().ToString();
 
@@ -287,6 +288,47 @@ public sealed class RefreshTokenServiceTests : TestBase
     {
         var options = new DbContextOptionsBuilder<AppIdentityDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+
+        return new AppIdentityDbContext(
+            options,
+            Mock.Of<IHostEnvironment>(),
+            LoggerFactory,
+            Mock.Of<ICurrentUserService>(),
+            LoggerFactory.CreateLogger<AppIdentityDbContext>());
+    }
+
+    /// <summary>
+    /// SQLite in-memory context that supports ExecuteDeleteAsync (unlike the InMemory provider).
+    /// We cannot use EnsureCreated because the OnModelCreating has Postgres-specific SQL
+    /// (e.g., INTERVAL '7 days'). Instead, we create just the RefreshTokens table manually.
+    /// </summary>
+    private AppIdentityDbContext CreateSqliteContext()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+
+        // Create the RefreshTokens table manually to avoid Postgres-specific HasDefaultValueSql
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            CREATE TABLE "RefreshTokens" (
+                "Id" TEXT NOT NULL PRIMARY KEY,
+                "UserId" TEXT NOT NULL,
+                "Token" TEXT NOT NULL,
+                "Expires" TEXT NOT NULL,
+                "CreatedAt" TEXT NOT NULL DEFAULT (datetime('now')),
+                "CreatedBy" TEXT NULL,
+                "CreatedFromIp" TEXT NULL,
+                "LastModifiedBy" TEXT NULL,
+                "LastModifiedDate" TEXT NULL,
+                "ModifiedFromIp" TEXT NULL,
+                "RowVersion" BLOB NULL
+            );
+            """;
+        cmd.ExecuteNonQuery();
+
+        var options = new DbContextOptionsBuilder<AppIdentityDbContext>()
+            .UseSqlite(connection)
             .Options;
 
         return new AppIdentityDbContext(
