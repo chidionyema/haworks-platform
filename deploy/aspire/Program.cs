@@ -63,7 +63,7 @@ var kafka = builder.AddKafka("kafka")
 // Debezium Connect — watches Postgres WAL and writes change events to Kafka.
 // Connector configs are registered via the init script on first boot.
 var debeziumConfigDir = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "debezium"));
-var debeziumConnect = builder.AddContainer("debezium-connect", "debezium/connect", "3.0")
+var debeziumConnect = builder.AddContainer("debezium-connect", "quay.io/debezium/connect", "3.5")
     .WithLifetime(ContainerLifetime.Persistent)
     .WaitFor(kafka)
     .WaitFor(postgres)

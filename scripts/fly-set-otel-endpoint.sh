@@ -32,27 +32,40 @@ set -euo pipefail
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <otlp-endpoint>
+Usage: $(basename "$0") <otlp-endpoint> [otlp-headers]
 
-Sets OTEL_EXPORTER_OTLP_ENDPOINT on every .NET Fly app in the platform.
+Sets OTEL_EXPORTER_OTLP_ENDPOINT (and optionally OTEL_EXPORTER_OTLP_HEADERS)
+on every .NET Fly app in the platform.
 
 The endpoint must start with http:// or https:// and point at an OTLP
 collector (Tempo, Honeycomb, Grafana Cloud, self-hosted otel-collector,
 etc). Both HTTP/protobuf (port 4318) and gRPC (port 4317) are supported by
 the SDK; the URL scheme is what matters here.
 
+The optional headers argument sets OTEL_EXPORTER_OTLP_HEADERS for backends
+that require authentication (Grafana Cloud, Honeycomb, etc).
+
 Examples:
-  $(basename "$0") https://tempo-prod-04-prod-us-east-0.grafana.net:443
-  $(basename "$0") https://api.honeycomb.io:443
+  # Self-hosted collector (no auth)
+  $(basename "$0") http://otel-gw.internal:4317
+
+  # Grafana Cloud OTLP gateway
+  $(basename "$0") https://otlp-gateway-prod-us-east-0.grafana.net/otlp \\
+      "Authorization=Basic <base64(instanceId:cloudApiKey)>"
+
+  # Honeycomb
+  $(basename "$0") https://api.honeycomb.io:443 \\
+      "x-honeycomb-team=<api-key>"
 EOF
 }
 
-if [[ $# -ne 1 ]]; then
+if [[ $# -lt 1 || $# -gt 2 ]]; then
     usage >&2
     exit 1
 fi
 
 URL="$1"
+HEADERS="${2:-}"
 
 if [[ ! "$URL" =~ ^https?:// ]]; then
     echo "ERROR: endpoint must start with http:// or https:// (got: $URL)" >&2
@@ -77,11 +90,18 @@ APPS=(
     haworks-checkout
     haworks-content
     haworks-identity
+    haworks-location
+    haworks-media
+    haworks-merchant
     haworks-notifications
     haworks-orders
     haworks-payments
+    haworks-payouts
+    haworks-privacy
+    haworks-scheduler
     haworks-search
     haworks-audit
+    haworks-webhooks
 )
 
 # ---- main loop -------------------------------------------------------------
@@ -102,7 +122,12 @@ set +e
 for APP in "${APPS[@]}"; do
     echo
     echo "===> $APP"
-    if flyctl secrets set "OTEL_EXPORTER_OTLP_ENDPOINT=$URL" -a "$APP"; then
+    SECRETS="OTEL_EXPORTER_OTLP_ENDPOINT=$URL"
+    if [[ -n "$HEADERS" ]]; then
+        SECRETS="$SECRETS OTEL_EXPORTER_OTLP_HEADERS=$HEADERS"
+    fi
+    # shellcheck disable=SC2086 — intentional word splitting on $SECRETS
+    if flyctl secrets set $SECRETS -a "$APP"; then
         RESULTS+=("OK    $APP")
     else
         RESULTS+=("FAIL  $APP")
