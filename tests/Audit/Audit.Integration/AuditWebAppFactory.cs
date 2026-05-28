@@ -48,6 +48,33 @@ public class AuditWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // MigrateAsync runs the actual migration SQL including PARTITION BY RANGE.
         // CreateTablesAsync/EnsureCreatedAsync can't handle partitioned tables.
         await db.Database.MigrateAsync();
+
+        // Create partitions for current and next month — the PartitionRolloverService
+        // is a BackgroundService that may not have run yet when tests execute.
+        var now = DateTime.UtcNow;
+        await CreatePartitionAsync(db, now.Year, now.Month);
+        var next = now.AddMonths(1);
+        await CreatePartitionAsync(db, next.Year, next.Month);
+    }
+
+    private static async Task CreatePartitionAsync(AuditDbContext db, int year, int month)
+    {
+        var name = $"audit_events_{year}_{month:D2}";
+        var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc).ToString("yyyy-MM-dd");
+        var to = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1).ToString("yyyy-MM-dd");
+        var sql = $"""
+            CREATE TABLE IF NOT EXISTS audit.{name} PARTITION OF audit.audit_events
+            FOR VALUES FROM ('{from}') TO ('{to}');
+            CREATE INDEX IF NOT EXISTS {name}_entity_idx
+            ON audit.{name} (entity_type, entity_id, occurred_at DESC);
+            CREATE INDEX IF NOT EXISTS {name}_event_type_idx
+            ON audit.{name} (event_type, occurred_at DESC);
+            CREATE UNIQUE INDEX IF NOT EXISTS audit_events_msg_id_uniq_{year}_{month:D2}
+            ON audit.{name} ((metadata->>'message_id'))
+            WHERE metadata->>'message_id' IS NOT NULL;
+            """;
+        try { await db.Database.ExecuteSqlRawAsync(sql); }
+        catch { /* partition may already exist */ }
     }
 
     async Task IAsyncLifetime.DisposeAsync()
