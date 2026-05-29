@@ -11,14 +11,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-      <PackageReference Include="Aspire.Hosting.Testing" />
       <PackageReference Include="Microsoft.NET.Test.Sdk" />
       <PackageReference Include="xunit" />
       <PackageReference Include="xunit.runner.visualstudio" />
       <PackageReference Include="FluentAssertions" />
-  </ItemGroup>
-
-  <ItemGroup>
-      <ProjectReference Include="../../deploy/aspire/HaworksPlatform.AppHost.csproj" />
   </ItemGroup>
 </Project>

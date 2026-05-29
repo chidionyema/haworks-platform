@@ -1,41 +1,22 @@
-using Aspire.Hosting;
-using Aspire.Hosting.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace Haworks.Tests.Smoke;
 
 public sealed class EnvironmentAgnosticFixture : IAsyncLifetime
 {
-    private IDistributedApplicationTestingBuilder? _appBuilder;
-    private DistributedApplication? _app;
     private HttpClient? _httpClient;
 
     public HttpClient HttpClient => _httpClient ?? throw new InvalidOperationException("Fixture not initialized");
 
     public async Task InitializeAsync()
     {
-        var targetUrl = Environment.GetEnvironmentVariable("SMOKE_TARGET_URL");
+        var targetUrl = Environment.GetEnvironmentVariable("SMOKE_TARGET_URL")
+            ?? "https://haworks-bffweb.fly.dev";
 
-        if (!string.IsNullOrEmpty(targetUrl))
-        {
-            _httpClient = new HttpClient { BaseAddress = new Uri(targetUrl) };
-        }
-        else
-        {
-            _appBuilder = await DistributedApplicationTestingBuilder.CreateAsync<Projects.HaworksPlatform_AppHost>();
-            _app = await _appBuilder.BuildAsync();
-            await _app.StartAsync();
+        _httpClient = new HttpClient { BaseAddress = new Uri(targetUrl) };
+        _httpClient.Timeout = TimeSpan.FromSeconds(30);
 
-            _httpClient = _app.CreateHttpClient("bff-web");
-            _httpClient.Timeout = TimeSpan.FromSeconds(30);
-
-            // Wait for BFF to become healthy before running tests.
-            // The full service graph (Postgres, RabbitMQ, 14 services)
-            // can take 2-3 minutes to bootstrap on CI runners.
-            await WaitForHealthyAsync(_httpClient, timeout: TimeSpan.FromMinutes(5));
-        }
+        await WaitForHealthyAsync(_httpClient, timeout: TimeSpan.FromMinutes(2));
     }
 
     private static async Task WaitForHealthyAsync(HttpClient client, TimeSpan timeout)
@@ -60,15 +41,10 @@ public sealed class EnvironmentAgnosticFixture : IAsyncLifetime
         throw new TimeoutException($"BFF did not become healthy within {timeout.TotalSeconds}s");
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
-        if (_app != null)
-        {
-            await _app.StopAsync();
-            await _app.DisposeAsync();
-        }
-
         _httpClient?.Dispose();
+        return Task.CompletedTask;
     }
 }
 
