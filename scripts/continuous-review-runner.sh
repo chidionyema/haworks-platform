@@ -159,7 +159,7 @@ The validated review is below. Fix ONLY CONFIRMED findings with confidence >= 7.
 CRITICAL RULES:
 - Make minimal, surgical fixes. Do not refactor surrounding code.
 - Do not add comments explaining the fix unless the logic is non-obvious.
-- Do not fix LOW severity items.
+- Fix ALL severity levels including LOW.
 - If a fix requires adding a dependency or changing an interface used by other services, SKIP it and note why.
 - If a fix is ambiguous or risky, SKIP it.
 - After ALL fixes, you MUST run: dotnet build HaworksPlatform.sln 2>&1 | grep " error " | grep -v HWK023
@@ -308,7 +308,7 @@ echo ">>> PR: $PR_URL"
 
 # Create issues only for confirmed findings that were NOT fixed
 echo ">>> Creating issues for unfixed findings..."
-SEVERITY_PATTERN="^##+ (CRITICAL|HIGH|MEDIUM):"
+SEVERITY_PATTERN="^##+ (CRITICAL|HIGH|MEDIUM|LOW):"
 
 while IFS= read -r line; do
   if [[ "$line" =~ $SEVERITY_PATTERN ]]; then
@@ -325,16 +325,21 @@ while IFS= read -r line; do
     # Grab context
     ISSUE_BODY=$(grep -A 5 -F "$line" "$VALIDATED_FILE" | tail -n +2)
 
+    # Write body to temp file to avoid quoting issues in findings text
+    ISSUE_BODY_FILE=$(mktemp)
+    printf '%s\n\n---\nSkipped by auto-fix (too risky or ambiguous)\nFrom: %s\nPR: %s\n' "$ISSUE_BODY" "$VALIDATED_FILE" "${PR_URL:-n/a}" > "$ISSUE_BODY_FILE"
+
     # Skip if duplicate
     EXISTING=$(gh issue list --label "continuous-review" --search "\"$ISSUE_TITLE\"" --state open --json number --jq length 2>/dev/null || echo "0")
     if [ "$EXISTING" -eq 0 ]; then
       gh issue create \
         --title "$ISSUE_TITLE" \
-        --body "$(printf '%s\n\n---\nSkipped by auto-fix (too risky or ambiguous)\nFrom: %s\nPR: %s' "$ISSUE_BODY" "$VALIDATED_FILE" "${PR_URL:-n/a}")" \
+        --body-file "$ISSUE_BODY_FILE" \
         --label "continuous-review,${SEVERITY,,}" 2>/dev/null \
         && echo ">>> Issue created: $ISSUE_TITLE" \
         || echo ">>> Issue creation failed: $ISSUE_TITLE"
     fi
+    rm -f "$ISSUE_BODY_FILE"
   fi
 done < "$VALIDATED_FILE"
 
