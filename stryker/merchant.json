@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-net/master/src/Stryker.Core/Stryker.Core/stryker-config.schema.json",
+  "stryker-config": {
+    "project": "Merchant.Domain.csproj",
+    "test-projects": ["tests/Merchant/Merchant.Unit/Merchant.Unit.csproj"],
+    "reporters": ["html", "json", "markdown"],
+    "concurrency": 4,
+    "threshold-high": 75,
+    "threshold-low": 55,
+    "threshold-break": 45,
+    "ignore-mutations": ["string", "linq"],
+    "ignore-methods": ["ToString", "GetHashCode", "Dispose", "Log*"],
+    "mutate": [
+      "src/Merchant/Merchant.Domain/**/*.cs",
+      "!**/obj/**",
+      "!**/GlobalUsings.cs"
+    ]
+  }
+}
