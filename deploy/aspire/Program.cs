@@ -52,7 +52,7 @@ var redis = builder.AddRedis("redis")
     .WithDataVolume("haworks-platform-redis-data")
     .WithRedisCommander();
 
-var rabbitmq = builder.AddRabbitMQ("rabbitmq", port: 5672)
+var rabbitmq = builder.AddRabbitMQ("rabbitmq")
     .WithLifetime(ContainerLifetime.Persistent)
     .WithManagementPlugin();
 
