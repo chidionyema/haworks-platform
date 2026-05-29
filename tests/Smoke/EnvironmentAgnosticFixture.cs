@@ -29,7 +29,35 @@ public sealed class EnvironmentAgnosticFixture : IAsyncLifetime
             await _app.StartAsync();
 
             _httpClient = _app.CreateHttpClient("bff-web");
+            _httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+            // Wait for BFF to become healthy before running tests.
+            // The full service graph (Postgres, RabbitMQ, 14 services)
+            // can take 2-3 minutes to bootstrap on CI runners.
+            await WaitForHealthyAsync(_httpClient, timeout: TimeSpan.FromMinutes(5));
         }
+    }
+
+    private static async Task WaitForHealthyAsync(HttpClient client, TimeSpan timeout)
+    {
+        using var cts = new CancellationTokenSource(timeout);
+        while (!cts.IsCancellationRequested)
+        {
+            try
+            {
+                var resp = await client.GetAsync("/health", cts.Token);
+                if (resp.IsSuccessStatusCode)
+                    return;
+            }
+            catch (Exception) when (!cts.IsCancellationRequested)
+            {
+                // Service not ready yet
+            }
+
+            await Task.Delay(3000, cts.Token);
+        }
+
+        throw new TimeoutException($"BFF did not become healthy within {timeout.TotalSeconds}s");
     }
 
     public async Task DisposeAsync()
