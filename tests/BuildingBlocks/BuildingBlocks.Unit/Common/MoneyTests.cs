@@ -16,15 +16,54 @@ public sealed class MoneyTests
     [InlineData("US1", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
-    public void IsValidCurrencyCode_ValidatesIso4217Format(string? code, bool expected) =>
+    public void IsValidCurrencyCode_ValidatesThreeUppercaseLetterFormat(string? code, bool expected) =>
         Money.IsValidCurrencyCode(code).Should().Be(expected);
 
+    // ADV-07: IsValidCurrencyCode is STRUCTURAL ONLY — it does NOT check ISO 4217 membership.
+    // A well-formed-but-nonexistent code passes and silently gets default exponent 2.
+    // This test pins that documented behavior; revisit if an ISO 4217 allowlist is adopted.
     [Theory]
-    [InlineData("USD", 39.99, 3999L)]   // 2-decimal: cents
-    [InlineData("JPY", 4000, 4000L)]    // 0-decimal: no scaling
-    [InlineData("KWD", 1.234, 1234L)]   // 3-decimal: fils
+    [InlineData("ZZZ")]
+    [InlineData("XXX")]
+    [InlineData("QQQ")]
+    public void IsValidCurrencyCode_AcceptsWellFormedNonexistentCodes_StructuralOnly(string code) =>
+        Money.IsValidCurrencyCode(code).Should().BeTrue();
+
+    [Theory]
+    [InlineData("USD", 39.99, 3999L)]    // 2-decimal: cents
+    [InlineData("EUR", 19.99, 1999L)]    // 2-decimal
+    [InlineData("JPY", 4000, 4000L)]     // 0-decimal: no scaling
+    [InlineData("KRW", 10000, 10000L)]   // 0-decimal
+    [InlineData("VND", 25000, 25000L)]   // 0-decimal
+    [InlineData("CLP", 5000, 5000L)]     // 0-decimal
+    [InlineData("ISK", 999, 999L)]       // 0-decimal
+    [InlineData("KWD", 1.234, 1234L)]    // 3-decimal: fils
+    [InlineData("BHD", 1.234, 1234L)]    // 3-decimal
+    [InlineData("OMR", 1.234, 1234L)]    // 3-decimal
     public void FromMajorUnits_UsesPerCurrencyExponent(string currency, decimal major, long expectedMinor) =>
         Money.FromMajorUnits(major, currency).MinorUnits.Should().Be(expectedMinor);
+
+    // Rounding is deterministic AwayFromZero (half-up), NOT banker's rounding, at every exponent.
+    [Theory]
+    [InlineData("USD", 39.995, 4000L)]   // .x5 rounds away from zero -> up
+    [InlineData("USD", 2.005, 201L)]     // 200.5 -> 201
+    [InlineData("USD", 0.005, 1L)]       // 0.5 cent -> 1
+    [InlineData("KWD", 0.0005, 1L)]      // 0.5 fil -> 1 (3-decimal)
+    [InlineData("KWD", 1.2345, 1235L)]   // 1234.5 -> 1235
+    public void FromMajorUnits_RoundsAwayFromZero(string currency, decimal major, long expectedMinor) =>
+        Money.FromMajorUnits(major, currency).MinorUnits.Should().Be(expectedMinor);
+
+    // ADV-08: negatives are ALLOWED, not rejected (no domain-invariant guard). Pin current behavior.
+    [Fact]
+    public void FromMajorUnits_AllowsNegativeAmounts() =>
+        Money.FromMajorUnits(-39.99m, "USD").MinorUnits.Should().Be(-3999L);
+
+    [Theory]
+    [InlineData("USD", 2)]
+    [InlineData("JPY", 0)]
+    [InlineData("KWD", 3)]
+    public void GetExponent_MatchesIso4217(string currency, int expected) =>
+        Money.GetExponent(currency).Should().Be(expected);
 
     [Fact]
     public void FromMajorUnits_RejectsInvalidCurrency() =>

@@ -4,6 +4,33 @@ Status legend: `OPEN` · `IN PROGRESS` · `FIXED` · `WONTFIX` (with rationale).
 Anti-pattern `#` refers to the catalogue in [`README.md`](./README.md).
 Line numbers are as of the 2026-05-30 audit; verify before editing.
 
+## ⚠️ Adversarial deep-review addendum (2026-05-30, 20-agent verify pass)
+
+The initial file-level sweep MISSED real bugs — including in services it wrongly cleared
+as "no monetary fields" (RulesEngine, Notifications). A 10-service analyze + adversarial-verify
+workflow re-derived every value and found **no arithmetic errors in already-fixed sites and no
+circular unit tests**, but surfaced these NEW findings:
+
+| ID | File:line | Severity | Detail | Status |
+|----|-----------|----------|--------|--------|
+| ADV-01 | `RulesEngine.Api/Infrastructure/FraudCheckConsumer.cs:42` | 🔴 wrong-amount | `/100m` fed into fraud-rule eval; `msg.Currency` in scope → JPY 100×/KWD 10× wrong → **wrong fraud decision** | FIXED → Money.ToMajorUnits |
+| ADV-02 | `Pricing.Application/Queries/CalculateEffectivePriceQueryHandler.cs:103` | 🔴 wrong-amount | hardcoded `Round(.,2)` BEFORE minor-unit conversion → 3-decimal currencies lose 3rd digit (1.234 KWD→1230) | FIXED → Round(., GetExponent(currency)) |
+| ADV-03 | `BffWeb.Api/Controllers/DemoController.cs:238` | 🔴 wrong-amount | `new Money(..., 'GBP')` hardcodes GBP for non-GBP items → wrong totalAmount to payment orchestrator | OPEN (PR-B) |
+| ADV-04 | `Notifications.Application/Consumers/RefundEmailConsumer.cs:36` | 🟠 display | `/100m` → wrong amount in refund email | FIXED → Money.ToMajorUnits |
+| ADV-05 | `BffWeb.Api/SignalR/SagaStepBridgeConsumers.cs:106,137` | 🟠 display | currency-blind `/100m` in SignalR saga step strings | OPEN (PR-B) |
+| ADV-06 | `Payments.Api/.../SubscriptionsController.cs:42` | 🟠 robustness | `Money.FromMajorUnits` runs before validation → invalid currency = 500 not 400 | OPEN |
+| ADV-07 | `BuildingBlocks/Common/Money.cs:28` IsValidCurrencyCode | 🟡 foundational | structural-only: `'ZZZ'`/`'XXX'` pass, silently get exponent-2 | OPEN (decision: ISO allowlist?) |
+| ADV-08 | `Money.cs:34` FromMajorUnits | 🟡 design | allows NEGATIVE minor units, no guard | OPEN (decision) |
+| ADV-09 | Catalog `ReserveStockCommandValidator`, `ConfirmReservationCommandValidator`; Payouts `GetBalanceQueryValidator`; Payouts `Payout.Create` | 🟡 validation | use `Length(3)` not `MustBeValidCurrency()` → accept `'123'`/`'abc'` | OPEN (PR-C) |
+| ADV-10 | `Shipping/EasyPostShippingProvider.cs:86` | 🟡 integrity | parse-fail → `0m` → free-shipping label silently; empty currency → 500 at controller | OPEN |
+| ADV-11 | `Payouts SellerProfile.CommissionPercentage` | 🟡 integrity | no [0,100] bound → commission>100% → negative seller balance | OPEN |
+| ADV-12 | `Search` CdcSearchIndexWorkerTests / CatalogProductsApiTests | 🔴 fake coverage | CDC tests are a test-local reimpl hardcoding "USD"; never run the real worker. Catalog mock uses `unitPrice` key that doesn't bind → asserts nothing | OPEN (PR-D) |
+| ADV-FP | Payouts `LedgerService.cs:62,115` `/100m` & `/10`; `IsValidCurrencyCode` "ISO" label | n/a | CONFIRMED false positives: percentage math (currency-agnostic), not conversions | WONTFIX |
+
+Highest-value missing tests (per adversarial pass): JPY (0-dec) and KWD (3-dec) value
+assertions at EVERY conversion boundary; `IsValidCurrencyCode('ZZZ')` behavior pin;
+`MustBeValidCurrency` FluentValidation rule test; real CDC worker with non-USD currency.
+
 ## 🔴 Anti-pattern #1 — hardcoded ×100 / ÷100 conversions (correctness bugs)
 
 | ID | File:line | Detail | Batch | Status |
