@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using Haworks.BffWeb.Application.Telemetry;
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Idempotency;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -53,7 +54,7 @@ public sealed class CheckoutController(
         activity?.SetTag("saga.id", sagaId);
         activity?.SetTag("order.id", orderId);
         activity?.SetTag("customer.id", userId);
-        activity?.SetTag("checkout.total_amount_cents", (long)Math.Round(body.TotalAmount * 100m, 0, MidpointRounding.AwayFromZero));
+        activity?.SetTag("checkout.total_amount_cents", Money.FromMajorUnits(body.TotalAmount, body.Currency).MinorUnits);
         activity?.SetTag("checkout.item_count", body.Items.Count);
 
         // User-scoped idempotency key. Every retry of the *same* checkout from the
@@ -92,8 +93,8 @@ public sealed class CheckoutController(
                 productId = i.ProductId,
                 productName = i.ProductName,
                 quantity = i.Quantity,
-                unitPriceCents = (long)Math.Round(i.UnitPrice * 100m, 0, MidpointRounding.AwayFromZero),
-                currency = body.Currency ?? "USD",
+                unitPriceCents = Money.FromMajorUnits(i.UnitPrice, body.Currency).MinorUnits,
+                currency = body.Currency,
             }),
         });
         if (!string.IsNullOrEmpty(svcToken))
@@ -117,7 +118,7 @@ public sealed record CheckoutRequest
 {
     public required string CustomerEmail { get; init; }
     public required decimal TotalAmount { get; init; }
-    public string Currency { get; init; } = "USD";
+    public required string Currency { get; init; }
     public string? IdempotencyKey { get; init; }
     public required IReadOnlyList<CheckoutLineItem> Items { get; init; }
 }

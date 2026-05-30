@@ -13,6 +13,7 @@ public sealed record CatalogProductDto
     public string Name { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
     public long UnitPriceCents { get; init; }
+    public string Currency { get; init; } = "USD";
     public int StockQuantity { get; init; }
     public bool IsInStock { get; init; }
     public bool IsListed { get; init; }

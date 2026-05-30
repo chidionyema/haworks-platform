@@ -15,15 +15,15 @@ Line numbers are as of the 2026-05-30 audit; verify before editing.
 | PAY-07 | `src/Payments/Payments.Infrastructure/PayPal/PayPalPaymentProcessor.cs:83` | `actualPaidCents / 100m` | 1 | OPEN |
 | PAY-08 | `src/Payments/Payments.Infrastructure/PayPal/PayPalPaymentProcessor.cs:83` | `expectedTotalCents / 100m` | 1 | OPEN |
 | PAY-15 | `src/Payments/Payments.Infrastructure/Stripe/StripePaymentProcessor.cs:114` | `actualPaidCents/100m` & `expectedTotalCents/100m` | 1 | OPEN |
-| PRC-01 | `src/Pricing/Pricing.Application/Consumers/PricingRequestedConsumer.cs:64` | `SubtotalCents = (long)Math.Round(Subtotal*100m,0)` | 2 | OPEN |
-| PRC-02 | `src/Pricing/Pricing.Application/Consumers/PricingRequestedConsumer.cs:65` | `TaxCents = (long)Math.Round(TaxAmount*100m,0)` | 2 | OPEN |
-| PRC-03 | `src/Pricing/Pricing.Application/Consumers/PricingRequestedConsumer.cs:66` | `TotalCents = (long)Math.Round(Total*100m,0)` | 2 | OPEN |
-| SHP-01 | `src/Shipping/Shipping.Api/Controllers/ShipmentsController.cs:52` | `(long)Math.Round(result.Amount*100m,...)` EasyPost rate | 2 | OPEN |
-| BFF-04 | `src/BffWeb/BffWeb.Api/Controllers/CheckoutController.cs:56` | `(long)Math.Round(body.TotalAmount*100m,...)` | 3 | OPEN |
-| BFF-05 | `src/BffWeb/BffWeb.Api/Controllers/CheckoutController.cs:95` | `(long)Math.Round(i.UnitPrice*100m,...)` | 3 | OPEN |
-| BFF-07 | `src/BffWeb/BffWeb.Api/Controllers/DemoController.cs:237` | `i.UnitPriceCents / 100m` | 3 | OPEN |
-| BFF-08 | `src/BffWeb/BffWeb.Api/Controllers/DemoController.cs:1380` | `request.RefundAmountCents / 100m` | 3 | OPEN |
-| SCH-03 | `src/Search/Search.Application/Consumers/IndexableEntityChangedConsumer.cs:156` | `(decimal)priceCents / 100m` | 3 | OPEN |
+| PRC-01 | `PricingRequestedConsumer.cs:64` | now `Money.FromMajorUnits(result.Subtotal, result.Currency).MinorUnits` | 2 | FIXED |
+| PRC-02 | `PricingRequestedConsumer.cs:65` | now `Money.FromMajorUnits(result.TaxAmount, result.Currency).MinorUnits` | 2 | FIXED |
+| PRC-03 | `PricingRequestedConsumer.cs:66` | now `Money.FromMajorUnits(result.Total, result.Currency).MinorUnits` | 2 | FIXED |
+| SHP-01 | `ShipmentsController.cs:52` | now `Money.FromMajorUnits(result.Amount, result.Currency).MinorUnits` | 2 | FIXED |
+| BFF-04 | `CheckoutController.cs:56` | activity tag now uses `Money.FromMajorUnits` | 3 | FIXED |
+| BFF-05 | `CheckoutController.cs:95` | `unitPriceCents` now uses `Money.FromMajorUnits` | 3 | FIXED |
+| BFF-07 | `DemoController.cs:237` | total calculation now uses `new Money(...).ToMajorUnits()` | 3 | FIXED |
+| BFF-08 | `DemoController.cs:1380` | refund amount now uses `new Money(...).ToMajorUnits()` | 3 | FIXED |
+| SCH-03 | `IndexableEntityChangedConsumer.cs:156` | removed `/ 100m`, document now stores `UnitPriceCents` | 3 | FIXED |
 | CHK-fixed | `src/CheckoutOrchestrator/.../CheckoutsController.cs` | was `*100m`; now `Money.TryFromMajorUnits` | 0 | FIXED |
 
 ## 🟠 Anti-pattern #3 — currency accepted but never validated at boundary
@@ -41,11 +41,11 @@ Line numbers are as of the 2026-05-30 audit; verify before editing.
 |----|-----------|--------|-------|--------|
 | ORD-02 | `src/Orders/Orders.Domain/Subscription.cs:82` | `decimal Price` on SubscriptionPlan, no currency | 4 | OPEN |
 | ORD-04 | `src/Orders/Orders.Api/Controllers/SubscriptionsController.cs:84` | `decimal Amount` on request | 4 | OPEN |
-| SCH-01 | `src/Search/Search.Application/Models/ProductSearchDocument.cs:21` | `decimal UnitPrice`, no currency | 3 | OPEN |
-| SCH-02 | `src/Search/Search.Application/Indexing/ProductSearchDocumentProjector.cs:15` | `decimal unitPrice` param | 3 | OPEN |
-| SCH-04 | `src/Search/.../CatalogProductDto` | `long UnitPriceCents` but **no CurrencyCode** field | 3 | OPEN |
-| BFF-01 | `src/BffWeb/BffWeb.Api/Controllers/CheckoutController.cs:119` | `decimal TotalAmount` on CheckoutRequest | 3 | OPEN |
-| BFF-03 | `src/BffWeb/BffWeb.Api/Controllers/CheckoutController.cs:130` | `decimal UnitPrice` on CheckoutLineItem | 3 | OPEN |
+| SCH-01 | `ProductSearchDocument.cs:21` | UnitPrice → UnitPriceCents + CurrencyCode | 3 | FIXED |
+| SCH-02 | `ProductSearchDocumentProjector.cs:15` | unitPrice → unitPriceCents + currencyCode | 3 | FIXED |
+| SCH-04 | `CatalogProductDto.cs` | added `Currency` field | 3 | FIXED |
+| BFF-01 | `CheckoutController.cs:119` | `TotalAmount` on CheckoutRequest (keep decimal, but removed USD default) | 3 | FIXED |
+| BFF-03 | `CheckoutController.cs:130` | `UnitPrice` on CheckoutLineItem (keep decimal, but removed USD default) | 3 | FIXED |
 
 ## 🟡 Anti-pattern #2 — silent "USD" defaults
 
@@ -73,9 +73,9 @@ Line numbers are as of the 2026-05-30 audit; verify before editing.
 | CAT-01 | `src/Catalog/Catalog.Api/Controllers/ProductsController.cs:76` | 5 | OPEN |
 | CAT-02 | `src/Catalog/Catalog.Api/Controllers/ProductsController.cs:92` | 5 | OPEN |
 | CAT-03 | `src/Catalog/Catalog.Application/Commands/ReserveStockCommand.cs:97` (`?? "USD"`) | 5 | OPEN |
-| PRC-04 | `src/Pricing/Pricing.Domain/Entities/PriceCalculationLog.cs:20` (`= "USD"`) | 2 | OPEN |
-| PRC-05 | `src/Pricing/Pricing.Application/Models/CatalogProductDto.cs:11` (`= "USD"`) | 2 | OPEN |
-| SHP-02 | `src/Shipping/Shipping.Api/Domain/Shipment.cs:26` (`= "USD"`) | 2 | OPEN |
+| PRC-04 | `PriceCalculationLog.cs:20` | removed silent "USD" default | 2 | FIXED |
+| PRC-05 | `CatalogProductDto.cs:11` | removed silent "USD" default | 2 | FIXED |
+| SHP-02 | `Shipment.cs:26` | removed silent "USD" default | 2 | FIXED |
 | BFF-02 | `src/BffWeb/BffWeb.Api/Controllers/CheckoutController.cs:120` (`= "USD"`) | 3 | OPEN |
 | BFF-06 | `src/BffWeb/BffWeb.Api/Controllers/CheckoutController.cs:96` (`?? "USD"`) | 3 | OPEN |
 | CHK-01 | `src/CheckoutOrchestrator/.../CheckoutSagaState.cs:38` (`= "USD"`) | 0 | OPEN |
