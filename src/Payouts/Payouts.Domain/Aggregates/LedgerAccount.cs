@@ -1,4 +1,5 @@
 using Haworks.BuildingBlocks.Persistence;
+using Haworks.BuildingBlocks.Common;
 using Haworks.Payouts.Domain.Enums;
 
 namespace Haworks.Payouts.Domain.Aggregates;
@@ -30,6 +31,11 @@ public sealed class LedgerAccount : AuditableEntity
 
     public static LedgerAccount Create(Guid ownerId, AccountType type, string currency)
     {
+        if (!Money.IsValidCurrencyCode(currency))
+        {
+            throw new ArgumentException($"Invalid currency code: {currency}", nameof(currency));
+        }
+
         return new LedgerAccount
         {
             Id = Guid.NewGuid(),

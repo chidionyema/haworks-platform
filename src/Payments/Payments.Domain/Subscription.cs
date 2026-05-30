@@ -67,11 +67,12 @@ public class SubscriptionPlan : AuditableEntity
 {
     protected SubscriptionPlan() : base() { }
 
-    private SubscriptionPlan(string name, string internalPlanId, decimal price, string? description) : base()
+    private SubscriptionPlan(string name, string internalPlanId, long priceCents, string currency, string? description) : base()
     {
         Name = name;
         InternalPlanId = internalPlanId;
-        Price = price;
+        PriceCents = priceCents;
+        Currency = currency;
         Description = description;
         ProviderPriceIds = "{}";
     }
@@ -79,15 +80,17 @@ public class SubscriptionPlan : AuditableEntity
     public string Name { get; private set; } = string.Empty;
     public string InternalPlanId { get; private set; } = string.Empty;
     public string ProviderPriceIds { get; private set; } = "{}";
-    public decimal Price { get; private set; }
+    public long PriceCents { get; private set; }
+    public string Currency { get; private set; } = string.Empty;
     public string? Description { get; private set; }
 
-    public static SubscriptionPlan Create(string name, string internalPlanId, decimal price, string? description = null)
+    public static SubscriptionPlan Create(string name, string internalPlanId, long priceCents, string currency, string? description = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(internalPlanId);
-        if (price < 0) throw new ArgumentException("Price cannot be negative", nameof(price));
-        return new SubscriptionPlan(name, internalPlanId, price, description);
+        ArgumentException.ThrowIfNullOrWhiteSpace(currency);
+        if (priceCents < 0) throw new ArgumentException("Price cannot be negative", nameof(priceCents));
+        return new SubscriptionPlan(name, internalPlanId, priceCents, currency, description);
     }
 
     public void SetProviderPriceIds(string providerPriceIdsJson) => ProviderPriceIds = providerPriceIdsJson ?? "{}";

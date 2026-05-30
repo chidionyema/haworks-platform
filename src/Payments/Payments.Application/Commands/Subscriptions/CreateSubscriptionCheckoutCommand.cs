@@ -9,7 +9,8 @@ namespace Haworks.Payments.Application.Commands.Subscriptions;
 public sealed record CreateSubscriptionCheckoutCommand(
     string UserId,
     string PriceId,
-    decimal Amount,
+    long AmountCents,
+    string Currency,
     string? RedirectPath,
     string IdempotencyKey) : IRequest<Result<CreateSubscriptionCheckoutResultDto>>;
 

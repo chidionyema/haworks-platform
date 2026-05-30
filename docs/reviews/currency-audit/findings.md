@@ -32,15 +32,15 @@ Line numbers are as of the 2026-05-30 audit; verify before editing.
 |----|-----------|--------|-------|--------|
 | PAY-25 | `src/Payments/Payments.Api/Controllers/RefundsController.cs:62` | `Currency` on CreateRefundRequest unvalidated | 1 | OPEN |
 | PAY-12 | `src/Payments/Payments.Infrastructure/PayPal/PayPalSubscriptionManager.cs:187` | webhook `currency` metadata unvalidated | 1 | OPEN |
-| PYT-05 | `src/Payouts/Payouts.Api/Controllers/LedgerController.cs:65` | query `currency` → LedgerAccount.Create unvalidated | 4 | OPEN |
-| ORD-03 | `src/Orders/Orders.Application/Commands/CreateOrderCommand.cs:16` | `string Currency` unvalidated | 4 | OPEN |
+| PYT-05 | `LedgerAccount.cs:33` | now validates `currency` in `Create` | 4 | FIXED |
+| ORD-03 | `CreateOrderCommandValidator.cs:13` | now uses `.MustBeValidCurrency()` | 4 | FIXED |
 
 ## 🟡 Anti-pattern #4 — un-migrated decimal money fields / missing currency
 
 | ID | File:line | Detail | Batch | Status |
 |----|-----------|--------|-------|--------|
-| ORD-02 | `src/Orders/Orders.Domain/Subscription.cs:82` | `decimal Price` on SubscriptionPlan, no currency | 4 | OPEN |
-| ORD-04 | `src/Orders/Orders.Api/Controllers/SubscriptionsController.cs:84` | `decimal Amount` on request | 4 | OPEN |
+| ORD-02 | `src/Payments/Payments.Domain/Subscription.cs:82` | `Price` → `PriceCents` (long) + `Currency` added | 4 | FIXED |
+| ORD-04 | `src/Payments/Payments.Api/Controllers/SubscriptionsController.cs:84` | added `Currency`; converted `decimal Amount` to cents | 4 | FIXED |
 | SCH-01 | `ProductSearchDocument.cs:21` | UnitPrice → UnitPriceCents + CurrencyCode | 3 | FIXED |
 | SCH-02 | `ProductSearchDocumentProjector.cs:15` | unitPrice → unitPriceCents + currencyCode | 3 | FIXED |
 | SCH-04 | `CatalogProductDto.cs` | added `Currency` field | 3 | FIXED |
@@ -67,9 +67,9 @@ Line numbers are as of the 2026-05-30 audit; verify before editing.
 | PAY-22 | `src/Payments/Payments.Application/Interfaces/ICheckoutSessionService.cs:43` | 5 | OPEN |
 | PAY-23 | `src/Payments/Payments.Application/Interfaces/ICheckoutSessionService.cs:58` | 5 | OPEN |
 | PAY-24 | `src/Payments/Payments.Application/Interfaces/ISubscriptionManager.cs:18` | 5 | OPEN |
-| PYT-01 | `src/Payouts/Payouts.Api/Controllers/LedgerController.cs:21` (`= "USD"` param) | 4 | OPEN |
-| PYT-02 | `src/Payouts/Payouts.Api/Controllers/LedgerController.cs:52` (const) | 4 | OPEN |
-| ORD-01 | `src/Orders/Orders.Domain/Order.cs:45` (`= "USD"`) | 4 | OPEN |
+| PYT-01 | `LedgerController.cs:21` | removed silent "USD" default; added manual validation | 4 | FIXED |
+| PYT-02 | `LedgerController.cs:52` | removed `DefaultCurrency` const | 4 | FIXED |
+| ORD-01 | `Order.cs:45` | removed silent "USD" default | 4 | FIXED |
 | CAT-01 | `src/Catalog/Catalog.Api/Controllers/ProductsController.cs:76` | 5 | OPEN |
 | CAT-02 | `src/Catalog/Catalog.Api/Controllers/ProductsController.cs:92` | 5 | OPEN |
 | CAT-03 | `src/Catalog/Catalog.Application/Commands/ReserveStockCommand.cs:97` (`?? "USD"`) | 5 | OPEN |
