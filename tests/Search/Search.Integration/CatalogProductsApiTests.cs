@@ -66,7 +66,8 @@ public sealed class CatalogProductsApiTests : IDisposable
                     id,
                     name = "Pen",
                     description = "Blue ink pen",
-                    unitPrice = 1.99m,
+                    unitPriceCents = 199L,
+                    currency = "EUR",
                     stockQuantity = 5,
                     isInStock = true,
                     isListed = true,
@@ -81,6 +82,10 @@ public sealed class CatalogProductsApiTests : IDisposable
         dto.Name.Should().Be("Pen");
         dto.CategoryId.Should().Be(categoryId);
         dto.CategoryName.Should().Be("Stationery");
+        // Pin the money wire contract: the field is unitPriceCents (minor units) and currency
+        // must round-trip un-defaulted. A `unitPrice` key would bind to 0/USD silently (ADV-12).
+        dto.UnitPriceCents.Should().Be(199L);
+        dto.Currency.Should().Be("EUR");
     }
 
     [Fact]
@@ -155,8 +160,14 @@ public sealed class CatalogProductsApiTests : IDisposable
         page2.Items.Should().HaveCount(50);
         page2.Skip.Should().Be(100);
 
-        // Items should round-trip with categoryName=null (matches catalog reality).
-        page1.Items.Should().AllSatisfy(item => item.CategoryName.Should().BeNull());
+        // Items should round-trip with categoryName=null (matches catalog reality)
+        // and preserve the minor-unit price + currency from the wire contract (ADV-12).
+        page1.Items.Should().AllSatisfy(item =>
+        {
+            item.CategoryName.Should().BeNull();
+            item.UnitPriceCents.Should().Be(100L);
+            item.Currency.Should().Be("USD");
+        });
     }
 
     private static object MakeListItem()
@@ -167,7 +178,8 @@ public sealed class CatalogProductsApiTests : IDisposable
             id,
             name = "X",
             description = "Y",
-            unitPrice = 1m,
+            unitPriceCents = 100L,
+            currency = "USD",
             stockQuantity = 1,
             isInStock = true,
             isListed = true,
