@@ -20,8 +20,34 @@ public class StartCheckoutCommandValidatorTests
         Items: new List<CheckoutItemData>
         {
             new() { ProductId = Guid.NewGuid(), ProductName = "Product 1", Quantity = 1, UnitPriceCents = 10000L, Currency = "USD" }
-        }
+        },
+        Currency: "USD"
     );
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    [InlineData("US")]
+    [InlineData("usd")]
+    [InlineData("US1")]
+    [InlineData("DOLLAR")]
+    public void Validate_WithInvalidCurrency_ShouldHaveError(string? currency)
+    {
+        var command = CreateValidCommand() with { Currency = currency! };
+        var result = _validator.TestValidate(command);
+        result.ShouldHaveValidationErrorFor(x => x.Currency);
+    }
+
+    [Theory]
+    [InlineData("USD")]
+    [InlineData("EUR")]
+    [InlineData("JPY")]
+    public void Validate_WithValidCurrency_ShouldNotHaveError(string currency)
+    {
+        var command = CreateValidCommand() with { Currency = currency };
+        var result = _validator.TestValidate(command);
+        result.ShouldNotHaveValidationErrorFor(x => x.Currency);
+    }
 
     [Fact]
     public void Validate_WithValidCommand_ShouldNotHaveErrors()

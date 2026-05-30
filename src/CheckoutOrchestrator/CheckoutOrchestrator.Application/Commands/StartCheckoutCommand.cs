@@ -18,7 +18,7 @@ public sealed record StartCheckoutCommand(
     long TotalAmountCents,
     string IdempotencyKey,
     IReadOnlyList<CheckoutItemData> Items,
-    string? Currency = null
+    string Currency
 ) : IRequest<Result<StartCheckoutResponse>>;
 
 public sealed record StartCheckoutResponse(Guid SagaId, Guid OrderId);
@@ -67,7 +67,7 @@ internal sealed class StartCheckoutCommandHandler(
             Items = request.Items,
             IdempotencyKey = request.IdempotencyKey,
             IsGuest = false,
-            Currency = request.Currency ?? "USD",
+            Currency = request.Currency,
         }, ct);
 
         await db.SaveChangesAsync(ct);

@@ -1,4 +1,5 @@
 using FluentValidation;
+using Haworks.BuildingBlocks.Common;
 using Haworks.CheckoutOrchestrator.Application.Commands;
 
 namespace Haworks.CheckoutOrchestrator.Application.Validators;
@@ -22,9 +23,9 @@ internal sealed class StartCheckoutCommandValidator : AbstractValidator<StartChe
             .WithMessage("Total amount must be greater than zero");
 
         RuleFor(x => x.Currency)
-            .Matches(@"^[A-Z]{3}$")
-            .When(x => !string.IsNullOrEmpty(x.Currency))
-            .WithMessage("Currency must be a valid 3-letter ISO 4217 code (e.g., USD, EUR)");
+            .NotEmpty()
+            .WithMessage("Currency is required")
+            .MustBeValidCurrency();
 
         RuleFor(x => x.Items)
             .NotEmpty()
