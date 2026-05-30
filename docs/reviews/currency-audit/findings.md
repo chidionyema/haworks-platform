@@ -8,13 +8,15 @@ Line numbers are as of the 2026-05-30 audit; verify before editing.
 
 | ID | File:line | Detail | Batch | Status |
 |----|-----------|--------|-------|--------|
-| PAY-03 | `src/Payments/Payments.Application/Webhooks/PaymentAmountMismatchHandler.cs:61` | `Math.Round(actualPaid * 100m,0)` | 1 | OPEN |
-| PAY-04 | `src/Payments/Payments.Application/Webhooks/PaymentAmountMismatchHandler.cs:62` | `Math.Round(expectedTotal * 100m,0)` | 1 | OPEN |
-| PAY-05 | `src/Payments/Payments.Application/Webhooks/PaymentAmountMismatchHandler.cs:63` | `Math.Round(difference * 100m,0)` | 1 | OPEN |
-| PAY-06 | `src/Payments/Payments.Infrastructure/PayPal/PayPalWebhookProcessor.cs:238` | `Math.Round(decimal.Parse(amount)*100m,...)` provider amount | 1 | OPEN |
-| PAY-07 | `src/Payments/Payments.Infrastructure/PayPal/PayPalPaymentProcessor.cs:83` | `actualPaidCents / 100m` | 1 | OPEN |
-| PAY-08 | `src/Payments/Payments.Infrastructure/PayPal/PayPalPaymentProcessor.cs:83` | `expectedTotalCents / 100m` | 1 | OPEN |
-| PAY-15 | `src/Payments/Payments.Infrastructure/Stripe/StripePaymentProcessor.cs:114` | `actualPaidCents/100m` & `expectedTotalCents/100m` | 1 | OPEN |
+| PAY-03 | `PaymentAmountMismatchHandler.cs:61` | was `Math.Round(actualPaid*100m)`; handler now takes `long` cents — no conversion | 1 | FIXED |
+| PAY-04 | `PaymentAmountMismatchHandler.cs:62` | as PAY-03 | 1 | FIXED |
+| PAY-05 | `PaymentAmountMismatchHandler.cs:63` | as PAY-03 | 1 | FIXED |
+| PAY-06 | `PayPalWebhookProcessor.cs:209,238` | now `Money.FromMajorUnits(parse(amount,Invariant), currency)`; refund currency_code extracted | 1 | FIXED |
+| PAY-07 | `PayPalPaymentProcessor.cs:83` | call site passes `long` cents, no `/100m` | 1 | FIXED |
+| PAY-08 | `PayPalPaymentProcessor.cs:83` | as PAY-07 | 1 | FIXED |
+| PAY-15 | `StripePaymentProcessor.cs:114,244` | call+wrapper pass `long` cents; dead `CentMultiplier` const removed | 1 | FIXED |
+| PAY-26 | `PayPalCheckoutService.cs:69,202,217` | **(found in batch 1, hidden behind `CentMultiplier`)** → `Money`/`FormatAmount(cents,currency)` | 1 | FIXED |
+| PAY-27 | `PayPalRefundService.cs:72,174` | **(found in batch 1)** `CentMultiplier` round-trips → `Money` + InvariantCulture | 1 | FIXED |
 | PRC-01 | `src/Pricing/Pricing.Application/Consumers/PricingRequestedConsumer.cs:64` | `SubtotalCents = (long)Math.Round(Subtotal*100m,0)` | 2 | OPEN |
 | PRC-02 | `src/Pricing/Pricing.Application/Consumers/PricingRequestedConsumer.cs:65` | `TaxCents = (long)Math.Round(TaxAmount*100m,0)` | 2 | OPEN |
 | PRC-03 | `src/Pricing/Pricing.Application/Consumers/PricingRequestedConsumer.cs:66` | `TotalCents = (long)Math.Round(Total*100m,0)` | 2 | OPEN |
@@ -30,7 +32,7 @@ Line numbers are as of the 2026-05-30 audit; verify before editing.
 
 | ID | File:line | Detail | Batch | Status |
 |----|-----------|--------|-------|--------|
-| PAY-25 | `src/Payments/Payments.Api/Controllers/RefundsController.cs:62` | `Currency` on CreateRefundRequest unvalidated | 1 | OPEN |
+| PAY-25 | `CreateRefundCommandValidator.cs:11` | now `.MustBeValidCurrency()` (was bare `.Length(3)`) | 1 | FIXED |
 | PAY-12 | `src/Payments/Payments.Infrastructure/PayPal/PayPalSubscriptionManager.cs:187` | webhook `currency` metadata unvalidated | 1 | OPEN |
 | PYT-05 | `src/Payouts/Payouts.Api/Controllers/LedgerController.cs:65` | query `currency` → LedgerAccount.Create unvalidated | 4 | OPEN |
 | ORD-03 | `src/Orders/Orders.Application/Commands/CreateOrderCommand.cs:16` | `string Currency` unvalidated | 4 | OPEN |

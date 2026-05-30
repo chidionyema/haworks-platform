@@ -1,3 +1,5 @@
+using System.Globalization;
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.Contracts.Payments;
 using MassTransit;
@@ -34,13 +36,15 @@ public sealed class PaymentAmountMismatchHandler : IPaymentAmountMismatchHandler
     /// <inheritdoc />
     public async Task HandleMismatchAsync(
         Payment payment,
-        decimal actualPaid,
-        decimal expectedTotal,
+        long actualPaidCents,
+        long expectedTotalCents,
         PaymentProvider provider,
         CancellationToken ct = default)
     {
-        var difference = Math.Abs(actualPaid - expectedTotal);
-        var reason = $"{provider} paid {actualPaid:C}, Expected {expectedTotal:C}, Diff {difference:C}";
+        var differenceCents = Math.Abs(actualPaidCents - expectedTotalCents);
+        var reason = $"{provider} paid {new Money(actualPaidCents, payment.Currency)}, " +
+            $"Expected {new Money(expectedTotalCents, payment.Currency)}, " +
+            $"Diff {new Money(differenceCents, payment.Currency)}";
 
         _logger.LogCritical(
             "AMOUNT MISMATCH for Payment {PaymentId}: {Reason}",
@@ -58,9 +62,9 @@ public sealed class PaymentAmountMismatchHandler : IPaymentAmountMismatchHandler
             OrderId = payment.OrderId,
             SagaId = payment.SagaId,
             Provider = provider.ToString(),
-            ActualPaidCents = (long)Math.Round(actualPaid * 100m, 0),
-            ExpectedTotalCents = (long)Math.Round(expectedTotal * 100m, 0),
-            DifferenceCents = (long)Math.Round(difference * 100m, 0),
+            ActualPaidCents = actualPaidCents,
+            ExpectedTotalCents = expectedTotalCents,
+            DifferenceCents = differenceCents,
             Reason = reason,
             Currency = payment.Currency
         }, ct);
@@ -72,9 +76,10 @@ public sealed class PaymentAmountMismatchHandler : IPaymentAmountMismatchHandler
             ["Provider"] = provider.ToString(),
             ["OrderId"] = payment.OrderId.ToString(),
             ["PaymentId"] = payment.Id.ToString(),
-            ["ActualPaid"] = actualPaid.ToString("F2"),
-            ["ExpectedTotal"] = expectedTotal.ToString("F2"),
-            ["Difference"] = difference.ToString("F2")
+            ["ActualPaidCents"] = actualPaidCents.ToString(CultureInfo.InvariantCulture),
+            ["ExpectedTotalCents"] = expectedTotalCents.ToString(CultureInfo.InvariantCulture),
+            ["DifferenceCents"] = differenceCents.ToString(CultureInfo.InvariantCulture),
+            ["Currency"] = payment.Currency
         });
     }
 }
