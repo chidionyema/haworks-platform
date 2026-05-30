@@ -23,11 +23,13 @@ public sealed class CheckoutsController(IMediator mediator) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Start([FromBody] StartCheckoutRequest body, CancellationToken ct)
     {
-        // Validate amount to prevent integer overflow when converting to cents
-        const decimal maxAmount = long.MaxValue / 100m;
-        if (body.TotalAmount > maxAmount)
+        // Normalize to the canonical Money type at the API boundary. This is the single
+        // place major units (e.g. 39.99) become minor units, using the per-currency
+        // exponent (JPY ×1, USD ×100, KWD ×1000) and a 64-bit overflow guard.
+        var currency = string.IsNullOrWhiteSpace(body.Currency) ? "USD" : body.Currency.Trim().ToUpperInvariant();
+        if (!Money.TryFromMajorUnits(body.TotalAmount, currency, out var amount))
         {
-            return BadRequest(new { error = "Total amount is too large." });
+            return BadRequest(new { error = "Total amount or currency is invalid." });
         }
 
         var result = await mediator.Send(new StartCheckoutCommand(
@@ -35,10 +37,10 @@ public sealed class CheckoutsController(IMediator mediator) : ControllerBase
             body.OrderId,
             body.UserId,
             body.CustomerEmail,
-            (long)Math.Round(body.TotalAmount * 100m, 0, MidpointRounding.AwayFromZero),
+            amount.MinorUnits,
             body.IdempotencyKey,
             body.Items,
-            body.Currency
+            amount.CurrencyCode
         ), ct);
 
         if (!result.IsSuccess)
