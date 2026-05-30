@@ -204,6 +204,32 @@ public sealed class PlatformGuardTests
         violations.Should().BeEmpty("Stripe amount conversions must use Math.Round to avoid truncation");
     }
 
+    [Fact]
+    public void No_hardcoded_money_conversion_outside_Money()
+    {
+        // A *Cents value divided/multiplied by 100 is a hardcoded 2-decimal assumption that is
+        // WRONG for 0-decimal (JPY, KRW) and 3-decimal (KWD, BHD, OMR) currencies. All minor<->major
+        // conversion must go through Money (FromMajorUnits / ToMajorUnits), which applies the
+        // per-currency exponent. Percentage math (rate / 100m) is unaffected — it does not put
+        // "Cents" immediately before the operator, so this guard does not flag it.
+        var violations = new List<string>();
+        foreach (var file in FindProductionCsFiles())
+        {
+            if (IsExcludedFromGuards(file)) continue;
+            if (file.Contains("/Migrations/") || file.Contains("\\Migrations\\")) continue;
+            if (file.EndsWith("Money.cs")) continue;
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (Regex.IsMatch(lines[i], @"[A-Za-z]+[Cc]ents\s*[/*]\s*100\b", RegexOptions.None, RegexTimeout))
+                {
+                    violations.Add($"{Relative(file)}:{i + 1}: convert *Cents via Money (FromMajorUnits/ToMajorUnits), not hardcoded /100 or *100 (wrong for JPY/KWD)");
+                }
+            }
+        }
+        violations.Should().BeEmpty("monetary minor-unit conversions must use the per-currency Money type, not hardcoded *100/÷100");
+    }
+
     // ─── Consumers ───────────────────────────────────────────────────
 
     [Fact]

@@ -229,14 +229,17 @@ public class DemoController : ControllerBase
             // BffWeb doesn't reference the orchestrator's API project (would couple
             // BFF to a sibling-service implementation type, ADR-0001 boundary), so
             // we hand-shape the payload — anonymous object serialised by STJ camelCase.
+            // Currency comes from the line items (not hardcoded) so the amount sent to
+            // the orchestrator matches the items' currency and per-currency exponent.
+            var checkoutCurrency = items.Length > 0 ? items[0].Currency : "USD";
             var payload = new
             {
                 sagaId,
                 orderId,
                 userId = "demo-user",
                 customerEmail = "demo@haworks.dev",
-                totalAmount = items.Sum(i => new Money(i.UnitPriceCents * i.Quantity, "GBP").ToMajorUnits()),
-                currency = "GBP",
+                totalAmount = items.Sum(i => new Money(i.UnitPriceCents * i.Quantity, i.Currency).ToMajorUnits()),
+                currency = checkoutCurrency,
                 idempotencyKey,
                 items,
             };

@@ -1,5 +1,6 @@
 // SignalR bridge consumers — translate saga events to SignalR pushes. No resource acquisition.
 using Haworks.BffWeb.Application.Interfaces;
+using Haworks.BuildingBlocks.Common;
 using Haworks.Contracts.Catalog;
 using Haworks.Contracts.Payments;
 using MassTransit;
@@ -103,7 +104,7 @@ public sealed class PaymentCompletedSagaBridge(IDemoHubNotifier notifier, ILogge
             Step: "payment_completed",
             Service: "payments-svc",
             Status: "completed",
-            Description: $"Payment completed: {ctx.Message.AmountCents / 100m:F2} {ctx.Message.Currency}",
+            Description: $"Payment completed: {new Money(ctx.Message.AmountCents, ctx.Message.Currency)}",
             ProgressPercent: 100,
             Timestamp: DateTime.UtcNow), ctx.CancellationToken);
     }
@@ -134,7 +135,7 @@ public sealed class PaymentAmountMismatchSagaBridge(
                     Step: "payment_failed",
                     Service: "payments-svc",
                     Status: "failed",
-                    Description: $"Payment amount mismatch: Expected {ctx.Message.ExpectedTotalCents / 100m:F2}, received {ctx.Message.ActualPaidCents / 100m:F2}",
+                    Description: $"Payment amount mismatch: Expected {new Money(ctx.Message.ExpectedTotalCents, ctx.Message.Currency)}, received {new Money(ctx.Message.ActualPaidCents, ctx.Message.Currency)}",
                     ProgressPercent: 70,
                     Timestamp: DateTime.UtcNow), ctx.CancellationToken);
             }
