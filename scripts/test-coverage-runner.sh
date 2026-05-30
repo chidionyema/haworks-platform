@@ -47,17 +47,47 @@ fi
 echo "$INDEX" > "$STATE_FILE"
 
 DATE=$(date -u +%Y-%m-%d-%H%M)
-SERVICE_REPORT_DIR="$REPORT_DIR/$SERVICE"
-mkdir -p "$SERVICE_REPORT_DIR"
+SERVICE_LC=$(echo "$SERVICE" | tr '[:upper:]' '[:lower:]')
+
+# ============================================================
+# PHASE 0: Isolated worktree off latest main.
+# ALL phases run here so the audit/build never read the shared working
+# tree (which other agents may be mid-edit on a feature branch).
+# ============================================================
+BRANCH="test-coverage/${SERVICE_LC}-${DATE}"
+WORKTREE_DIR="/tmp/haworks-testcov-${SERVICE_LC}-$$"
+
+git -C "$REPO_ROOT" fetch origin main --quiet 2>/dev/null || true
+git -C "$REPO_ROOT" branch -D "$BRANCH" 2>/dev/null || true
+if ! git -C "$REPO_ROOT" worktree add "$WORKTREE_DIR" -b "$BRANCH" origin/main 2>/dev/null; then
+  echo ">>> Could not create isolated worktree (repo busy); skipping this cycle."
+  exit 0
+fi
+
+SERVICE_REPORT_DIR="$WORKTREE_DIR/docs/reviews/test-coverage/$SERVICE"
 AUDIT_FILE="$SERVICE_REPORT_DIR/${DATE}-audit.md"
 VALIDATED_FILE="$SERVICE_REPORT_DIR/${DATE}-validated.md"
 
+cleanup_worktree() {
+  # Preserve reports in the real repo for local visibility before teardown.
+  if [ -d "$SERVICE_REPORT_DIR" ]; then
+    mkdir -p "$REPORT_DIR/$SERVICE"
+    cp -f "$SERVICE_REPORT_DIR/${DATE}-"*.md "$REPORT_DIR/$SERVICE/" 2>/dev/null || true
+  fi
+  git -C "$REPO_ROOT" worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
+  git -C "$REPO_ROOT" branch -D "$BRANCH" 2>/dev/null || true
+}
+trap cleanup_worktree EXIT
+
+cd "$WORKTREE_DIR"
+mkdir -p "$SERVICE_REPORT_DIR"
+
 # ============================================================
-# PHASE 1: Test Coverage Audit (read-only, main working dir)
+# PHASE 1: Test Coverage Audit (isolated worktree, clean main)
 # ============================================================
 echo ">>> [Phase 1/4] Auditing test coverage: $SERVICE ($(date))"
 
-bash "$REPO_ROOT/scripts/test-coverage-audit.sh" "$SERVICE" > "$AUDIT_FILE" 2>&1 || {
+bash "$WORKTREE_DIR/scripts/test-coverage-audit.sh" "$SERVICE" > "$AUDIT_FILE" 2>&1 || {
   echo ">>> Audit failed"; exit 1
 }
 
@@ -117,35 +147,9 @@ if [ "$CONFIRMED_COUNT" -eq 0 ]; then
 fi
 
 # ============================================================
-# PHASE 3: Write missing tests (in isolated git worktree)
+# PHASE 3: Write missing tests (already in the isolated worktree)
 # ============================================================
 echo ">>> [Phase 3/4] Writing missing tests..."
-
-SERVICE_LC=$(echo "$SERVICE" | tr '[:upper:]' '[:lower:]')
-BRANCH="test-coverage/${SERVICE_LC}-${DATE}"
-WORKTREE_DIR="/tmp/haworks-testcov-${SERVICE_LC}-$$"
-
-git branch -D "$BRANCH" 2>/dev/null || true
-git worktree add "$WORKTREE_DIR" -b "$BRANCH" main 2>/dev/null
-
-cleanup_worktree() {
-  cd "$REPO_ROOT"
-  git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
-}
-trap cleanup_worktree EXIT
-
-# Copy reports into worktree
-WT_REPORT_DIR="$WORKTREE_DIR/docs/reviews/test-coverage/$SERVICE"
-mkdir -p "$WT_REPORT_DIR"
-cp "$AUDIT_FILE" "$WT_REPORT_DIR/"
-cp "$VALIDATED_FILE" "$WT_REPORT_DIR/"
-
-cd "$WORKTREE_DIR"
-
-# Re-resolve paths relative to worktree
-SERVICE_REPORT_DIR="$WT_REPORT_DIR"
-AUDIT_FILE="$SERVICE_REPORT_DIR/${DATE}-audit.md"
-VALIDATED_FILE="$SERVICE_REPORT_DIR/${DATE}-validated.md"
 
 FIX_PROMPT=$(cat <<FIX_EOF
 You are writing missing tests for the $SERVICE service based on a validated coverage audit.
