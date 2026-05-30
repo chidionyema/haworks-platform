@@ -26,6 +26,7 @@ public class LocationHydrationService(LocationDbContext dbContext, ILogger<Locat
         var guids = new List<Guid>(request.LocationIds.Count);
         foreach (var id in request.LocationIds)
         {
+            context.CancellationToken.ThrowIfCancellationRequested();
             if (Guid.TryParse(id, out var g))
                 guids.Add(g);
             else

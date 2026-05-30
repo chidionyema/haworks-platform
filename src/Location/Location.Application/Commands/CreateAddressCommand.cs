@@ -58,7 +58,19 @@ public class CreateAddressCommandHandler(
             }
         }
 
-        // 2. Generate Geohash (Level 12 for high precision storage)
+        // 2. Check for existing address with same details (prevent race condition)
+        var existing = await dbContext.Addresses
+            .FromSqlRaw(@"
+                SELECT * FROM location.""Addresses""
+                WHERE ""Street"" = {0} AND ""City"" = {1} AND ""Postcode"" = {2} AND ""Country"" = {3}
+                FOR UPDATE",
+                request.Street, request.City, request.Postcode, request.Country)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (existing != null)
+            return Result.Success(existing.Id);
+
+        // 3. Generate Geohash (Level 12 for high precision storage)
         var geohash = geohashService.Encode(lat, lon, 12);
 
         var address = Address.Create(

@@ -67,6 +67,13 @@ public static class DependencyInjection
         services.AddHttpClient<IGeocodingService, NominatimGeocodingService>((sp, c) =>
         {
             var nominatimUrl = configuration["Location:NominatimBaseUrl"] ?? "https://nominatim.openstreetmap.org/";
+            if (!Uri.TryCreate(nominatimUrl, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != "https" && uri.Scheme != "http") ||
+                uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                IsPrivateNetwork(uri.Host))
+            {
+                throw new InvalidOperationException($"Invalid Nominatim URL: {nominatimUrl}");
+            }
             c.BaseAddress = new Uri(nominatimUrl);
             c.DefaultRequestHeaders.Add("User-Agent", "HaworksPlatform/1.0");
             var t = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>>().Value;
@@ -102,4 +109,22 @@ public static class DependencyInjection
 
         return services;
     }
+
+    private static bool IsPrivateNetwork(string host)
+    {
+        if (System.Net.IPAddress.TryParse(host, out var ip))
+        {
+            var bytes = ip.GetAddressBytes();
+            return ip.IsIPv4MappedToIPv6 ? IsPrivateIPv4(bytes[12..]) :
+                   ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? IsPrivateIPv4(bytes) :
+                   false; // Don't block IPv6 for simplicity
+        }
+        return host.EndsWith(".local", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPrivateIPv4(byte[] bytes) =>
+        bytes[0] == 10 ||
+        (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+        (bytes[0] == 192 && bytes[1] == 168) ||
+        (bytes[0] == 127);
 }

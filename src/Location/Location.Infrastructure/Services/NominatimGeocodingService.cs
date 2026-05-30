@@ -33,9 +33,14 @@ public sealed class NominatimGeocodingService(HttpClient httpClient, ILogger<Nom
             logger.LogWarning(ex, "HTTP error geocoding address: {Address}", address);
             return null;
         }
-        catch (TaskCanceledException ex)
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
         {
             logger.LogWarning(ex, "Geocoding request timed out for address: {Address}", address);
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            // Intentional cancellation, don't log
             return null;
         }
         catch (JsonException ex)
