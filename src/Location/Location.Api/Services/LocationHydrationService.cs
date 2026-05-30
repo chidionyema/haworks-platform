@@ -53,8 +53,8 @@ public class LocationHydrationService(LocationDbContext dbContext, ILogger<Locat
             City = a.City,
             Postcode = a.Postcode,
             Country = a.Country,
-            Latitude = a.Coordinates.Y,
-            Longitude = a.Coordinates.X
+            Latitude = a.Coordinates?.Y ?? 0,
+            Longitude = a.Coordinates?.X ?? 0
         }));
 
         return response;
