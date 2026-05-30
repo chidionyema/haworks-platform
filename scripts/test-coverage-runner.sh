@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# macOS ships bash 3.2 at /bin/bash, which cannot parse heredocs nested in $(...).
+# launchd execs /bin/bash directly (bypassing the shebang), so re-exec under modern bash.
+if [ -z "${HAWORKS_BASH_REEXEC:-}" ] && [ "${BASH_VERSINFO:-0}" -lt 4 ]; then
+  for _b in /usr/local/bin/bash /opt/homebrew/bin/bash; do
+    if [ -x "$_b" ]; then HAWORKS_BASH_REEXEC=1 exec "$_b" "$0" "$@"; fi
+  done
+  echo "ERROR: bash >= 4 required but only $BASH_VERSION found" >&2; exit 1
+fi
 set -euo pipefail
 
 # Test Coverage Gap Runner (local cron)
@@ -113,8 +121,9 @@ fi
 # ============================================================
 echo ">>> [Phase 3/4] Writing missing tests..."
 
-BRANCH="test-coverage/${SERVICE,,}-${DATE}"
-WORKTREE_DIR="/tmp/haworks-testcov-${SERVICE,,}-$$"
+SERVICE_LC=$(echo "$SERVICE" | tr '[:upper:]' '[:lower:]')
+BRANCH="test-coverage/${SERVICE_LC}-${DATE}"
+WORKTREE_DIR="/tmp/haworks-testcov-${SERVICE_LC}-$$"
 
 git branch -D "$BRANCH" 2>/dev/null || true
 git worktree add "$WORKTREE_DIR" -b "$BRANCH" main 2>/dev/null
