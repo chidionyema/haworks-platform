@@ -97,17 +97,20 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
         var taxResult = await _taxCalculator.CalculateAsync(
             request.CountryCode, request.StateCode, result.Subtotal, result.Currency, ct).ConfigureAwait(false);
 
-        // Step 8: Assemble final result with tax
-        // M1 Fix: Round final output to 2dp at the boundary (payment gateways expect 2dp).
+        // Step 8: Assemble final result with tax.
+        // Round final output to the CURRENCY's minor-unit precision, not a hardcoded 2dp:
+        // JPY=0, USD/EUR=2, KWD/BHD/OMR=3. Rounding to 2dp here truncated the third
+        // decimal of 3-decimal currencies before minor-unit conversion (1.234 KWD -> 1.23).
         // Internal intermediates use 4dp to prevent accumulation errors.
-        var subtotal2dp = Math.Round(result.Subtotal, 2, MidpointRounding.AwayFromZero);
-        var taxAmount2dp = Math.Round(taxResult.TaxAmount, 2, MidpointRounding.AwayFromZero);
-        var total = subtotal2dp + taxAmount2dp;
+        var currencyDecimals = Money.GetExponent(currency);
+        var subtotalRounded = Math.Round(result.Subtotal, currencyDecimals, MidpointRounding.AwayFromZero);
+        var taxAmountRounded = Math.Round(taxResult.TaxAmount, currencyDecimals, MidpointRounding.AwayFromZero);
+        var total = subtotalRounded + taxAmountRounded;
 
         var finalResult = result with
         {
-            Subtotal = subtotal2dp,
-            TaxAmount = taxAmount2dp,
+            Subtotal = subtotalRounded,
+            TaxAmount = taxAmountRounded,
             TaxRate = taxResult.EffectiveRate,
             Total = total,
         };

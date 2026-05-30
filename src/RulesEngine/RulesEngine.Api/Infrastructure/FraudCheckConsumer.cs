@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using Haworks.BuildingBlocks.Common;
 using Haworks.Contracts.Checkout;
 using Haworks.RulesEngine.Api.Domain;
 using MassTransit;
@@ -39,7 +40,7 @@ public sealed class FraudCheckConsumer(
         // Build the evaluation context from the event
         var variables = new Dictionary<string, object>
         {
-            ["totalAmount"] = (double)(msg.TotalAmountCents / 100m),
+            ["totalAmount"] = (double)new Money(msg.TotalAmountCents, msg.Currency).ToMajorUnits(),
             ["itemCount"] = msg.ItemCount,
             ["isGuest"] = msg.IsGuest,
             ["currency"] = msg.Currency,

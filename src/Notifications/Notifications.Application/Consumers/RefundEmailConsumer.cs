@@ -1,4 +1,5 @@
 using MassTransit;
+using Haworks.BuildingBlocks.Common;
 using Haworks.Contracts.Payments;
 using Haworks.Notifications.Application.Commands;
 using Haworks.Notifications.Domain.Enums;
@@ -33,7 +34,7 @@ public sealed class RefundEmailConsumer(
             Variables: new Dictionary<string, object>
             {
                 ["RefundId"] = msg.RefundId,
-                ["Amount"] = msg.AmountCents / 100m,
+                ["Amount"] = new Money(msg.AmountCents, msg.Currency).ToMajorUnits(),
                 ["Currency"] = msg.Currency
             },
             IdempotencyKey: $"refund-completed-{msg.RefundId}"
