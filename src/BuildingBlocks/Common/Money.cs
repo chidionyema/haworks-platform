@@ -22,11 +22,34 @@ public readonly record struct Money(long MinorUnits, string CurrencyCode)
         (long)Math.Pow(10, GetExponent(currencyCode));
 
     /// <summary>
-    /// Validates an ISO 4217 currency code: exactly three ASCII uppercase letters.
+    /// The set of active ISO 4217 alphabetic currency codes accepted by the platform.
+    /// Membership (not just 3-letter format) is enforced so a well-formed but nonexistent
+    /// code like "ZZZ" is rejected rather than silently treated as a 2-decimal currency.
+    /// </summary>
+    private static readonly HashSet<string> Iso4217 = new(StringComparer.Ordinal)
+    {
+        "AED","AFN","ALL","AMD","ANG","AOA","ARS","AUD","AWG","AZN","BAM","BBD","BDT","BGN",
+        "BHD","BIF","BMD","BND","BOB","BOV","BRL","BSD","BTN","BWP","BYN","BZD","CAD","CDF",
+        "CHE","CHF","CHW","CLF","CLP","CNY","COP","COU","CRC","CUP","CVE","CZK","DJF","DKK",
+        "DOP","DZD","EGP","ERN","ETB","EUR","FJD","FKP","GBP","GEL","GHS","GIP","GMD","GNF",
+        "GTQ","GYD","HKD","HNL","HTG","HUF","IDR","ILS","INR","IQD","IRR","ISK","JMD","JOD",
+        "JPY","KES","KGS","KHR","KMF","KPW","KRW","KWD","KYD","KZT","LAK","LBP","LKR","LRD",
+        "LSL","LYD","MAD","MDL","MGA","MKD","MMK","MNT","MOP","MRU","MUR","MVR","MWK","MXN",
+        "MXV","MYR","MZN","NAD","NGN","NIO","NOK","NPR","NZD","OMR","PAB","PEN","PGK","PHP",
+        "PKR","PLN","PYG","QAR","RON","RSD","RUB","RWF","SAR","SBD","SCR","SDG","SEK","SGD",
+        "SHP","SLE","SOS","SRD","SSP","STN","SVC","SYP","SZL","THB","TJS","TMT","TND","TOP",
+        "TRY","TTD","TWD","TZS","UAH","UGX","USD","USN","UYI","UYU","UYW","UZS","VED","VES",
+        "VND","VUV","WST","XAF","XCD","XOF","XPF","XSU","XUA","YER","ZAR","ZMW","ZWG",
+        // Funds / supranational / precious-metal codes that may legitimately appear.
+        "XDR","XAU","XAG","XPT","XPD","XBA","XBB","XBC","XBD",
+    };
+
+    /// <summary>
+    /// Validates a currency code against the active ISO 4217 alphabetic code set.
     /// This is the single source of truth for currency validation across all services.
     /// </summary>
     public static bool IsValidCurrencyCode(string? currencyCode) =>
-        currencyCode is { Length: 3 } && currencyCode.All(static c => c is >= 'A' and <= 'Z');
+        currencyCode is not null && Iso4217.Contains(currencyCode);
 
     /// <summary>Convert from major units (e.g. 39.99) to Money in minor units (e.g. 3999 cents).</summary>
     /// <exception cref="ArgumentException">The currency code is not a valid ISO 4217 code.</exception>
