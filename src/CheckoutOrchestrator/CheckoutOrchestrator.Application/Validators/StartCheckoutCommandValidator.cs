@@ -21,6 +21,11 @@ internal sealed class StartCheckoutCommandValidator : AbstractValidator<StartChe
             .GreaterThan(0)
             .WithMessage("Total amount must be greater than zero");
 
+        RuleFor(x => x.Currency)
+            .Matches(@"^[A-Z]{3}$")
+            .When(x => !string.IsNullOrEmpty(x.Currency))
+            .WithMessage("Currency must be a valid 3-letter ISO 4217 code (e.g., USD, EUR)");
+
         RuleFor(x => x.Items)
             .NotEmpty()
             .WithMessage("Checkout must contain at least one item")
