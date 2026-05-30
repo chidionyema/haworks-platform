@@ -23,7 +23,7 @@ public sealed class Shipment
     public string TrackingUrl { get; private set; } = string.Empty;
     public string LabelUrl { get; private set; } = string.Empty;
     public long RateAmountCents { get; private set; }
-    public string RateCurrency { get; private set; } = "USD";
+    public string RateCurrency { get; private set; } = string.Empty;
     public string FromStreet { get; private set; } = string.Empty;
     public string FromCity { get; private set; } = string.Empty;
     public string FromState { get; private set; } = string.Empty;

@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Common;
 using Haworks.Contracts.Shipping;
 using Haworks.Shipping.Api.Domain;
 using Haworks.Shipping.Api.Infrastructure;
@@ -49,7 +50,7 @@ public class ShipmentsController(
 
         var result = await provider.BuyLabelAsync(shipment.EasyPostShipmentId, request.RateId, ct);
 
-        var rateCents = (long)Math.Round(result.Amount * 100m, 0, MidpointRounding.AwayFromZero);
+        var rateCents = Money.FromMajorUnits(result.Amount, result.Currency).MinorUnits;
         shipment.MarkLabelPurchased(
             result.Carrier, result.Service, result.TrackingNumber,
             result.TrackingUrl, result.LabelUrl, rateCents, result.Currency, result.EstimatedDelivery);
