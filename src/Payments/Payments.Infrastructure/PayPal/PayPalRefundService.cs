@@ -1,5 +1,7 @@
+using System.Globalization;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Telemetry;
 using MassTransit;
 using Haworks.BuildingBlocks.Resilience;
@@ -66,10 +68,12 @@ internal sealed class PayPalRefundService(
 
                 if (request.AmountCents.HasValue)
                 {
+                    var refundCurrency = request.Currency ?? DefaultCurrency;
                     refundReq.Amount = new PayPalRefundAmount
                     {
-                        CurrencyCode = request.Currency ?? DefaultCurrency,
-                        Value = Math.Round(request.AmountCents.Value / CheckoutConstants.CentMultiplier, 2, MidpointRounding.AwayFromZero).ToString("F2")
+                        CurrencyCode = refundCurrency,
+                        Value = new Money(request.AmountCents.Value, refundCurrency).ToMajorUnits()
+                            .ToString("F" + Money.GetExponent(refundCurrency).ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture)
                     };
                 }
 
@@ -171,7 +175,9 @@ internal sealed class PayPalRefundService(
             {
                 RefundId = refund!.Id!,
                 Status = MapRefundStatus(refund.Status), 
-                AmountCents = (long)Math.Round(decimal.Parse(refund.Amount?.Value ?? "0") * CheckoutConstants.CentMultiplier, 0, MidpointRounding.AwayFromZero),
+                AmountCents = Money.FromMajorUnits(
+                    decimal.Parse(refund.Amount?.Value ?? "0", CultureInfo.InvariantCulture),
+                    refund.Amount?.CurrencyCode ?? DefaultCurrency).MinorUnits,
                 Provider = PaymentProvider.PayPal 
             };
         }

@@ -35,8 +35,6 @@ internal sealed class StripePaymentProcessor(
     private readonly IAsyncPolicy _resiliencePolicy =
         resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.Stripe);
 
-    private const decimal CentMultiplier = 100m;
-
     /// <inheritdoc />
     public async Task HandleCompletedSessionAsync(
         PaymentSessionEvent sessionEvent,
@@ -111,7 +109,7 @@ internal sealed class StripePaymentProcessor(
 
         if (PaymentValidationHelper.HasAmountMismatch(actualPaidCents, expectedTotalCents))
         {
-            await HandleAmountMismatchAsync(payment, actualPaidCents / 100m, expectedTotalCents / 100m, ct).ConfigureAwait(false);
+            await HandleAmountMismatchAsync(payment, actualPaidCents, expectedTotalCents, ct).ConfigureAwait(false);
             return;
         }
 
@@ -243,14 +241,14 @@ internal sealed class StripePaymentProcessor(
 
     private Task HandleAmountMismatchAsync(
         Payment payment,
-        decimal actual,
-        decimal expected,
+        long actualCents,
+        long expectedCents,
         CancellationToken ct)
     {
         return amountMismatchHandler.HandleMismatchAsync(
             payment,
-            actual,
-            expected,
+            actualCents,
+            expectedCents,
             PaymentProvider.Stripe,
             ct);
     }

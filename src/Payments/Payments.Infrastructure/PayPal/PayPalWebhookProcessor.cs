@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Text.Json;
+using Haworks.BuildingBlocks.Common;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Contracts.Payments;
 using MassTransit;
@@ -206,7 +208,7 @@ internal sealed class PayPalWebhookProcessor(
             Provider = PaymentProvider.PayPal,
             Mode = SessionMode.Payment,
             Currency = currency,
-            AmountTotal = (long)Math.Round(decimal.Parse(amount) * CheckoutConstants.CentMultiplier, 0, MidpointRounding.AwayFromZero)
+            AmountTotal = Money.FromMajorUnits(decimal.Parse(amount, CultureInfo.InvariantCulture), currency).MinorUnits
         };
 
         await paymentProcessor.HandleCompletedSessionAsync(sessionEvent, publisher, ct);
@@ -222,6 +224,7 @@ internal sealed class PayPalWebhookProcessor(
         if (status.Equals("COMPLETED", StringComparison.OrdinalIgnoreCase))
         {
             var amount = resource.GetProperty("amount").GetProperty("value").GetString()!;
+            var refundCurrency = resource.GetProperty("amount").GetProperty("currency_code").GetString()!;
 
             // Try to find saga ID in custom_id or invoice_id
             string? sagaIdStr = null;
@@ -235,7 +238,7 @@ internal sealed class PayPalWebhookProcessor(
                 {
                     RefundId = sagaId,
                     ProviderRefundId = refundId,
-                    AmountRefundedCents = (long)Math.Round(decimal.Parse(amount) * 100m, 0, MidpointRounding.AwayFromZero),
+                    AmountRefundedCents = Money.FromMajorUnits(decimal.Parse(amount, CultureInfo.InvariantCulture), refundCurrency).MinorUnits,
                     CompletedAt = DateTime.UtcNow
                 }, ct);
             }
