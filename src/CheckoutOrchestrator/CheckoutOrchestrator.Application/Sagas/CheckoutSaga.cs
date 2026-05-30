@@ -106,43 +106,46 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
 
         Initially(
             When(CheckoutInitiated)
-                .Then(ctx =>
-                {
-                    var msg = ctx.Message;
-                    var sagaState = ctx.Saga;
+                .If(ctx => ctx.Message.TotalAmountCents <= 0,
+                    binder => binder
+                        .Then(ctx =>
+                        {
+                            ctx.Saga.TotalAmountCents = 0;
+                            ctx.Saga.FailureReason = "invalid_amount";
+                            logger.LogWarning(
+                                "CheckoutSaga rejected: TotalAmountCents={TotalAmountCents} is invalid (OrderId={OrderId}, SagaId={SagaId}); storing 0 to prevent invalid data",
+                                ctx.Message.TotalAmountCents, ctx.Message.OrderId, ctx.Saga.CorrelationId);
+                        })
+                        .TransitionTo(Abandoned))
+                .If(ctx => ctx.Message.TotalAmountCents > 0,
+                    binder => binder
+                        .Then(ctx =>
+                        {
+                            var msg = ctx.Message;
+                            var sagaState = ctx.Saga;
 
-                    if (msg.TotalAmountCents <= 0)
-                    {
-sagaState.TotalAmountCents = 0;
-                        sagaState.FailureReason = "invalid_amount";
-                        logger.LogWarning(
-                            "CheckoutSaga rejected: TotalAmountCents={TotalAmountCents} is invalid (OrderId={OrderId}, SagaId={SagaId}); storing 0 to prevent invalid data",
-                            msg.TotalAmountCents, msg.OrderId, sagaState.CorrelationId);
-                        return;
-                    }
-
-                    sagaState.OrderId = msg.OrderId;
-                    sagaState.UserId = msg.UserId;
-                    sagaState.CustomerEmail = msg.CustomerEmail;
-                    sagaState.TotalAmountCents = msg.TotalAmountCents;
-                    sagaState.Currency = msg.Currency ?? throw new InvalidOperationException("Currency is required on CheckoutStartedEvent");
-                    sagaState.IdempotencyKey = msg.IdempotencyKey;
-                    sagaState.LineItemsJson = JsonSerializer.Serialize(msg.Items);
-                    sagaState.CreatedAt = DateTime.UtcNow;
-                    EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Initial", "Initiated");
-                })
-                .PublishAsync(ctx => ctx.Init<StockReservationRequestedEvent>(new StockReservationRequestedEvent
-                {
-                    OrderId = ctx.Message.OrderId,
-                    SagaId = ctx.Saga.CorrelationId,
-                    UserId = ctx.Message.UserId,
-                    CustomerEmail = ctx.Message.CustomerEmail,
-                    TotalAmountCents = ctx.Message.TotalAmountCents,
-                    Currency = ctx.Saga.Currency,
-                    Items = ctx.Message.Items,
-                    IdempotencyKey = ctx.Message.IdempotencyKey,
-                }))
-                .TransitionTo(Initiated));
+                            sagaState.OrderId = msg.OrderId;
+                            sagaState.UserId = msg.UserId;
+                            sagaState.CustomerEmail = msg.CustomerEmail;
+                            sagaState.TotalAmountCents = msg.TotalAmountCents;
+                            sagaState.Currency = msg.Currency ?? throw new InvalidOperationException("Currency is required on CheckoutInitiatedEvent");
+                            sagaState.IdempotencyKey = msg.IdempotencyKey;
+                            sagaState.LineItemsJson = JsonSerializer.Serialize(msg.Items);
+                            sagaState.CreatedAt = DateTime.UtcNow;
+                            EmitTransitionSpan(ctx.Saga.CorrelationId, ctx.Saga.OrderId, "Initial", "Initiated");
+                        })
+                        .PublishAsync(ctx => ctx.Init<StockReservationRequestedEvent>(new StockReservationRequestedEvent
+                        {
+                            OrderId = ctx.Message.OrderId,
+                            SagaId = ctx.Saga.CorrelationId,
+                            UserId = ctx.Message.UserId,
+                            CustomerEmail = ctx.Message.CustomerEmail,
+                            TotalAmountCents = ctx.Message.TotalAmountCents,
+                            Currency = ctx.Saga.Currency,
+                            Items = ctx.Message.Items,
+                            IdempotencyKey = ctx.Message.IdempotencyKey,
+                        }))
+                        .TransitionTo(Initiated)));
 
 
         During(Initiated,
@@ -329,13 +332,18 @@ sagaState.TotalAmountCents = 0;
                             Reason = "manual_resolution_abandoned",
                         }))
                         .TransitionTo(Abandoned))
-                // M5: Log warning when Resolution is neither "completed" nor "abandoned"
+                // M5: Log warning when Resolution is neither "completed" nor "abandoned", then transition to Abandoned
                 .If(ctx => !string.Equals(ctx.Message.Resolution, "completed", StringComparison.OrdinalIgnoreCase)
                         && !string.Equals(ctx.Message.Resolution, "abandoned", StringComparison.OrdinalIgnoreCase),
                     binder => binder
-                        .Then(ctx => logger.LogWarning(
-                            "ManualResolution for saga {SagaId} has unrecognized Resolution '{Resolution}' from operator {OperatorId} — no state change applied",
-                            ctx.Saga.CorrelationId, ctx.Message.Resolution, ctx.Message.OperatorId))));
+                        .Then(ctx =>
+                        {
+                            ctx.Saga.FailureReason = "unrecognized_resolution";
+                            logger.LogWarning(
+                                "ManualResolution for saga {SagaId} has unrecognized Resolution '{Resolution}' from operator {OperatorId} — transitioning to Abandoned",
+                                ctx.Saga.CorrelationId, ctx.Message.Resolution, ctx.Message.OperatorId);
+                        })
+                        .TransitionTo(Abandoned)));
 
         // Idempotency: late-arriving events on non-primary states silently
         // no-op rather than throwing UnhandledEventException. Each event

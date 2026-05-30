@@ -23,6 +23,13 @@ public sealed class CheckoutsController(IMediator mediator) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Start([FromBody] StartCheckoutRequest body, CancellationToken ct)
     {
+        // Validate amount to prevent integer overflow when converting to cents
+        const decimal maxAmount = long.MaxValue / 100m;
+        if (body.TotalAmount > maxAmount)
+        {
+            return BadRequest(new { error = "Total amount is too large." });
+        }
+
         var result = await mediator.Send(new StartCheckoutCommand(
             body.SagaId,
             body.OrderId,

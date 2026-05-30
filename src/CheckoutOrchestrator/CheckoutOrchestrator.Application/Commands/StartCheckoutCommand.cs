@@ -38,9 +38,13 @@ internal sealed class StartCheckoutCommandHandler(
         // Derive a deterministic SagaId from the IdempotencyKey so that retried
         // HTTP requests with the same key never produce a second saga instance.
         // Always derive from IdempotencyKey, ignore user-provided SagaId to prevent interference.
-        var hashInput = !string.IsNullOrEmpty(request.IdempotencyKey)
-            ? request.IdempotencyKey
-            : Guid.NewGuid().ToString("N");
+        if (string.IsNullOrEmpty(request.IdempotencyKey))
+        {
+            return Result.Failure<StartCheckoutResponse>(
+                Error.Validation("StartCheckout.IdempotencyKeyRequired", "IdempotencyKey is required for checkout operations."));
+        }
+
+        var hashInput = request.IdempotencyKey;
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(hashInput));
         var sagaId = new Guid(hash.AsSpan(0, 16));
         var orderId = request.OrderId == Guid.Empty ? Guid.NewGuid() : request.OrderId;

@@ -93,7 +93,7 @@ public sealed class PaymentExpiryWatcher : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "PaymentExpiryWatcher tick failed; will retry next interval");
+            _logger.LogCritical(ex, "PaymentExpiryWatcher tick failed; will retry next interval");
         }
 
         try { await Task.Delay(PollInterval, stoppingToken); }
