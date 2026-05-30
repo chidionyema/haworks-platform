@@ -1,4 +1,5 @@
 using FluentValidation;
+using Haworks.Merchant.Domain.Constants;
 
 namespace Haworks.Merchant.Application.Merchants.Queries;
 
@@ -22,7 +23,7 @@ internal sealed class GetMerchantBySlugQueryValidator : AbstractValidator<GetMer
 {
     public GetMerchantBySlugQueryValidator()
     {
-        RuleFor(x => x.Slug).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Slug).NotEmpty().MaximumLength(MerchantConstants.MaxSlugLength);
     }
 }
 

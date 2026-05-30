@@ -2,6 +2,7 @@ using FluentValidation;
 using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Idempotency;
 using Haworks.Merchant.Application.Common.Interfaces;
+using Haworks.Merchant.Domain.Constants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,9 +26,9 @@ public class UpdateMerchantCommandValidator : AbstractValidator<UpdateMerchantCo
     public UpdateMerchantCommandValidator()
     {
         RuleFor(v => v.MerchantId).NotEmpty();
-        RuleFor(v => v.Name).MaximumLength(200).When(v => v.Name is not null);
-        RuleFor(v => v.Bio).MaximumLength(2000).When(v => v.Bio is not null);
-        RuleFor(v => v.Description).MaximumLength(2000).When(v => v.Description is not null);
+        RuleFor(v => v.Name).MaximumLength(MerchantConstants.MaxNameLength).When(v => v.Name is not null);
+        RuleFor(v => v.Bio).MaximumLength(MerchantConstants.MaxBioLength).When(v => v.Bio is not null);
+        RuleFor(v => v.Description).MaximumLength(MerchantConstants.MaxDescriptionLength).When(v => v.Description is not null);
         RuleFor(v => v.ContactEmail).EmailAddress().When(v => v.ContactEmail is not null);
         RuleFor(v => v.LogoUrl).Must(BeAValidUri).When(v => v.LogoUrl is not null).WithMessage("Invalid URL format.");
         RuleFor(v => v.Website).Must(BeAValidUri).When(v => v.Website is not null).WithMessage("Invalid URL format.");
@@ -46,7 +47,8 @@ public sealed class UpdateMerchantCommandHandler : IRequestHandler<UpdateMerchan
     public async Task<Result> Handle(UpdateMerchantCommand request, CancellationToken cancellationToken)
     {
         var merchant = await _context.Merchants
-            .FirstOrDefaultAsync(m => m.Id == request.MerchantId, cancellationToken);
+            .FromSqlRaw("SELECT * FROM merchant.\"Merchants\" WHERE \"Id\" = {0} FOR UPDATE", request.MerchantId)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (merchant is null)
             return Result.Failure(Error.NotFound("Merchant.NotFound", "Merchant not found."));
