@@ -50,18 +50,48 @@ fi
 echo "$INDEX" > "$STATE_FILE"
 
 DATE=$(date -u +%Y-%m-%d-%H%M)
-SERVICE_REPORT_DIR="$REPORT_DIR/$SERVICE"
-mkdir -p "$SERVICE_REPORT_DIR"
+SERVICE_LC=$(echo "$SERVICE" | tr '[:upper:]' '[:lower:]')
+
+# ============================================================
+# PHASE 0: Isolated worktree off latest main.
+# ALL phases run here so review/build never read the shared working
+# tree (which other agents may be mid-edit on a feature branch).
+# ============================================================
+BRANCH="review/${SERVICE_LC}-${DATE}"
+WORKTREE_DIR="/tmp/haworks-review-${SERVICE_LC}-$$"
+
+git -C "$REPO_ROOT" fetch origin main --quiet 2>/dev/null || true
+git -C "$REPO_ROOT" branch -D "$BRANCH" 2>/dev/null || true
+if ! git -C "$REPO_ROOT" worktree add "$WORKTREE_DIR" -b "$BRANCH" origin/main 2>/dev/null; then
+  echo ">>> Could not create isolated worktree (repo busy); skipping this cycle."
+  exit 0
+fi
+
+SERVICE_REPORT_DIR="$WORKTREE_DIR/docs/reviews/$SERVICE"
 REPORT_FILE="$SERVICE_REPORT_DIR/${DATE}.md"
 VALIDATED_FILE="$SERVICE_REPORT_DIR/${DATE}-validated.md"
 
+cleanup_worktree() {
+  # Preserve reports in the real repo for local visibility before teardown.
+  if [ -d "$SERVICE_REPORT_DIR" ]; then
+    mkdir -p "$REPORT_DIR/$SERVICE"
+    cp -f "$SERVICE_REPORT_DIR/${DATE}"*.md "$REPORT_DIR/$SERVICE/" 2>/dev/null || true
+  fi
+  git -C "$REPO_ROOT" worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
+  git -C "$REPO_ROOT" branch -D "$BRANCH" 2>/dev/null || true
+}
+trap cleanup_worktree EXIT
+
+cd "$WORKTREE_DIR"
+mkdir -p "$SERVICE_REPORT_DIR"
+
 # ============================================================
-# PHASE 1: Deep Review (runs in main working dir — read-only)
+# PHASE 1: Deep Review (isolated worktree, clean main)
 # ============================================================
 echo ">>> [Phase 1/4] Reviewing: $SERVICE ($(date))"
 echo ">>> Report: $REPORT_FILE"
 
-bash "$REPO_ROOT/scripts/continuous-review.sh" "$SERVICE" > "$REPORT_FILE" 2>&1
+bash "$WORKTREE_DIR/scripts/continuous-review.sh" "$SERVICE" > "$REPORT_FILE" 2>&1
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
@@ -80,7 +110,7 @@ if [ "$PHASE1_COUNT" -eq 0 ]; then
 fi
 
 # ============================================================
-# PHASE 2: Self-Review (runs in main working dir — read-only)
+# PHASE 2: Self-Review (isolated worktree, clean main — read-only)
 # ============================================================
 echo ">>> [Phase 2/4] Validating findings..."
 
@@ -126,39 +156,10 @@ if [ "$CONFIRMED_COUNT" -eq 0 ]; then
 fi
 
 # ============================================================
-# PHASE 3: Fix confirmed issues (in isolated git worktree)
+# PHASE 3: Fix confirmed issues (already in the isolated worktree)
 # ============================================================
 echo ">>> [Phase 3/4] Fixing confirmed issues..."
-
-SERVICE_LC=$(echo "$SERVICE" | tr '[:upper:]' '[:lower:]')
-BRANCH="review/${SERVICE_LC}-${DATE}"
-WORKTREE_DIR="/tmp/haworks-review-${SERVICE_LC}-$$"
-
-# Create isolated worktree — no interference with main working directory
-git branch -D "$BRANCH" 2>/dev/null || true
-git worktree add "$WORKTREE_DIR" -b "$BRANCH" main 2>/dev/null
-
-cleanup_worktree() {
-  cd "$REPO_ROOT"
-  git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || true
-}
-trap cleanup_worktree EXIT
-
-# Copy reports into worktree
-WT_REPORT_DIR="$WORKTREE_DIR/docs/reviews/$SERVICE"
-mkdir -p "$WT_REPORT_DIR"
-cp "$REPORT_FILE" "$WT_REPORT_DIR/"
-cp "$VALIDATED_FILE" "$WT_REPORT_DIR/"
-mkdir -p "$WORKTREE_DIR/docs/reviews"
-echo "$INDEX" > "$WORKTREE_DIR/docs/reviews/.review-state"
-
-# All Phase 3/4 work happens inside the worktree
-cd "$WORKTREE_DIR"
-
-# Re-resolve paths relative to worktree
-SERVICE_REPORT_DIR="$WT_REPORT_DIR"
-REPORT_FILE="$SERVICE_REPORT_DIR/${DATE}.md"
-VALIDATED_FILE="$SERVICE_REPORT_DIR/${DATE}-validated.md"
+echo ">>> Working in $WORKTREE_DIR"
 
 # Run Claude Code to fix the confirmed issues
 FIX_PROMPT=$(cat <<FIX_EOF
