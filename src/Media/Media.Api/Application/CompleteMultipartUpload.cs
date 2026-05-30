@@ -58,30 +58,25 @@ public class CompleteMultipartUploadHandler(
         // Stitch parts in S3
         await s3.CompleteMultipartUploadAsync(mediaFile.Id.ToString(), mediaFile.S3UploadId, parts, ct);
 
-        // Download to temp file to avoid OOM for large files
+        // Verify server-side hash matches client-declared hash (streaming, no disk usage)
+        var actualHash = await s3.ComputeSha256Async(mediaFile.Id.ToString(), ct);
+        if (!string.Equals(actualHash, mediaFile.Hash, StringComparison.OrdinalIgnoreCase))
+        {
+            await using var hashTx = await context.Database.BeginTransactionAsync(ct);
+            mediaFile.MarkAsQuarantined();
+            await context.SaveChangesAsync(ct);
+            mediaFile.MarkAsRejected();
+            await context.SaveChangesAsync(ct);
+            await hashTx.CommitAsync(ct);
+            return Result.Failure<Unit>(new Error("Media.HashMismatch",
+                "Server-side hash does not match declared hash."));
+        }
+
+        // Download to temp file for virus scanning only
         var tempPath = Path.Combine(Path.GetTempPath(), $"media-scan-{Guid.NewGuid()}");
         try
         {
             await s3.DownloadToFileAsync(mediaFile.Id.ToString(), tempPath, ct);
-
-            // Verify server-side hash matches client-declared hash
-            await using (var hashStream = File.OpenRead(tempPath))
-            {
-                var actualHash = Convert.ToHexStringLower(
-                    await System.Security.Cryptography.SHA256.HashDataAsync(hashStream, ct));
-                if (!string.Equals(actualHash, mediaFile.Hash, StringComparison.OrdinalIgnoreCase))
-                {
-                    await using var hashTx = await context.Database.BeginTransactionAsync(ct);
-                    mediaFile.MarkAsQuarantined();
-                    await context.SaveChangesAsync(ct);
-                    mediaFile.MarkAsRejected();
-                    await context.SaveChangesAsync(ct);
-                    await hashTx.CommitAsync(ct);
-                    return Result.Failure<Unit>(new Error("Media.HashMismatch",
-                        "Server-side hash does not match declared hash."));
-                }
-            }
-
             var isClean = await virusScanner.ScanFileAsync(tempPath, ct);
 
             // All DB writes + event publishes inside a single transaction (outbox atomicity)

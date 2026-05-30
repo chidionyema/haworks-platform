@@ -143,10 +143,6 @@ public class MediaFile
         StampUpdate(time, null);
     }
 
-    public void MarkDeleted(TimeProvider time)
-    {
-        MarkAsDeleted(time);
-    }
 
     private void StampUpdate(TimeProvider? time, string? actor)
     {
