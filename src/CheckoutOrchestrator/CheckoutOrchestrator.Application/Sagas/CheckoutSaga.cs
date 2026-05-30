@@ -2,6 +2,7 @@ using System.Text.Json;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.CheckoutOrchestrator.Application.Options;
 using Haworks.CheckoutOrchestrator.Application.Telemetry;
@@ -300,7 +301,7 @@ public sealed class CheckoutSaga : MassTransitStateMachine<CheckoutSagaState>
                 .TransitionTo(Abandoned),
             When(PaymentAmountMismatch)
                 .Then(ctx => ctx.Saga.FailureReason =
-                    $"PaymentAmountMismatch: expected={ctx.Message.ExpectedTotalCents / 100m:F2}, actual={ctx.Message.ActualPaidCents / 100m:F2}")
+                    $"PaymentAmountMismatch: expected={new Money(ctx.Message.ExpectedTotalCents, ctx.Message.Currency)}, actual={new Money(ctx.Message.ActualPaidCents, ctx.Message.Currency)}")
                 .Unschedule(PaymentExpirySchedule)
                 // Do NOT release stock here — customer has paid. Stock remains
                 // reserved in RequiresReview so ops can either complete the order
