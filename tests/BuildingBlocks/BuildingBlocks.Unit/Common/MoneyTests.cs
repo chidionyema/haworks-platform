@@ -10,24 +10,28 @@ public sealed class MoneyTests
     [InlineData("USD", true)]
     [InlineData("EUR", true)]
     [InlineData("JPY", true)]
-    [InlineData("usd", false)]
-    [InlineData("US", false)]
-    [InlineData("USDD", false)]
-    [InlineData("US1", false)]
+    [InlineData("GBP", true)]
+    [InlineData("KWD", true)]   // 3-decimal, real
+    [InlineData("BHD", true)]   // 3-decimal, real
+    [InlineData("KRW", true)]   // 0-decimal, real
+    [InlineData("usd", false)]  // lowercase
+    [InlineData("US", false)]   // too short
+    [InlineData("USDD", false)] // too long
+    [InlineData("US1", false)]  // digit
     [InlineData("", false)]
     [InlineData(null, false)]
-    public void IsValidCurrencyCode_ValidatesThreeUppercaseLetterFormat(string? code, bool expected) =>
+    public void IsValidCurrencyCode_ValidatesAgainstIso4217Allowlist(string? code, bool expected) =>
         Money.IsValidCurrencyCode(code).Should().Be(expected);
 
-    // ADV-07: IsValidCurrencyCode is STRUCTURAL ONLY — it does NOT check ISO 4217 membership.
-    // A well-formed-but-nonexistent code passes and silently gets default exponent 2.
-    // This test pins that documented behavior; revisit if an ISO 4217 allowlist is adopted.
+    // ADV-07: well-formed but NON-EXISTENT codes are now REJECTED by the ISO 4217 allowlist
+    // (previously they passed structural validation and silently got exponent 2).
     [Theory]
     [InlineData("ZZZ")]
-    [InlineData("XXX")]
     [InlineData("QQQ")]
-    public void IsValidCurrencyCode_AcceptsWellFormedNonexistentCodes_StructuralOnly(string code) =>
-        Money.IsValidCurrencyCode(code).Should().BeTrue();
+    [InlineData("ABC")]
+    [InlineData("XXX")]   // "no currency" — not transactable
+    public void IsValidCurrencyCode_RejectsWellFormedNonexistentCodes(string code) =>
+        Money.IsValidCurrencyCode(code).Should().BeFalse();
 
     [Theory]
     [InlineData("USD", 39.99, 3999L)]    // 2-decimal: cents
