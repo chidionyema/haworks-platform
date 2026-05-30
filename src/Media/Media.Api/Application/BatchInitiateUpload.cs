@@ -31,14 +31,18 @@ public class BatchInitiateUploadHandler(
         if (string.IsNullOrEmpty(ownerId))
             return Result.Failure<IReadOnlyList<UploadResponse>>(new Error("Media.Unauthorized", "Authenticated user identity could not be resolved."));
 
+        // Fix N+1: Get all existing files with matching hashes in a single query
+        var requestHashes = request.Files.Select(f => f.Hash).ToHashSet();
+        var existingFiles = await context.MediaFiles
+            .Where(f => requestHashes.Contains(f.Hash) && f.OwnerId == ownerId)
+            .ToDictionaryAsync(f => f.Hash, f => f, ct);
+
         var responses = new List<UploadResponse>(request.Files.Count);
+        var newMediaFiles = new List<MediaFile>();
 
         foreach (var file in request.Files)
         {
-            var existing = await context.MediaFiles
-                .FirstOrDefaultAsync(f => f.Hash == file.Hash && f.OwnerId == ownerId, ct);
-
-            if (existing != null)
+            if (existingFiles.TryGetValue(file.Hash, out var existing))
             {
                 responses.Add(new UploadResponse(existing.Id, null, true));
                 continue;
@@ -49,8 +53,7 @@ public class BatchInitiateUploadHandler(
 
             if (file.Size <= _opts.SinglePutMaxBytes)
             {
-                context.MediaFiles.Add(mediaFile);
-                await context.SaveChangesAsync(ct);
+                newMediaFiles.Add(mediaFile);
                 var uploadUrl = s3.GeneratePreSignedUrl(key, mediaFile.MimeType);
                 responses.Add(new UploadResponse(mediaFile.Id, uploadUrl, false));
             }
@@ -59,8 +62,7 @@ public class BatchInitiateUploadHandler(
                 var partCount = (int)Math.Ceiling((double)file.Size / _opts.PartSizeBytes);
                 var s3UploadId = await s3.InitiateMultipartUploadAsync(key, file.MimeType, ct);
                 mediaFile.InitiateMultipart(s3UploadId, partCount);
-                context.MediaFiles.Add(mediaFile);
-                await context.SaveChangesAsync(ct);
+                newMediaFiles.Add(mediaFile);
 
                 var partUrls = Enumerable.Range(1, partCount)
                     .Select(i => s3.GeneratePartPresignedUrl(key, s3UploadId, i))
@@ -68,6 +70,13 @@ public class BatchInitiateUploadHandler(
 
                 responses.Add(new UploadResponse(mediaFile.Id, null, false, true, s3UploadId, partCount, partUrls));
             }
+        }
+
+        // Fix atomicity: Single SaveChangesAsync for all new files
+        if (newMediaFiles.Count > 0)
+        {
+            context.MediaFiles.AddRange(newMediaFiles);
+            await context.SaveChangesAsync(ct);
         }
 
         return responses;

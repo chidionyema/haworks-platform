@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Haworks.BuildingBlocks.CurrentUser;
 
 namespace Haworks.Media.Api.Application;
@@ -8,17 +7,26 @@ public record MediaUrlResponse(string Url, DateTime ExpiresAt);
 
 public partial class GetMediaUrlValidator : AbstractValidator<GetMediaUrlQuery>
 {
-    [GeneratedRegex(@"^[a-zA-Z0-9_\-/\.]{1,100}$", RegexOptions.NonBacktracking)]
-    private static partial Regex SafeVariantPattern();
+    private static readonly HashSet<string> AllowedVariants = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Audio variants
+        "audio-normalized",
+
+        // Video variants
+        "hls-master",
+        "hls-1080p", "hls-720p", "hls-480p", "hls-360p",
+
+        // Image variants (common thumbnail sizes)
+        "thumbnail-50", "thumbnail-150", "thumbnail-300", "thumbnail-500", "thumbnail-1000",
+        "webp-50", "webp-150", "webp-300", "webp-500", "webp-1000"
+    };
 
     public GetMediaUrlValidator()
     {
         RuleFor(x => x.MediaId).NotEmpty();
         RuleFor(x => x.Variant)
-            .Must(v => v == null || SafeVariantPattern().IsMatch(v))
-            .WithMessage("Variant contains invalid characters.")
-            .Must(v => v == null || !v.Contains("..", StringComparison.Ordinal))
-            .WithMessage("Path traversal is not allowed.");
+            .Must(v => v == null || AllowedVariants.Contains(v))
+            .WithMessage("Invalid variant. Allowed variants: audio-normalized, hls-master, hls-{quality}, thumbnail-{size}, webp-{size}");
     }
 }
 
