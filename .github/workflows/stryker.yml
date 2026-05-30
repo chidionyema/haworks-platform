@@ -1,0 +1,163 @@
+name: Stryker Mutation Testing
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 3 * * *" # nightly at 3:23 AM UTC
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Single service to run (leave empty for all)"
+        required: false
+        type: string
+
+concurrency:
+  group: stryker-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  detect-changes:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has_services: ${{ steps.set-matrix.outputs.has_services }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Build service matrix
+        id: set-matrix
+        run: |
+          # Map of service name -> stryker config file
+          declare -A SVC_MAP=(
+            [Audit]=audit
+            [BffWeb]=bff-web
+            [Catalog]=catalog
+            [CheckoutOrchestrator]=checkout-orchestrator
+            [Identity]=identity
+            [Location]=location
+            [Media]=media
+            [Merchant]=merchant
+            [Notifications]=notifications
+            [Orders]=orders
+            [Payments]=payments
+            [Payouts]=payouts
+            [Pricing]=pricing
+            [Privacy]=privacy
+            [Realtime]=realtime
+            [RulesEngine]=rules-engine
+            [Scheduler]=scheduler
+            [Search]=search
+            [Shipping]=shipping
+            [Webhooks]=webhooks
+          )
+
+          services=()
+
+          if [ -n "${{ inputs.service }}" ]; then
+            # Manual trigger for a specific service
+            svc="${{ inputs.service }}"
+            slug="${SVC_MAP[$svc]}"
+            if [ -n "$slug" ] && [ -f "stryker/${slug}.json" ]; then
+              services+=("{\"name\":\"$svc\",\"config\":\"${slug}\"}")
+            fi
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            # PR: only services with changed files
+            changed_files=$(git diff --name-only origin/main...HEAD)
+            for svc in "${!SVC_MAP[@]}"; do
+              if echo "$changed_files" | grep -q "^src/$svc/"; then
+                slug="${SVC_MAP[$svc]}"
+                [ -f "stryker/${slug}.json" ] && services+=("{\"name\":\"$svc\",\"config\":\"${slug}\"}")
+              fi
+            done
+          else
+            # Nightly / dispatch without service: run all
+            for svc in "${!SVC_MAP[@]}"; do
+              slug="${SVC_MAP[$svc]}"
+              [ -f "stryker/${slug}.json" ] && services+=("{\"name\":\"$svc\",\"config\":\"${slug}\"}")
+            done
+          fi
+
+          if [ ${#services[@]} -eq 0 ]; then
+            echo "matrix={\"include\":[]}" >> "$GITHUB_OUTPUT"
+            echo "has_services=false" >> "$GITHUB_OUTPUT"
+          else
+            joined=$(printf ',%s' "${services[@]}")
+            joined="${joined:1}"
+            echo "matrix={\"include\":[${joined}]}" >> "$GITHUB_OUTPUT"
+            echo "has_services=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Services to mutate: ${services[*]:-none}"
+
+  mutate:
+    name: "Stryker / ${{ matrix.name }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.has_services == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Install Stryker
+        run: dotnet tool install --global dotnet-stryker
+
+      - name: Restore
+        run: dotnet restore HaworksPlatform.sln
+
+      - name: "Run Stryker: ${{ matrix.name }}"
+        run: |
+          EXTRA_ARGS=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            EXTRA_ARGS="--since origin/main"
+          fi
+          dotnet stryker \
+            --config-file "stryker/${{ matrix.config }}.json" \
+            --output "StrykerOutput/${{ matrix.name }}" \
+            $EXTRA_ARGS
+
+      - name: Post mutation score to PR
+        if: github.event_name == 'pull_request' && always()
+        run: |
+          REPORT=$(find StrykerOutput -name "mutation-report.md" -type f | head -1)
+          if [ -f "$REPORT" ]; then
+            SCORE=$(grep -oP 'Mutation score: \K[0-9.]+' "$REPORT" || echo "N/A")
+            echo "### Stryker: ${{ matrix.name }} — Score: ${SCORE}%" >> "$GITHUB_STEP_SUMMARY"
+            head -50 "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Stryker: ${{ matrix.name }} — No report generated" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stryker-${{ matrix.name }}
+          path: StrykerOutput/
+          retention-days: 14

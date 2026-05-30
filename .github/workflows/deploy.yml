@@ -390,3 +390,41 @@ jobs:
           echo "::error::BFF smoke test failed — rolling back"
           flyctl releases rollback -a haworks-bffweb
           exit 1
+
+  post-deploy-smoke:
+    name: Post-deploy smoke tests
+    needs: [deploy-bff]
+    if: ${{ always() && needs.deploy-bff.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Run Smoke tests against live deployment
+        env:
+          SMOKE_TARGET_URL: https://haworks-bffweb.fly.dev
+        run: |
+          dotnet test tests/Smoke/Smoke.csproj --configuration Release \
+            --logger "trx;LogFileName=smoke-results.trx" \
+            --logger "console;verbosity=normal"
+
+      - name: Upload smoke test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: post-deploy-smoke-results
+          path: '**/TestResults/*.trx'
+          retention-days: 7
