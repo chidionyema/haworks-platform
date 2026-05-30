@@ -15,7 +15,7 @@ public record SubscriptionEventResult
 {
     public string? UserId { get; init; }
     public long AmountCents { get; init; }
-    public string Currency { get; init; } = "USD";
+    public string Currency { get; init; } = string.Empty;
     public DateTime? PeriodEnd { get; init; }
 }
 

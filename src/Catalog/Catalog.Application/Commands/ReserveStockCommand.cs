@@ -94,7 +94,7 @@ internal sealed class ReserveStockCommandHandler(
                     ProductName = product.Name,
                     Quantity = request.Quantity,
                     UnitPriceCents = product.UnitPriceCents,
-                    Currency = request.Currency ?? "USD"
+                    Currency = request.Currency
                 }
             }
         }, ct);

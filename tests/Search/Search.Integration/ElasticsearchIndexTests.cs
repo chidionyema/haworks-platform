@@ -63,7 +63,7 @@ public sealed class ElasticsearchIndexTests : IAsyncLifetime
         fetched.Should().NotBeNull();
         fetched!.Name.Should().Be(doc.Name);
         fetched.CategoryName.Should().Be(doc.CategoryName);
-        fetched.UnitPrice.Should().Be(doc.UnitPrice);
+        fetched.UnitPriceCents.Should().Be(doc.UnitPriceCents);
         fetched.SourceVersion.Should().Be(doc.SourceVersion);
     }
 
@@ -126,7 +126,8 @@ public sealed class ElasticsearchIndexTests : IAsyncLifetime
             Description = "Lorem ipsum dolor sit amet.",
             CategoryId = Guid.NewGuid().ToString(),
             CategoryName = categoryName,
-            UnitPrice = 29.99m,
+            UnitPriceCents = 2999L,
+            CurrencyCode = "USD",
             IsInStock = true,
             IsListed = true,
             SourceVersion = 1,

@@ -12,7 +12,7 @@ public class RefundSagaState : SagaStateMachineInstance, ISagaVersion
     public Guid PaymentId { get; set; }
     public Guid RefundId { get; set; }        // mirrored from CorrelationId for clarity
     public long AmountCents { get; set; }
-    public string Currency { get; set; } = "USD";
+    public string Currency { get; set; } = string.Empty;
     public string Reason { get; set; } = "";  // customer-cited reason, free-form
     public string Provider { get; set; } = ""; // "Stripe" | "PayPal"
     public string? ProviderRefundId { get; set; }  // populated post-ProviderRefundInitiated

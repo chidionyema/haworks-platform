@@ -73,7 +73,8 @@ public sealed class ProductsController(
         var command = new CreateProductCommand(
             body.Name,
             body.Description,
-            Money.FromMajorUnits(body.UnitPrice, "USD").MinorUnits,
+            Money.FromMajorUnits(body.UnitPrice, body.Currency).MinorUnits,
+            body.Currency,
             body.CategoryId,
             body.InitialStock);
         var result = await mediator.Send(command, ct);
@@ -89,7 +90,8 @@ public sealed class ProductsController(
             id,
             body.Name,
             body.Description,
-            Money.FromMajorUnits(body.UnitPrice, "USD").MinorUnits,
+            Money.FromMajorUnits(body.UnitPrice, body.Currency).MinorUnits,
+            body.Currency,
             body.CategoryId,
             body.IsListed,
             body.CorrelationId);
@@ -146,6 +148,7 @@ public sealed record CreateProductRequest
     public required string Name { get; init; }
     public required string Description { get; init; }
     public required decimal UnitPrice { get; init; }
+    public required string Currency { get; init; }
     public required Guid CategoryId { get; init; }
     public int InitialStock { get; init; } = 0;
 }
@@ -155,6 +158,7 @@ public sealed record UpdateProductRequest
     public required string Name { get; init; }
     public required string Description { get; init; }
     public required decimal UnitPrice { get; init; }
+    public required string Currency { get; init; }
     public required Guid CategoryId { get; init; }
     public required bool IsListed { get; init; }
     public Guid? CorrelationId { get; init; }

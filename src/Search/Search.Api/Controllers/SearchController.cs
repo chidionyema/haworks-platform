@@ -66,7 +66,8 @@ public sealed class SearchController : ControllerBase
             Snippet      = h.Name,
             CategoryId   = h.CategoryId,
             CategoryName = h.CategoryName,
-            UnitPrice    = h.UnitPrice,
+            UnitPriceCents = h.UnitPriceCents,
+            Currency = h.CurrencyCode,
             IsInStock    = h.IsInStock,
             // Placeholder score — Meilisearch's showRankingScore will
             // populate this in v2. Same spec stability rationale.

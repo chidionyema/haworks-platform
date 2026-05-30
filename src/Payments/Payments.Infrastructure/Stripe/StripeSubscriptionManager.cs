@@ -24,7 +24,6 @@ public sealed class StripeSubscriptionManager(
     ILogger<StripeSubscriptionManager> logger,
     ITelemetryService telemetry) : ISubscriptionManager
 {
-    private const string DefaultCurrency = "USD";
     private readonly IAsyncPolicy _resiliencePolicy = 
         resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.Stripe);
 
@@ -163,11 +162,17 @@ public sealed class StripeSubscriptionManager(
         }
 
         _ = long.TryParse(subscriptionEvent.Metadata.GetValueOrDefault("amount_cents"), out var resultAmount);
+        var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency");
+        if (string.IsNullOrEmpty(currency) || !Haworks.BuildingBlocks.Common.Money.IsValidCurrencyCode(currency))
+        {
+            currency = "USD";
+        }
+
         return new SubscriptionEventResult
         {
             UserId = existing?.UserId ?? subscriptionEvent.UserId,
             AmountCents = resultAmount,
-            Currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency),
+            Currency = currency,
             PeriodEnd = existing?.ExpiresAt ?? subscriptionEvent.CurrentPeriodEnd,
         };
     }
@@ -225,7 +230,11 @@ public sealed class StripeSubscriptionManager(
         }
 
         _ = long.TryParse(subscriptionEvent.Metadata.GetValueOrDefault("amount_cents"), out var amount);
-        var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency", DefaultCurrency);
+        var currency = subscriptionEvent.Metadata.GetValueOrDefault("currency");
+        if (string.IsNullOrEmpty(currency) || !Haworks.BuildingBlocks.Common.Money.IsValidCurrencyCode(currency))
+        {
+            currency = "USD";
+        }
 
         // MassTransit EF outbox commits entity state + outbox messages atomically
         await publisher.Publish(new SubscriptionRenewedEvent

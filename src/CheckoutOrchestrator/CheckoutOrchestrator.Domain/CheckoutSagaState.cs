@@ -35,7 +35,7 @@ public class CheckoutSagaState : SagaStateMachineInstance, ISagaVersion
     public string UserId { get; set; } = string.Empty;
     public string CustomerEmail { get; set; } = string.Empty;
     public long TotalAmountCents { get; set; }
-    public string Currency { get; set; } = "USD";
+    public string Currency { get; set; } = string.Empty;
     public string? IdempotencyKey { get; set; }
 
     /// <summary>JSON-serialized line items snapshot (passed through to downstream events).</summary>

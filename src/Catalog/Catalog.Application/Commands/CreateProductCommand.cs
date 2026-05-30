@@ -1,6 +1,8 @@
 using FluentValidation;
 using Haworks.BuildingBlocks.Idempotency;
+using Haworks.Catalog.Domain;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace Haworks.Catalog.Application.Commands;
 
@@ -8,6 +10,7 @@ public sealed record CreateProductCommand(
     string Name,
     string Description,
     long UnitPriceCents,
+    string Currency,
     Guid CategoryId,
     int InitialStock,
     string IdempotencyKey = "") : IIdempotentCommand, IRequest<Result<Guid>>;
@@ -27,7 +30,7 @@ internal sealed class CreateProductCommandHandler(
             return Result.Failure<Guid>(Error.Categories.NotFoundWithId(request.CategoryId));
         }
 
-        var product = Product.Create(request.Name, request.Description, request.UnitPriceCents, request.CategoryId);
+        var product = Product.Create(request.Name, request.Description, request.UnitPriceCents, request.Currency, request.CategoryId);
         if (request.InitialStock > 0)
         {
             product.RestockTo(request.InitialStock);

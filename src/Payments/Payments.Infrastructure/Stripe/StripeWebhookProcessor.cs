@@ -18,7 +18,6 @@ namespace Haworks.Payments.Infrastructure.Stripe;
 /// </summary>
 internal sealed class StripeWebhookProcessor : IWebhookProcessor
 {
-    private const string DefaultCurrency = "USD";
     private readonly IPaymentSessionProcessor _paymentProcessor;
     private readonly ISubscriptionManager _subscriptionManager;
     private readonly IWebhookIdempotencyGuard _idempotencyGuard;
@@ -162,7 +161,7 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
                 TransactionId = session.PaymentIntentId ?? string.Empty,
                 Mode = SessionMode.Payment,
                 AmountTotal = session.AmountTotal ?? 0,
-                Currency = session.Currency ?? DefaultCurrency,
+                Currency = session.Currency ?? "USD",
                 Provider = Provider,
                 Metadata = session.Metadata
             };

@@ -12,8 +12,8 @@ public interface IPaymentAmountMismatchHandler
     /// </summary>
     Task HandleMismatchAsync(
         Payment payment,
-        decimal actualPaid,
-        decimal expectedTotal,
+        long actualPaidCents,
+        long expectedTotalCents,
         PaymentProvider provider,
         CancellationToken ct = default);
 }

@@ -41,8 +41,7 @@ public class Payment : AuditableEntity
 
     public long AmountCents { get; private set; }
     public long TaxCents { get; private set; }
-    public string Currency { get; private set; } = "USD";
-
+    public string Currency { get; private set; } = string.Empty;
     public PaymentStatus Status { get; private set; } = PaymentStatus.Pending;
     public string PaymentMethod { get; private set; } = string.Empty;
     public bool IsComplete { get; private set; }

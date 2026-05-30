@@ -53,6 +53,7 @@ public class UpdateProductCommandHandlerTests : TestBase
             "New Name",
             "New Description",
             2099L,
+            "USD",
             categoryId,
             true);
 
@@ -92,7 +93,7 @@ public class UpdateProductCommandHandlerTests : TestBase
     public async Task Handle_WithInvalidProduct_ReturnsFailure()
     {
         var command = new UpdateProductCommand(
-            Guid.NewGuid(), "Name", "Desc", 1000L, Guid.NewGuid(), true);
+            Guid.NewGuid(), "Name", "Desc", 1000L, "USD", Guid.NewGuid(), true);
 
         _productRepositoryMock
             .Setup(x => x.GetByIdTrackedAsync(command.ProductId, It.IsAny<CancellationToken>()))

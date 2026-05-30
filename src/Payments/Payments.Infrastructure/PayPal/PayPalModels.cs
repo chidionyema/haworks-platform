@@ -39,7 +39,7 @@ internal sealed class PayPalPurchaseUnit
 /// </summary>
 internal sealed class PayPalAmount
 {
-    public string CurrencyCode { get; set; } = "USD";
+    public string CurrencyCode { get; set; } = string.Empty;
     public string Value { get; set; } = "0.00";
 }
 
@@ -203,7 +203,7 @@ internal sealed class PayPalRefundRequest
 /// </summary>
 internal sealed class PayPalRefundAmount
 {
-    public string CurrencyCode { get; set; } = "USD";
+    public string CurrencyCode { get; set; } = string.Empty;
     public string Value { get; set; } = "0.00";
 }
 
