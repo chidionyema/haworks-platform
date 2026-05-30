@@ -42,7 +42,7 @@ public class Order : AuditableEntity
     public string CustomerEmail { get; private set; } = string.Empty;
 
     public long TotalAmountCents { get; private set; }
-    public string Currency { get; private set; } = "USD";
+    public string Currency { get; private set; } = string.Empty;
     public OrderStatus Status { get; private set; } = OrderStatus.Created;
 
     /// <summary>Set when transitioning to Paid (consumer of PaymentCompletedEvent).</summary>

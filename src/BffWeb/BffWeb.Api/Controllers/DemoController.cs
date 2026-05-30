@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Haworks.BffWeb.Api;
 using Haworks.BffWeb.Api.Demo;
 using Haworks.BffWeb.Application.Interfaces;
+using Haworks.BuildingBlocks.Common;
 using Haworks.Contracts.Checkout;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -234,7 +235,7 @@ public class DemoController : ControllerBase
                 orderId,
                 userId = "demo-user",
                 customerEmail = "demo@haworks.dev",
-                totalAmount = items.Sum(i => (i.UnitPriceCents / 100m) * i.Quantity),
+                totalAmount = items.Sum(i => new Money(i.UnitPriceCents * i.Quantity, "GBP").ToMajorUnits()),
                 currency = "GBP",
                 idempotencyKey,
                 items,
@@ -1377,7 +1378,7 @@ public class DemoController : ControllerBase
         var refundResp = await client.PostAsJsonAsync("/api/v1/refunds", new
         {
             paymentId,
-            amount = request.RefundAmountCents / 100m,
+            amount = new Money(request.RefundAmountCents, request.Currency ?? DefaultCurrency).ToMajorUnits(),
             currency = request.Currency ?? DefaultCurrency,
             reason = request.Reason ?? "Demo refund",
             requestedBy = "demo-user",

@@ -40,7 +40,7 @@ public record CreateCheckoutSessionRequest
     public required string IdempotencyKey { get; init; }
     public required IReadOnlyList<LineItem> LineItems { get; init; }
     public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
-    public string Currency { get; init; } = "USD";
+    public string Currency { get; init; } = string.Empty;
     public string? CustomerId { get; init; }
     public string? UserId { get; init; }
     public Guid? OrderId { get; init; }
@@ -55,7 +55,7 @@ public record LineItem
     public string? Description { get; init; }
     public required long UnitAmountCents { get; init; }
     public required int Quantity { get; init; }
-    public string Currency { get; init; } = "USD";
+    public string Currency { get; init; } = string.Empty;
 }
 
 /// <summary>

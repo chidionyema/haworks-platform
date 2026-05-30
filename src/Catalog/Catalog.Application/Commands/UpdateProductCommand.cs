@@ -15,6 +15,7 @@ public sealed record UpdateProductCommand(
     string Name,
     string Description,
     long UnitPriceCents,
+    string Currency,
     Guid CategoryId,
     bool IsListed,
     Guid? CorrelationId = null,
@@ -62,7 +63,7 @@ internal sealed class UpdateProductCommandHandler : IRequestHandler<UpdateProduc
         }
 
         product.UpdateBasicInfo(request.Name, request.Description);
-        product.UpdatePricing(request.UnitPriceCents);
+        product.UpdatePricing(request.UnitPriceCents, request.Currency);
 
         // CategoryId can't be changed via basic update per ADR-0009 or requires specific handling
         // For this port, we will update it if needed. The Product entity currently doesn't have an UpdateCategory method

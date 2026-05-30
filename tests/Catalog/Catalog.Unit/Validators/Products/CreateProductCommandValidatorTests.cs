@@ -13,6 +13,7 @@ public class CreateProductCommandValidatorTests
         Name: "Test Product",
         Description: "Test Description",
         UnitPriceCents: 9999,
+        Currency: "USD",
         CategoryId: Guid.NewGuid(),
         InitialStock: 100
     );

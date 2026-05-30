@@ -11,7 +11,7 @@ public static class DomainTestHelpers
         Guid? categoryId = null,
         int stock = 100)
     {
-        var product = Product.Create(name, description, unitPriceCents, categoryId ?? Guid.NewGuid());
+        var product = Product.Create(name, description, unitPriceCents, "USD", categoryId ?? Guid.NewGuid());
         product.RestockTo(stock);
         return product;
     }

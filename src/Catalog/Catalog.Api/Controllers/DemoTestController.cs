@@ -210,6 +210,7 @@ public sealed class DemoTestController(
                     ProductName,
                     "Demo product for the portfolio cache-invalidation demo",
                     UnitPriceCents: 3999,
+                    Currency: "USD",
                     CategoryId: demoCategory.Id,
                     InitialStock: 1000),
                 ct);

@@ -20,7 +20,7 @@ public class ListProductsQueryHandlerTests
     [Fact]
     public async Task Handle_ReturnsPagedProducts()
     {
-        var products = new List<Product> { Product.Create("P1", "D1", 1000L, Guid.NewGuid()) };
+        var products = new List<Product> { Product.Create("P1", "D1", 1000L, "USD", Guid.NewGuid()) };
         _repositoryMock.Setup(r => r.ListAsync(0, 20, null, It.IsAny<CancellationToken>())).ReturnsAsync(products);
         _repositoryMock.Setup(r => r.CountAsync(null, It.IsAny<CancellationToken>())).ReturnsAsync(1);
 

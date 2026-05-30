@@ -1,5 +1,6 @@
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Telemetry;
 using MassTransit;
 using Haworks.BuildingBlocks.Resilience;
@@ -9,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Polly;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Globalization;
 
 namespace Haworks.Payments.Infrastructure.PayPal;
 
@@ -24,7 +26,6 @@ internal sealed class PayPalRefundService(
     ILogger<PayPalRefundService> logger,
     ITelemetryService telemetry) : IRefundService
 {
-    private const string DefaultCurrency = "USD";
     private readonly IAsyncPolicy _resiliencePolicy = 
         resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
 
@@ -66,10 +67,12 @@ internal sealed class PayPalRefundService(
 
                 if (request.AmountCents.HasValue)
                 {
+                    var refundCurrency = request.Currency ?? "USD";
                     refundReq.Amount = new PayPalRefundAmount
                     {
-                        CurrencyCode = request.Currency ?? DefaultCurrency,
-                        Value = Math.Round(request.AmountCents.Value / CheckoutConstants.CentMultiplier, 2, MidpointRounding.AwayFromZero).ToString("F2")
+                        CurrencyCode = refundCurrency,
+                        Value = new Money(request.AmountCents.Value, refundCurrency).ToMajorUnits()
+                            .ToString("F" + Money.GetExponent(refundCurrency).ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture)
                     };
                 }
 
@@ -167,11 +170,14 @@ internal sealed class PayPalRefundService(
             }
 
             var refund = await response.Content.ReadFromJsonAsync<PayPalRefundResponse>(PayPalJsonOptions.Default, ct);
+            var refundCurrency = refund?.Amount?.CurrencyCode ?? "USD";
             return new RefundResult
             {
                 RefundId = refund!.Id!,
                 Status = MapRefundStatus(refund.Status), 
-                AmountCents = (long)Math.Round(decimal.Parse(refund.Amount?.Value ?? "0") * CheckoutConstants.CentMultiplier, 0, MidpointRounding.AwayFromZero),
+                AmountCents = Money.FromMajorUnits(
+                    decimal.Parse(refund.Amount?.Value ?? "0", CultureInfo.InvariantCulture),
+                    refundCurrency).MinorUnits,
                 Provider = PaymentProvider.PayPal 
             };
         }

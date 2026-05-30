@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Polly;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Globalization;
 
 namespace Haworks.Payments.Infrastructure.PayPal;
 
@@ -21,7 +22,6 @@ internal sealed class PayPalCheckoutService(
     IOptions<BrandOptions> brandOptions,
     ILogger<PayPalCheckoutService> logger) : ICheckoutSessionService, ISubscriptionService
 {
-    private const string DefaultCurrency = "USD";
     private readonly IAsyncPolicy _resiliencePolicy =
         resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
     private readonly BrandOptions _brand = brandOptions.Value;
@@ -53,7 +53,7 @@ internal sealed class PayPalCheckoutService(
 
             var currency = !string.IsNullOrEmpty(request.Currency)
                 ? request.Currency.ToUpperInvariant()
-                : request.LineItems.Count > 0 ? request.LineItems[0].Currency?.ToUpperInvariant() ?? DefaultCurrency : DefaultCurrency;
+                : request.LineItems.Count > 0 ? request.LineItems[0].Currency?.ToUpperInvariant() ?? "USD" : "USD";
 
             var orderRequest = new PayPalOrderRequest
             {
@@ -66,7 +66,7 @@ internal sealed class PayPalCheckoutService(
                         Amount = new PayPalAmount
                         {
                             CurrencyCode = currency,
-                            Value = FormatAmount(totalCents)
+                            Value = FormatAmount(totalCents, currency)
                         },
                         Description = string.Join(", ", request.LineItems.OrderBy(i => i.Name).Take(3).Select(i => i.Name)),
                         CustomId = request.Metadata?.GetValueOrDefault("orderId") ?? string.Empty
@@ -191,7 +191,8 @@ internal sealed class PayPalCheckoutService(
             if (order == null) return null;
 
             var amountTotal = order.PurchaseUnits?
-                .Sum(pu => decimal.TryParse(pu.Amount?.Value, out var val) ? val : 0) ?? 0;
+                .Sum(pu => decimal.TryParse(pu.Amount?.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var val) ? val : 0) ?? 0;
+            var sessionCurrency = order.PurchaseUnits?.FirstOrDefault()?.Amount?.CurrencyCode ?? "USD";
 
             return new CheckoutSession
             {
@@ -199,8 +200,8 @@ internal sealed class PayPalCheckoutService(
                 Status = MapOrderStatus(order.Status),
                 TransactionId = order.PurchaseUnits?.FirstOrDefault()?.Payments?.Captures?.FirstOrDefault()?.Id ?? order.Id,
                 CustomerId = order.Payer?.PayerId,
-                AmountTotal = (long)Math.Round(amountTotal * CheckoutConstants.CentMultiplier),
-                Currency = order.PurchaseUnits?.FirstOrDefault()?.Amount?.CurrencyCode ?? DefaultCurrency,
+                AmountTotal = Money.FromMajorUnits(amountTotal, sessionCurrency).MinorUnits,
+                Currency = sessionCurrency,
                 Provider = PaymentProvider.PayPal,
                 Metadata = new Dictionary<string, string>
                 {
@@ -213,8 +214,9 @@ internal sealed class PayPalCheckoutService(
     /// <inheritdoc />
     public Task<bool> ExpireSessionAsync(string sessionId, CancellationToken ct = default) => Task.FromResult(true);
 
-    private static string FormatAmount(long amountCents) => 
-        Math.Round(amountCents / CheckoutConstants.CentMultiplier, 2, MidpointRounding.AwayFromZero).ToString("F2");
+    private static string FormatAmount(long amountCents, string currency) => 
+        new Money(amountCents, currency).ToMajorUnits()
+            .ToString("F" + Money.GetExponent(currency).ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
 
     private static SessionStatus MapOrderStatus(string? status) => status?.ToUpperInvariant() switch
     {

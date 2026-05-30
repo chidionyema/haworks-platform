@@ -189,7 +189,7 @@ public sealed class SagaCompensationChaosTests : IClassFixture<SagaCompensationF
         await categoryRepo.AddAsync(category);
         await categoryRepo.SaveChangesAsync();
 
-        var product = Product.Create("Widget", "the chaos target", 1000L, category.Id);
+        var product = Product.Create("Widget", "the chaos target", 1000L, "USD", category.Id);
         typeof(Product).GetProperty("Id")!.SetValue(product, productId);
         product.RestockTo(initialStockBeforeReservation);
         await productRepo.AddAsync(product);

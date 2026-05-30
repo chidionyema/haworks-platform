@@ -23,7 +23,7 @@ public class CreateSubscriptionCheckoutHandlerTests
     public async Task Handle_ValidRequest_ReturnsSessionInfo()
     {
         // Arrange
-        var command = new CreateSubscriptionCheckoutCommand("user-1", "price-1", 10.0m, "/path", Guid.NewGuid().ToString());
+        var command = new CreateSubscriptionCheckoutCommand("user-1", "price-1", 1000L, "USD", "/path", Guid.NewGuid().ToString());
         var expectedResult = new CheckoutSessionResult
         {
             SessionId = "sess-123",
@@ -54,7 +54,7 @@ public class CreateSubscriptionCheckoutHandlerTests
     public Task Handle_ServiceThrows_Throws()
     {
         // Arrange
-        var command = new CreateSubscriptionCheckoutCommand("user-1", "price-1", 10.0m, null, Guid.NewGuid().ToString());
+        var command = new CreateSubscriptionCheckoutCommand("user-1", "price-1", 1000L, "USD", null, Guid.NewGuid().ToString());
         _serviceMock.Setup(x => x.CreateSubscriptionSessionAsync(It.IsAny<CreateSubscriptionSessionRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Stripe Error"));
 
@@ -63,13 +63,13 @@ public class CreateSubscriptionCheckoutHandlerTests
     }
 
     [Theory]
-    [InlineData("", "price-1", 10.0)]
-    [InlineData("user-1", "", 10.0)]
-    [InlineData("user-1", "price-1", 0)]
-    [InlineData("user-1", "price-1", -1.0)]
-    public void Validator_InvalidRequest_HasErrors(string userId, string priceId, decimal amount)
+    [InlineData("", "price-1", 1000L)]
+    [InlineData("user-1", "", 1000L)]
+    [InlineData("user-1", "price-1", 0L)]
+    [InlineData("user-1", "price-1", -1L)]
+    public void Validator_InvalidRequest_HasErrors(string userId, string priceId, long amount)
     {
-        var command = new CreateSubscriptionCheckoutCommand(userId, priceId, amount, null, Guid.NewGuid().ToString());
+        var command = new CreateSubscriptionCheckoutCommand(userId, priceId, amount, "USD", null, Guid.NewGuid().ToString());
         var result = _validator.TestValidate(command);
         result.ShouldHaveAnyValidationError();
     }

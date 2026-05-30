@@ -3,6 +3,7 @@ using Haworks.Payouts.Domain.Aggregates;
 using Haworks.Payouts.Application.Ledger.Queries.GetBalance;
 using Haworks.Payouts.Domain.Enums;
 using Haworks.BuildingBlocks.Extensions;
+using Haworks.BuildingBlocks.Common;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,8 +19,12 @@ public class LedgerController(IMediator mediator) : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetBalance(Guid ownerId, [FromQuery] AccountType type, CancellationToken ct, [FromQuery] string currency = "USD")
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetBalance(Guid ownerId, [FromQuery] AccountType type, CancellationToken ct, [FromQuery] string currency = "")
     {
+        if (string.IsNullOrEmpty(currency)) return BadRequest("Currency is required.");
+        if (!Money.IsValidCurrencyCode(currency)) return BadRequest($"Invalid currency code: {currency}");
+
         var userId = HttpContext.GetForwardedUserId();
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
@@ -49,20 +54,22 @@ public class LedgerController(IMediator mediator) : ControllerBase
 [Authorize(Roles = "Admin,Service")]
 public sealed class DemoLedgerController(IPayoutsDbContext db) : ControllerBase
 {
-    private const string DefaultCurrency = "USD";
-
     [HttpPost("simulate")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SimulateTransaction(
         [FromBody] LedgerSimulationRequest request,
         CancellationToken ct)
     {
+        if (string.IsNullOrEmpty(request.Currency)) return BadRequest("Currency is required.");
+        if (!Money.IsValidCurrencyCode(request.Currency)) return BadRequest($"Invalid currency code: {request.Currency}");
+
         var sellerId = Guid.NewGuid();
         var txId = Guid.NewGuid();
 
         // Find or create seller account
         var account = Haworks.Payouts.Domain.Aggregates.LedgerAccount.Create(
-            sellerId, Haworks.Payouts.Domain.Enums.AccountType.SellerPayable, request.Currency ?? DefaultCurrency);
+            sellerId, Haworks.Payouts.Domain.Enums.AccountType.SellerPayable, request.Currency);
 
         db.LedgerAccounts.Add(account);
 

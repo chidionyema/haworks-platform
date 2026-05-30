@@ -39,7 +39,8 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
         var command = new CreateSubscriptionCheckoutCommand(
             userId,
             body.PriceId,
-            body.Amount,
+            Money.FromMajorUnits(body.Amount, body.Currency).MinorUnits,
+            body.Currency,
             body.RedirectPath,
             Guid.NewGuid().ToString("N"));
 
@@ -82,6 +83,7 @@ public sealed record CreateSubscriptionCheckoutRequest
 {
     public required string PriceId { get; init; }
     public required decimal Amount { get; init; }
+    public required string Currency { get; init; }
     public string? RedirectPath { get; init; }
 }
 

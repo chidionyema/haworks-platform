@@ -14,6 +14,7 @@ public class UpdateProductCommandValidatorTests
         Name: "Updated Product",
         Description: "Updated Description",
         UnitPriceCents: 15000,
+        Currency: "USD",
         CategoryId: Guid.NewGuid(),
         IsListed: true
     );

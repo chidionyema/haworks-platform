@@ -101,7 +101,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
         var doc = await _index.GetAsync(productId.ToString("N"));
         doc.Should().NotBeNull();
         doc!.Name.Should().Be("CDC Test Widget");
-        doc.UnitPrice.Should().Be(42.50m);
+        doc.UnitPriceCents.Should().Be(4250L);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
         var doc = await _index.GetAsync(productId.ToString("N"));
         doc.Should().NotBeNull();
         doc!.Name.Should().Be("Updated Name");
-        doc.UnitPrice.Should().Be(25.00m);
+        doc.UnitPriceCents.Should().Be(2500L);
     }
 
     [Fact]
@@ -281,11 +281,10 @@ public sealed class CdcSearchIndexWorkerTests : IAsyncLifetime
         var name = after.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
         var description = after.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "";
         var priceCents = after.TryGetProperty("unit_price_cents", out var p) ? p.GetInt64() : 0L;
-        var price = (decimal)priceCents / 100m;
         var categoryId = after.TryGetProperty("category_id", out var c) ? c.GetString() ?? "" : "";
 
         var doc = Haworks.Search.Application.Indexing.ProductSearchDocumentProjector.From(
-            id, name, description, price, true, true,
+            id, name, description, priceCents, "USD", true, true,
             string.IsNullOrEmpty(categoryId) ? Guid.Empty : Guid.Parse(categoryId),
             "Unknown (CDC)", 1);
 

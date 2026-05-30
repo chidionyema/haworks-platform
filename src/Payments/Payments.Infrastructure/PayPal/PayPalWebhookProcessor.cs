@@ -1,7 +1,9 @@
 using System.Text.Json;
+using System.Globalization;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Contracts.Payments;
 using MassTransit;
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.BuildingBlocks.Resilience;
 using Haworks.Payments.Infrastructure.Options;
@@ -206,7 +208,7 @@ internal sealed class PayPalWebhookProcessor(
             Provider = PaymentProvider.PayPal,
             Mode = SessionMode.Payment,
             Currency = currency,
-            AmountTotal = (long)Math.Round(decimal.Parse(amount) * CheckoutConstants.CentMultiplier, 0, MidpointRounding.AwayFromZero)
+            AmountTotal = Money.FromMajorUnits(decimal.Parse(amount, CultureInfo.InvariantCulture), currency).MinorUnits
         };
 
         await paymentProcessor.HandleCompletedSessionAsync(sessionEvent, publisher, ct);
@@ -222,6 +224,7 @@ internal sealed class PayPalWebhookProcessor(
         if (status.Equals("COMPLETED", StringComparison.OrdinalIgnoreCase))
         {
             var amount = resource.GetProperty("amount").GetProperty("value").GetString()!;
+            var currencyCode = resource.GetProperty("amount").GetProperty("currency_code").GetString()!;
 
             // Try to find saga ID in custom_id or invoice_id
             string? sagaIdStr = null;
@@ -235,7 +238,7 @@ internal sealed class PayPalWebhookProcessor(
                 {
                     RefundId = sagaId,
                     ProviderRefundId = refundId,
-                    AmountRefundedCents = (long)Math.Round(decimal.Parse(amount) * 100m, 0, MidpointRounding.AwayFromZero),
+                    AmountRefundedCents = Money.FromMajorUnits(decimal.Parse(amount, CultureInfo.InvariantCulture), currencyCode).MinorUnits,
                     CompletedAt = DateTime.UtcNow
                 }, ct);
             }
@@ -261,7 +264,7 @@ internal sealed class PayPalWebhookProcessor(
 
         if (resource.TryGetProperty("billing_info", out var billingInfo) && billingInfo.TryGetProperty("next_billing_time", out var nextTime))
         {
-            subEvent = subEvent with { CurrentPeriodEnd = DateTime.Parse(nextTime.GetString()!, System.Globalization.CultureInfo.InvariantCulture) };
+            subEvent = subEvent with { CurrentPeriodEnd = DateTime.Parse(nextTime.GetString()!, CultureInfo.InvariantCulture) };
         }
 
         await subscriptionManager.HandleSubscriptionEventAsync(subEvent, publisher, ct);

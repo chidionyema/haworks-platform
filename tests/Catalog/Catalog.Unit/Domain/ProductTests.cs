@@ -18,7 +18,7 @@ public class ProductTests
         var categoryId = Guid.NewGuid();
 
         // Act
-        var product = Product.Create(name, description, priceCents, categoryId);
+        var product = Product.Create(name, description, priceCents, "USD", categoryId);
 
         // Assert
         product.Id.Should().NotBeEmpty();
@@ -38,7 +38,7 @@ public class ProductTests
         var categoryId = Guid.NewGuid();
 
         // Act & Assert
-        Assert.ThrowsAny<ArgumentException>(() => Product.Create(name!, "Description", 2999, categoryId));
+        Assert.ThrowsAny<ArgumentException>(() => Product.Create(name!, "Description", 2999, "USD", categoryId));
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class ProductTests
         var categoryId = Guid.NewGuid();
 
         // Act & Assert
-        Assert.Throws<ArgumentException>(() => Product.Create("Test", "Description", -10, categoryId));
+        Assert.Throws<ArgumentException>(() => Product.Create("Test", "Description", -10, "USD", categoryId));
     }
 
     #endregion
@@ -59,7 +59,7 @@ public class ProductTests
     public void Create_DefaultValuesAreSet()
     {
         // Act
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
 
         // Assert
         product.IsListed.Should().BeFalse();
@@ -75,10 +75,10 @@ public class ProductTests
     public void UpdatePricing_SetsUnitPriceCents()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
 
         // Act
-        product.UpdatePricing(4999);
+        product.UpdatePricing(4999, "USD");
 
         // Assert
         product.UnitPriceCents.Should().Be(4999);
@@ -88,20 +88,20 @@ public class ProductTests
     public void UpdatePricing_WithNegativePrice_ThrowsArgumentException()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
 
         // Act & Assert
-        Assert.Throws<ArgumentException>(() => product.UpdatePricing(-10));
+        Assert.Throws<ArgumentException>(() => product.UpdatePricing(-10, "USD"));
     }
 
     [Fact]
     public void UpdatePricing_WithZeroPrice_Succeeds()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
 
         // Act
-        product.UpdatePricing(0);
+        product.UpdatePricing(0, "USD");
 
         // Assert
         product.UnitPriceCents.Should().Be(0);
@@ -115,7 +115,7 @@ public class ProductTests
     public void RestockTo_SetsQuantityAndInStock()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
 
         // Act
         product.RestockTo(100);
@@ -129,7 +129,7 @@ public class ProductTests
     public void RestockTo_ToZero_SetsOutOfStock()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
         product.RestockTo(50);
 
         // Act
@@ -144,7 +144,7 @@ public class ProductTests
     public void RestockTo_WithNegativeQuantity_ThrowsArgumentException()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
 
         // Act & Assert
         Assert.Throws<ArgumentException>(() => product.RestockTo(-10));
@@ -154,7 +154,7 @@ public class ProductTests
     public void ReserveStock_ReducesQuantity()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
         product.RestockTo(10);
 
         // Act
@@ -170,7 +170,7 @@ public class ProductTests
     public void ReserveStock_DepleteAllStock_SetsOutOfStock()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
         product.RestockTo(5);
 
         // Act
@@ -186,7 +186,7 @@ public class ProductTests
     public void ReserveStock_InsufficientStock_ReturnsFalse()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
         product.RestockTo(5);
 
         // Act
@@ -201,7 +201,7 @@ public class ProductTests
     public void ReleaseStock_IncreasesQuantity()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
         product.RestockTo(5);
 
         // Act
@@ -220,7 +220,7 @@ public class ProductTests
     public void List_SetsIsListedTrue()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
 
         // Act
         product.List();
@@ -233,7 +233,7 @@ public class ProductTests
     public void Unlist_SetsIsListedFalse()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
         product.List();
 
         // Act
@@ -251,7 +251,7 @@ public class ProductTests
     public void UpdateBasicInfo_UpdatesFields()
     {
         // Arrange
-        var product = Product.Create("Old Name", "Old Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Old Name", "Old Desc", 1000, "USD", Guid.NewGuid());
 
         // Act
         product.UpdateBasicInfo("New Name", "New Description");
@@ -268,7 +268,7 @@ public class ProductTests
     public void UpdateBasicInfo_WithInvalidName_ThrowsArgumentException(string? name)
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
 
         // Act & Assert
         Assert.ThrowsAny<ArgumentException>(() => product.UpdateBasicInfo(name!, "Description"));
@@ -282,7 +282,7 @@ public class ProductTests
     public void AddMetadata_AddsToCollection()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
 
         // Act
         product.AddMetadata("Color", "Blue");
@@ -297,7 +297,7 @@ public class ProductTests
     public void AddMetadata_UpdateExisting_UpdatesValue()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
         product.AddMetadata("Color", "Blue");
 
         // Act
@@ -312,7 +312,7 @@ public class ProductTests
     public void AddSpecification_AddsToCollection()
     {
         // Arrange
-        var product = Product.Create("Test", "Desc", 1000, Guid.NewGuid());
+        var product = Product.Create("Test", "Desc", 1000, "USD", Guid.NewGuid());
 
         // Act
         product.AddSpecification("Weight", "100g", 1);

@@ -1,5 +1,6 @@
 using FluentValidation;
 using Haworks.Catalog.Application.Commands;
+using Haworks.BuildingBlocks.Common;
 
 namespace Haworks.Catalog.Application.Validators;
 
@@ -11,6 +12,7 @@ internal sealed class UpdateProductCommandValidator : AbstractValidator<UpdatePr
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Description).NotEmpty().MaximumLength(4000);
         RuleFor(x => x.UnitPriceCents).GreaterThan(0);
+        RuleFor(x => x.Currency).NotEmpty().MustBeValidCurrency();
         RuleFor(x => x.CategoryId).NotEmpty();
     }
 }

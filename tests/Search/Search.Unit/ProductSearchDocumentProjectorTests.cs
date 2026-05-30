@@ -13,7 +13,7 @@ public sealed class ProductSearchDocumentProjectorTests
         var categoryId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
 
         var doc = ProductSearchDocumentProjector.From(
-            id, "Pen", "Blue ink", 1.99m,
+            id, "Pen", "Blue ink", 199L, "USD",
             isInStock: true, isListed: true,
             categoryId, "Stationery",
             sourceVersion: 7);
@@ -22,7 +22,8 @@ public sealed class ProductSearchDocumentProjectorTests
         doc.ProductId.Should().Be(id.ToString());
         doc.Name.Should().Be("Pen");
         doc.Description.Should().Be("Blue ink");
-        doc.UnitPrice.Should().Be(1.99m);
+        doc.UnitPriceCents.Should().Be(199L);
+        doc.CurrencyCode.Should().Be("USD");
         doc.IsInStock.Should().BeTrue();
         doc.IsListed.Should().BeTrue();
         doc.CategoryId.Should().Be(categoryId.ToString());
@@ -35,9 +36,9 @@ public sealed class ProductSearchDocumentProjectorTests
     public void From_maps_null_category_to_uncategorized()
     {
         var doc = ProductSearchDocumentProjector.From(
-            Guid.NewGuid(), "X", "Y", 1m,
+            Guid.NewGuid(), "X", "Y", 100L, "USD",
             isInStock: false, isListed: true,
-            Guid.NewGuid(), categoryName: null,
+            categoryId: Guid.NewGuid(), categoryName: null,
             sourceVersion: 1);
 
         doc.CategoryName.Should().Be("Uncategorized");
@@ -49,9 +50,9 @@ public sealed class ProductSearchDocumentProjectorTests
         var id = Guid.NewGuid();
 
         var doc = ProductSearchDocumentProjector.From(
-            id, "X", "Y", 1m,
-            isInStock: false, isListed: true,
-            Guid.NewGuid(), "Cat",
+            id, "Z", "Z", 1L, "USD",
+            isInStock: true, isListed: true,
+            categoryId: Guid.NewGuid(), "Z",
             sourceVersion: 1);
 
         doc.ProductIdKey.Should().NotContain("-");

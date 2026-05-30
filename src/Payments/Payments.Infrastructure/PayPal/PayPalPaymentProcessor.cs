@@ -80,7 +80,7 @@ internal sealed class PayPalPaymentProcessor(
 
         if (PaymentValidationHelper.HasAmountMismatch(actualPaidCents, expectedTotalCents))
         {
-            await amountMismatchHandler.HandleMismatchAsync(payment, actualPaidCents / 100m, expectedTotalCents / 100m, PaymentProvider.PayPal, ct).ConfigureAwait(false);
+            await amountMismatchHandler.HandleMismatchAsync(payment, actualPaidCents, expectedTotalCents, PaymentProvider.PayPal, ct).ConfigureAwait(false);
             return;
         }
 
