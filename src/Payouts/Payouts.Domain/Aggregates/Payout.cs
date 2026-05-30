@@ -1,3 +1,4 @@
+using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Persistence;
 using Haworks.Payouts.Domain.Enums;
 
@@ -63,7 +64,7 @@ public sealed class Payout : AuditableEntity
         if (amountCents <= 0)
             throw new ArgumentException("Payout amount must be positive.", nameof(amountCents));
 
-        if (string.IsNullOrWhiteSpace(currency) || currency.Length != 3 || !currency.All(char.IsAsciiLetterUpper))
+        if (!Money.IsValidCurrencyCode(currency))
             throw new ArgumentException("Currency must be a 3-letter uppercase ISO code.", nameof(currency));
 
         return new Payout

@@ -36,11 +36,18 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
             return Unauthorized();
         }
 
+        // Validate+convert at the boundary so an invalid currency/amount returns 400,
+        // not a 500 from Money.FromMajorUnits throwing before the command validator runs.
+        if (!Money.TryFromMajorUnits(body.Amount, body.Currency, out var amount))
+        {
+            return BadRequest(new { error = "Amount or currency is invalid." });
+        }
+
         var command = new CreateSubscriptionCheckoutCommand(
             userId,
             body.PriceId,
-            Money.FromMajorUnits(body.Amount, body.Currency).MinorUnits,
-            body.Currency,
+            amount.MinorUnits,
+            amount.CurrencyCode,
             body.RedirectPath,
             Guid.NewGuid().ToString("N"));
 
