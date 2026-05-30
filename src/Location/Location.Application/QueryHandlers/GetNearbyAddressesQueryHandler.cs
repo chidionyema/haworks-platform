@@ -13,7 +13,7 @@ internal sealed class GetNearbyAddressesQueryHandler(
     IMemoryCache cache) : IRequestHandler<GetNearbyAddressesQuery, Result<IReadOnlyList<NearbyAddressDto>>>
 {
     private static string CacheKey(double lat, double lon, double radius, int limit) =>
-        $"nearby:{Math.Round(lat, 3)}:{Math.Round(lon, 3)}:{radius}:{limit}";
+        $"nearby:{Math.Round(lat, 5)}:{Math.Round(lon, 5)}:{radius}:{limit}";
 
     public async Task<Result<IReadOnlyList<NearbyAddressDto>>> Handle(GetNearbyAddressesQuery request, CancellationToken ct)
     {
@@ -26,16 +26,10 @@ internal sealed class GetNearbyAddressesQueryHandler(
         var point = new Point(request.Lon, request.Lat) { SRID = 4326 };
 
         var results = await dbContext.Addresses
-            .Select(a => new { Address = a, Distance = a.Coordinates.Distance(point) })
-            .Where(x => x.Distance <= request.RadiusMeters)
-            .OrderBy(x => x.Distance)
+            .Where(a => a.Coordinates.IsWithinDistance(point, request.RadiusMeters))
+            .OrderBy(a => a.Coordinates.Distance(point))
             .Take(limit)
-            .Select(x => new NearbyAddressDto(
-                x.Address.Id,
-                x.Address.Street,
-                x.Address.Postcode,
-                x.Distance
-            ))
+            .Select(a => new NearbyAddressDto(a.Id, a.Street, a.Postcode, a.Coordinates.Distance(point)))
             .ToListAsync(ct);
 
         cache.Set(key, (IReadOnlyList<NearbyAddressDto>)results, TimeSpan.FromMinutes(5));
