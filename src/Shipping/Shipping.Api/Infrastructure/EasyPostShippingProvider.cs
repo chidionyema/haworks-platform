@@ -1,3 +1,4 @@
+using System.Globalization;
 using EasyPost;
 using EasyPost.Models.API;
 using Microsoft.Extensions.Logging;
@@ -77,14 +78,27 @@ public sealed class EasyPostShippingProvider : IShippingProvider
         var bought = await _client.Shipment.Buy(shipmentId, rate.Id);
 #pragma warning restore CA2016, HWK050
 
+        // A purchased label MUST have a real price + currency. Falling back to 0m / ""
+        // would persist a free-shipping label and 500 at the Money conversion. Reject
+        // unparseable provider data explicitly instead.
+        if (!decimal.TryParse(rate.Price, NumberStyles.Number, CultureInfo.InvariantCulture, out var amt))
+        {
+            throw new InvalidOperationException(
+                $"EasyPost rate {rate.Id} returned an unparseable price '{rate.Price}'.");
+        }
+        if (string.IsNullOrWhiteSpace(rate.Currency))
+        {
+            throw new InvalidOperationException($"EasyPost rate {rate.Id} returned no currency.");
+        }
+
         return new BuyLabelResult(
             bought.TrackingCode ?? "",
             bought.Tracker?.PublicUrl ?? "",
             bought.PostageLabel?.LabelUrl ?? "",
             rate.Carrier ?? "unknown",
             rate.Service ?? "standard",
-            decimal.TryParse(rate.Price, out var amt) ? amt : 0m,
-            rate.Currency ?? string.Empty,
+            amt,
+            rate.Currency,
             bought.Tracker?.EstDeliveryDate);
     }
 

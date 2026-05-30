@@ -50,10 +50,15 @@ public class ShipmentsController(
 
         var result = await provider.BuyLabelAsync(shipment.EasyPostShipmentId, request.RateId, ct);
 
-        var rateCents = Money.FromMajorUnits(result.Amount, result.Currency).MinorUnits;
+        if (!Money.TryFromMajorUnits(result.Amount, result.Currency, out var rate))
+        {
+            return StatusCode(StatusCodes.Status502BadGateway,
+                new { error = "Shipping provider returned an invalid rate amount or currency." });
+        }
+
         shipment.MarkLabelPurchased(
             result.Carrier, result.Service, result.TrackingNumber,
-            result.TrackingUrl, result.LabelUrl, rateCents, result.Currency, result.EstimatedDelivery);
+            result.TrackingUrl, result.LabelUrl, rate.MinorUnits, result.Currency, result.EstimatedDelivery);
 
         await publisher.Publish(new ShipmentCreatedEvent
         {
