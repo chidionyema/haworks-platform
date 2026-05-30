@@ -17,7 +17,7 @@ public sealed class PriceCalculationLog : AuditableEntity
     public decimal TaxAmount { get; private set; }
     public decimal TaxRateApplied { get; private set; }
     public decimal Total { get; private set; }
-    public string Currency { get; private set; } = "USD";
+    public string Currency { get; private set; } = string.Empty;
     public string AppliedRuleIds { get; private set; } = "[]";
     public string? PromotionCodeApplied { get; private set; }
     public DateTimeOffset CalculatedAt { get; private set; }

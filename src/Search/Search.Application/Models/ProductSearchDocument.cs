@@ -18,7 +18,8 @@ public sealed record ProductSearchDocument
     public required string Description { get; init; }
     public required string CategoryId { get; init; }
     public required string CategoryName { get; init; }
-    public required decimal UnitPrice { get; init; }
+    public required long UnitPriceCents { get; init; }
+    public required string CurrencyCode { get; init; }
     public required bool IsInStock { get; init; }
     public required bool IsListed { get; init; }
 

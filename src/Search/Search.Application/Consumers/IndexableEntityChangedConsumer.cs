@@ -153,14 +153,15 @@ public sealed class CdcSearchIndexWorker(
         var name = after.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
         var description = after.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "";
         var priceCents = after.TryGetProperty("unit_price_cents", out var p) ? p.GetInt64() : 0L;
-        var price = (decimal)priceCents / 100m;
+        var currency = after.TryGetProperty("currency", out var curr) ? curr.GetString() ?? "USD" : "USD";
         var categoryId = after.TryGetProperty("category_id", out var c) ? c.GetString() ?? "" : "";
 
         var doc = ProductSearchDocumentProjector.From(
             id: id,
             name: name,
             description: description,
-            unitPrice: price,
+            unitPriceCents: priceCents,
+            currencyCode: currency,
             isInStock: after.TryGetProperty("is_in_stock", out var stockProp) && stockProp.ValueKind == System.Text.Json.JsonValueKind.True,
             isListed: after.TryGetProperty("is_listed", out var listedProp) && listedProp.ValueKind == System.Text.Json.JsonValueKind.True,
             categoryId: string.IsNullOrEmpty(categoryId) ? Guid.NewGuid() : Guid.Parse(categoryId),

@@ -1,4 +1,5 @@
 using System.Linq;
+using Haworks.BuildingBlocks.Common;
 using Haworks.Contracts.Pricing;
 using Haworks.Pricing.Application.Commands;
 using Haworks.Pricing.Application.Queries;
@@ -61,9 +62,9 @@ public sealed class PricingRequestedConsumer(
                 SagaId = msg.SagaId,
                 OrderId = msg.OrderId,
                 CalculationId = result.CalculationId,
-                SubtotalCents = (long)Math.Round(result.Subtotal * 100m, 0),
-                TaxCents = (long)Math.Round(result.TaxAmount * 100m, 0),
-                TotalCents = (long)Math.Round(result.Total * 100m, 0),
+                SubtotalCents = Money.FromMajorUnits(result.Subtotal, result.Currency).MinorUnits,
+                TaxCents = Money.FromMajorUnits(result.TaxAmount, result.Currency).MinorUnits,
+                TotalCents = Money.FromMajorUnits(result.Total, result.Currency).MinorUnits,
                 Currency = result.Currency,
             }, context.CancellationToken);
 

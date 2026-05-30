@@ -94,7 +94,8 @@ public class PaymentDbContext : DbContext, IPaymentDbContext
 
             entity.Property(p => p.Name).HasMaxLength(100);
             entity.Property(p => p.InternalPlanId).HasMaxLength(255);
-            entity.Property(p => p.Price).HasColumnType("numeric(18,2)");
+            entity.Property(p => p.PriceCents);
+            entity.Property(p => p.Currency).HasMaxLength(3);
         });
 
         modelBuilder.Entity<WebhookEvent>(entity =>
