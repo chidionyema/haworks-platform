@@ -1,4 +1,5 @@
 using FluentValidation;
+using Haworks.BuildingBlocks.Common;
 using Haworks.Catalog.Application.Commands;
 
 namespace Haworks.Catalog.Application.Validators;
@@ -13,7 +14,7 @@ public sealed class ReserveStockCommandValidator : AbstractValidator<ReserveStoc
         RuleFor(x => x.SagaId).NotEmpty();
         RuleFor(x => x.UserId).NotEmpty();
         RuleFor(x => x.TotalAmountCents).GreaterThan(0);
-        RuleFor(x => x.Currency).NotEmpty().Length(3);
+        RuleFor(x => x.Currency).NotEmpty().MustBeValidCurrency();
         RuleFor(x => x.CustomerEmail).NotEmpty().EmailAddress();
     }
 }

@@ -58,6 +58,9 @@ public class LedgerService : ILedgerService
 
         var profile = await _context.SellerProfiles.Where(p => p.SellerId == sellerId).FirstOrDefaultAsync(ct);
         var commissionRate = profile?.CommissionPercentage ?? 10.00m;
+        if (commissionRate is < 0m or > 100m)
+            throw new InvalidOperationException(
+                $"Commission rate {commissionRate} for seller {sellerId} is outside the valid [0,100] range.");
         // Integer arithmetic: commission in cents, truncated toward zero (platform keeps remainder)
         var commissionCents = (long)(amountCents * commissionRate / 100m);
         var sellerAmountCents = amountCents - commissionCents;
@@ -112,6 +115,9 @@ public class LedgerService : ILedgerService
 
         var profile = await _context.SellerProfiles.Where(p => p.SellerId == sellerId).FirstOrDefaultAsync(ct);
         var commissionRate = profile?.CommissionPercentage ?? 10.00m;
+        if (commissionRate is < 0m or > 100m)
+            throw new InvalidOperationException(
+                $"Commission rate {commissionRate} for seller {sellerId} is outside the valid [0,100] range.");
         var commissionCents = (long)(amountCents * commissionRate / 100m);
         var sellerAmountCents = amountCents - commissionCents;
 
