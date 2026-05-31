@@ -6,7 +6,8 @@ public record ListMediaQuery(
     int Page = 1,
     int PageSize = 20,
     string? Status = null,
-    string? MimeTypePrefix = null) : IRequest<Result<PagedResult<MediaSummary>>>;
+    string? MimeTypePrefix = null,
+    DateTime? CursorTimestamp = null) : IRequest<Result<PagedResult<MediaSummary>>>;
 
 public record MediaSummary(Guid Id, string FileName, string MimeType, long Size, string Status, DateTime CreatedAt);
 public record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int Page, int PageSize);
@@ -38,12 +39,19 @@ public class ListMediaHandler(
         if (!string.IsNullOrEmpty(request.MimeTypePrefix))
             query = query.Where(f => f.MimeType.StartsWith(request.MimeTypePrefix));
 
-        var totalCount = await query.CountAsync(ct);
+        // Use cursor-based pagination if cursor provided, otherwise fall back to offset-based
+        if (request.CursorTimestamp.HasValue)
+        {
+            query = query.Where(f => f.CreatedAt < request.CursorTimestamp.Value);
+        }
 
-        var items = await query
-            .OrderByDescending(f => f.CreatedAt)
-            .Skip((request.Page - 1) * request.PageSize)
-            .Take(request.PageSize)
+        var totalCount = request.CursorTimestamp.HasValue ? -1 : await query.CountAsync(ct); // Skip count for cursor-based
+
+        var orderedQuery = query.OrderByDescending(f => f.CreatedAt);
+
+        var items = await (request.CursorTimestamp.HasValue
+            ? orderedQuery.Take(request.PageSize)
+            : orderedQuery.Skip((request.Page - 1) * request.PageSize).Take(request.PageSize))
             .Select(f => new MediaSummary(f.Id, f.FileName, f.MimeType, f.Size, f.Status.ToString(), f.CreatedAt))
             .ToListAsync(ct);
 

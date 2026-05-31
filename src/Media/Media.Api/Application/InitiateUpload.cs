@@ -71,34 +71,54 @@ public class InitiateUploadHandler : IRequestHandler<InitiateUploadCommand, Resu
         var mediaFile = MediaFile.Create(request.FileName, request.Hash, request.Size, request.MimeType, ownerId);
         var key = mediaFile.Id.ToString();
 
-        if (request.Size <= _uploadOpts.SinglePutMaxBytes)
+        try
         {
-            // Single-part upload
+            if (request.Size <= _uploadOpts.SinglePutMaxBytes)
+            {
+                // Single-part upload
+                _context.MediaFiles.Add(mediaFile);
+                await _context.SaveChangesAsync(cancellationToken);
+
+                var uploadUrl = _s3Service.GeneratePreSignedUrl(key, mediaFile.MimeType);
+                return new UploadResponse(mediaFile.Id, uploadUrl, false);
+            }
+
+            // Multipart upload
+            var partCount = (int)Math.Ceiling((double)request.Size / _uploadOpts.PartSizeBytes);
+            if (partCount > 10_000)
+            {
+                return Result.Failure<UploadResponse>(new Error("Media.TooManyParts",
+                    $"File requires {partCount} parts but S3 allows max 10,000. Increase part size."));
+            }
+
+            var s3UploadId = await _s3Service.InitiateMultipartUploadAsync(key, request.MimeType, cancellationToken);
+            mediaFile.InitiateMultipart(s3UploadId, partCount);
+
             _context.MediaFiles.Add(mediaFile);
             await _context.SaveChangesAsync(cancellationToken);
 
-            var uploadUrl = _s3Service.GeneratePreSignedUrl(key, mediaFile.MimeType);
-            return new UploadResponse(mediaFile.Id, uploadUrl, false);
-        }
+            var partUrls = Enumerable.Range(1, partCount)
+                .Select(i => _s3Service.GeneratePartPresignedUrl(key, s3UploadId, i))
+                .ToList();
 
-        // Multipart upload
-        var partCount = (int)Math.Ceiling((double)request.Size / _uploadOpts.PartSizeBytes);
-        if (partCount > 10_000)
+            return new UploadResponse(mediaFile.Id, null, false, true, s3UploadId, partCount, partUrls);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
-            return Result.Failure<UploadResponse>(new Error("Media.TooManyParts",
-                $"File requires {partCount} parts but S3 allows max 10,000. Increase part size."));
+            // Race condition: another request created the same file, re-query and return it
+            existingFile = await _context.MediaFiles
+                .FirstOrDefaultAsync(f => f.Hash == request.Hash && f.OwnerId == ownerId, cancellationToken);
+
+            if (existingFile != null)
+                return new UploadResponse(existingFile.Id, null, true);
+
+            throw; // Rethrow if not the expected constraint violation
         }
+    }
 
-        var s3UploadId = await _s3Service.InitiateMultipartUploadAsync(key, request.MimeType, cancellationToken);
-        mediaFile.InitiateMultipart(s3UploadId, partCount);
-
-        _context.MediaFiles.Add(mediaFile);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        var partUrls = Enumerable.Range(1, partCount)
-            .Select(i => _s3Service.GeneratePartPresignedUrl(key, s3UploadId, i))
-            .ToList();
-
-        return new UploadResponse(mediaFile.Id, null, false, true, s3UploadId, partCount, partUrls);
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+    {
+        return ex.InnerException?.Message?.Contains("23505") == true || // PostgreSQL unique violation
+               ex.InnerException?.Message?.Contains("duplicate key") == true;
     }
 }

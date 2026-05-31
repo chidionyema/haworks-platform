@@ -11,6 +11,8 @@ public partial class GetMediaUrlValidator : AbstractValidator<GetMediaUrlQuery>
     [GeneratedRegex(@"^[a-zA-Z0-9_\-/\.]{1,100}$", RegexOptions.NonBacktracking)]
     private static partial Regex SafeVariantPattern();
 
+    private static readonly string[] AllowedVariants = { "thumbnail-150", "thumbnail-300", "webp-150", "hls-master" };
+
     public GetMediaUrlValidator()
     {
         RuleFor(x => x.MediaId).NotEmpty();
@@ -18,7 +20,9 @@ public partial class GetMediaUrlValidator : AbstractValidator<GetMediaUrlQuery>
             .Must(v => v == null || SafeVariantPattern().IsMatch(v))
             .WithMessage("Variant contains invalid characters.")
             .Must(v => v == null || !v.Contains("..", StringComparison.Ordinal))
-            .WithMessage("Path traversal is not allowed.");
+            .WithMessage("Path traversal is not allowed.")
+            .Must(v => v == null || AllowedVariants.Contains(v))
+            .WithMessage("Invalid variant type.");
     }
 }
 

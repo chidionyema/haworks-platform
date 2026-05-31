@@ -32,6 +32,7 @@ public class BatchInitiateUploadHandler(
             return Result.Failure<IReadOnlyList<UploadResponse>>(new Error("Media.Unauthorized", "Authenticated user identity could not be resolved."));
 
         var responses = new List<UploadResponse>(request.Files.Count);
+        var mediaFilesToAdd = new List<MediaFile>();
 
         foreach (var file in request.Files)
         {
@@ -49,8 +50,7 @@ public class BatchInitiateUploadHandler(
 
             if (file.Size <= _opts.SinglePutMaxBytes)
             {
-                context.MediaFiles.Add(mediaFile);
-                await context.SaveChangesAsync(ct);
+                mediaFilesToAdd.Add(mediaFile);
                 var uploadUrl = s3.GeneratePreSignedUrl(key, mediaFile.MimeType);
                 responses.Add(new UploadResponse(mediaFile.Id, uploadUrl, false));
             }
@@ -59,8 +59,7 @@ public class BatchInitiateUploadHandler(
                 var partCount = (int)Math.Ceiling((double)file.Size / _opts.PartSizeBytes);
                 var s3UploadId = await s3.InitiateMultipartUploadAsync(key, file.MimeType, ct);
                 mediaFile.InitiateMultipart(s3UploadId, partCount);
-                context.MediaFiles.Add(mediaFile);
-                await context.SaveChangesAsync(ct);
+                mediaFilesToAdd.Add(mediaFile);
 
                 var partUrls = Enumerable.Range(1, partCount)
                     .Select(i => s3.GeneratePartPresignedUrl(key, s3UploadId, i))
@@ -68,6 +67,12 @@ public class BatchInitiateUploadHandler(
 
                 responses.Add(new UploadResponse(mediaFile.Id, null, false, true, s3UploadId, partCount, partUrls));
             }
+        }
+
+        if (mediaFilesToAdd.Count > 0)
+        {
+            context.MediaFiles.AddRange(mediaFilesToAdd);
+            await context.SaveChangesAsync(ct);
         }
 
         return responses;
