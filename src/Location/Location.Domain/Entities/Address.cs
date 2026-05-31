@@ -36,6 +36,19 @@ public class Address : AuditableEntity
         string street, string city, string postcode, string country,
         Point coordinates, string geohash, string? metadata = null)
     {
+        if (string.IsNullOrWhiteSpace(street))
+            throw new ArgumentException("Street cannot be empty", nameof(street));
+        if (string.IsNullOrWhiteSpace(city))
+            throw new ArgumentException("City cannot be empty", nameof(city));
+        if (string.IsNullOrWhiteSpace(postcode))
+            throw new ArgumentException("Postcode cannot be empty", nameof(postcode));
+        if (string.IsNullOrWhiteSpace(country))
+            throw new ArgumentException("Country cannot be empty", nameof(country));
+        if (coordinates?.SRID != 4326)
+            throw new ArgumentException("Coordinates must use SRID 4326", nameof(coordinates));
+        if (string.IsNullOrWhiteSpace(geohash))
+            throw new ArgumentException("Geohash cannot be empty", nameof(geohash));
+
         return new Address
         {
             Street = street,
