@@ -1,7 +1,9 @@
 using FluentValidation;
 using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Idempotency;
+using Haworks.Contracts.Merchant;
 using Haworks.Merchant.Application.Common.Interfaces;
+using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,8 +24,13 @@ public class RejectMerchantCommandValidator : AbstractValidator<RejectMerchantCo
 public sealed class RejectMerchantCommandHandler : IRequestHandler<RejectMerchantCommand, Result>
 {
     private readonly IMerchantDbContext _context;
+    private readonly IPublishEndpoint _publishEndpoint;
 
-    public RejectMerchantCommandHandler(IMerchantDbContext context) => _context = context;
+    public RejectMerchantCommandHandler(IMerchantDbContext context, IPublishEndpoint publishEndpoint)
+    {
+        _context = context;
+        _publishEndpoint = publishEndpoint;
+    }
 
     public async Task<Result> Handle(RejectMerchantCommand request, CancellationToken cancellationToken)
     {
@@ -34,6 +41,12 @@ public sealed class RejectMerchantCommandHandler : IRequestHandler<RejectMerchan
             return Result.Failure(Error.NotFound("Merchant.NotFound", "Merchant not found."));
 
         merchant.Reject(request.RejectedBy, request.Reason);
+        await _publishEndpoint.Publish(new MerchantRejectedEvent
+        {
+            MerchantId = merchant.Id,
+            RejectedBy = request.RejectedBy,
+            Reason = request.Reason
+        }, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
         return Result.Success();

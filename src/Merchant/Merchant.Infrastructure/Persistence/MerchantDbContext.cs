@@ -45,7 +45,7 @@ public class MerchantDbContext : DbContext, IMerchantDbContext
             entity.Property(e => e.RejectedBy).HasMaxLength(200);
             entity.Property(e => e.SuspendedBy).HasMaxLength(200);
             entity.Property(e => e.DeactivatedBy).HasMaxLength(200);
-            entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.Status);
         });
 
         builder.Entity<OperatingHours>(entity =>

@@ -27,12 +27,12 @@ public class MerchantsController : ControllerBase
     public MerchantsController(IMediator mediator) => _mediator = mediator;
 
     [HttpPost]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create(CreateMerchantCommand command, CancellationToken ct)
     {
         var id = await _mediator.Send(command, ct);
-        return Ok(new { MerchantId = id });
+        return CreatedAtAction(nameof(GetById), new { id }, new { MerchantId = id });
     }
 
     [HttpGet("{id:guid}")]

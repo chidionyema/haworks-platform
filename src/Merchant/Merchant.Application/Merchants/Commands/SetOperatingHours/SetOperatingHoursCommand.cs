@@ -43,7 +43,6 @@ public sealed class SetOperatingHoursCommandHandler : IRequestHandler<SetOperati
     public async Task<Result> Handle(SetOperatingHoursCommand request, CancellationToken cancellationToken)
     {
         var merchant = await _context.Merchants
-            .AsNoTracking()
             .FirstOrDefaultAsync(m => m.Id == request.MerchantId, cancellationToken);
 
         if (merchant is null)
@@ -56,17 +55,35 @@ public sealed class SetOperatingHoursCommandHandler : IRequestHandler<SetOperati
             .Where(h => h.MerchantId == request.MerchantId)
             .ToListAsync(cancellationToken);
 
-        _context.OperatingHours.RemoveRange(existing);
+        var requestDays = request.Hours.Select(h => (int)h.Day).ToHashSet();
+        var existingDays = existing.ToDictionary(h => h.DayOfWeek, h => h);
+
+        // Remove hours for days not in the request
+        var toRemove = existing.Where(h => !requestDays.Contains(h.DayOfWeek)).ToList();
+        _context.OperatingHours.RemoveRange(toRemove);
 
         foreach (var dto in request.Hours)
         {
-            var hours = OperatingHours.Create(
-                request.MerchantId,
-                (int)dto.Day,
-                dto.Open,
-                dto.Close,
-                dto.IsOpen);
-            _context.OperatingHours.Add(hours);
+            var dayOfWeek = (int)dto.Day;
+            if (existingDays.TryGetValue(dayOfWeek, out var existingHours))
+            {
+                // Update existing hours
+                existingHours.OpenTime = dto.Open;
+                existingHours.CloseTime = dto.Close;
+                if (dto.IsOpen) existingHours.Open();
+                else existingHours.Close();
+            }
+            else
+            {
+                // Add new hours
+                var hours = OperatingHours.Create(
+                    request.MerchantId,
+                    dayOfWeek,
+                    dto.Open,
+                    dto.Close,
+                    dto.IsOpen);
+                _context.OperatingHours.Add(hours);
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);
