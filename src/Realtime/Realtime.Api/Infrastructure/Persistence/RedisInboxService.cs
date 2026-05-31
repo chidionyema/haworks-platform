@@ -25,8 +25,8 @@ public sealed class RedisInboxService : IInboxService
         var dedupKey = DedupKey(userId);
 
         // C2 Fix: Atomic dedup check — if messageId already seen, skip (idempotent)
-        var alreadySeen = await db.SetAddAsync(dedupKey, messageId.ToString());
-        if (!alreadySeen)
+        var wasAdded = await db.SetAddAsync(dedupKey, messageId.ToString(), ct);
+        if (!wasAdded)
         {
             _logger.LogDebug(
                 "Duplicate message skipped. UserId={UserId}, MessageId={MessageId}",
@@ -44,7 +44,7 @@ public sealed class RedisInboxService : IInboxService
         _ = tran.ListTrimAsync(inboxKey, 0, InboxConstants.MaxInboxSize - 1);
         _ = tran.KeyExpireAsync(inboxKey, TimeSpan.FromDays(InboxTtlDays));
         _ = tran.KeyExpireAsync(dedupKey, TimeSpan.FromDays(DedupTtlDays));
-        await tran.ExecuteAsync();
+        await tran.ExecuteAsync(ct);
 
         _logger.LogInformation(
             "Inbox message stored. UserId={UserId}, MessageId={MessageId}, MessageType={MessageType}",
@@ -56,19 +56,27 @@ public sealed class RedisInboxService : IInboxService
         var db = _redis.GetDatabase();
         var key = InboxKey(userId);
 
-        var items = await db.ListRangeAsync(key, 0, -1);
+        var items = await db.ListRangeAsync(key, 0, -1, CommandFlags.None);
         if (items.Length == 0)
             return Array.Empty<InboxMessage>();
 
         var messages = new List<InboxMessage>(items.Length);
         for (var i = items.Length - 1; i >= 0; i--)
         {
-            var envelope = JsonSerializer.Deserialize<InboxEnvelope>((string)items[i]!);
-            if (envelope is not null)
+            try
             {
-                // C1 Fix: Use stored MessageType and raw JSON data
-                var data = JsonSerializer.Deserialize<JsonElement>(envelope.DataJson);
-                messages.Add(new InboxMessage { MessageId = envelope.MessageId, MessageType = envelope.MessageType, Data = data });
+                var envelope = JsonSerializer.Deserialize<InboxEnvelope>((string)items[i]!);
+                if (envelope is not null)
+                {
+                    // C1 Fix: Use stored MessageType and raw JSON data
+                    var data = JsonSerializer.Deserialize<JsonElement>(envelope.DataJson);
+                    messages.Add(new InboxMessage { MessageId = envelope.MessageId, MessageType = envelope.MessageType, Data = data });
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Skipping corrupted inbox message");
+                continue;
             }
         }
 
@@ -85,14 +93,14 @@ public sealed class RedisInboxService : IInboxService
 
         // LTRIM keeps elements [0, newLength-1]. We want to remove the LAST deliveredCount elements
         // (oldest, pushed right). Trim from 0 to (currentLength - deliveredCount - 1).
-        var currentLength = await db.ListLengthAsync(key);
+        var currentLength = await db.ListLengthAsync(key, CommandFlags.None);
         if (currentLength <= deliveredCount)
         {
-            await db.KeyDeleteAsync(key);
+            await db.KeyDeleteAsync(key, CommandFlags.None);
         }
         else
         {
-            await db.ListTrimAsync(key, 0, currentLength - deliveredCount - 1);
+            await db.ListTrimAsync(key, 0, currentLength - deliveredCount - 1, CommandFlags.None);
         }
 
         _logger.LogInformation(
