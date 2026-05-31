@@ -29,7 +29,15 @@ public sealed class ApproveMerchantCommandHandler : IRequestHandler<ApproveMerch
         if (merchant is null)
             return Result.Failure(Error.NotFound("Merchant.NotFound", "Merchant not found."));
 
-        merchant.Activate(request.ApprovedBy);
+        try
+        {
+            merchant.Activate(request.ApprovedBy);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Failure(Error.Validation("Merchant.InvalidStatusTransition", ex.Message));
+        }
+
         await _publishEndpoint.Publish(new MerchantActivatedEvent
         {
             MerchantId = merchant.Id

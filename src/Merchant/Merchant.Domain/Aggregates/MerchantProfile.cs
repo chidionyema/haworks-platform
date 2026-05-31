@@ -88,7 +88,7 @@ public sealed class MerchantProfile : AuditableEntity
         string? category,
         string? website)
     {
-        if (name is not null) Name = name;
+        if (!string.IsNullOrWhiteSpace(name)) Name = name;
         if (bio is not null) Bio = bio;
         if (logoUrl is not null) LogoUrl = logoUrl;
         if (description is not null) Description = description;
