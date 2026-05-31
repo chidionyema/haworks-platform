@@ -100,12 +100,9 @@ public class AuditExportWorker : BackgroundService
                     await db.SaveChangesAsync(ct);
                 }
 
-                var strandedJobIds = await db.AuditExportJobs
-                    .Where(j => j.Status == AuditExportStatus.Queued)
-                    .OrderBy(j => j.Id)
-                    .Select(j => j.Id)
-                    .Take(100)
-                    .ToListAsync(ct);
+                var strandedJobIds = await db.Database.SqlQuery<Guid>(
+                    $"SELECT id FROM audit_export_jobs WHERE status = {(int)AuditExportStatus.Queued} ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED"
+                ).ToListAsync(ct);
 
                 foreach (var id in strandedJobIds)
                 {
@@ -167,7 +164,7 @@ public class AuditExportWorker : BackgroundService
                     var rows = query.OrderBy(e => e.OccurredAt).AsAsyncEnumerable();
 
                     csv.WriteHeader<AuditExportRow>();
-                    await csv.NextRecordAsync();
+                    await csv.NextRecordAsync(ct);
 
                     await foreach (var row in rows.WithCancellation(ct))
                     {
@@ -184,7 +181,7 @@ public class AuditExportWorker : BackgroundService
                             Payload = row.Payload.RootElement.GetRawText(),
                             Metadata = row.Metadata.RootElement.GetRawText()
                         });
-                        await csv.NextRecordAsync();
+                        await csv.NextRecordAsync(ct);
                     }
                 }
 

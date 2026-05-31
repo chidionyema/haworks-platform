@@ -2,6 +2,7 @@ using Haworks.Audit.Domain;
 using Haworks.Audit.Infrastructure.Persistence;
 using Haworks.Audit.Application.Queries;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using System.Text;
 
 namespace Haworks.Audit.Infrastructure.Queries;
@@ -61,9 +62,17 @@ public class AuditQueryService : IAuditQueryService
 
     private static (DateTimeOffset, Guid) DecodeCursor(string cursor)
     {
-        var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(cursor));
-        var parts = decoded.Split('|');
-        return (DateTimeOffset.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture), Guid.Parse(parts[1]));
+        try
+        {
+            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(cursor));
+            var parts = decoded.Split('|');
+            if (parts.Length != 2) throw new FormatException();
+            return (DateTimeOffset.Parse(parts[0], CultureInfo.InvariantCulture), Guid.Parse(parts[1]));
+        }
+        catch (Exception ex)
+        {
+            throw new ArgumentException("Invalid cursor format", nameof(cursor), ex);
+        }
     }
 
     private static string EncodeCursor(DateTimeOffset occurredAt, Guid id)

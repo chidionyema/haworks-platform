@@ -52,7 +52,10 @@ public static class AuditExportRegistration
             {
                 var config = sp.GetRequiredService<IConfiguration>();
                 var serviceUrl = config.GetConnectionString("s3")
-                    ?? throw new InvalidOperationException("ConnectionStrings:s3 must be configured for audit export");
+                    ?? throw new InvalidOperationException("ConnectionStrings:s3 must be configured");
+
+                if (!Uri.TryCreate(serviceUrl, UriKind.Absolute, out _))
+                    throw new InvalidOperationException("ConnectionStrings:s3 must be a valid URL");
 
                 var s3Config = Activator.CreateInstance(s3ConfigType);
                 s3ConfigType.GetProperty("ServiceURL")?.SetValue(s3Config, serviceUrl);

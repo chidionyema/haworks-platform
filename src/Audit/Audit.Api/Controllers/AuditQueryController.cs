@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using Haworks.Audit.Application.Queries;
 using Haworks.Audit.Api.Models;
 
@@ -24,10 +25,10 @@ public class AuditQueryController : ControllerBase
         [FromQuery] string? entityType,
         [FromQuery] string? entityId,
         [FromQuery] string? eventType,
-        [FromQuery] DateTimeOffset? from,
-        [FromQuery] DateTimeOffset? to,
+        [FromQuery][Required] DateTimeOffset? from,
+        [FromQuery][Required] DateTimeOffset? to,
         [FromQuery] string? cursor,
-        [FromQuery] int limit = 50,
+        [FromQuery][Range(1, 1000)] int limit = 50,
         CancellationToken ct = default)
     {
         var result = await _queryService.ListAsync(new AuditQueryRequest(
