@@ -80,6 +80,10 @@ internal sealed class UpdateProductCommandHandler : IRequestHandler<UpdateProduc
 
         await _productRepository.UpdateAsync(product, cancellationToken);
 
+        // Invalidate cache BEFORE SaveChanges to prevent race condition where
+        // concurrent readers fetch stale data and repopulate cache
+        await _productCache.InvalidateAsync(product.Id, cancellationToken);
+
         // Publish the cache-invalidation event BEFORE SaveChanges so it lands
         // in the outbox in the same transaction as the row write — the
         // ProductCacheInvalidatedBridge in BffWeb won't fire until the row
@@ -93,11 +97,6 @@ internal sealed class UpdateProductCommandHandler : IRequestHandler<UpdateProduc
         }, cancellationToken);
 
         await _productRepository.SaveChangesAsync(cancellationToken);
-
-        // Cache invalidation happens after the commit so a concurrent reader
-        // can't observe stale data and re-populate the cache before the new
-        // value is durable.
-        await _productCache.InvalidateAsync(product.Id, cancellationToken);
 
         _logger.LogInformation("Product updated {ProductId}", request.ProductId);
 

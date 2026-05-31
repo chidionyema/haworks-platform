@@ -100,6 +100,7 @@ public class Product : AuditableEntity
     public void ReleaseStock(int quantity)
     {
         if (quantity <= 0) throw new ArgumentException("Quantity must be positive", nameof(quantity));
+        if (StockQuantity > int.MaxValue - quantity) throw new ArgumentException("Stock overflow", nameof(quantity));
         StockQuantity += quantity;
         IsInStock = true;
         LastModifiedDate = DateTime.UtcNow;
