@@ -32,6 +32,10 @@ public static class AuditCaptureRegistration
         {
             services.AddSingleton(typeof(IAuditWriter), writerImplType);
         }
+        else
+        {
+            throw new InvalidOperationException("AuditWriter implementation not found - ensure Audit.Infrastructure is loaded");
+        }
 
         services.AddSingleton<IAuditConsumerRegistry, AuditConsumerRegistry>();
         return services;

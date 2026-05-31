@@ -30,7 +30,7 @@ public class AuditExportController : ControllerBase
         if (!validationResult.IsValid)
             return BadRequest(validationResult.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
 
-        var requestedBy = User.Identity?.Name ?? "unknown";
+        var requestedBy = User.Identity?.Name ?? throw new UnauthorizedAccessException("User identity name required");
         var jobId = await _exportService.EnqueueAsync(request, requestedBy, ct);
         return Accepted(new { jobId, status = "queued" });
     }

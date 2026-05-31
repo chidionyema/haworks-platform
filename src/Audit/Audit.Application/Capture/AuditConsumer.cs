@@ -62,7 +62,7 @@ public sealed class AuditConsumer<T> : IConsumer<T> where T : class, IDomainEven
         };
 
         // 4. Pass to batched writer
-        await _writer.WriteAsync(finalRow, context.CancellationToken);
+        await _writer.WriteAsync(finalRow, context.CancellationToken).ConfigureAwait(false);
     }
 
     private static string GenerateDeterministicHash(string eventType, JsonElement payload, DateTimeOffset occurredAt)
