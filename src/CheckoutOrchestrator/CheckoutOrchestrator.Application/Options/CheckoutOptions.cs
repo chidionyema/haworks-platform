@@ -17,6 +17,6 @@ public sealed class CheckoutOptions
     /// Defaults to 15. Controls both the MassTransit scheduler delay and
     /// the FailureReason message stored on the saga.
     /// </summary>
-    [Range(1, 1440)]
+    [Range(5, 1440)]
     public int PaymentExpiryMinutes { get; set; } = 15;
 }
