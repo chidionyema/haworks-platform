@@ -37,6 +37,7 @@ public class LocationHydrationService(LocationDbContext dbContext, ILogger<Locat
 
         if (guids.Count == 0)
         {
+            logger.LogWarning("All {TotalCount} LocationIds were invalid in hydration request", request.LocationIds.Count);
             return new AddressList();
         }
 

@@ -80,10 +80,9 @@ public class LocationDbContext : DbContext, ILocationDbContext, IIdempotencyJour
 
             entity.HasIndex(a => a.Geohash);
 
-            // Prevent duplicate addresses at the database level
+            // Non-unique index for performance on address lookups
             entity.HasIndex(a => new { a.Street, a.City, a.Postcode, a.Country })
-                .IsUnique()
-                .HasDatabaseName("IX_Addresses_Unique_Address");
+                .HasDatabaseName("IX_Addresses_Lookup");
         });
 
         modelBuilder.Entity<IdempotencyJournalEntry>(entity =>

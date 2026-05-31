@@ -5,7 +5,9 @@ using Haworks.Location.Application.Interfaces;
 using Haworks.Location.Domain.Entities;
 using MassTransit;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
+using System.Text.RegularExpressions;
 
 namespace Haworks.Location.Application.Commands;
 
@@ -28,7 +30,8 @@ public class CreateAddressCommandHandler(
     ILocationDbContext dbContext,
     IPublishEndpoint publisher,
     IGeocodingService geocodingService,
-    IGeohashService geohashService) : IRequestHandler<CreateAddressCommand, Result<Guid>>
+    IGeohashService geohashService,
+    ILogger<CreateAddressCommandHandler> logger) : IRequestHandler<CreateAddressCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CreateAddressCommand request, CancellationToken cancellationToken)
     {
@@ -38,7 +41,7 @@ public class CreateAddressCommandHandler(
         // 1. Geocode if coordinates are missing
         if (!request.Latitude.HasValue || !request.Longitude.HasValue)
         {
-            var addressString = $"{request.Street}, {request.City}, {request.Postcode}, {request.Country}";
+            var addressString = $"{SanitizeForApi(request.Street)}, {SanitizeForApi(request.City)}, {SanitizeForApi(request.Postcode)}, {SanitizeForApi(request.Country)}";
             var coords = await geocodingService.GeocodeAsync(addressString, cancellationToken);
             
             if (coords == null)
@@ -54,7 +57,10 @@ public class CreateAddressCommandHandler(
             }
             else
             {
-                return Result.Failure<Guid>(Error.Validation("Address.GeocodingFailed", $"Could not geocode address: {addressString}"));
+                // Log for async processing and continue with null coordinates
+                logger.LogWarning("Geocoding failed for address: {Address}, storing without coordinates", addressString);
+                lat = 0;
+                lon = 0;
             }
         }
 
@@ -89,4 +95,7 @@ public class CreateAddressCommandHandler(
 
         return Result.Success(address.Id);
     }
+
+    private static string SanitizeForApi(string input) =>
+        Regex.Replace(input, @"[^\w\s\-\.\/]", "").Trim();
 }
