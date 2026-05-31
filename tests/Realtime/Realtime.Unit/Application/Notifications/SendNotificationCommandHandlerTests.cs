@@ -52,7 +52,9 @@ public class SendNotificationCommandHandlerTests
         result.IsSuccess.Should().BeTrue();
         _inboxServiceMock.Verify(x => x.StoreMessageAsync(
             command.UserId,
-            It.IsAny<object>(),
+            It.IsAny<Guid>(),
+            command.MessageType,
+            command.Data,
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

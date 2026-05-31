@@ -47,7 +47,7 @@ public class RedisInboxServiceTests
             .ReturnsAsync(true);
 
         // Act
-        await _sut.StoreMessageAsync(userId, message);
+        await _sut.StoreMessageAsync(userId, Guid.NewGuid(), "Test", message);
 
         // Assert — LTRIM is called with 0..(MaxInboxSize-1), capping at 1000 entries
         _dbMock.Verify(x => x.ListTrimAsync(
@@ -88,7 +88,7 @@ public class RedisInboxServiceTests
             .ReturnsAsync(true);
 
         // Act
-        await _sut.AcknowledgeMessagesAsync(userId);
+        await _sut.AcknowledgeMessagesAsync(userId, 5);
 
         // Assert
         _dbMock.Verify(x => x.KeyDeleteAsync(
@@ -119,7 +119,7 @@ public class RedisInboxServiceTests
         // Act — write 1001 messages
         for (var i = 0; i < 1001; i++)
         {
-            await _sut.StoreMessageAsync(userId, new { Index = i });
+            await _sut.StoreMessageAsync(userId, Guid.NewGuid(), "Test", new { Index = i });
         }
 
         // Assert — every write issues LTRIM 0..999, so messages beyond 1000 are trimmed
