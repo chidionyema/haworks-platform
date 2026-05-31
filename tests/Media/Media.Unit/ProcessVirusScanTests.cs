@@ -5,6 +5,7 @@ using Haworks.Media.Api.Infrastructure;
 using Haworks.Media.Api.Domain;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
@@ -44,12 +45,12 @@ public class ProcessVirusScanTests
         sendEndpointMock.Setup(x => x.GetSendEndpoint(It.IsAny<Uri>()))
             .ReturnsAsync(Mock.Of<ISendEndpoint>());
         var signatureValidatorMock = new Mock<IFileSignatureValidator>();
-        signatureValidatorMock.Setup(x => x.ValidateAsync(It.IsAny<Stream>()))
+        signatureValidatorMock.Setup(x => x.ValidateAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new FileSignatureValidationResult(true, "image/png"));
         _handler = new ProcessVirusScanHandler(
             _context, _scannerMock.Object, signatureValidatorMock.Object,
             _currentUserMock.Object, _s3Mock.Object,
-            publisherMock.Object, sendEndpointMock.Object);
+            publisherMock.Object, sendEndpointMock.Object, Mock.Of<ILogger<ProcessVirusScanHandler>>());
     }
 
     [Fact]
