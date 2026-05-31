@@ -27,9 +27,11 @@ public class SetOperatingHoursCommandValidator : AbstractValidator<SetOperatingH
         RuleForEach(v => v.Hours).ChildRules(hour =>
         {
             hour.RuleFor(h => h.Day).IsInEnum();
-            hour.RuleFor(h => h.Open).LessThan(h => h.Close)
-                .When(h => !(h.Open == TimeSpan.Zero && h.Close == TimeSpan.Zero))
-                .WithMessage("Open time must be before close time (00:00/00:00 means 24h).");
+            hour.RuleFor(h => h)
+                .Must(h => h.Open == TimeSpan.Zero && h.Close == TimeSpan.Zero || // 24h operation
+                          h.Open < h.Close || // Normal hours (same day)
+                          h.Open > h.Close)   // Wrap-around hours (past midnight)
+                .WithMessage("Invalid operating hours. Use 00:00/00:00 for 24h operation, or specify valid open/close times.");
         });
     }
 }
@@ -42,14 +44,15 @@ public sealed class SetOperatingHoursCommandHandler : IRequestHandler<SetOperati
 
     public async Task<Result> Handle(SetOperatingHoursCommand request, CancellationToken cancellationToken)
     {
-        var merchant = await _context.Merchants
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.Id == request.MerchantId, cancellationToken);
+        var merchantOwner = await _context.Merchants
+            .Where(m => m.Id == request.MerchantId)
+            .Select(m => m.OwnerId)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (merchant is null)
+        if (merchantOwner == Guid.Empty)
             return Result.Failure(Error.NotFound("Merchant.NotFound", "Merchant not found."));
 
-        if (merchant.OwnerId != request.UserId)
+        if (merchantOwner != request.UserId)
             return Result.Failure(Error.Forbidden("Merchant.Forbidden", "You are not authorized to update this merchant."));
 
         var existing = await _context.OperatingHours

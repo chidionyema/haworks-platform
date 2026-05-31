@@ -34,7 +34,8 @@ public class UpdateMerchantCommandValidator : AbstractValidator<UpdateMerchantCo
     }
 
     private static bool BeAValidUri(string? url) =>
-        url is null || Uri.TryCreate(url, UriKind.Absolute, out _);
+        url is null || (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                        (uri.Scheme == "http" || uri.Scheme == "https"));
 }
 
 public sealed class UpdateMerchantCommandHandler : IRequestHandler<UpdateMerchantCommand, Result>
