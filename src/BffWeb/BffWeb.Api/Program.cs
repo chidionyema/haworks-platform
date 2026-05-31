@@ -46,6 +46,15 @@ var globalPermits = rlSection.GetValue("GlobalPermitsPerMinute", 120);
 var userPermits = rlSection.GetValue("UserPermitsPerMinute", 60);
 var expensivePermits = rlSection.GetValue("ExpensivePermitsPerMinute", 10);
 
+// Validate required rate limiting configuration in production
+if (builder.Environment.IsProduction())
+{
+    if (!rlSection.Exists() || globalPermits == 120 || userPermits == 60 || expensivePermits == 10)
+    {
+        throw new InvalidOperationException("RateLimiting configuration section is required in production with explicit values");
+    }
+}
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

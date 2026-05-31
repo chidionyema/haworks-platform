@@ -30,18 +30,19 @@ namespace Haworks.BffWeb.Api.Demo;
 /// </summary>
 public sealed class ChaosManager : IAsyncDisposable
 {
-    private static readonly TimeSpan DefaultDuration = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan MaxDuration = TimeSpan.FromMinutes(2);
-
+    private readonly TimeSpan _defaultDuration;
+    private readonly TimeSpan _maxDuration;
     private readonly IHubContext<LiveConsoleHub> _hub;
     private readonly ILogger<ChaosManager> _logger;
     private readonly ConcurrentDictionary<string, PausedState> _paused = new();
     private readonly Dictionary<string, IChaosStrategy> _strategies;
 
-    public ChaosManager(IHubContext<LiveConsoleHub> hub, ILogger<ChaosManager> logger)
+    public ChaosManager(IHubContext<LiveConsoleHub> hub, ILogger<ChaosManager> logger, IConfiguration configuration)
     {
         _hub = hub;
         _logger = logger;
+        _defaultDuration = TimeSpan.FromSeconds(configuration.GetValue("ChaosManager:DefaultDurationSeconds", 30));
+        _maxDuration = TimeSpan.FromSeconds(configuration.GetValue("ChaosManager:MaxDurationSeconds", 120));
 
         // Service strategies: BFF-side fault injection (the
         // FaultInjectionStrategy flips a flag the outbound DelegatingHandler
@@ -128,8 +129,8 @@ public sealed class ChaosManager : IAsyncDisposable
             return PauseResult.NotFound;
         }
 
-        var dur = duration ?? DefaultDuration;
-        if (dur > MaxDuration) dur = MaxDuration;
+        var dur = duration ?? _defaultDuration;
+        if (dur > _maxDuration) dur = _maxDuration;
         if (dur < TimeSpan.FromSeconds(5)) dur = TimeSpan.FromSeconds(5);
 
         // Idempotent: if already paused, refresh the auto-resume deadline.
