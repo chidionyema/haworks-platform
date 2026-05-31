@@ -35,12 +35,6 @@ public class CreateMerchantCommandHandler : IRequestHandler<CreateMerchantComman
 
     public async Task<Guid> Handle(CreateMerchantCommand request, CancellationToken cancellationToken)
     {
-        var existingOwner = await _context.Merchants.AnyAsync(m => m.OwnerId == request.OwnerId, cancellationToken);
-        if (existingOwner) throw new InvalidOperationException("Owner already has a merchant.");
-
-        var existingSlug = await _context.Merchants.AnyAsync(m => m.Slug == request.Slug, cancellationToken);
-        if (existingSlug) throw new InvalidOperationException("Slug is already in use");
-
         var merchant = MerchantProfile.Create(request.OwnerId, request.Name, request.Slug);
 
         _context.Merchants.Add(merchant);
@@ -60,9 +54,14 @@ public class CreateMerchantCommandHandler : IRequestHandler<CreateMerchantComman
         {
             await _context.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
         {
-            throw new InvalidOperationException("Owner or slug already exists (concurrent insert detected).", ex);
+            var detail = pgEx.Detail ?? "";
+            if (detail.Contains("OwnerId"))
+                throw new InvalidOperationException("Owner already has a merchant.", ex);
+            if (detail.Contains("Slug"))
+                throw new InvalidOperationException("Slug is already in use.", ex);
+            throw new InvalidOperationException("Unique constraint violation detected.", ex);
         }
 
         return merchant.Id;
