@@ -36,6 +36,15 @@ public sealed class WebhooksController(
                 return BadRequest("Invalid signature");
             }
 
+            // Verify Topic ARN if configured
+            if (!string.IsNullOrEmpty(options.Value.Ses.TopicArn) &&
+                !string.Equals(snsMessage.TopicArn, options.Value.Ses.TopicArn, StringComparison.Ordinal))
+            {
+                logger.LogWarning("SNS message from unexpected topic ARN: {ReceivedArn}, expected: {ExpectedArn}",
+                    snsMessage.TopicArn, options.Value.Ses.TopicArn);
+                return BadRequest("Invalid topic ARN");
+            }
+
             if (string.Equals(snsMessage.Type, "SubscriptionConfirmation", StringComparison.Ordinal))
             {
                 logger.LogInformation("SES SNS subscription confirmation received");

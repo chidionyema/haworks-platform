@@ -73,18 +73,32 @@ public sealed class EmailChannelGateway(
                         token),
                     ct);
             }
-            catch (BrokenCircuitException)
+            catch (BrokenCircuitException ex)
             {
-                // Breaker is open for this provider — log + try the next one.
+                // Check if this is a temporary circuit state or a permanent configuration issue
+                var isPermanentIssue = ex.Message.Contains("configuration", StringComparison.OrdinalIgnoreCase) ||
+                                     ex.Message.Contains("authentication", StringComparison.OrdinalIgnoreCase);
+
                 logger.LogWarning(
-                    "Provider {Provider} circuit OPEN for notification {NotificationId}; falling through",
-                    provider.Name, notification.Id);
+                    "Provider {Provider} circuit {State} for notification {NotificationId}; {Action}. Reason: {Reason}",
+                    provider.Name,
+                    isPermanentIssue ? "FAILED_PERMANENTLY" : "OPEN",
+                    notification.Id,
+                    isPermanentIssue ? "skipping to primary fallback only" : "falling through",
+                    ex.Message);
+
                 notification.RecordAttempt(new DeliveryAttempt(
                     AttemptedAt: DateTime.UtcNow,
                     ProviderName: provider.Name,
                     ProviderMessageId: null,
                     IsSuccess: false,
-                    ErrorMessage: "circuit-open"));
+                    ErrorMessage: isPermanentIssue ? $"circuit-config-error: {ex.Message}" : "circuit-open"));
+
+                // For permanent issues, skip remaining fallbacks to avoid exhausting them
+                if (isPermanentIssue)
+                {
+                    break;
+                }
                 continue;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -112,7 +126,7 @@ public sealed class EmailChannelGateway(
 
             if (result.IsSuccess)
             {
-                var providerMessageId = result.ProviderMessageId ?? Guid.NewGuid().ToString("N");
+                var providerMessageId = result.ProviderMessageId ?? $"{notification.Id:N}-{provider.Name}";
                 notification.RecordAttempt(new DeliveryAttempt(
                     AttemptedAt: DateTime.UtcNow,
                     ProviderName: provider.Name,
