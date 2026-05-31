@@ -39,11 +39,10 @@ public sealed class ReservationsController(IMediator mediator) : ControllerBase
         [FromHeader(Name = "X-Idempotency-Key")] string? idempotencyKey,
         CancellationToken ct)
     {
-        // BFF-forwarded user id (A1/A4). Anonymous callers get the guest
-        // constant; the per-reservation row still has a non-empty UserId
-        // so the sweeper's "release on expiry" path doesn't have to special-case.
+        // BFF-forwarded user id (A1/A4). Anonymous callers get unique session IDs
+        // to prevent conflicts between simultaneous guest reservations.
         var userId = HttpContext.GetForwardedUserId();
-        if (string.IsNullOrEmpty(userId)) userId = GuestUserId;
+        if (string.IsNullOrEmpty(userId)) userId = $"guest-{Guid.NewGuid():N}";
 
         var clientKey = string.IsNullOrEmpty(idempotencyKey) ? null : idempotencyKey;
 

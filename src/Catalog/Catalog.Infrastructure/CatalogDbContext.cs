@@ -82,14 +82,11 @@ public sealed class CatalogDbContext : DbContext
             entity.Property(p => p.IsListed).IsRequired();
             entity.Property(p => p.RowVersion).HasDefaultValueSql("'\\x0000000000000000'::bytea");
 
-            // Optimistic concurrency on stock reservation. Postgres exposes
-            // its row-version equivalent (xmin) as a system column on every
-            // table; declare a shadow property so EF can use it as the
-            // concurrency token without us adding an application-managed
-            // column. Two concurrent reservers race on
-            // UPDATE ... WHERE xmin = N — the loser throws
-            // DbUpdateConcurrencyException and the caller retries against
-            // the already-decremented stock count.
+            // Optimistic concurrency on stock reservation. Currently using
+            // default bytea RowVersion field from AuditableEntity. In future
+            // phases, this could be replaced with Postgres xmin system column
+            // for native row-version support. Concurrent reservers will trigger
+            // DbUpdateConcurrencyException when they race on stock updates.
 
             entity.HasOne(p => p.Category)
                 .WithMany(c => c.Products)

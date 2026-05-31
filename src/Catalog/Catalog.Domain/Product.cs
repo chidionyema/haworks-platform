@@ -100,7 +100,12 @@ public class Product : AuditableEntity
     public void ReleaseStock(int quantity)
     {
         if (quantity <= 0) throw new ArgumentException("Quantity must be positive", nameof(quantity));
-        StockQuantity += quantity;
+
+        checked
+        {
+            StockQuantity += quantity;
+        }
+
         IsInStock = true;
         LastModifiedDate = DateTime.UtcNow;
     }

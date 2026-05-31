@@ -23,8 +23,13 @@ namespace Haworks.Catalog.Api.Controllers;
 [AllowAnonymous]
 public sealed class DemoTestController(
     HybridCache cache,
+    IWebHostEnvironment environment,
     ILogger<DemoTestController> logger) : ControllerBase
 {
+    private IActionResult? CheckDevelopmentOnly()
+    {
+        return environment.IsDevelopment() ? null : NotFound(new { error = "Demo endpoints only available in Development environment" });
+    }
     /// <summary>
     /// Always returns 503 ServiceUnavailable. Used by T2.3's circuit-breaker
     /// demo: BffWeb hits this endpoint via a typed HttpClient with a Polly
@@ -34,13 +39,18 @@ public sealed class DemoTestController(
     [HttpGet("fail")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public IActionResult AlwaysFail() =>
-        StatusCode(StatusCodes.Status503ServiceUnavailable, new
+    public IActionResult AlwaysFail()
+    {
+        var devCheck = CheckDevelopmentOnly();
+        if (devCheck != null) return devCheck;
+
+        return StatusCode(StatusCodes.Status503ServiceUnavailable, new
         {
             error = "demo_failure",
             message = "Synthetic failure for circuit-breaker demo",
             timestamp = DateTime.UtcNow,
         });
+    }
 
     // T2.7: in-process chaos flag. When set, /demo/health-with-chaos
     // returns 503; otherwise it returns 200. BffWeb's chaos/trigger flips
@@ -63,6 +73,9 @@ public sealed class DemoTestController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult TriggerChaos([FromBody] ChaosRequest request)
     {
+        var devCheck = CheckDevelopmentOnly();
+        if (devCheck != null) return devCheck;
+
         var until = DateTime.UtcNow.AddSeconds(Math.Clamp(request.DurationSeconds, 1, 300));
         Interlocked.Exchange(ref s_chaosUntilTicks, until.Ticks);
         logger.LogWarning(
@@ -82,6 +95,9 @@ public sealed class DemoTestController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult ClearChaos()
     {
+        var devCheck = CheckDevelopmentOnly();
+        if (devCheck != null) return devCheck;
+
         Interlocked.Exchange(ref s_chaosUntilTicks, 0);
         logger.LogInformation("CHAOS cleared manually");
         return Ok(new { cleared = true });
@@ -90,10 +106,15 @@ public sealed class DemoTestController(
     [HttpGet("health-with-chaos")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public IActionResult HealthWithChaos() =>
-        IsChaosActive()
+    public IActionResult HealthWithChaos()
+    {
+        var devCheck = CheckDevelopmentOnly();
+        if (devCheck != null) return devCheck;
+
+        return IsChaosActive()
             ? StatusCode(StatusCodes.Status503ServiceUnavailable, new { chaos = true, message = "Chaos injection active" })
             : Ok(new { chaos = false, healthy = true });
+    }
 
     public sealed record ChaosRequest
     {
@@ -116,6 +137,9 @@ public sealed class DemoTestController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Stampede([FromBody] StampedeRequest request, CancellationToken ct)
     {
+        var devCheck = CheckDevelopmentOnly();
+        if (devCheck != null) return devCheck;
+
         var key = $"demo:stampede:{request.CacheKey}:{Guid.NewGuid():N}";
         var dbQueries = 0;
 
@@ -184,6 +208,9 @@ public sealed class DemoTestController(
         [FromServices] IProductRepository products,
         CancellationToken ct)
     {
+        var devCheck = CheckDevelopmentOnly();
+        if (devCheck != null) return devCheck;
+
         const string CategoryName = "Demo Category";
         const string ProductName = "Demo Widget";
 

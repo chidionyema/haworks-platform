@@ -64,10 +64,10 @@ internal sealed class UpdateProductCommandHandler : IRequestHandler<UpdateProduc
         product.UpdateBasicInfo(request.Name, request.Description);
         product.UpdatePricing(request.UnitPriceCents);
 
-        // CategoryId can't be changed via basic update per ADR-0009 or requires specific handling
-        // For this port, we will update it if needed. The Product entity currently doesn't have an UpdateCategory method
-        // So we will leave Category updates aside, or if required, add it to Domain Entity.
-        // product.UpdateCategory(request.CategoryId);
+        // LIMITATION: CategoryId cannot be changed via this command per ADR-0009.
+        // Category changes require separate business logic to handle product
+        // recategorization workflows. If category update is needed, implement
+        // a dedicated RecategorizeProductCommand with proper validation.
 
         if (request.IsListed)
         {

@@ -24,6 +24,7 @@ public sealed class CategoriesController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateCategoryCommand command, CancellationToken ct)
     {
         var result = await mediator.Send(command, ct);
-        return result.ToCreatedActionResult(nameof(List), new { id = result.IsSuccess ? result.Value : Guid.NewGuid() });
+        if (result.IsFailure) return result.ToActionResult();
+        return result.ToCreatedActionResult(nameof(List), new { id = result.Value });
     }
 }

@@ -90,11 +90,18 @@ internal sealed class ProductRepository(CatalogDbContext db) : IProductRepositor
         // request collapses to a single decrement.
         var aggregated = items
             .GroupBy(i => i.ProductId)
-            .Select(g => new StockReservationItem
+            .Select(g =>
             {
-                ProductId = g.Key,
-                ProductName = g.First().ProductName,
-                Quantity = g.Sum(i => i.Quantity),
+                var distinctNames = g.Select(i => i.ProductName).Distinct().ToList();
+                if (distinctNames.Count > 1)
+                    throw new ArgumentException($"Product {g.Key} has inconsistent names: {string.Join(", ", distinctNames)}");
+
+                return new StockReservationItem
+                {
+                    ProductId = g.Key,
+                    ProductName = g.First().ProductName,
+                    Quantity = g.Sum(i => i.Quantity),
+                };
             })
             .Where(i => i.Quantity > 0)
             .ToList();
