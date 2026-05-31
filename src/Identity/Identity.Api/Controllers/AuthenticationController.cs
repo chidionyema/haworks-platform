@@ -207,6 +207,7 @@ public class AuthenticationController : ControllerBase
 
     [HttpPost("service-token")]
     [AllowAnonymous]
+    [EnableRateLimiting("service-auth")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ServiceToken(
