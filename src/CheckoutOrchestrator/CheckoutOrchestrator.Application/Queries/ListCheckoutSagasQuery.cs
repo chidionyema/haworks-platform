@@ -35,8 +35,10 @@ internal sealed class ListCheckoutSagasQueryHandler(ICheckoutDbContext db)
         if (request.To.HasValue)
             query = query.Where(s => s.CreatedAt <= request.To.Value);
 
-        if (!request.IsAdmin && !string.IsNullOrWhiteSpace(request.UserId))
+        if (!request.IsAdmin)
             query = query.Where(s => s.UserId == request.UserId);
+        else if (request.From is null)
+            query = query.Where(s => s.CreatedAt >= DateTime.UtcNow.AddDays(-30));
 
         var rows = await query
             .OrderByDescending(s => s.CreatedAt)
