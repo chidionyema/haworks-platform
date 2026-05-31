@@ -14,8 +14,10 @@ namespace Haworks.Catalog.Api.Controllers;
 [Authorize]
 public sealed class ProductsController(
     IMediator mediator,
-    IProductCacheReader productCache) : ControllerBase
+    IProductCacheReader productCache,
+    IConfiguration configuration) : ControllerBase
 {
+    private readonly string _defaultCurrency = configuration.GetValue("Catalog:DefaultCurrency", "USD");
     [HttpGet]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -73,11 +75,12 @@ public sealed class ProductsController(
         var command = new CreateProductCommand(
             body.Name,
             body.Description,
-            Money.FromMajorUnits(body.UnitPrice, "USD").MinorUnits,
+            Money.FromMajorUnits(body.UnitPrice, _defaultCurrency).MinorUnits,
             body.CategoryId,
             body.InitialStock);
         var result = await mediator.Send(command, ct);
-        return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value : Guid.NewGuid() });
+        if (result.IsFailure) return result.ToActionResult();
+        return result.ToCreatedActionResult(nameof(Get), new { id = result.Value });
     }
 
     [HttpPut("{id:guid}")]
@@ -89,7 +92,7 @@ public sealed class ProductsController(
             id,
             body.Name,
             body.Description,
-            Money.FromMajorUnits(body.UnitPrice, "USD").MinorUnits,
+            Money.FromMajorUnits(body.UnitPrice, _defaultCurrency).MinorUnits,
             body.CategoryId,
             body.IsListed,
             body.CorrelationId);

@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Haworks.Catalog.Application.DTOs.Reservations;
 using Haworks.Contracts.Catalog;
 using Haworks.BuildingBlocks.Idempotency;
@@ -28,11 +29,12 @@ public sealed record CreateReservationCommand(
 
 internal sealed class CreateReservationCommandHandler(
     IProductRepository products,
+    IConfiguration configuration,
     ILogger<CreateReservationCommandHandler> logger)
     : IRequestHandler<CreateReservationCommand, Result<ReservationDto>>
 {
-    /// <summary>15-minute hold per ADR-004; matches monolith's pre-order TTL.</summary>
-    public static readonly TimeSpan ReservationTtl = TimeSpan.FromMinutes(15);
+    /// <summary>Configurable reservation TTL; defaults to 15 minutes per ADR-004.</summary>
+    private readonly TimeSpan _reservationTtl = TimeSpan.FromMinutes(configuration.GetValue("Catalog:ReservationTtlMinutes", 15));
 
     public async Task<Result<ReservationDto>> Handle(
         CreateReservationCommand request,
@@ -52,7 +54,7 @@ internal sealed class CreateReservationCommandHandler(
             var reservation = await products.CreateReservationAsync(
                 request.UserId,
                 contractItems,
-                ReservationTtl,
+                _reservationTtl,
                 ct);
 
             logger.LogInformation(
