@@ -30,8 +30,8 @@ public sealed class ProcessMediaConsumer(
         if (file is null || file.Status != MediaStatus.Quarantined)
         {
             logger.LogInformation(
-                "Skipping media processing for {MediaId}: status is {Status} (expected Quarantined)",
-                msg.MediaId, file?.Status.ToString() ?? "not found");
+                "Skipping media processing for {MediaId} (owner: {OwnerId}): status is {Status}, expected Quarantined",
+                msg.MediaId, msg.OwnerId, file?.Status.ToString() ?? "not found");
             return;
         }
 

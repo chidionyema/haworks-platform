@@ -144,7 +144,7 @@ public class CompleteMultipartUploadHandler(
         }
         finally
         {
-            try { File.Delete(tempPath); } catch (Exception ex) { logger.LogWarning(ex, "An error occurred in {MethodName}", nameof(Handle)); }
+            try { File.Delete(tempPath); } catch (Exception ex) { logger.LogWarning(ex, "Failed to cleanup temp file {TempPath}", tempPath); }
         }
 
         return Unit.Value;
