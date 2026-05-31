@@ -40,21 +40,16 @@ public sealed class CheckoutController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Start([FromBody] CheckoutRequest body, CancellationToken ct = default)
     {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
         {
             return Unauthorized();
         }
-
-        var sagaId = Guid.NewGuid();
-        var orderId = Guid.NewGuid();
-
-        using var activity = BffWebActivities.Source.StartActivity("bff.checkout.start");
-        activity?.SetTag("saga.id", sagaId);
-        activity?.SetTag("order.id", orderId);
-        activity?.SetTag("customer.id", userId);
-        activity?.SetTag("checkout.total_amount_cents", (long)Math.Round(body.TotalAmount * 100m, 0, MidpointRounding.AwayFromZero));
-        activity?.SetTag("checkout.item_count", body.Items.Count);
 
         // User-scoped idempotency key. Every retry of the *same* checkout from the
         // *same* user collapses to the same key; a different user's replay with
@@ -73,11 +68,27 @@ public sealed class CheckoutController(
             cartShape,
             body.IdempotencyKey ?? string.Empty);
 
+        // Derive deterministic IDs from idempotency key to prevent duplicate sagas on retry
+        var sagaId = DeriveGuidFromString(idempotencyKey + ".saga");
+        var orderId = DeriveGuidFromString(idempotencyKey + ".order");
+
+        using var activity = BffWebActivities.Source.StartActivity("bff.checkout.start");
+        activity?.SetTag("saga.id", sagaId);
+        activity?.SetTag("order.id", orderId);
+        activity?.SetTag("customer.id", userId);
+        activity?.SetTag("checkout.total_amount_cents", (long)Math.Round(body.TotalAmount * 100m, 0, MidpointRounding.AwayFromZero));
+        activity?.SetTag("checkout.item_count", body.Items.Count);
+
         var client = httpClientFactory.CreateClient(BackendClients.Checkout);
 
         // Checkout-svc requires Roles=Service. The UserIdentityForwardingHandler
         // forwards the user JWT which lacks this role. Override with service token.
         var svcToken = await serviceTokenProvider.GetTokenAsync(ct);
+        if (string.IsNullOrEmpty(svcToken))
+        {
+            return StatusCode(503, new { error = "Service authentication unavailable" });
+        }
+
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/checkouts");
         req.Content = JsonContent.Create(new
         {
@@ -96,8 +107,7 @@ public sealed class CheckoutController(
                 currency = body.Currency ?? "USD",
             }),
         });
-        if (!string.IsNullOrEmpty(svcToken))
-            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", svcToken);
+        req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", svcToken);
         req.Headers.TryAddWithoutValidation("X-User-Id", userId);
         var resp = await client.SendAsync(req, ct);
 
@@ -111,21 +121,55 @@ public sealed class CheckoutController(
 
         return Accepted(new { sagaId, orderId, message = "subscribe to /hubs/checkout to receive the payment URL" });
     }
+
+    private static Guid DeriveGuidFromString(string input)
+    {
+        using var sha1 = System.Security.Cryptography.SHA1.Create();
+        var hash = sha1.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));
+        var guidBytes = new byte[16];
+        Array.Copy(hash, guidBytes, 16);
+        // Set version (4) and variant bits for UUID v4 compatibility
+        guidBytes[6] = (byte)((guidBytes[6] & 0x0F) | 0x40);
+        guidBytes[8] = (byte)((guidBytes[8] & 0x3F) | 0x80);
+        return new Guid(guidBytes);
+    }
 }
 
 public sealed record CheckoutRequest
 {
+    [Required]
+    [EmailAddress]
     public required string CustomerEmail { get; init; }
+
+    [Required]
+    [Range(0.01, 999_999.99)]
     public required decimal TotalAmount { get; init; }
+
+    [Required]
+    [RegularExpression("^[A-Z]{3}$")]
     public string Currency { get; init; } = "USD";
+
     public string? IdempotencyKey { get; init; }
+
+    [Required]
+    [MinLength(1)]
     public required IReadOnlyList<CheckoutLineItem> Items { get; init; }
 }
 
 public sealed record CheckoutLineItem
 {
+    [Required]
     public required Guid ProductId { get; init; }
+
+    [Required]
+    [StringLength(200, MinimumLength = 1)]
     public required string ProductName { get; init; }
+
+    [Required]
+    [Range(1, 1000)]
     public required int Quantity { get; init; }
+
+    [Required]
+    [Range(0.01, 9999.99)]
     public required decimal UnitPrice { get; init; }
 }

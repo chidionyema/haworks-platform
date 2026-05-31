@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,9 +21,15 @@ public sealed class AiController : ControllerBase
     }
 
     [HttpPost("search")]
+    [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> SemanticSearch([FromBody] object body, CancellationToken ct = default)
+    public async Task<IActionResult> SemanticSearch([FromBody] SemanticSearchRequest body, CancellationToken ct = default)
     {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
         var http = _httpFactory.CreateClient(BackendClients.Ai);
         using var upstream = await http.PostAsJsonAsync("/api/v1/ai/search", body, ct);
         var content = await upstream.Content.ReadAsStringAsync(ct);
@@ -35,9 +42,15 @@ public sealed class AiController : ControllerBase
     }
 
     [HttpPost("chat/message")]
+    [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task ChatMessage([FromBody] object body, CancellationToken ct = default)
+    public async Task ChatMessage([FromBody] ChatMessageRequest body, CancellationToken ct = default)
     {
+        if (!ModelState.IsValid)
+        {
+            return;
+        }
+
         var http = _httpFactory.CreateClient(BackendClients.Ai);
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/ai/chat/message")
         {
@@ -87,3 +100,7 @@ public sealed class AiController : ControllerBase
         };
     }
 }
+
+public sealed record SemanticSearchRequest([Required] string Query, int? MaxResults = null);
+
+public sealed record ChatMessageRequest([Required] string Message, string? ConversationId = null);
