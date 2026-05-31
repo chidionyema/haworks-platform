@@ -42,7 +42,15 @@ internal sealed class StartCheckoutCommandHandler(
             ? request.IdempotencyKey
             : Guid.NewGuid().ToString("N");
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(hashInput));
-        var sagaId = new Guid(hash.AsSpan(0, 16));
+        // Use XOR folding of the full 32-byte hash to reduce collision risk while maintaining deterministic Guid generation
+        var hashPart1 = hash.AsSpan(0, 16);
+        var hashPart2 = hash.AsSpan(16, 16);
+        var foldedHash = new byte[16];
+        for (int i = 0; i < 16; i++)
+        {
+            foldedHash[i] = (byte)(hashPart1[i] ^ hashPart2[i]);
+        }
+        var sagaId = new Guid(foldedHash);
         var orderId = request.OrderId == Guid.Empty ? Guid.NewGuid() : request.OrderId;
 
         using var activity = CheckoutActivities.Source.StartActivity("checkout.saga.start");
