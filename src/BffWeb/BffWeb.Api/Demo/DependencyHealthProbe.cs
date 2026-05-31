@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Haworks.BffWeb.Application.Interfaces;
 using MassTransit;
+using Microsoft.Extensions.Options;
 
 namespace Haworks.BffWeb.Api.Demo;
 
@@ -23,7 +24,7 @@ namespace Haworks.BffWeb.Api.Demo;
 /// </summary>
 public sealed class DependencyHealthProbe : IDependencyHealthProbe
 {
-    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(5);
+    private readonly DependencyHealthProbeOptions _options;
 
     private static readonly (string Id, string Name, string ClientName)[] s_downstream =
     [
@@ -44,11 +45,13 @@ public sealed class DependencyHealthProbe : IDependencyHealthProbe
     public DependencyHealthProbe(
         IHttpClientFactory httpClientFactory,
         IServiceProvider services,
-        ILogger<DependencyHealthProbe> logger)
+        ILogger<DependencyHealthProbe> logger,
+        IOptions<DependencyHealthProbeOptions> options)
     {
         _httpClientFactory = httpClientFactory;
         _services = services;
         _logger = logger;
+        _options = options.Value;
     }
 
     public async Task<DependencySnapshot> ProbeAsync(CancellationToken ct = default)
@@ -65,13 +68,13 @@ public sealed class DependencyHealthProbe : IDependencyHealthProbe
         // Aggregate: any offline -> degraded; all online -> healthy. There's
         // no "down" state at the BFF level since the BFF itself answering
         // means "api" is online — true outage means we couldn't respond at all.
-        var aggregate = results.All(r => string.Equals(r.Status, "online", StringComparison.Ordinal)) ? "healthy" : "degraded";
+        var aggregate = results.All(r => string.Equals(r.Status, StatusConstants.Online, StringComparison.Ordinal)) ? StatusConstants.Healthy : StatusConstants.Degraded;
 
         return new DependencySnapshot(results, aggregate, DateTime.UtcNow);
     }
 
     private static Task<DependencyStatus> ProbeApiAsync() =>
-        Task.FromResult(new DependencyStatus("api", "BFF-WEB", "online", 0, null));
+        Task.FromResult(new DependencyStatus("api", "BFF-WEB", StatusConstants.Online, 0, null));
 
     private Task<DependencyStatus> ProbeHttpAsync(string id, string name, string clientName, CancellationToken ct) =>
         TimedAsync(id, name, async () =>
@@ -80,19 +83,19 @@ public sealed class DependencyHealthProbe : IDependencyHealthProbe
             using var resp = await client.GetAsync("/health", ct).ConfigureAwait(false);
             if (resp.IsSuccessStatusCode)
             {
-                return ("online", (string?)null);
+                return (StatusConstants.Online, (string?)null);
             }
-            return ("degraded", $"HTTP {(int)resp.StatusCode}");
+            return (StatusConstants.Degraded, $"HTTP {(int)resp.StatusCode}");
         });
 
     private Task<DependencyStatus> ProbeRabbitMqAsync() =>
         TimedAsync("mq", "RABBITMQ", () =>
         {
             var bus = _services.GetService<IBus>();
-            if (bus is null) return Task.FromResult(("offline", (string?)"IBus not registered"));
-            if (bus.Address is null) return Task.FromResult(("offline", (string?)"bus has no remote address"));
+            if (bus is null) return Task.FromResult((StatusConstants.Offline, (string?)"IBus not registered"));
+            if (bus.Address is null) return Task.FromResult((StatusConstants.Offline, (string?)"bus has no remote address"));
 
-            return Task.FromResult(("online", (string?)null));
+            return Task.FromResult((StatusConstants.Online, (string?)null));
         });
 
     private async Task<DependencyStatus> TimedAsync(
@@ -103,14 +106,14 @@ public sealed class DependencyHealthProbe : IDependencyHealthProbe
         var sw = Stopwatch.StartNew();
         try
         {
-            using var cts = new CancellationTokenSource(ProbeTimeout);
+            using var cts = new CancellationTokenSource(_options.ProbeTimeout);
             var probeTask = probe();
-            var winner = await Task.WhenAny(probeTask, Task.Delay(ProbeTimeout, cts.Token)).ConfigureAwait(false);
+            var winner = await Task.WhenAny(probeTask, Task.Delay(_options.ProbeTimeout, cts.Token)).ConfigureAwait(false);
             sw.Stop();
 
             if (winner != probeTask)
             {
-                return new DependencyStatus(id, name, "offline", sw.ElapsedMilliseconds, "probe timed out");
+                return new DependencyStatus(id, name, StatusConstants.Offline, sw.ElapsedMilliseconds, "probe timed out");
             }
 
             var (status, message) = await probeTask.ConfigureAwait(false);
@@ -120,7 +123,7 @@ public sealed class DependencyHealthProbe : IDependencyHealthProbe
         {
             sw.Stop();
             _logger.LogDebug(ex, "Dependency probe failed for {Id}", id);
-            return new DependencyStatus(id, name, "offline", sw.ElapsedMilliseconds, ex.GetType().Name);
+            return new DependencyStatus(id, name, StatusConstants.Offline, sw.ElapsedMilliseconds, ex.GetType().Name);
         }
     }
 }

@@ -95,7 +95,11 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options => {
+    options.MaximumParallelInvocationsPerClient = 2;
+}).AddHubOptions<DemoHub>(options => {
+    options.MaximumReceiveMessageSize = 1024;
+});
 
 // Demo surface for the portfolio site (https://github.com/chidionyema/portfolio-site).
 // SignalRDemoHubNotifier MUST be Singleton — registering Scoped triggers a
@@ -114,6 +118,8 @@ builder.Services.AddSingleton<DemoStateStore>();
 // each downstream microservice + RabbitMQ in parallel with a 2s per-target
 // timeout. See src/BffWeb/BffWeb.Api/Demo/{DemoActivityCounters, DependencyHealthProbe}.cs.
 builder.Services.AddSingleton<IDemoActivityCounters, DemoActivityCounters>();
+builder.Services.Configure<Haworks.BffWeb.Api.Demo.DependencyHealthProbeOptions>(
+    builder.Configuration.GetSection(Haworks.BffWeb.Api.Demo.DependencyHealthProbeOptions.SectionName));
 builder.Services.AddScoped<IDependencyHealthProbe, DependencyHealthProbe>();
 
 // Live console broadcaster — Singleton ring buffer + SignalR fan-out for the

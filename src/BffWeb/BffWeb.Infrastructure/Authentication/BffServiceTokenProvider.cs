@@ -75,9 +75,14 @@ public sealed class BffServiceTokenProvider : IServiceTokenProvider
 
             return _cachedToken;
         }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Network failure obtaining service token - should retry");
+            throw;
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to obtain service token");
+            _logger.LogError(ex, "Configuration error obtaining service token");
             return null;
         }
         finally
