@@ -20,6 +20,7 @@ public sealed class DemoActivityCounters : IDemoActivityCounters
     private static readonly TimeSpan SessionWindow = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan RequestWindow = TimeSpan.FromHours(24);
     private const int HistogramSize = 1024;
+    private const int MaxQueueSize = 50000;
 
     private readonly ConcurrentQueue<DateTime> _recentRequests = new();
     private readonly ConcurrentDictionary<string, DateTime> _activeSessions = new();
@@ -33,7 +34,10 @@ public sealed class DemoActivityCounters : IDemoActivityCounters
     {
         var now = DateTime.UtcNow;
 
-        _recentRequests.Enqueue(now);
+        if (_recentRequests.Count < MaxQueueSize)
+        {
+            _recentRequests.Enqueue(now);
+        }
 
         if (!string.IsNullOrEmpty(sessionId))
         {

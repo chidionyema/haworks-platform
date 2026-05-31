@@ -1,7 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace Haworks.BffWeb.Api.Controllers;
+
+public sealed record SearchRequest([Required] string Query, int? MaxResults = 10);
+
+public sealed record ChatMessageRequest([Required] string Message, string? ConversationId = null);
+
+public sealed record ContentGenerationRequest([Required] string Prompt, string? ContentType = null, int? MaxLength = null);
 
 /// <summary>
 /// BFF passthrough to <c>ai-svc</c> (Python FastAPI). Forwards requests
@@ -21,10 +28,10 @@ public sealed class AiController : ControllerBase
 
     [HttpPost("search")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> SemanticSearch([FromBody] object body, CancellationToken ct = default)
+    public async Task<IActionResult> SemanticSearch([FromBody] SearchRequest request, CancellationToken ct = default)
     {
         var http = _httpFactory.CreateClient(BackendClients.Ai);
-        using var upstream = await http.PostAsJsonAsync("/api/v1/ai/search", body, ct);
+        using var upstream = await http.PostAsJsonAsync("/api/v1/ai/search", request, ct);
         var content = await upstream.Content.ReadAsStringAsync(ct);
         return new ContentResult
         {
@@ -36,15 +43,15 @@ public sealed class AiController : ControllerBase
 
     [HttpPost("chat/message")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task ChatMessage([FromBody] object body, CancellationToken ct = default)
+    public async Task ChatMessage([FromBody] ChatMessageRequest request, CancellationToken ct = default)
     {
         var http = _httpFactory.CreateClient(BackendClients.Ai);
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/ai/chat/message")
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/ai/chat/message")
         {
-            Content = JsonContent.Create(body),
+            Content = JsonContent.Create(request),
         };
 
-        using var upstream = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var upstream = await http.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
 
         Response.StatusCode = (int)upstream.StatusCode;
         Response.ContentType = "text/event-stream";
@@ -74,10 +81,10 @@ public sealed class AiController : ControllerBase
     [HttpPost("content/generate")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GenerateContent([FromBody] object body, CancellationToken ct = default)
+    public async Task<IActionResult> GenerateContent([FromBody] ContentGenerationRequest request, CancellationToken ct = default)
     {
         var http = _httpFactory.CreateClient(BackendClients.Ai);
-        using var upstream = await http.PostAsJsonAsync("/api/v1/ai/content/generate", body, ct);
+        using var upstream = await http.PostAsJsonAsync("/api/v1/ai/content/generate", request, ct);
         var content = await upstream.Content.ReadAsStringAsync(ct);
         return new ContentResult
         {
