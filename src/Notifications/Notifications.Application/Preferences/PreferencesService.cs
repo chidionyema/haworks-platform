@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Haworks.Notifications.Domain.Entities;
 using Haworks.Notifications.Domain.Enums;
 using Microsoft.Extensions.Logging;
@@ -24,6 +25,7 @@ public sealed class PreferencesService : IPreferencesService
     private readonly IPreferencesRepository _repository;
     private readonly TimeProvider _clock;
     private readonly ILogger<PreferencesService> _logger;
+    private static readonly ConcurrentDictionary<string, TimeZoneInfo> _timezoneCache = new();
 
     public PreferencesService(
         IPreferencesRepository repository,
@@ -98,19 +100,21 @@ public sealed class PreferencesService : IPreferencesService
 
     private bool IsInsideQuietHours(PreferenceQuietHours quiet)
     {
-        TimeZoneInfo tz;
-        try
+        var tz = _timezoneCache.GetOrAdd(quiet.TimeZoneId, tzId =>
         {
-            tz = TimeZoneInfo.FindSystemTimeZoneById(quiet.TimeZoneId);
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            tz = TimeZoneInfo.Utc;
-        }
-        catch (InvalidTimeZoneException)
-        {
-            tz = TimeZoneInfo.Utc;
-        }
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(tzId);
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                return TimeZoneInfo.Utc;
+            }
+            catch (InvalidTimeZoneException)
+            {
+                return TimeZoneInfo.Utc;
+            }
+        });
 
         var nowUtc = _clock.GetUtcNow().UtcDateTime;
         var local = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, tz);

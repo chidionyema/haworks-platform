@@ -66,7 +66,8 @@ public class NotificationsDbContext : DbContext
                 .HasColumnType("jsonb")
                 .HasConversion(
                     v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                    v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null));
+                    v => JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(v, (JsonSerializerOptions?)null)?
+                        .ToDictionary(kvp => kvp.Key, kvp => ConvertJsonElement(kvp.Value)) ?? new Dictionary<string, object>());
 
             entity.OwnsMany(n => n.DeliveryAttempts, a =>
             {
@@ -85,6 +86,7 @@ public class NotificationsDbContext : DbContext
             entity.HasIndex(n => n.UserId);
             entity.HasIndex(n => n.Recipient);
             entity.HasIndex(n => n.Status);
+            entity.HasIndex(n => n.ProviderMessageId);
             entity.HasIndex(n => n.IdempotencyKey).IsUnique();
         });
 
@@ -120,6 +122,21 @@ public class NotificationsDbContext : DbContext
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxStateEntity();
         modelBuilder.AddOutboxMessageEntity();
+    }
+
+    private static object ConvertJsonElement(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString()!,
+            JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null!,
+            JsonValueKind.Object => element.EnumerateObject().ToDictionary(p => p.Name, p => ConvertJsonElement(p.Value)),
+            JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElement).ToArray(),
+            _ => element.ToString()!
+        };
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

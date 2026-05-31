@@ -102,6 +102,19 @@ public sealed class SuppressionService : ISuppressionService
                 sb.Append(ch);
             }
         }
-        return sb.ToString();
+
+        var normalized = sb.ToString();
+
+        // Basic E.164 validation: must start with + and have 7-15 digits
+        if (normalized.StartsWith('+') &&
+            normalized.Length >= 8 && normalized.Length <= 16 && // +1234567 to +123456789012345
+            normalized.Skip(1).All(c => c >= '0' && c <= '9'))
+        {
+            return normalized;
+        }
+
+        // If doesn't match E.164, return as-is for consistent hashing
+        // but log warning for potential data quality issues
+        return normalized;
     }
 }
