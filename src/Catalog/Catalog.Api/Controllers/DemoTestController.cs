@@ -116,6 +116,7 @@ public sealed class DemoTestController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Stampede([FromBody] StampedeRequest request, CancellationToken ct)
     {
+        var concurrentRequests = Math.Clamp(request.ConcurrentRequests, 1, 100);
         var key = $"demo:stampede:{request.CacheKey}:{Guid.NewGuid():N}";
         var dbQueries = 0;
 
@@ -130,7 +131,7 @@ public sealed class DemoTestController(
         {
             // HybridCache collapses concurrent factories for the same key.
             await Parallel.ForEachAsync(
-                Enumerable.Range(0, request.ConcurrentRequests),
+                Enumerable.Range(0, concurrentRequests),
                 ct,
                 async (_, token) => await cache.GetOrCreateAsync(key, Factory, cancellationToken: token));
         }
@@ -138,20 +139,20 @@ public sealed class DemoTestController(
         {
             // Bypass cache — every request hits the factory directly.
             await Parallel.ForEachAsync(
-                Enumerable.Range(0, request.ConcurrentRequests),
+                Enumerable.Range(0, concurrentRequests),
                 ct,
                 async (_, token) => await Factory(token));
         }
 
         logger.LogInformation(
             "Cache stampede demo: mode={Mode} concurrency={N} dbQueries={Q}",
-            request.ProtectionMode, request.ConcurrentRequests, dbQueries);
+            request.ProtectionMode, concurrentRequests, dbQueries);
 
         return Ok(new
         {
             sessionId = Guid.NewGuid(),
             protectionMode = request.ProtectionMode,
-            cacheHits = request.ConcurrentRequests - dbQueries,
+            cacheHits = concurrentRequests - dbQueries,
             cacheMisses = dbQueries,
             dbQueries,
         });

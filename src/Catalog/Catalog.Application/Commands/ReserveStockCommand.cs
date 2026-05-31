@@ -51,15 +51,15 @@ internal sealed class ReserveStockCommandHandler(
         if (!product.ReserveStock(request.Quantity))
         {
             logger.LogWarning(
-                "Stock reservation failed: insufficient stock for product {ProductId}. Requested {Requested}, available {Available}",
-                product.Id, request.Quantity, product.StockQuantity);
+                "Stock reservation failed: insufficient stock for product {ProductId}",
+                product.Id);
             // Conflict (409) is the right HTTP semantic — the request is well-formed,
             // but the resource state (stock) won't satisfy it. Don't reuse
             // Error.Payment.InsufficientStock — that one is ErrorType.Internal
             // (500), wrong for a domain-level "no" answer.
             return Result.Failure<Guid>(Error.Conflict(
                 "Stock.Insufficient",
-                $"Insufficient stock for product {product.Id}: requested {request.Quantity}, available {product.StockQuantity}"));
+                $"Insufficient stock for product {product.Id}"));
         }
 
         // Publish BEFORE SaveChanges. With the per-context EF outbox the
