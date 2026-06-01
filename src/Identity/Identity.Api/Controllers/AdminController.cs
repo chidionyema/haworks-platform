@@ -201,6 +201,7 @@ public sealed class AdminController(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Vault rotation failed for role={RoleName}", roleName);
+                // TODO: Trigger alert or publish failure event
             }
         });
 
