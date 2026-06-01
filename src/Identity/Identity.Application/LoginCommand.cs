@@ -60,8 +60,14 @@ internal sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result
         var userAgent = request.HttpContext.GetUserAgent();
 
         var user = await _userManager.FindByNameAsync(request.Username);
+
+        // Always perform password hashing to maintain constant timing
         if (user == null)
         {
+            // Hash password even when user doesn't exist to prevent timing attacks
+            _ = _userManager.PasswordHasher.HashPassword(
+                new Microsoft.AspNetCore.Identity.IdentityUser(), request.Password);
+
             _logger.LogWarning("User not found during login attempt: {Username}", request.Username);
 
             await _auditLogger.LogAsync(new AuditEvent
@@ -70,7 +76,7 @@ internal sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result
                 UserId = string.Empty,
                 Resource = $"User:{request.Username}",
                 IsSuccess = false,
-                Details = "User not found",
+                Details = "Invalid credentials",
                 IpAddress = ipAddress,
                 UserAgent = userAgent,
                 CorrelationId = correlationId

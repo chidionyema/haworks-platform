@@ -45,6 +45,11 @@ public class UserProfile : AuditableEntity
     /// </summary>
     public void UpdatePersonalInfo(string firstName, string lastName, string? phone = null)
     {
+        if (string.IsNullOrWhiteSpace(firstName))
+            throw new ArgumentException("First name is required", nameof(firstName));
+        if (string.IsNullOrWhiteSpace(lastName))
+            throw new ArgumentException("Last name is required", nameof(lastName));
+
         FirstName = firstName;
         LastName = lastName;
         if (phone != null)
@@ -59,6 +64,17 @@ public class UserProfile : AuditableEntity
     /// </summary>
     public void UpdateAddress(string address, string city, string state, string postalCode, string country)
     {
+        if (string.IsNullOrWhiteSpace(address))
+            throw new ArgumentException("Address is required", nameof(address));
+        if (string.IsNullOrWhiteSpace(city))
+            throw new ArgumentException("City is required", nameof(city));
+        if (string.IsNullOrWhiteSpace(state))
+            throw new ArgumentException("State is required", nameof(state));
+        if (string.IsNullOrWhiteSpace(postalCode))
+            throw new ArgumentException("Postal code is required", nameof(postalCode));
+        if (string.IsNullOrWhiteSpace(country))
+            throw new ArgumentException("Country is required", nameof(country));
+
         Address = address;
         City = city;
         State = state;

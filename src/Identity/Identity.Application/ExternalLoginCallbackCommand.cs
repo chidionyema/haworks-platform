@@ -235,13 +235,7 @@ internal sealed class ExternalLoginCallbackCommandHandler
             return true;
         }
 
-        // Trusted providers (Google, Microsoft, Apple) verify emails as part of their auth flow
-        if (_options.TrustedEmailProviders.Contains(loginInfo.LoginProvider, StringComparer.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        // For other providers, require explicit email_verified claim
+        // Always require explicit email verification claim
         return false;
     }
 
