@@ -269,4 +269,101 @@ public class UserProfileTests
         // Assert
         profile.LastLogin.Should().NotBeNull();
     }
+
+    #endregion
+
+    #region RefreshToken Domain Property Tests
+
+    [Fact]
+    public void RefreshToken_IsExpired_WhenExpiredDateInPast_ReturnsTrue()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var token = "test-token";
+        var expiredDate = DateTime.UtcNow.AddMinutes(-1);
+
+        // Act
+        var refreshToken = RefreshToken.Create(userId, token, expiredDate);
+
+        // Assert
+        refreshToken.IsExpired.Should().BeTrue();
+    }
+
+    [Fact]
+    public void RefreshToken_IsExpired_WhenExpiredDateInFuture_ReturnsFalse()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var token = "test-token";
+        var futureDate = DateTime.UtcNow.AddMinutes(30);
+
+        // Act
+        var refreshToken = RefreshToken.Create(userId, token, futureDate);
+
+        // Assert
+        refreshToken.IsExpired.Should().BeFalse();
+    }
+
+    [Fact]
+    public void RefreshToken_IsExpired_WhenExpiredDateIsExactlyNow_ReturnsTrue()
+    {
+        // Arrange
+        var userId = Guid.NewGuid().ToString();
+        var token = "test-token";
+        var exactlyNow = DateTime.UtcNow;
+
+        // Act
+        var refreshToken = RefreshToken.Create(userId, token, exactlyNow);
+
+        // Assert - the property uses >= so exactly now should be expired
+        refreshToken.IsExpired.Should().BeTrue();
+    }
+
+    #endregion
+
+    #region RevokedToken Domain Property Tests
+
+    [Fact]
+    public void RevokedToken_CanBeCleanedUp_WhenExpiresAtInPast_ReturnsTrue()
+    {
+        // Arrange
+        var token = "revoked-token";
+        var expiredDate = DateTime.UtcNow.AddMinutes(-1);
+
+        // Act
+        var revokedToken = RevokedToken.Create(token, expiredDate, "Test revocation");
+
+        // Assert
+        revokedToken.CanBeCleanedUp.Should().BeTrue();
+    }
+
+    [Fact]
+    public void RevokedToken_CanBeCleanedUp_WhenExpiresAtInFuture_ReturnsFalse()
+    {
+        // Arrange
+        var token = "revoked-token";
+        var futureDate = DateTime.UtcNow.AddMinutes(30);
+
+        // Act
+        var revokedToken = RevokedToken.Create(token, futureDate, "Test revocation");
+
+        // Assert
+        revokedToken.CanBeCleanedUp.Should().BeFalse();
+    }
+
+    [Fact]
+    public void RevokedToken_CanBeCleanedUp_WhenExpiresAtIsExactlyNow_ReturnsTrue()
+    {
+        // Arrange
+        var token = "revoked-token";
+        var exactlyNow = DateTime.UtcNow;
+
+        // Act
+        var revokedToken = RevokedToken.Create(token, exactlyNow, "Test revocation");
+
+        // Assert - the property uses >= so exactly now should be cleanable
+        revokedToken.CanBeCleanedUp.Should().BeTrue();
+    }
+
+    #endregion
 }

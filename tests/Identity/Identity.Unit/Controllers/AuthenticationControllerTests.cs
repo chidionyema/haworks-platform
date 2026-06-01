@@ -124,4 +124,118 @@ public class AuthenticationControllerTests : TestBase
         var objectResult = Assert.IsType<ObjectResult>(result);
         Assert.Equal(400, objectResult.StatusCode);
     }
+
+    [Fact]
+    public async Task Logout_WithValidRequest_ReturnsOk()
+    {
+        var request = new LogoutRequest("valid-token");
+
+        _mediatorMock
+            .Setup(m => m.Send(It.IsAny<LogoutCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success("Successfully logged out"));
+
+        var result = await _controller.Logout(request, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        dynamic response = okResult.Value!;
+        Assert.Equal("Successfully logged out", response.GetType().GetProperty("message")!.GetValue(response));
+    }
+
+    [Fact]
+    public async Task Logout_WithInvalidToken_ReturnsBadRequest()
+    {
+        var request = new LogoutRequest("invalid-token");
+
+        _mediatorMock
+            .Setup(m => m.Send(It.IsAny<LogoutCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Failure<string>(
+                Error.Validation("Auth.InvalidToken", "Invalid or expired token")));
+
+        var result = await _controller.Logout(request, CancellationToken.None);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(400, objectResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task VerifyToken_WithValidToken_ReturnsOk()
+    {
+        var query = new VerifyTokenQuery("valid-token");
+
+        _mediatorMock
+            .Setup(m => m.Send(It.IsAny<VerifyTokenQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(new VerifyTokenResult
+            {
+                IsValid = true,
+                Username = "testuser",
+                Email = "test@example.com",
+                UserId = "user-123",
+                Roles = ["User"]
+            }));
+
+        var result = await _controller.VerifyToken(query, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<VerifyTokenResult>(okResult.Value);
+        Assert.True(response.IsValid);
+        Assert.Equal("testuser", response.Username);
+        Assert.Equal("test@example.com", response.Email);
+        Assert.Equal("user-123", response.UserId);
+    }
+
+    [Fact]
+    public async Task VerifyToken_WithInvalidToken_ReturnsBadRequest()
+    {
+        var query = new VerifyTokenQuery("invalid-token");
+
+        _mediatorMock
+            .Setup(m => m.Send(It.IsAny<VerifyTokenQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Failure<VerifyTokenResult>(
+                Error.Validation("Auth.InvalidToken", "Token is invalid or expired")));
+
+        var result = await _controller.VerifyToken(query, CancellationToken.None);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(400, objectResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task ServiceToken_WithValidRequest_ReturnsOk()
+    {
+        var request = new ServiceTokenRequest("valid-service-secret");
+        var serviceTokenDto = new ServiceTokenDto
+        {
+            Token = "service-token",
+            Expires = DateTime.UtcNow.AddHours(1),
+            ServiceName = "test-service"
+        };
+
+        _mediatorMock
+            .Setup(m => m.Send(It.IsAny<CreateServiceTokenCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(serviceTokenDto));
+
+        var result = await _controller.ServiceToken(request, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<ServiceTokenResponse>(okResult.Value);
+        Assert.Equal("service-token", response.Token);
+        Assert.Equal(serviceTokenDto.Expires, response.Expires);
+        Assert.Equal("test-service", response.ServiceName);
+    }
+
+    [Fact]
+    public async Task ServiceToken_WithInvalidSecret_ReturnsUnauthorized()
+    {
+        var request = new ServiceTokenRequest("invalid-secret");
+
+        _mediatorMock
+            .Setup(m => m.Send(It.IsAny<CreateServiceTokenCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Failure<ServiceTokenDto>(
+                Error.Authentication("Auth.InvalidServiceSecret", "Invalid service secret")));
+
+        var result = await _controller.ServiceToken(request, CancellationToken.None);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(401, objectResult.StatusCode);
+    }
 }
