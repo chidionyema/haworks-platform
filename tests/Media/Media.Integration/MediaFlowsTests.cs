@@ -416,6 +416,250 @@ public sealed class MediaFlowsTests : IAsyncLifetime
         file.S3UploadId.Should().NotBeNullOrEmpty();
     }
 
+    [Fact]
+    public async Task BatchInitiateUpload_MultipleFiles_ReturnsAllResponses()
+    {
+        var files = new[]
+        {
+            new { FileName = "batch1.png", Hash = GenerateTestFile().hash, Size = 1024L, MimeType = "image/png" },
+            new { FileName = "batch2.jpg", Hash = GenerateTestFile().hash, Size = 2048L, MimeType = "image/jpeg" },
+            new { FileName = "batch3.pdf", Hash = GenerateTestFile().hash, Size = 4096L, MimeType = "application/pdf" }
+        };
+
+        var response = await _client.PostAsJsonAsync("/api/v1/media/batch-initiate", new { Files = files });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<UploadResponse[]>();
+        body.Should().NotBeNull();
+        body!.Should().HaveCount(3);
+        body.Should().OnlyContain(r => !r.AlreadyExists);
+        body.Should().OnlyContain(r => !string.IsNullOrEmpty(r.UploadUrl));
+
+        // Verify all files were created in database
+        var fileIds = body.Select(r => r.Id).ToList();
+        var dbFiles = await ReadDbAsync(db => db.MediaFiles.Where(f => fileIds.Contains(f.Id)).ToListAsync());
+        dbFiles.Should().HaveCount(3);
+        dbFiles.Should().OnlyContain(f => f.Status == MediaStatus.Pending);
+    }
+
+    [Fact]
+    public async Task BatchInitiateUpload_ExistingFile_ReturnsExistingId()
+    {
+        // First, create a file
+        var (_, hash) = GenerateTestFile();
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
+        {
+            FileName = "original.png",
+            Hash = hash,
+            Size = 1024L,
+            MimeType = "image/png",
+        });
+        var originalUpload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
+
+        // Now batch initiate with the same hash plus a new one
+        var files = new[]
+        {
+            new { FileName = "duplicate.png", Hash = hash, Size = 1024L, MimeType = "image/png" },
+            new { FileName = "new.jpg", Hash = GenerateTestFile().hash, Size = 2048L, MimeType = "image/jpeg" }
+        };
+
+        var batchResponse = await _client.PostAsJsonAsync("/api/v1/media/batch-initiate", new { Files = files });
+
+        batchResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await batchResponse.Content.ReadFromJsonAsync<UploadResponse[]>();
+        body.Should().NotBeNull();
+        body!.Should().HaveCount(2);
+
+        var existingFile = body.First(r => r.AlreadyExists);
+        var newFile = body.First(r => !r.AlreadyExists);
+
+        existingFile.Id.Should().Be(originalUpload!.Id);
+        existingFile.UploadUrl.Should().BeNull();
+        newFile.UploadUrl.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task BatchInitiateUpload_EmptyArray_ReturnsBadRequest()
+    {
+        var response = await _client.PostAsJsonAsync("/api/v1/media/batch-initiate", new { Files = Array.Empty<object>() });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task BatchInitiateUpload_TooManyFiles_ReturnsBadRequest()
+    {
+        var files = Enumerable.Range(1, 51).Select(i => new
+        {
+            FileName = $"file{i}.png",
+            Hash = GenerateTestFile().hash,
+            Size = 1024L,
+            MimeType = "image/png"
+        }).ToArray();
+
+        var response = await _client.PostAsJsonAsync("/api/v1/media/batch-initiate", new { Files = files });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task LinkEntity_ValidMedia_LinksSuccessfully()
+    {
+        var (_, hash) = GenerateTestFile();
+
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
+        {
+            FileName = "link-test.png",
+            Hash = hash,
+            Size = 1024L,
+            MimeType = "image/png",
+        });
+        var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
+
+        var entityId = Guid.NewGuid();
+        var linkResponse = await _client.PostAsJsonAsync($"/api/v1/media/{upload!.Id}/link", new
+        {
+            EntityId = entityId,
+            EntityType = "Product"
+        });
+
+        linkResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Verify entity link in database
+        var linkedFile = await ReadDbAsync(db => db.MediaFiles.FirstAsync(f => f.Id == upload.Id));
+        linkedFile.EntityId.Should().Be(entityId);
+        linkedFile.EntityType.Should().Be("Product");
+    }
+
+    [Fact]
+    public async Task LinkEntity_NonExistentMedia_ReturnsNotFound()
+    {
+        var entityId = Guid.NewGuid();
+        var response = await _client.PostAsJsonAsync($"/api/v1/media/{Guid.NewGuid()}/link", new
+        {
+            EntityId = entityId,
+            EntityType = "Product"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task LinkEntity_InvalidEntityType_ReturnsBadRequest()
+    {
+        var (_, hash) = GenerateTestFile();
+
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
+        {
+            FileName = "link-test.png",
+            Hash = hash,
+            Size = 1024L,
+            MimeType = "image/png",
+        });
+        var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
+
+        var entityId = Guid.NewGuid();
+        var linkResponse = await _client.PostAsJsonAsync($"/api/v1/media/{upload!.Id}/link", new
+        {
+            EntityId = entityId,
+            EntityType = new string('a', 101) // Too long
+        });
+
+        linkResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task DeleteMedia_ExistingFile_SoftDeletesSuccessfully()
+    {
+        var (_, hash) = GenerateTestFile();
+
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
+        {
+            FileName = "delete-test.png",
+            Hash = hash,
+            Size = 1024L,
+            MimeType = "image/png",
+        });
+        var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
+
+        var deleteResponse = await _client.DeleteAsync($"/api/v1/media/{upload!.Id}");
+
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Verify file is soft deleted
+        var deletedFile = await ReadDbAsync(db => db.MediaFiles.FirstAsync(f => f.Id == upload.Id));
+        deletedFile.IsDeleted.Should().BeTrue();
+        deletedFile.DeletedAt.Should().NotBeNull();
+        deletedFile.Status.Should().Be(MediaStatus.Deleted);
+    }
+
+    [Fact]
+    public async Task DeleteMedia_NonExistentFile_ReturnsNotFound()
+    {
+        var response = await _client.DeleteAsync($"/api/v1/media/{Guid.NewGuid()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task DeleteMedia_PublishesMediaDeletedEvent()
+    {
+        var (_, hash) = GenerateTestFile();
+
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
+        {
+            FileName = "event-delete.png",
+            Hash = hash,
+            Size = 1024L,
+            MimeType = "image/png",
+        });
+        var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
+
+        await _client.DeleteAsync($"/api/v1/media/{upload!.Id}");
+
+        // Verify MassTransit published the deleted event
+        var harness = _factory.Services.GetRequiredService<ITestHarness>();
+        var published = await PollUntilAsync(
+            () => harness.Published.Select<MediaDeletedEvent>()
+                .Any(p => p.Context.Message.MediaId == upload.Id),
+            TimeSpan.FromSeconds(10));
+        published.Should().BeTrue("MediaDeletedEvent should be published for deleted files");
+    }
+
+    [Fact]
+    public async Task DeleteMedia_FileWithEntityLink_PublishesEventWithEntityInfo()
+    {
+        var (_, hash) = GenerateTestFile();
+
+        var initResponse = await _client.PostAsJsonAsync("/api/v1/media/initiate", new
+        {
+            FileName = "entity-delete.png",
+            Hash = hash,
+            Size = 1024L,
+            MimeType = "image/png",
+        });
+        var upload = await initResponse.Content.ReadFromJsonAsync<UploadResponse>();
+
+        var entityId = Guid.NewGuid();
+        await _client.PostAsJsonAsync($"/api/v1/media/{upload!.Id}/link", new
+        {
+            EntityId = entityId,
+            EntityType = "Product"
+        });
+
+        await _client.DeleteAsync($"/api/v1/media/{upload.Id}");
+
+        // Verify event includes entity information
+        var harness = _factory.Services.GetRequiredService<ITestHarness>();
+        var published = await PollUntilAsync(
+            () => harness.Published.Select<MediaDeletedEvent>()
+                .Any(p => p.Context.Message.MediaId == upload.Id &&
+                         p.Context.Message.EntityId == entityId &&
+                         p.Context.Message.EntityType == "Product"),
+            TimeSpan.FromSeconds(10));
+        published.Should().BeTrue("MediaDeletedEvent should include entity information");
+    }
+
     // ─── Polling helper ───
 
     private static async Task<bool> PollUntilAsync(Func<bool> predicate, TimeSpan timeout)
