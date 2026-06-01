@@ -12,10 +12,14 @@
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Moq" />
     <PackageReference Include="FluentValidation" />
+    <PackageReference Include="Grpc.Core.Testing" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../../src/Location/Location.Application/Location.Application.csproj" />
     <ProjectReference Include="../../../src/Location/Location.Domain/Location.Domain.csproj" />
+    <ProjectReference Include="../../../src/Location/Location.Infrastructure/Location.Infrastructure.csproj" />
+    <ProjectReference Include="../../../src/Location/Location.Api/Location.Api.csproj" />
     <ProjectReference Include="../../../src/BuildingBlocks.Testing/Haworks.BuildingBlocks.Testing.csproj" />
   </ItemGroup>
 </Project>

@@ -132,6 +132,8 @@
     <PackageVersion Include="WireMock.Net" Version="2.4.0" />
     <PackageVersion Include="Microsoft.Playwright" Version="1.48.0" />
     <PackageVersion Include="Testcontainers.Elasticsearch" Version="4.0.0" />
+    <PackageVersion Include="Grpc.Core.Testing" Version="2.46.6" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0" />
     <PackageVersion Include="Testcontainers.Kafka" Version="4.0.0" />
     <PackageVersion Include="Testcontainers.Minio" Version="4.0.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.0.0" />
