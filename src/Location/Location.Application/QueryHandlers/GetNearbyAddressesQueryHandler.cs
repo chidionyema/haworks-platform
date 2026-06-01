@@ -13,7 +13,7 @@ internal sealed class GetNearbyAddressesQueryHandler(
     IMemoryCache cache) : IRequestHandler<GetNearbyAddressesQuery, Result<IReadOnlyList<NearbyAddressDto>>>
 {
     private static string CacheKey(double lat, double lon, double radius, int limit) =>
-        $"nearby:{Math.Round(lat, 3)}:{Math.Round(lon, 3)}:{radius}:{limit}";
+        $"nearby:{Math.Round(lat, 6)}:{Math.Round(lon, 6)}:{radius}:{limit}";
 
     public async Task<Result<IReadOnlyList<NearbyAddressDto>>> Handle(GetNearbyAddressesQuery request, CancellationToken ct)
     {
@@ -38,7 +38,7 @@ internal sealed class GetNearbyAddressesQueryHandler(
             ))
             .ToListAsync(ct);
 
-        cache.Set(key, (IReadOnlyList<NearbyAddressDto>)results, TimeSpan.FromMinutes(5));
+        cache.Set(key, (IReadOnlyList<NearbyAddressDto>)results, TimeSpan.FromSeconds(30));
 
         return Result.Success<IReadOnlyList<NearbyAddressDto>>(results);
     }
