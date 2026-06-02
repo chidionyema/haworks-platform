@@ -45,6 +45,10 @@ public class MediaDbContext : DbContext
             entity.Property(e => e.Key).IsRequired().HasMaxLength(128);
             entity.Property(e => e.Value).IsRequired().HasMaxLength(2048);
             entity.HasIndex(e => new { e.MediaFileId, e.Key }).IsUnique();
+            entity.HasOne<MediaFile>()
+                .WithMany()
+                .HasForeignKey(e => e.MediaFileId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<MediaVersion>(entity =>
