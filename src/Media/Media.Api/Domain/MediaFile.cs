@@ -83,6 +83,7 @@ public class MediaFile
 
     public void MarkAsQuarantined(TimeProvider? time = null, string? actor = null)
     {
+        if (Status == MediaStatus.Quarantined) return; // Already quarantined
         if (Status != MediaStatus.Pending)
             throw new InvalidOperationException($"Cannot quarantine from {Status}; only Pending files can be quarantined.");
         Status = MediaStatus.Quarantined;
@@ -91,6 +92,7 @@ public class MediaFile
 
     public void MarkAsActive(TimeProvider? time = null, string? actor = null)
     {
+        if (Status == MediaStatus.Active) return; // Already active
         if (Status != MediaStatus.Quarantined)
             throw new InvalidOperationException($"Cannot activate from {Status}; only Quarantined (scanned) files can be activated.");
         Status = MediaStatus.Active;
@@ -99,6 +101,7 @@ public class MediaFile
 
     public void MarkAsRejected(TimeProvider? time = null, string? actor = null)
     {
+        if (Status == MediaStatus.Rejected) return; // Already rejected
         if (Status != MediaStatus.Quarantined)
             throw new InvalidOperationException($"Cannot reject from {Status}; only Quarantined (scanned) files can be rejected.");
         Status = MediaStatus.Rejected;
@@ -143,10 +146,6 @@ public class MediaFile
         StampUpdate(time, null);
     }
 
-    public void MarkDeleted(TimeProvider time)
-    {
-        MarkAsDeleted(time);
-    }
 
     private void StampUpdate(TimeProvider? time, string? actor)
     {

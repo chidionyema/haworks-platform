@@ -37,7 +37,9 @@ public class CompleteMultipartUploadHandler(
         if (string.IsNullOrEmpty(ownerId))
             return Result.Failure<Unit>(new Error("Media.Unauthorized", "Authenticated user identity could not be resolved."));
 
-        var mediaFile = await context.MediaFiles.FirstOrDefaultAsync(f => f.Id == request.MediaId, ct);
+        var mediaFile = await context.MediaFiles
+            .FromSqlRaw("SELECT * FROM media.\"MediaFiles\" WHERE \"Id\" = {0} FOR UPDATE", request.MediaId)
+            .FirstOrDefaultAsync(ct);
         if (mediaFile == null)
             return Result.Failure<Unit>(new Error("Media.NotFound", "Media file not found."));
 
@@ -71,12 +73,9 @@ public class CompleteMultipartUploadHandler(
                     await System.Security.Cryptography.SHA256.HashDataAsync(hashStream, ct));
                 if (!string.Equals(actualHash, mediaFile.Hash, StringComparison.OrdinalIgnoreCase))
                 {
-                    await using var hashTx = await context.Database.BeginTransactionAsync(ct);
                     mediaFile.MarkAsQuarantined();
-                    await context.SaveChangesAsync(ct);
                     mediaFile.MarkAsRejected();
                     await context.SaveChangesAsync(ct);
-                    await hashTx.CommitAsync(ct);
                     return Result.Failure<Unit>(new Error("Media.HashMismatch",
                         "Server-side hash does not match declared hash."));
                 }
@@ -84,18 +83,24 @@ public class CompleteMultipartUploadHandler(
 
             var isClean = await virusScanner.ScanFileAsync(tempPath, ct);
 
-            // All DB writes + event publishes inside a single transaction (outbox atomicity)
-            await using var tx = await context.Database.BeginTransactionAsync(ct);
+            // MassTransit outbox handles transaction management automatically
             try
             {
                 mediaFile.MarkAsQuarantined();
-                await context.SaveChangesAsync(ct);
 
                 if (isClean)
                 {
                     mediaFile.MarkAsActive();
-                    await context.SaveChangesAsync(ct);
+                }
+                else
+                {
+                    mediaFile.MarkAsRejected();
+                }
 
+                await context.SaveChangesAsync(ct);
+
+                if (isClean)
+                {
                     await publisher.Publish(new Haworks.Contracts.Media.MediaScanPassedEvent
                     {
                         MediaId = mediaFile.Id,
@@ -118,9 +123,6 @@ public class CompleteMultipartUploadHandler(
                 }
                 else
                 {
-                    mediaFile.MarkAsRejected();
-                    await context.SaveChangesAsync(ct);
-
                     await publisher.Publish(new Haworks.Contracts.Media.MediaScanFailedEvent
                     {
                         MediaId = mediaFile.Id,
@@ -129,22 +131,27 @@ public class CompleteMultipartUploadHandler(
                         Reason = "Virus detected or scan failed.",
                     }, ct);
                 }
-
-                await tx.CommitAsync(ct);
             }
             catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
             {
                 // Another process already started scanning — idempotent
             }
-            catch
-            {
-                await tx.RollbackAsync(ct);
-                throw;
-            }
         }
         finally
         {
-            try { File.Delete(tempPath); } catch (Exception ex) { logger.LogWarning(ex, "An error occurred in {MethodName}", nameof(Handle)); }
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await Task.Run(() => File.Delete(tempPath), cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogWarning("Failed to delete temp file {TempPath} for media {MediaId} - cleanup timed out", tempPath, request.MediaId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to delete temp file {TempPath} for media {MediaId}", tempPath, request.MediaId);
+            }
         }
 
         return Unit.Value;
