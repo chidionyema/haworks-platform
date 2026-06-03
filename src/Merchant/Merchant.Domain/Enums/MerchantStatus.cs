@@ -6,6 +6,5 @@ public enum MerchantStatus
     Active,
     Suspended,
     Rejected,
-    Deactivated,
-    Maintenance
+    Deactivated
 }

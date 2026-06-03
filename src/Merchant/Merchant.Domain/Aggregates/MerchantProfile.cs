@@ -15,7 +15,6 @@ public sealed class MerchantProfile : AuditableEntity
     public string? ContactPhone { get; set; }
     public string? Category { get; set; }
     public string? Website { get; set; }
-    public string? Timezone { get; set; }
     public string? RejectionReason { get; private set; }
     public string? SuspensionReason { get; private set; }
     public DateTimeOffset? ApprovedAt { get; private set; }

@@ -26,6 +26,7 @@ public class MerchantDbContext : DbContext, IMerchantDbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.OwnerId).IsUnique();
             entity.HasIndex(e => e.Slug).IsUnique();
+            entity.HasIndex(e => e.Name);
 
             // Concurrency handled by domain guards + pessimistic locks.
 
@@ -38,7 +39,6 @@ public class MerchantDbContext : DbContext, IMerchantDbContext
             entity.Property(e => e.ContactPhone).HasMaxLength(50);
             entity.Property(e => e.Category).HasMaxLength(200);
             entity.Property(e => e.Website).HasMaxLength(2048);
-            entity.Property(e => e.Timezone).HasMaxLength(50);
             entity.Property(e => e.RejectionReason).HasMaxLength(500);
             entity.Property(e => e.SuspensionReason).HasMaxLength(500);
             entity.Property(e => e.ApprovedBy).HasMaxLength(200);
@@ -52,6 +52,10 @@ public class MerchantDbContext : DbContext, IMerchantDbContext
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.MerchantId);
+            entity.HasOne<MerchantProfile>()
+                .WithMany()
+                .HasForeignKey(e => e.MerchantId)
+                .OnDelete(DeleteBehavior.Cascade);
             entity.Property(e => e.IsOpen).HasDefaultValue(true);
         });
     }
