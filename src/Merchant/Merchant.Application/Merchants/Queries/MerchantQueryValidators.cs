@@ -22,7 +22,7 @@ internal sealed class GetMerchantBySlugQueryValidator : AbstractValidator<GetMer
 {
     public GetMerchantBySlugQueryValidator()
     {
-        RuleFor(x => x.Slug).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Slug).NotEmpty().MaximumLength(100);
     }
 }
 
