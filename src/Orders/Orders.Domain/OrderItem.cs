@@ -39,6 +39,8 @@ public class OrderItem : AuditableEntity
         if (productId == Guid.Empty) throw new ArgumentException("ProductId required", nameof(productId));
         if (quantity <= 0)           throw new ArgumentException("Quantity must be positive", nameof(quantity));
         if (unitPriceCents < 0)      throw new ArgumentException("UnitPriceCents cannot be negative", nameof(unitPriceCents));
+        if (quantity > 0 && unitPriceCents > long.MaxValue / quantity)
+            throw new ArgumentException("Line total would overflow", nameof(unitPriceCents));
 
         return new OrderItem(orderId, productId, productName, quantity, unitPriceCents);
     }
