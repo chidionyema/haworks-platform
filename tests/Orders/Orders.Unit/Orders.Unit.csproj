@@ -14,6 +14,7 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="FluentValidation.TestHelper" />
     <PackageReference Include="Moq" />
   </ItemGroup>
 
