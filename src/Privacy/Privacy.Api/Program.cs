@@ -40,7 +40,7 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: userId,
             factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100,
+                PermitLimit = 10,
                 Window = TimeSpan.FromMinutes(1)
             });
     });
@@ -55,8 +55,10 @@ var app = builder.Build();
 
 app.MigrateDatabase<PrivacyDbContext>();
 
-// Enable detailed errors so we can see what's crashing
-app.UseDeveloperExceptionPage();
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

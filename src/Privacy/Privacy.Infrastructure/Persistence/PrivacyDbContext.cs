@@ -36,6 +36,7 @@ public class PrivacyDbContext : DbContext, IPrivacyDbContext
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.RequestId);
+            entity.HasOne<PrivacyRequest>().WithMany().HasForeignKey(e => e.RequestId);
             // Concurrency handled by domain guards + pessimistic locks.
         });
 

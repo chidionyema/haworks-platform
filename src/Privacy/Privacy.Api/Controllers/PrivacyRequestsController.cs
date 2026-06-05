@@ -10,6 +10,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Haworks.Privacy.Api.Controllers;
 
+public record InitiatePrivacyRequestResponse(Guid RequestId);
+
 [ApiController]
 [Route("api/v{version:apiVersion}/[controller]")]
 [Authorize]
@@ -27,7 +29,6 @@ public class PrivacyRequestsController : ControllerBase
 
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Initiate(InitiatePrivacyRequestCommand command, CancellationToken ct = default)
     {
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
@@ -46,12 +47,8 @@ public class PrivacyRequestsController : ControllerBase
 
             if (!hasEraseScope)
             {
-                // Audit-log the missing claim so the security team can track callers
-                // that haven't yet been updated to include the privacy:erase scope.
-                _logger.LogWarning(
-                    "IDOR risk: privacy erasure initiated by service {InitiatingService} without privacy:erase scope. " +
-                    "UserId={UserId}. Proceeding (enforcement pending PLATFORM-SEC-12).",
-                    initiatingService, command.UserId);
+                _logger.LogWarning("Privacy erasure denied: missing privacy:erase scope for service {Service}", initiatingService);
+                return Forbid("Missing required privacy:erase scope");
             }
             else
             {
@@ -61,7 +58,7 @@ public class PrivacyRequestsController : ControllerBase
             }
 
             var id = await _mediator.Send(command, ct);
-            return Ok(new { RequestId = id });
+            return Ok(new InitiatePrivacyRequestResponse(id));
         }
 
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
@@ -69,7 +66,7 @@ public class PrivacyRequestsController : ControllerBase
 
         var secureCommand = command with { UserId = userId };
         var result = await _mediator.Send(secureCommand, ct);
-        return Ok(new { RequestId = result });
+        return Ok(new InitiatePrivacyRequestResponse(result));
     }
 
     /// <summary>
@@ -78,7 +75,6 @@ public class PrivacyRequestsController : ControllerBase
     /// </summary>
     [HttpGet("{requestId:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetStatus(Guid requestId, CancellationToken ct = default)
     {
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;

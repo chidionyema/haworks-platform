@@ -15,6 +15,12 @@ namespace Haworks.Privacy.Infrastructure.Workers;
 /// </summary>
 public sealed class ErasureHealthWatcher : BackgroundService
 {
+    private static class SagaStates
+    {
+        public const string Processing = nameof(PrivacyRequestStateMachine.Processing);
+        public const string Stalled = nameof(PrivacyRequestStateMachine.Stalled);
+    }
+{
     private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan StalledThreshold = TimeSpan.FromHours(24);
 
@@ -85,7 +91,7 @@ public sealed class ErasureHealthWatcher : BackgroundService
 
         var stuck = await db.Set<PrivacyRequestState>()
             .Where(s =>
-                (s.CurrentState == "Processing" || s.CurrentState == "Stalled") &&
+                (s.CurrentState == SagaStates.Processing || s.CurrentState == SagaStates.Stalled) &&
                 s.CreatedAt < deadline)
             .Select(s => new { s.CorrelationId, s.UserId, s.CurrentState, s.CreatedAt })
             .OrderBy(s => s.CreatedAt)
