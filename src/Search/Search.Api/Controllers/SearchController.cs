@@ -23,6 +23,10 @@ public sealed class SearchController : ControllerBase
         _logger = logger;
     }
 
+    private string? GetUserId() =>
+        User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+        ?? User.FindFirst("sub")?.Value;
+
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -41,13 +45,12 @@ public sealed class SearchController : ControllerBase
             return BadRequest(new { error = "q must contain at least one searchable term" });
         }
 
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-            ?? User.FindFirst("sub")?.Value;
+        var userId = GetUserId();
 
         // Audit trail: structured log for every search query
         _logger.LogInformation(
             "SearchQuery executed. UserId={UserId}, Query={Query}, CategoryId={CategoryId}, Page={Page}, PageSize={PageSize}, Timestamp={Timestamp}",
-            userId, sanitized, categoryId, page, pageSize, DateTime.UtcNow);
+            userId, sanitized, categoryId, page, pageSize, DateTimeOffset.UtcNow);
 
         var page_ = await _index.SearchAsync(new SearchQuery
         {
@@ -93,8 +96,7 @@ public sealed class SearchController : ControllerBase
         CancellationToken ct = default)
     {
         // IDOR prevention: userId MUST come from authenticated claims, never from request body
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-            ?? User.FindFirst("sub")?.Value;
+        var userId = GetUserId();
 
         if (string.IsNullOrEmpty(userId))
             return Unauthorized(new { error = "Authenticated user identity required to save a search." });
@@ -104,7 +106,7 @@ public sealed class SearchController : ControllerBase
 
         _logger.LogInformation(
             "SavedSearch created. UserId={UserId}, SearchId={SearchId}, Query={Query}, Timestamp={Timestamp}",
-            userId, id, query.Query, DateTime.UtcNow);
+            userId, id, query.Query, DateTimeOffset.UtcNow);
 
         return Created($"/search/saved/{id}", new { id });
     }

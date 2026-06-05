@@ -42,14 +42,14 @@ public sealed class ProductCacheInvalidatedConsumer : IConsumer<ProductCacheInva
 
         if (string.Equals(msg.Reason, "deleted", StringComparison.OrdinalIgnoreCase))
         {
-            await _index.DeleteAsync(productKey, context.CancellationToken).ConfigureAwait(false);
+            await _index.DeleteAsync(productKey, context.CancellationToken);
             _logger.LogInformation("Search index hard-deleted {ProductId}", msg.ProductId);
             return;
         }
 
         // Out-of-order suppression: if the index already has a document with
         // a newer or equal SourceVersion, skip the write. Spec §4 / §5.
-        var existing = await _index.GetAsync(productKey, context.CancellationToken).ConfigureAwait(false);
+        var existing = await _index.GetAsync(productKey, context.CancellationToken);
         var incomingVersion = msg.NewVersion ?? 0;
         if (existing is not null && existing.SourceVersion >= incomingVersion)
         {
@@ -62,7 +62,7 @@ public sealed class ProductCacheInvalidatedConsumer : IConsumer<ProductCacheInva
         CatalogProductDto fetched;
         try
         {
-            fetched = await _catalogFetcher.GetProductAsync(msg.ProductId, context.CancellationToken).ConfigureAwait(false);
+            fetched = await _catalogFetcher.GetProductAsync(msg.ProductId, context.CancellationToken);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
@@ -85,11 +85,11 @@ public sealed class ProductCacheInvalidatedConsumer : IConsumer<ProductCacheInva
             categoryName:  fetched.CategoryName,
             sourceVersion: incomingVersion);
 
-        await _index.UpsertAsync(new[] { doc }, context.CancellationToken).ConfigureAwait(false);
+        await _index.UpsertAsync(new[] { doc }, context.CancellationToken);
         _logger.LogInformation("Search index upserted {ProductId} at v{Version}", msg.ProductId, incomingVersion);
 
         // Percolation (Reverse Search / Saved Searches)
-        var matches = await _index.PercolateAsync(doc, context.CancellationToken).ConfigureAwait(false);
+        var matches = await _index.PercolateAsync(doc, context.CancellationToken);
         if (matches.Count > 0)
         {
             _logger.LogInformation("Product {ProductId} matched {MatchCount} saved searches", msg.ProductId, matches.Count);
@@ -104,7 +104,7 @@ public sealed class ProductCacheInvalidatedConsumer : IConsumer<ProductCacheInva
                     UnitPriceCents = fetched.UnitPriceCents,
                     Currency = "USD",
                     MatchedAt = DateTimeOffset.UtcNow
-                }, context.CancellationToken).ConfigureAwait(false);
+                }, context.CancellationToken);
             }
         }
     }

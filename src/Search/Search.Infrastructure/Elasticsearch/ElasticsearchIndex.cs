@@ -84,6 +84,12 @@ public sealed class ElasticsearchIndex : ISearchIndex
             _logger.LogError("Elasticsearch bulk upsert failed: {Debug}", response.DebugInformation);
             throw new InvalidOperationException("Search upsert failed");
         }
+
+        if (response.Items?.Any(item => item.Error != null) == true)
+        {
+            var failures = response.Items.Where(item => item.Error != null);
+            throw new InvalidOperationException($"Bulk upsert had item failures: {string.Join(", ", failures.Select(f => f.Error?.Reason))}");
+        }
     }
 
     public async Task DeleteAsync(string productIdKey, CancellationToken ct = default)
@@ -157,6 +163,9 @@ public sealed class ElasticsearchIndex : ISearchIndex
 
     public async Task RegisterSavedSearchAsync(string id, string userId, SearchQuery query, CancellationToken ct = default)
     {
+        if (query.Query is not null && query.Query.Length > 500)
+            throw new ArgumentException("Search query too long", nameof(query));
+
         var queryDoc = new SavedSearchDoc
         {
             UserId = userId,
