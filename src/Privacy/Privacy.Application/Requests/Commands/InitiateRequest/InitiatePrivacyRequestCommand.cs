@@ -11,7 +11,7 @@ using Npgsql;
 
 namespace Haworks.Privacy.Application.Requests.Commands.InitiateRequest;
 
-public record InitiatePrivacyRequestCommand(Guid UserId, PrivacyRequestType Type, string IdempotencyKey = "") : IIdempotentCommand, IRequest<Guid>;
+public record InitiatePrivacyRequestCommand(Guid UserId, PrivacyRequestType Type) : IRequest<Guid>;
 
 public class InitiatePrivacyRequestCommandValidator : AbstractValidator<InitiatePrivacyRequestCommand>
 {
@@ -35,53 +35,54 @@ public class InitiatePrivacyRequestCommandHandler : IRequestHandler<InitiatePriv
 
     public async Task<Guid> Handle(InitiatePrivacyRequestCommand request, CancellationToken cancellationToken)
     {
-        // Acquire an advisory row lock before the check-then-act to prevent two concurrent
-        // requests for the same user from both passing the "no active request" check.
-        // SKIP LOCKED means a concurrent transaction that already holds the lock will cause
-        // this query to return no rows; we then re-query to return the existing request.
-        // This implements the Three-Phase Gateway Law: Phase 1 (lock + check).
-        // ExecuteSqlInterpolatedAsync is parameterized (safe against injection); userId is
-        // passed as a typed FormattableString parameter, not concatenated as a string.
+        // Use a user-scoped advisory lock for the entire operation to prevent race conditions
         var userId = request.UserId;
-        var pending = (int)PrivacyRequestStatus.Pending;
-        var inProgress = (int)PrivacyRequestStatus.InProgress;
+        var lockId = userId.GetHashCode();
+
         await _context.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM privacy.\"PrivacyRequests\" WHERE \"UserId\" = {userId} AND (\"Status\" = {pending} OR \"Status\" = {inProgress}) LIMIT 1 FOR UPDATE SKIP LOCKED",
-            cancellationToken);
-
-        var existing = await _context.PrivacyRequests.FirstOrDefaultAsync(
-            r => r.UserId == request.UserId &&
-                 (r.Status == PrivacyRequestStatus.Pending || r.Status == PrivacyRequestStatus.InProgress),
-            cancellationToken);
-
-        if (existing is not null)
-            return existing.Id;
-
-        var privacyRequest = PrivacyRequest.Create(request.UserId, request.Type);
-
-        _context.PrivacyRequests.Add(privacyRequest);
-
-        // Publish BEFORE SaveChanges — UseBusOutbox writes the outbox row
-        // into the same EF transaction, so SaveChanges commits both the
-        // entity and the message atomically. No crash window.
-        await _publishEndpoint.Publish(new InitiatePrivacyRequestMessage { RequestId = privacyRequest.Id, UserId = request.UserId }, cancellationToken);
+            $"SELECT pg_advisory_lock({lockId})", cancellationToken);
 
         try
         {
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
-        {
-            // Concurrent insert for the same user — re-query and return existing
-            var concurrentExisting = await _context.PrivacyRequests.FirstOrDefaultAsync(
+            var existing = await _context.PrivacyRequests.FirstOrDefaultAsync(
                 r => r.UserId == request.UserId &&
                      (r.Status == PrivacyRequestStatus.Pending || r.Status == PrivacyRequestStatus.InProgress),
                 cancellationToken);
-            if (concurrentExisting is not null)
-                return concurrentExisting.Id;
-            throw;
-        }
 
-        return privacyRequest.Id;
+            if (existing is not null)
+                return existing.Id;
+
+            var privacyRequest = PrivacyRequest.Create(request.UserId, request.Type);
+
+            _context.PrivacyRequests.Add(privacyRequest);
+
+            // Publish BEFORE SaveChanges — UseBusOutbox writes the outbox row
+            // into the same EF transaction, so SaveChanges commits both the
+            // entity and the message atomically. No crash window.
+            await _publishEndpoint.Publish(new InitiatePrivacyRequestMessage { RequestId = privacyRequest.Id, UserId = request.UserId }, cancellationToken);
+
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
+            {
+                // Concurrent insert for the same user — re-query and return existing
+                var concurrentExisting = await _context.PrivacyRequests.FirstOrDefaultAsync(
+                    r => r.UserId == request.UserId &&
+                         (r.Status == PrivacyRequestStatus.Pending || r.Status == PrivacyRequestStatus.InProgress),
+                    cancellationToken);
+                if (concurrentExisting is not null)
+                    return concurrentExisting.Id;
+                throw;
+            }
+
+            return privacyRequest.Id;
+        }
+        finally
+        {
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_unlock({lockId})", cancellationToken);
+        }
     }
 }

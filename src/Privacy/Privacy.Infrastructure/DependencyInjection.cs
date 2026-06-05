@@ -21,7 +21,8 @@ public static class DependencyInjection
         IConfiguration configuration,
         IHostEnvironment env)
     {
-        var connectionString = configuration.GetConnectionString("privacy");
+        var connectionString = configuration.GetConnectionString("privacy")
+            ?? throw new InvalidOperationException("Privacy connection string not configured");
 
         services.AddDbContext<PrivacyDbContext>((sp, options) =>
         {
