@@ -46,7 +46,7 @@ public sealed class PricingRequestedConsumer(
                 var promoDiscount = result.Discounts
                     .First(d => string.Equals(d.Type, "PromotionCode", System.StringComparison.Ordinal));
 
-                await mediator.Send(new Commands.RedeemPromotionCodeCommand
+                var redemptionResult = await mediator.Send(new Commands.RedeemPromotionCodeCommand
                 {
                     Code = msg.PromoCode!.ToUpperInvariant(),
                     OrderId = msg.OrderId,
@@ -54,6 +54,20 @@ public sealed class PricingRequestedConsumer(
                     DiscountAmount = promoDiscount.AmountOff,
                     CalculationId = result.CalculationId,
                 }, context.CancellationToken);
+
+                if (!redemptionResult.Success)
+                {
+                    logger.LogWarning("Promotion code redemption failed for order {OrderId}: {Reason}",
+                        msg.OrderId, redemptionResult.FailureReason);
+
+                    await context.Publish(new PricingFailedEvent
+                    {
+                        SagaId = msg.SagaId,
+                        OrderId = msg.OrderId,
+                        Reason = $"Promotion code redemption failed: {redemptionResult.FailureReason}",
+                    }, context.CancellationToken);
+                    return;
+                }
             }
 
             await context.Publish(new PriceCalculatedEvent

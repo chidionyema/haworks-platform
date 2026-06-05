@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Haworks.BuildingBlocks.Common;
 using Haworks.Pricing.Application.Interfaces;
@@ -25,6 +26,7 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
     private readonly ILogger<CalculateEffectivePriceQueryHandler> _logger;
 
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _stampedeLocks = new();
 
     public CalculateEffectivePriceQueryHandler(
         ICatalogPricingClient catalogClient,
@@ -50,17 +52,30 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
     {
         var now = DateTimeOffset.UtcNow;
 
-        // Step 1: Fetch base price from catalog (60s cache)
+        // Step 1: Fetch base price from catalog (60s cache with stampede protection)
         var cacheKey = $"catalog_price_{request.ProductId}";
         if (!_cache.TryGetValue(cacheKey, out Models.CatalogProductDto? product))
         {
-            var response = await _catalogClient.GetProductAsync(request.ProductId, ct).ConfigureAwait(false);
-            if (response is null || !response.IsSuccess || response.Product is null)
+            var semaphore = _stampedeLocks.GetOrAdd(cacheKey, _ => new SemaphoreSlim(1, 1));
+            await semaphore.WaitAsync(ct).ConfigureAwait(false);
+            try
             {
-                throw new InvalidOperationException($"Product {request.ProductId} not found in catalog.");
+                // Double-check cache after acquiring lock
+                if (!_cache.TryGetValue(cacheKey, out product))
+                {
+                    var response = await _catalogClient.GetProductAsync(request.ProductId, ct).ConfigureAwait(false);
+                    if (response is null || !response.IsSuccess || response.Product is null)
+                    {
+                        throw new InvalidOperationException($"Product {request.ProductId} not found in catalog.");
+                    }
+                    product = response.Product;
+                    _cache.Set(cacheKey, product, CacheDuration);
+                }
             }
-            product = response.Product;
-            _cache.Set(cacheKey, product, CacheDuration);
+            finally
+            {
+                semaphore.Release();
+            }
         }
 
         var currency = product!.Currency;
@@ -102,7 +117,7 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
         // Internal intermediates use 4dp to prevent accumulation errors.
         var subtotal2dp = Math.Round(result.Subtotal, 2, MidpointRounding.AwayFromZero);
         var taxAmount2dp = Math.Round(taxResult.TaxAmount, 2, MidpointRounding.AwayFromZero);
-        var total = subtotal2dp + taxAmount2dp;
+        var total = Math.Round(result.Subtotal + taxResult.TaxAmount, 2, MidpointRounding.AwayFromZero);
 
         var finalResult = result with
         {
@@ -113,7 +128,7 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
         };
 
         // Step 9: Persist audit log
-        var appliedRuleIds = JsonSerializer.Serialize(
+        var appliedDiscountLabels = JsonSerializer.Serialize(
             result.Discounts.Where(d => !string.Equals(d.Type, "PromotionCode", StringComparison.Ordinal))
                 .Select(d => d.Label).ToList());
 
@@ -127,7 +142,7 @@ public sealed class CalculateEffectivePriceQueryHandler : IRequestHandler<Calcul
             taxRateApplied: taxResult.EffectiveRate,
             total: total,
             currency: result.Currency,
-            appliedRuleIds: appliedRuleIds,
+            appliedDiscountLabels: appliedDiscountLabels,
             promotionCodeApplied: promoCode?.Code,
             userId: request.UserId,
             countryCode: request.CountryCode,

@@ -26,11 +26,8 @@ public sealed class CreatePromotionCodeCommandValidator : AbstractValidator<Crea
             .When(x => x.DiscountType == DiscountType.Percentage)
             .WithMessage("Percentage discount cannot exceed 100.");
 
-        // H3 Fix: Cap fixed-amount discounts to prevent zeroing any order
-        RuleFor(x => x.DiscountValue)
-            .LessThanOrEqualTo(10000)
-            .When(x => x.DiscountType == DiscountType.FixedAmount)
-            .WithMessage("Fixed-amount discount cannot exceed $10,000.");
+        // Currency-aware validation removed - $10,000 USD vs JPY have vastly different values.
+        // Business rules for maximum discount amounts should be configured per currency or merchant.
 
         RuleFor(x => x.ExpiresAt)
             .GreaterThan(x => x.StartsAt)

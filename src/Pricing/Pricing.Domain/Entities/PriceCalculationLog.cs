@@ -18,7 +18,7 @@ public sealed class PriceCalculationLog : AuditableEntity
     public decimal TaxRateApplied { get; private set; }
     public decimal Total { get; private set; }
     public string Currency { get; private set; } = "USD";
-    public string AppliedRuleIds { get; private set; } = "[]";
+    public string AppliedDiscountLabels { get; private set; } = "[]";
     public string? PromotionCodeApplied { get; private set; }
     public DateTimeOffset CalculatedAt { get; private set; }
     public string? UserId { get; private set; }
@@ -36,7 +36,7 @@ public sealed class PriceCalculationLog : AuditableEntity
         decimal taxRateApplied,
         decimal total,
         string currency,
-        string appliedRuleIds,
+        string appliedDiscountLabels,
         string? promotionCodeApplied,
         string? userId,
         string? countryCode,
@@ -54,7 +54,7 @@ public sealed class PriceCalculationLog : AuditableEntity
             TaxRateApplied = taxRateApplied,
             Total = total,
             Currency = currency,
-            AppliedRuleIds = appliedRuleIds,
+            AppliedDiscountLabels = appliedDiscountLabels,
             PromotionCodeApplied = promotionCodeApplied,
             CalculatedAt = DateTimeOffset.UtcNow,
             UserId = userId,

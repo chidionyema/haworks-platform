@@ -47,7 +47,7 @@ public sealed class TaxRate : AuditableEntity
 
         // M3 Fix: Validate sub-rate consistency
         var subRateSum = stateRate + countyRate + localRate;
-        if (subRateSum > 0 && Math.Abs(combinedRate - subRateSum) > 0.001m)
+        if (Math.Abs(combinedRate - subRateSum) > 0.001m)
             throw new ArgumentException($"CombinedRate ({combinedRate}) must equal sum of sub-rates ({subRateSum})");
 
         return new TaxRate

@@ -31,11 +31,9 @@ internal sealed class CatalogPricingHttpClient : ICatalogPricingClient
 
     public async Task<CatalogProductResponse?> GetProductAsync(Guid id, CancellationToken ct = default)
     {
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(RequestTimeout);
         try
         {
-            var response = await _refitClient.GetProductAsync(id, timeoutCts.Token).ConfigureAwait(false);
+            var response = await _refitClient.GetProductAsync(id, ct).ConfigureAwait(false);
             if (response.IsSuccessStatusCode && response.Content is not null)
             {
                 return new CatalogProductResponse { IsSuccess = true, Product = response.Content };
