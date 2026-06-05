@@ -89,10 +89,13 @@ public sealed class PromotionCodeRepository : IPromotionCodeRepository
             // Prevents TOCTOU race where two concurrent requests both pass the check.
             if (maxUsesPerUser.HasValue && userId is not null)
             {
-                var userCount = await _context.PromotionRedemptions
-                    .CountAsync(r => r.PromotionCodeId == promotionCodeId && r.UserId == userId, ct)
-                    .ConfigureAwait(false);
+                var connection = _context.Database.GetDbConnection();
+                var command = connection.CreateCommand();
+                command.CommandText = "SELECT COUNT(*) FROM pricing.\"PromotionRedemptions\" WHERE \"PromotionCodeId\" = @promotionCodeId AND \"UserId\" = @userId FOR UPDATE";
+                command.Parameters.Add(new Npgsql.NpgsqlParameter("promotionCodeId", promotionCodeId));
+                command.Parameters.Add(new Npgsql.NpgsqlParameter("userId", userId));
 
+                var userCount = (long)(await command.ExecuteScalarAsync(ct).ConfigureAwait(false) ?? 0L);
                 if (userCount >= maxUsesPerUser.Value)
                 {
                     await transaction.RollbackAsync(ct).ConfigureAwait(false);
