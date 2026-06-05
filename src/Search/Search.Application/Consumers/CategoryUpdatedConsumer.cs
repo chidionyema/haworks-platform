@@ -28,7 +28,8 @@ public sealed class CategoryUpdatedConsumer : IConsumer<CategoryUpdatedEvent>
 
         var totalUpdated = 0;
         var page = 1;
-        while (true)
+        const int MaxPages = 1000;
+        while (page <= MaxPages)
         {
             var hits = await _index.SearchAsync(new SearchQuery
             {
