@@ -27,7 +27,8 @@ builder.Services.AddDbContext<ShippingDbContext>((sp, options) =>
 });
 
 builder.Services.AddHealthChecks()
-    .AddDbHealthCheck<ShippingDbContext>();
+    .AddDbHealthCheck<ShippingDbContext>()
+    .AddCheck<EasyPostHealthCheck>("easypost");
 
 // ── EasyPost ──
 builder.Services.AddOptions<EasyPostOptions>()
@@ -36,6 +37,7 @@ builder.Services.AddOptions<EasyPostOptions>()
     .ValidateOnStart();
 
 builder.Services.AddSingleton<IShippingProvider, EasyPostShippingProvider>();
+builder.Services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 
 // ── MassTransit ──
 if (!builder.Environment.IsEnvironment("Test"))
