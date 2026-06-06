@@ -56,8 +56,10 @@ public sealed class RotateJwtKeyJob
             ? keyValue?.ToString() ?? string.Empty
             : string.Empty;
 
+        if (string.IsNullOrEmpty(currentKey))
+            throw new InvalidOperationException("Failed to read current JWT key from Vault");
+
         // Step 2: Copy current to jwt-previous for overlap window
-        if (!string.IsNullOrEmpty(currentKey))
         {
             await _vaultClient.V1.Secrets.KeyValue.V2
                 .WriteSecretAsync(
@@ -92,7 +94,7 @@ public sealed class RotateJwtKeyJob
 
         // Step 6: Schedule cleanup of previous key after overlap window (15 min)
         _backgroundJobClient.Schedule<ClearPreviousJwtKeyJob>(
-            job => job.RunAsync(CancellationToken.None),
+            job => job.RunAsync(ct),
             TimeSpan.FromMinutes(15));
 
         _logger.LogInformation(

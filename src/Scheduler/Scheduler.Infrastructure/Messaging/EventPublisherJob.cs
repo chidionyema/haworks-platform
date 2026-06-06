@@ -20,7 +20,7 @@ public class EventPublisherJob
     }
 
     private static readonly Regex SafeNamePattern =
-        new(@"^[a-zA-Z0-9._:\-]{1,255}$", RegexOptions.Compiled | RegexOptions.NonBacktracking);
+        new(@"^[a-zA-Z0-9._:-]{1,255}$", RegexOptions.Compiled | RegexOptions.NonBacktracking);
 
     public async Task PublishAsync(string targetExchange, string routingKey, string payload, CancellationToken ct = default)
     {
@@ -36,6 +36,8 @@ public class EventPublisherJob
                 nameof(routingKey));
         if (string.IsNullOrWhiteSpace(payload))
             throw new ArgumentException("payload must not be empty", nameof(payload));
+        if (payload.Length > 1_048_576) // 1MB limit
+            throw new ArgumentException("payload exceeds maximum size of 1MB", nameof(payload));
 
         _logger.LogInformation("Publishing scheduled event to exchange={Exchange} routingKey={RoutingKey}", targetExchange, routingKey);
 

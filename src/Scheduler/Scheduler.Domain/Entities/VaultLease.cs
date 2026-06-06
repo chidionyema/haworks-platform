@@ -85,7 +85,8 @@ public sealed class VaultLease
         if (totalTtl <= TimeSpan.Zero)
             return true;
 
-        var elapsed = DateTimeOffset.UtcNow - CreatedAt;
+        var effectiveStart = LastRotatedAt ?? CreatedAt;
+        var elapsed = DateTimeOffset.UtcNow - effectiveStart;
         var ratio = elapsed / totalTtl;
         return ratio >= thresholdPercent;
     }

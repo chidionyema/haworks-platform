@@ -73,7 +73,7 @@ public sealed class LeaseWatcherJob
             lease.MarkRotating();
             await _leaseRepo.SaveChangesAsync(ct).ConfigureAwait(false);
         }
-        catch (Exception ex) when (string.Equals(ex.GetType().Name, "DbUpdateConcurrencyException", StringComparison.Ordinal))
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException ex)
         {
             _logger.LogWarning(
                 "Concurrency conflict marking lease {LeaseId} as Rotating; another instance handled it",
@@ -94,7 +94,8 @@ public sealed class LeaseWatcherJob
                 case "kv":
                     // KV rotation is handled by specific rotation jobs (RotateJwtKeyJob, StripeKeyRotationJob)
                     // Mark as rotated with a placeholder to reset the TTL timer
-                    lease.MarkRotated($"kv-{Guid.NewGuid():N}", DateTimeOffset.UtcNow.AddHours(720));
+                    var originalTtl = lease.ExpiresAt - lease.CreatedAt;
+                    lease.MarkRotated($"kv-{Guid.NewGuid():N}", DateTimeOffset.UtcNow + originalTtl);
                     await _leaseRepo.AddAuditEntryAsync(
                         RotationAuditEntry.Record(lease.Id, "rotate", success: true), ct).ConfigureAwait(false);
                     await _leaseRepo.SaveChangesAsync(ct).ConfigureAwait(false);
