@@ -41,7 +41,7 @@ public sealed class Shipment
 
     private Shipment() { }
 
-    public static Shipment Create(Guid orderId, string easyPostId)
+    public static Shipment Create(Guid orderId, string easyPostId, DateTime createdAt)
     {
         return new Shipment
         {
@@ -49,11 +49,11 @@ public sealed class Shipment
             OrderId = orderId,
             EasyPostShipmentId = easyPostId,
             Status = ShipmentStatus.Created,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = createdAt,
         };
     }
 
-    public void MarkLabelPurchased(string carrier, string service, string trackingNumber, string trackingUrl, string labelUrl, long rateCents, string currency, DateTime? estimatedDelivery)
+    public void MarkLabelPurchased(string carrier, string service, string trackingNumber, string trackingUrl, string labelUrl, long rateCents, string currency, DateTime? estimatedDelivery, DateTime shippedAt)
     {
         CarrierCode = carrier;
         ServiceLevel = service;
@@ -63,15 +63,33 @@ public sealed class Shipment
         RateAmountCents = rateCents;
         RateCurrency = currency;
         EstimatedDelivery = estimatedDelivery;
-        ShippedAt = DateTime.UtcNow;
+        ShippedAt = shippedAt;
         Status = ShipmentStatus.LabelPurchased;
     }
 
-    public void UpdateStatus(ShipmentStatus newStatus)
+    public void UpdateStatus(ShipmentStatus newStatus, DateTime? deliveredAt = null)
     {
+        if (!IsValidTransition(Status, newStatus))
+            throw new InvalidOperationException($"Invalid status transition from {Status} to {newStatus}");
+
         Status = newStatus;
-        if (newStatus == ShipmentStatus.Delivered)
-            DeliveredAt = DateTime.UtcNow;
+        if (newStatus == ShipmentStatus.Delivered && deliveredAt.HasValue)
+            DeliveredAt = deliveredAt.Value;
+    }
+
+    private static bool IsValidTransition(ShipmentStatus from, ShipmentStatus to)
+    {
+        return (from, to) switch
+        {
+            (ShipmentStatus.Created, ShipmentStatus.LabelPurchased) => true,
+            (ShipmentStatus.LabelPurchased, ShipmentStatus.InTransit) => true,
+            (ShipmentStatus.InTransit, ShipmentStatus.OutForDelivery) => true,
+            (ShipmentStatus.OutForDelivery, ShipmentStatus.Delivered) => true,
+            (_, ShipmentStatus.Exception) => true,
+            (_, ShipmentStatus.Cancelled) => true,
+            _ when from == to => true,
+            _ => false,
+        };
     }
 
     public void SetAddresses(string fromStreet, string fromCity, string fromState, string fromZip, string fromCountry, string toStreet, string toCity, string toState, string toZip, string toCountry)

@@ -5,6 +5,7 @@ using MassTransit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace Haworks.Shipping.Api.Controllers;
 
@@ -14,7 +15,8 @@ namespace Haworks.Shipping.Api.Controllers;
 public class ShipmentsController(
     ShippingDbContext db,
     IShippingProvider provider,
-    IPublishEndpoint publisher) : ControllerBase
+    IPublishEndpoint publisher,
+    IDateTimeProvider dateTimeProvider) : ControllerBase
 {
     /// <summary>Create shipment and fetch carrier rates.</summary>
     [HttpPost]
@@ -27,7 +29,7 @@ public class ShipmentsController(
             new ParcelDto(request.LengthInches, request.WidthInches, request.HeightInches, request.WeightOz)
         ), ct);
 
-        var shipment = Shipment.Create(request.OrderId, result.ShipmentId);
+        var shipment = Shipment.Create(request.OrderId, result.ShipmentId, dateTimeProvider.UtcNow);
         shipment.SetAddresses(
             request.FromStreet, request.FromCity, request.FromState, request.FromZip, request.FromCountry,
             request.ToStreet, request.ToCity, request.ToState, request.ToZip, request.ToCountry);
@@ -52,7 +54,9 @@ public class ShipmentsController(
         var rateCents = (long)Math.Round(result.Amount * 100m, 0, MidpointRounding.AwayFromZero);
         shipment.MarkLabelPurchased(
             result.Carrier, result.Service, result.TrackingNumber,
-            result.TrackingUrl, result.LabelUrl, rateCents, result.Currency, result.EstimatedDelivery);
+            result.TrackingUrl, result.LabelUrl, rateCents, result.Currency, result.EstimatedDelivery, dateTimeProvider.UtcNow);
+
+        await db.SaveChangesAsync(ct);
 
         await publisher.Publish(new ShipmentCreatedEvent
         {
@@ -62,8 +66,6 @@ public class ShipmentsController(
             TrackingNumber = result.TrackingNumber,
             TrackingUrl = result.TrackingUrl,
         }, ct);
-
-        await db.SaveChangesAsync(ct);
 
         return Ok(new { shipment.TrackingNumber, shipment.TrackingUrl, shipment.LabelUrl, shipment.EstimatedDelivery });
     }
@@ -102,11 +104,14 @@ public class ShipmentsController(
         var trackingCode = payload.Result?.TrackingCode;
         if (string.IsNullOrEmpty(trackingCode)) return Ok();
 
-        var shipment = await db.Shipments.FirstOrDefaultAsync(s => s.TrackingNumber == trackingCode, ct);
+        var shipment = await db.Shipments.FromSqlRaw(
+            "SELECT * FROM shipping.\"Shipments\" WHERE \"TrackingNumber\" = {0} FOR UPDATE", trackingCode)
+            .FirstOrDefaultAsync(ct);
         if (shipment == null) return Ok();
 
         var newStatus = MapEasyPostStatus(payload.Result?.Status);
-        shipment.UpdateStatus(newStatus);
+        var deliveredAt = newStatus == ShipmentStatus.Delivered ? dateTimeProvider.UtcNow : (DateTime?)null;
+        shipment.UpdateStatus(newStatus, deliveredAt);
 
         if (newStatus == ShipmentStatus.Delivered)
         {
@@ -114,7 +119,7 @@ public class ShipmentsController(
             {
                 ShipmentId = shipment.Id,
                 OrderId = shipment.OrderId,
-                DeliveredAt = shipment.DeliveredAt ?? DateTime.UtcNow,
+                DeliveredAt = shipment.DeliveredAt ?? dateTimeProvider.UtcNow,
             }, ct);
         }
         else if (newStatus == ShipmentStatus.Exception)
@@ -145,12 +150,24 @@ public class ShipmentsController(
 
 public sealed record CreateShipmentHttpRequest(
     [property: System.Text.Json.Serialization.JsonRequired] Guid OrderId,
-    string FromStreet, string FromCity, string FromState, string FromZip, string FromCountry,
-    string ToStreet, string ToCity, string ToState, string ToZip, string ToCountry,
-    [property: System.Text.Json.Serialization.JsonRequired] double LengthInches,
-    [property: System.Text.Json.Serialization.JsonRequired] double WidthInches,
-    [property: System.Text.Json.Serialization.JsonRequired] double HeightInches,
-    [property: System.Text.Json.Serialization.JsonRequired] double WeightOz);
+    [Required, MinLength(1), MaxLength(200)] string FromStreet,
+    [Required, MinLength(1), MaxLength(100)] string FromCity,
+    [Required, MinLength(2), MaxLength(10)] string FromState,
+    [Required, RegularExpression(@"^\d{5}(-\d{4})?$", ErrorMessage = "Invalid ZIP code format")] string FromZip,
+    [Required, Length(2, 3)] string FromCountry,
+    [Required, MinLength(1), MaxLength(200)] string ToStreet,
+    [Required, MinLength(1), MaxLength(100)] string ToCity,
+    [Required, MinLength(2), MaxLength(10)] string ToState,
+    [Required, RegularExpression(@"^\d{5}(-\d{4})?$", ErrorMessage = "Invalid ZIP code format")] string ToZip,
+    [Required, Length(2, 3)] string ToCountry,
+    [property: System.Text.Json.Serialization.JsonRequired]
+    [Range(0.1, 100.0, ErrorMessage = "Length must be between 0.1 and 100 inches")] double LengthInches,
+    [property: System.Text.Json.Serialization.JsonRequired]
+    [Range(0.1, 100.0, ErrorMessage = "Width must be between 0.1 and 100 inches")] double WidthInches,
+    [property: System.Text.Json.Serialization.JsonRequired]
+    [Range(0.1, 100.0, ErrorMessage = "Height must be between 0.1 and 100 inches")] double HeightInches,
+    [property: System.Text.Json.Serialization.JsonRequired]
+    [Range(0.1, 1000.0, ErrorMessage = "Weight must be between 0.1 and 1000 ounces")] double WeightOz);
 
 public sealed record BuyLabelRequest(string RateId);
 
