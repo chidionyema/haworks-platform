@@ -19,7 +19,7 @@ public class SchedulingController : ControllerBase
     }
 
     [HttpPost("schedule")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Schedule(ScheduleEventCommand command, CancellationToken ct = default)
     {
