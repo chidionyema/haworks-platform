@@ -1,5 +1,6 @@
 using Haworks.Webhooks.Application.Interfaces;
 using Microsoft.Extensions.Logging;
+using Polly;
 using Svix;
 using Svix.Models;
 
@@ -23,24 +24,49 @@ public sealed class SvixWebhookForwarder(
     {
         var appId = partnerId.ToString();
 
-        // GetOrCreateAsync is idempotent: creates if new, returns existing if uid matches.
-        await svix.Application.GetOrCreateAsync(
-            new ApplicationIn { Name = $"partner-{appId}", Uid = appId },
-            cancellationToken: ct);
+        var retryPolicy = Policy
+            .Handle<Exception>()
+            .WaitAndRetryAsync(
+                retryCount: 3,
+                sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                onRetry: (outcome, timespan, retryCount, context) =>
+                {
+                    logger.LogWarning(
+                        "Svix API call failed (attempt {RetryCount}/3). Retrying in {Delay}ms. Error: {Error}",
+                        retryCount, timespan.TotalMilliseconds, outcome.Exception?.Message);
+                });
 
-        // Create the message — Svix deduplicates on EventId within a 5-minute window.
-        await svix.Message.CreateAsync(
-            appId,
-            new MessageIn
+        try
+        {
+            await retryPolicy.ExecuteAsync(async () =>
             {
-                EventType = eventType,
-                Payload = payload,
-                EventId = eventId
-            },
-            cancellationToken: ct);
+                // GetOrCreateAsync is idempotent: creates if new, returns existing if uid matches.
+                await svix.Application.GetOrCreateAsync(
+                    new ApplicationIn { Name = $"partner-{appId}", Uid = appId },
+                    cancellationToken: ct);
 
-        logger.LogInformation(
-            "Forwarded event {EventType} (id={EventId}) to Svix app {AppId}",
-            eventType, eventId, appId);
+                // Create the message — Svix deduplicates on EventId within a 5-minute window.
+                await svix.Message.CreateAsync(
+                    appId,
+                    new MessageIn
+                    {
+                        EventType = eventType,
+                        Payload = payload,
+                        EventId = eventId
+                    },
+                    cancellationToken: ct);
+            });
+
+            logger.LogInformation(
+                "Forwarded event {EventType} (id={EventId}) to Svix app {AppId}",
+                eventType, eventId, appId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Failed to forward event {EventType} (id={EventId}) to Svix after 3 attempts. Event may be lost.",
+                eventType, eventId);
+            throw;
+        }
     }
 }

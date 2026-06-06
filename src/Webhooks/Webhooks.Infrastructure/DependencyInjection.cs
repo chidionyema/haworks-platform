@@ -35,7 +35,8 @@ public static class DependencyInjection
         // Both Svix:ServerUrl and Svix:AuthToken MUST be provided via configuration (env vars, Vault, etc.).
         var svixServerUrl = configuration["Svix:ServerUrl"]
             ?? throw new InvalidOperationException("Svix:ServerUrl is required. Set via configuration or environment variable Svix__ServerUrl.");
-        var svixAuthToken = configuration["Svix:AuthToken"] ?? "";
+        var svixAuthToken = configuration["Svix:AuthToken"]
+            ?? throw new InvalidOperationException("Svix:AuthToken is required. Set via configuration or environment variable Svix__AuthToken.");
         services.AddSingleton(new SvixClient(svixAuthToken, new SvixOptions(svixServerUrl)));
         services.AddScoped<IWebhookDispatcher, SvixWebhookForwarder>();
 
