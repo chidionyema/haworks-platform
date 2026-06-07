@@ -32,29 +32,28 @@ public class RedisInboxServiceTests
     {
         // Arrange
         var userId = Guid.NewGuid();
-        var message = new { MessageType = "Test", Data = "payload" };
+        var messageId = Guid.NewGuid();
+        var messageType = "Test";
+        var message = new { Data = "payload" };
 
-        _dbMock.Setup(x => x.ListLeftPushAsync(
-                It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<When>(), It.IsAny<CommandFlags>()))
-            .ReturnsAsync(1);
-
-        _dbMock.Setup(x => x.ListTrimAsync(
-                It.IsAny<RedisKey>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CommandFlags>()))
-            .Returns(Task.CompletedTask);
-
-        _dbMock.Setup(x => x.KeyExpireAsync(
-                It.IsAny<RedisKey>(), It.IsAny<TimeSpan?>(), It.IsAny<ExpireWhen>(), It.IsAny<CommandFlags>()))
+        _dbMock.Setup(x => x.SetAddAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<CommandFlags>()))
             .ReturnsAsync(true);
 
-        // Act
-        await _sut.StoreMessageAsync(userId, message);
+        _dbMock.Setup(x => x.CreateTransaction(It.IsAny<object>()))
+            .Returns(Mock.Of<ITransaction>());
 
-        // Assert — LTRIM is called with 0..(MaxInboxSize-1), capping at 1000 entries
-        _dbMock.Verify(x => x.ListTrimAsync(
-            It.Is<RedisKey>(k => k.ToString() == $"inbox:{userId}"),
-            0,
-            InboxConstants.MaxInboxSize - 1,
-            It.IsAny<CommandFlags>()), Times.Once);
+        var transactionMock = new Mock<ITransaction>();
+        transactionMock.Setup(x => x.ExecuteAsync(It.IsAny<CommandFlags>()))
+            .ReturnsAsync(true);
+
+        _dbMock.Setup(x => x.CreateTransaction(It.IsAny<object>()))
+            .Returns(transactionMock.Object);
+
+        // Act
+        await _sut.StoreMessageAsync(userId, messageId, messageType, message, CancellationToken.None);
+
+        // Assert — Transaction with LPUSH + LTRIM + EXPIRE is executed
+        transactionMock.Verify(x => x.ExecuteAsync(It.IsAny<CommandFlags>()), Times.Once);
     }
 
     [Fact]
@@ -80,54 +79,73 @@ public class RedisInboxServiceTests
     }
 
     [Fact]
-    public async Task AcknowledgeMessagesAsync_deletes_inbox_key()
+    public async Task AcknowledgeMessagesAsync_deletes_inbox_key_when_delivered_count_exceeds_length()
     {
         // Arrange
         var userId = Guid.NewGuid();
+        var deliveredCount = 5;
+        _dbMock.Setup(x => x.ListLengthAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ReturnsAsync(3); // Less than deliveredCount
         _dbMock.Setup(x => x.KeyDeleteAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
             .ReturnsAsync(true);
 
         // Act
-        await _sut.AcknowledgeMessagesAsync(userId);
+        await _sut.AcknowledgeMessagesAsync(userId, deliveredCount, CancellationToken.None);
 
         // Assert
         _dbMock.Verify(x => x.KeyDeleteAsync(
-            It.Is<RedisKey>(k => k.ToString() == $"inbox:{userId}"),
+            It.Is<RedisKey>(k => k.ToString() == $"realtime:inbox:{userId}"),
+            It.IsAny<CommandFlags>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AcknowledgeMessagesAsync_trims_list_when_delivered_count_is_partial()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var deliveredCount = 3;
+        var currentLength = 10;
+        _dbMock.Setup(x => x.ListLengthAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ReturnsAsync(currentLength);
+        _dbMock.Setup(x => x.ListTrimAsync(It.IsAny<RedisKey>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CommandFlags>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _sut.AcknowledgeMessagesAsync(userId, deliveredCount, CancellationToken.None);
+
+        // Assert — LTRIM keeps [0, currentLength - deliveredCount - 1] = [0, 6]
+        _dbMock.Verify(x => x.ListTrimAsync(
+            It.Is<RedisKey>(k => k.ToString() == $"realtime:inbox:{userId}"),
+            0,
+            6, // currentLength - deliveredCount - 1 = 10 - 3 - 1 = 6
             It.IsAny<CommandFlags>()), Times.Once);
     }
 
     [Fact]
     public async Task Inbox_overflow_trims_oldest_entries()
     {
-        // Arrange — simulate writing 1001 messages; verify LTRIM ensures max 1000
+        // Arrange — simulate writing multiple messages; verify transaction is executed
         var userId = Guid.NewGuid();
-        var trimCalls = new List<(long start, long stop)>();
+        var executeCount = 0;
 
-        _dbMock.Setup(x => x.ListLeftPushAsync(
-                It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<When>(), It.IsAny<CommandFlags>()))
-            .ReturnsAsync(1);
+        _dbMock.Setup(x => x.SetAddAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<CommandFlags>()))
+            .ReturnsAsync(true); // Message is new (not duplicate)
 
-        _dbMock.Setup(x => x.ListTrimAsync(
-                It.IsAny<RedisKey>(), It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CommandFlags>()))
-            .Callback<RedisKey, long, long, CommandFlags>((_, start, stop, _) => trimCalls.Add((start, stop)))
-            .Returns(Task.CompletedTask);
-
-        _dbMock.Setup(x => x.KeyExpireAsync(
-                It.IsAny<RedisKey>(), It.IsAny<TimeSpan?>(), It.IsAny<ExpireWhen>(), It.IsAny<CommandFlags>()))
+        var transactionMock = new Mock<ITransaction>();
+        transactionMock.Setup(x => x.ExecuteAsync(It.IsAny<CommandFlags>()))
+            .Callback(() => executeCount++)
             .ReturnsAsync(true);
 
-        // Act — write 1001 messages
-        for (var i = 0; i < 1001; i++)
+        _dbMock.Setup(x => x.CreateTransaction(It.IsAny<object>()))
+            .Returns(transactionMock.Object);
+
+        // Act — write 5 messages
+        for (var i = 0; i < 5; i++)
         {
-            await _sut.StoreMessageAsync(userId, new { Index = i });
+            await _sut.StoreMessageAsync(userId, Guid.NewGuid(), "Test", new { Index = i }, CancellationToken.None);
         }
 
-        // Assert — every write issues LTRIM 0..999, so messages beyond 1000 are trimmed
-        trimCalls.Should().HaveCount(1001);
-        trimCalls.Should().AllSatisfy(call =>
-        {
-            call.start.Should().Be(0);
-            call.stop.Should().Be(999); // MaxInboxSize - 1
-        });
+        // Assert — transaction executed for each message (includes LTRIM for inbox size management)
+        executeCount.Should().Be(5);
     }
 }

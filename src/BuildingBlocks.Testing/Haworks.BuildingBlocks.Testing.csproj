@@ -16,6 +16,7 @@
     <PackageReference Include="Respawn" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Testcontainers.Redis" />
+    <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Testcontainers.Minio" />
     <PackageReference Include="Testcontainers.Kafka" />
     <PackageReference Include="Testcontainers.RabbitMq" />
