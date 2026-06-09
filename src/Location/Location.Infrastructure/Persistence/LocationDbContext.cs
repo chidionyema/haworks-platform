@@ -108,6 +108,12 @@ public class LocationDbContext : DbContext, ILocationDbContext, IIdempotencyJour
         return base.SaveChangesAsync(cancellationToken);
     }
 
+    public override int SaveChanges()
+    {
+        StampAuditFields();
+        return base.SaveChanges();
+    }
+
     private void StampAuditFields()
     {
         var entries = ChangeTracker.Entries<AuditableEntity>()

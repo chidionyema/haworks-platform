@@ -22,18 +22,22 @@ public class LocationHydrationService(LocationDbContext dbContext, ILogger<Locat
             throw new RpcException(new Status(StatusCode.InvalidArgument, "LocationIds array size must not exceed 1000"));
         }
 
-        var invalidCount = 0;
+        var invalidIds = new List<string>();
         var guids = new List<Guid>(request.LocationIds.Count);
         foreach (var id in request.LocationIds)
         {
             if (Guid.TryParse(id, out var g))
                 guids.Add(g);
             else
-                invalidCount++;
+                invalidIds.Add(id);
         }
 
-        if (invalidCount > 0)
-            logger.LogWarning("Skipped {InvalidCount} unparseable LocationIds in gRPC hydration request", invalidCount);
+        if (invalidIds.Count > 0)
+        {
+            logger.LogWarning("Invalid LocationIds in gRPC hydration request: {InvalidIds}", string.Join(", ", invalidIds));
+            throw new RpcException(new Status(StatusCode.InvalidArgument,
+                $"Invalid LocationId format: {string.Join(", ", invalidIds)}"));
+        }
 
         if (guids.Count == 0)
         {

@@ -36,6 +36,17 @@ public class Address : AuditableEntity
         string street, string city, string postcode, string country,
         Point coordinates, string geohash, string? metadata = null)
     {
+        ArgumentNullException.ThrowIfNull(coordinates);
+
+        var lat = coordinates.Y;
+        var lon = coordinates.X;
+
+        if (Math.Abs(lat) > 90)
+            throw new ArgumentException("Latitude must be between -90 and 90 degrees", nameof(coordinates));
+
+        if (Math.Abs(lon) > 180)
+            throw new ArgumentException("Longitude must be between -180 and 180 degrees", nameof(coordinates));
+
         return new Address
         {
             Street = street,

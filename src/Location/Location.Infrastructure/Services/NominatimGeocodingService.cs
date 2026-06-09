@@ -30,18 +30,18 @@ public sealed class NominatimGeocodingService(HttpClient httpClient, ILogger<Nom
         }
         catch (HttpRequestException ex)
         {
-            logger.LogWarning(ex, "HTTP error geocoding address: {Address}", address);
-            return null;
+            logger.LogError(ex, "HTTP error geocoding address: {Address}", address);
+            throw new InvalidOperationException($"Geocoding service unavailable: {ex.Message}", ex);
         }
         catch (TaskCanceledException ex)
         {
-            logger.LogWarning(ex, "Geocoding request timed out for address: {Address}", address);
-            return null;
+            logger.LogError(ex, "Geocoding request timed out for address: {Address}", address);
+            throw new TimeoutException($"Geocoding service timed out for address: {address}", ex);
         }
         catch (JsonException ex)
         {
-            logger.LogWarning(ex, "Invalid JSON response from Nominatim for address: {Address}", address);
-            return null;
+            logger.LogError(ex, "Invalid JSON response from Nominatim for address: {Address}", address);
+            throw new InvalidOperationException($"Geocoding service returned invalid response: {ex.Message}", ex);
         }
 
         return null;

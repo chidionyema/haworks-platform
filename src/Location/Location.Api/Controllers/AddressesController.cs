@@ -17,11 +17,15 @@ namespace Haworks.Location.Api.Controllers;
 public class AddressesController(IMediator mediator) : ControllerBase
 {
     [HttpPost]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create(CreateAddressCommand command, CancellationToken ct = default)
     {
         var result = await mediator.Send(command, ct);
+        if (result.IsSuccess)
+        {
+            return CreatedAtAction(null, new { id = result.Value }, result.Value);
+        }
         return result.ToActionResult();
     }
 
