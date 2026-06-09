@@ -10,10 +10,14 @@ namespace Haworks.Location.Application.QueryHandlers;
 
 internal sealed class GetNearbyAddressesQueryHandler(
     ILocationDbContext dbContext,
-    IMemoryCache cache) : IRequestHandler<GetNearbyAddressesQuery, Result<IReadOnlyList<NearbyAddressDto>>>
+    IMemoryCache cache,
+    IGeohashService geohashService) : IRequestHandler<GetNearbyAddressesQuery, Result<IReadOnlyList<NearbyAddressDto>>>
 {
-    private static string CacheKey(double lat, double lon, double radius, int limit) =>
-        $"nearby:{Math.Round(lat, 3)}:{Math.Round(lon, 3)}:{radius}:{limit}";
+    private string CacheKey(double lat, double lon, double radius, int limit)
+    {
+        var geohashPrefix = geohashService.Encode(lat, lon, 6); // 6-char precision for cache grouping
+        return $"nearby:{geohashPrefix}:{radius}:{limit}";
+    }
 
     public async Task<Result<IReadOnlyList<NearbyAddressDto>>> Handle(GetNearbyAddressesQuery request, CancellationToken ct)
     {

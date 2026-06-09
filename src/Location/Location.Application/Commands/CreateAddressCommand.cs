@@ -5,6 +5,7 @@ using Haworks.Location.Application.Interfaces;
 using Haworks.Location.Domain.Entities;
 using MassTransit;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 
 namespace Haworks.Location.Application.Commands;
@@ -35,8 +36,12 @@ public class CreateAddressCommandHandler(
         double lat = request.Latitude ?? 0;
         double lon = request.Longitude ?? 0;
 
-        // 1. Geocode if coordinates are missing
-        if (!request.Latitude.HasValue || !request.Longitude.HasValue)
+        // 1. Geocode if coordinates are missing or invalid
+        bool needsGeocoding = !request.Latitude.HasValue || !request.Longitude.HasValue ||
+            request.Latitude.Value == 0 || request.Longitude.Value == 0 ||
+            Math.Abs(request.Latitude.Value) > 90 || Math.Abs(request.Longitude.Value) > 180;
+
+        if (needsGeocoding)
         {
             var addressString = $"{request.Street}, {request.City}, {request.Postcode}, {request.Country}";
             var coords = await geocodingService.GeocodeAsync(addressString, cancellationToken);
@@ -85,8 +90,21 @@ public class CreateAddressCommandHandler(
             Geohash = address.Geohash
         }, cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            return Result.Failure<Guid>(Error.Conflict("Address.AlreadyExists", "Address already exists"));
+        }
 
         return Result.Success(address.Id);
+    }
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+    {
+        var inner = ex.InnerException?.Message ?? "";
+        return inner.Contains("23505") || inner.Contains("unique", StringComparison.OrdinalIgnoreCase);
     }
 }
