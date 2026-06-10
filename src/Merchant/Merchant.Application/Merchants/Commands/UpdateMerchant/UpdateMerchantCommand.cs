@@ -25,10 +25,10 @@ public class UpdateMerchantCommandValidator : AbstractValidator<UpdateMerchantCo
     public UpdateMerchantCommandValidator()
     {
         RuleFor(v => v.MerchantId).NotEmpty();
-        RuleFor(v => v.Name).MaximumLength(200).When(v => v.Name is not null);
+        RuleFor(v => v.Name).NotEmpty().MaximumLength(200).When(v => v.Name is not null);
         RuleFor(v => v.Bio).MaximumLength(2000).When(v => v.Bio is not null);
         RuleFor(v => v.Description).MaximumLength(2000).When(v => v.Description is not null);
-        RuleFor(v => v.ContactEmail).EmailAddress().When(v => v.ContactEmail is not null);
+        RuleFor(v => v.ContactEmail).NotEmpty().EmailAddress().When(v => v.ContactEmail is not null);
         RuleFor(v => v.LogoUrl).Must(BeAValidUri).When(v => v.LogoUrl is not null).WithMessage("Invalid URL format.");
         RuleFor(v => v.Website).Must(BeAValidUri).When(v => v.Website is not null).WithMessage("Invalid URL format.");
     }

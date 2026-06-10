@@ -35,7 +35,8 @@ public sealed class SuspendMerchantCommandHandler : IRequestHandler<SuspendMerch
     public async Task<Result> Handle(SuspendMerchantCommand request, CancellationToken cancellationToken)
     {
         var merchant = await _context.Merchants
-            .FirstOrDefaultAsync(m => m.Id == request.MerchantId, cancellationToken);
+            .FromSqlRaw("SELECT * FROM merchant.\"Merchants\" WHERE \"Id\" = {0} FOR UPDATE", request.MerchantId)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (merchant is null)
             return Result.Failure(Error.NotFound("Merchant.NotFound", "Merchant not found."));

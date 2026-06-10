@@ -53,6 +53,11 @@ public class MerchantDbContext : DbContext, IMerchantDbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.MerchantId);
             entity.Property(e => e.IsOpen).HasDefaultValue(true);
+
+            entity.HasOne<MerchantProfile>()
+                  .WithMany()
+                  .HasForeignKey(e => e.MerchantId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

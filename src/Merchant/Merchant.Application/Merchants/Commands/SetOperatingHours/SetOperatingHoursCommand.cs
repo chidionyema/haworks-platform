@@ -43,7 +43,6 @@ public sealed class SetOperatingHoursCommandHandler : IRequestHandler<SetOperati
     public async Task<Result> Handle(SetOperatingHoursCommand request, CancellationToken cancellationToken)
     {
         var merchant = await _context.Merchants
-            .AsNoTracking()
             .FirstOrDefaultAsync(m => m.Id == request.MerchantId, cancellationToken);
 
         if (merchant is null)
