@@ -16,11 +16,21 @@
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Moq" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Npgsql" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../../src/Merchant/Merchant.Domain/Merchant.Domain.csproj" />
     <ProjectReference Include="../../../src/Merchant/Merchant.Application/Merchant.Application.csproj" />
+    <ProjectReference Include="../../../src/Merchant/Merchant.Infrastructure/Merchant.Infrastructure.csproj" />
+    <ProjectReference Include="../../../src/BuildingBlocks.Testing/Haworks.BuildingBlocks.Testing.csproj" />
+    <ProjectReference Include="../../../src/Contracts/Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../../../src/BuildingBlocks.Testing/TestModuleInitializer.cs"
+             Link="TestModuleInitializer.cs" />
   </ItemGroup>
 
 </Project>

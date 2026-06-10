@@ -1,20 +1,56 @@
 using FluentAssertions;
+using Haworks.BuildingBlocks.Testing.Containers;
 using Haworks.Merchant.Application.Common.Interfaces;
 using Haworks.Merchant.Application.Merchants.Commands.UpdateMerchant;
 using Haworks.Merchant.Domain.Aggregates;
+using Haworks.Merchant.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Moq;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Haworks.Merchant.Unit.Application;
 
-public sealed class UpdateMerchantHandlerTests
+public sealed class UpdateMerchantHandlerTests : IAsyncLifetime
 {
+    private string _connectionString = string.Empty;
+    private MerchantDbContext? _context;
+
+    public async Task InitializeAsync()
+    {
+        _connectionString = await SharedTestPostgres.CreateDatabaseAsync("merchant");
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:merchant"] = _connectionString
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddDbContext<MerchantDbContext>(options =>
+            options.UseNpgsql(_connectionString));
+
+        var serviceProvider = services.BuildServiceProvider();
+        _context = serviceProvider.GetRequiredService<MerchantDbContext>();
+
+        await _context.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS merchant");
+        await _context.Database.MigrateAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (_context != null)
+        {
+            await _context.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task Handle_nonexistent_merchant_returns_not_found()
     {
-        var context = CreateInMemoryContext();
-        var handler = new UpdateMerchantCommandHandler(context);
+        var handler = new UpdateMerchantCommandHandler(_context!);
 
         var command = new UpdateMerchantCommand(Guid.NewGuid(), Guid.NewGuid(), "Name", null, null, null, null, null, null, null);
         var result = await handler.Handle(command, CancellationToken.None);
@@ -26,13 +62,12 @@ public sealed class UpdateMerchantHandlerTests
     [Fact]
     public async Task Handle_wrong_owner_returns_forbidden()
     {
-        var context = CreateInMemoryContext();
         var ownerId = Guid.NewGuid();
         var merchant = MerchantProfile.Create(ownerId, "Test", "test");
-        context.Merchants.Add(merchant);
-        await context.SaveChangesAsync();
+        _context!.Merchants.Add(merchant);
+        await _context.SaveChangesAsync();
 
-        var handler = new UpdateMerchantCommandHandler(context);
+        var handler = new UpdateMerchantCommandHandler(_context);
         var differentUserId = Guid.NewGuid();
         var command = new UpdateMerchantCommand(merchant.Id, differentUserId, "New Name", null, null, null, null, null, null, null);
         var result = await handler.Handle(command, CancellationToken.None);
@@ -44,34 +79,18 @@ public sealed class UpdateMerchantHandlerTests
     [Fact]
     public async Task Handle_valid_owner_updates_successfully()
     {
-        var context = CreateInMemoryContext();
         var ownerId = Guid.NewGuid();
         var merchant = MerchantProfile.Create(ownerId, "Test", "test");
-        context.Merchants.Add(merchant);
-        await context.SaveChangesAsync();
+        _context!.Merchants.Add(merchant);
+        await _context.SaveChangesAsync();
 
-        var handler = new UpdateMerchantCommandHandler(context);
+        var handler = new UpdateMerchantCommandHandler(_context);
         var command = new UpdateMerchantCommand(merchant.Id, ownerId, "Updated", "New Bio", null, null, null, null, null, null);
         var result = await handler.Handle(command, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        var updated = await context.Merchants.FirstAsync(m => m.Id == merchant.Id);
+        var updated = await _context.Merchants.FirstAsync(m => m.Id == merchant.Id);
         updated.Name.Should().Be("Updated");
         updated.Bio.Should().Be("New Bio");
     }
-
-    private static TestMerchantDbContext CreateInMemoryContext()
-    {
-        var options = new DbContextOptionsBuilder<TestMerchantDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new TestMerchantDbContext(options);
-    }
-}
-
-internal sealed class TestMerchantDbContext : DbContext, IMerchantDbContext
-{
-    public TestMerchantDbContext(DbContextOptions<TestMerchantDbContext> options) : base(options) { }
-    public DbSet<MerchantProfile> Merchants => Set<MerchantProfile>();
-    public DbSet<OperatingHours> OperatingHours => Set<OperatingHours>();
 }
