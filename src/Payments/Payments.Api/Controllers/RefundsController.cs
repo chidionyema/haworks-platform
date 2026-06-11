@@ -15,14 +15,18 @@ public sealed class RefundsController(IMediator mediator) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> Create(
-        [FromBody] CreateRefundRequest body, 
+        [FromBody] CreateRefundRequest body,
         CancellationToken ct)
     {
+        var idempotencyKey = Request.Headers["Idempotency-Key"].FirstOrDefault()
+            ?? body.IdempotencyKey
+            ?? throw new ArgumentException("Idempotency-Key header or body property required");
+
         var command = new CreateRefundCommand(
             body.PaymentId,
             body.AmountCents,
             body.Currency,
-            Guid.NewGuid().ToString("N"),
+            idempotencyKey,
             body.Reason,
             body.RequestedBy);
 
@@ -60,6 +64,7 @@ public sealed record CreateRefundRequest
     public required Guid PaymentId { get; init; }
     public required long AmountCents { get; init; }
     public required string Currency { get; init; }
+    public string? IdempotencyKey { get; init; }
     public string? Reason { get; init; }
     public string? RequestedBy { get; init; }
 }
