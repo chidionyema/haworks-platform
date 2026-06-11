@@ -30,7 +30,7 @@ public class OrderItem : AuditableEntity
     public int Quantity { get; private set; }
     public long UnitPriceCents { get; private set; }                  // minor units (cents)
 
-    public long LineTotalCents => Quantity * UnitPriceCents;
+    public long LineTotalCents => checked(Quantity * UnitPriceCents);
 
     public static OrderItem Create(Guid orderId, Guid productId, string productName, int quantity, long unitPriceCents)
     {

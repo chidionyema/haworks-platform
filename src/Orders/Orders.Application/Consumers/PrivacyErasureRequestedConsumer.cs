@@ -29,6 +29,7 @@ public sealed class PrivacyErasureRequestedConsumer(
         try
         {
             var totalAnonymised = 0;
+            var guestOrdersErased = 0;
             var skip = 0;
             while (true)
             {
@@ -39,13 +40,33 @@ public sealed class PrivacyErasureRequestedConsumer(
                 foreach (var order in batch)
                 {
                     order.AnonymiseForPrivacy();
+
+                    // Also anonymize guest order info for this order
+                    var guestInfo = await orders.GetGuestInfoAsync(order.Id, context.CancellationToken);
+                    if (guestInfo != null)
+                    {
+                        guestInfo.Complete(
+                            "deleted@privacy.invalid",
+                            "ERASED",
+                            "ERASED",
+                            "ERASED",
+                            "ERASED",
+                            "ERASED",
+                            "ERASED",
+                            "ERASED",
+                            "ERASED"
+                        );
+                        guestOrdersErased++;
+                    }
                 }
 
+                await orders.SaveChangesAsync(context.CancellationToken);
                 skip += batch.Count;
                 totalAnonymised += batch.Count;
             }
 
-            logger.LogInformation("Anonymised {Count} orders for UserId={UserId}", totalAnonymised, msg.UserId);
+            logger.LogInformation("Anonymised {Count} orders and {GuestCount} guest order records for UserId={UserId}",
+                totalAnonymised, guestOrdersErased, msg.UserId);
 
             await context.Publish(new PrivacyErasureCompleted
             {

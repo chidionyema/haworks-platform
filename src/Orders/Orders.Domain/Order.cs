@@ -79,6 +79,12 @@ public class Order : AuditableEntity
         {
             throw new ArgumentException("Order must have at least one line item", nameof(lineItems));
         }
+
+        var expectedTotal = order._items.Sum(i => checked(i.Quantity * i.UnitPriceCents));
+        if (expectedTotal != totalAmountCents)
+        {
+            throw new ArgumentException($"Total amount {totalAmountCents} does not match line items sum {expectedTotal}", nameof(totalAmountCents));
+        }
         return order;
     }
 
