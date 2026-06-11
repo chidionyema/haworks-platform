@@ -71,6 +71,8 @@ public class Payment : AuditableEntity
         if (sagaId == Guid.Empty)  throw new ArgumentException("SagaId required", nameof(sagaId));
         if (provider == PaymentProvider.None)
             throw new ArgumentException("A concrete PaymentProvider must be supplied", nameof(provider));
+        if (!IsValidCurrencyCode(currency))
+            throw new ArgumentException($"Invalid currency code: {currency}", nameof(currency));
 
         return new Payment(orderId, userId, amountCents, taxCents, currency, provider, sagaId);
     }
@@ -177,5 +179,18 @@ public class Payment : AuditableEntity
     {
         Status = PaymentStatus.Cancelled;
         LastModifiedDate = DateTime.UtcNow;
+    }
+
+    private static bool IsValidCurrencyCode(string currency)
+    {
+        // Common ISO 4217 currency codes
+        var validCurrencies = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF", "CNY", "SEK", "NZD",
+            "MXN", "SGD", "HKD", "NOK", "TRY", "RUB", "INR", "BRL", "ZAR", "KRW",
+            "PLN", "CZK", "HUF", "RON", "BGN", "HRK", "DKK", "ISK", "THB", "MYR"
+        };
+
+        return currency.Length == 3 && validCurrencies.Contains(currency);
     }
 }

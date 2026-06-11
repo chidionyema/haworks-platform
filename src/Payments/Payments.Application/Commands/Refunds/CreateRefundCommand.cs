@@ -24,7 +24,7 @@ public sealed class CreateRefundCommandHandler(
 {
     public async Task<Result<Guid>> Handle(CreateRefundCommand request, CancellationToken ct)
     {
-        var payment = await paymentRepository.GetByIdAsync(request.PaymentId, ct);
+        var payment = await paymentRepository.GetByIdTrackedAsync(request.PaymentId, ct);
         if (payment == null)
         {
             return Result.Failure<Guid>(Error.NotFound("Payment.NotFound", $"Payment {request.PaymentId} not found"));

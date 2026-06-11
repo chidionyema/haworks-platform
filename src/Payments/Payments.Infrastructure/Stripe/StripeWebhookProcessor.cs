@@ -282,9 +282,14 @@ internal sealed class StripeWebhookProcessor : IWebhookProcessor
             var dataElement = doc.RootElement.GetProperty("data").GetProperty("object");
             return JsonSerializer.Deserialize<T>(dataElement.GetRawText(), JsonOptions);
         }
-        catch (Exception ex)
+        catch (JsonException ex)
         {
-            _logger.LogWarning(ex, "Failed to manually parse data object of type {Type}", typeof(T).Name);
+            _logger.LogWarning(ex, "Failed to parse JSON for type {Type}", typeof(T).Name);
+            return null;
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Missing required JSON property for type {Type}", typeof(T).Name);
             return null;
         }
     }
