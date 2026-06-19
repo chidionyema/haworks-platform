@@ -8,7 +8,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Haworks.BuildingBlocks.Messaging;
 using Haworks.BuildingBlocks.Caching;
-using Haworks.BuildingBlocks.Resilience;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.BuildingBlocks.Vault;
 using Haworks.Payments.Application.Consumers;
@@ -72,10 +71,7 @@ public static class DependencyInjection
         services.AddScoped<IPaymentDbContext>(sp => sp.GetRequiredService<PaymentDbContext>());
         services.AddScoped<IPaymentRepository, PaymentRepository>();
 
-        // Cross-cutting BuildingBlocks dependencies. These are also registered
-        // by AddVaultIntegration when Vault is enabled, so use TryAdd so we
-        // don't double-register and produce a duplicate-singleton warning.
-        services.TryAddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
+        // Cross-cutting BuildingBlocks dependencies.
         services.TryAddSingleton<ITelemetryService>(NullTelemetryService.Instance);
 
         // Caching — HybridCache needs an IDistributedCache backend.

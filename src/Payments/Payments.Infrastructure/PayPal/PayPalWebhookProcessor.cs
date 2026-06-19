@@ -3,11 +3,9 @@ using Haworks.Payments.Application.Interfaces;
 using Haworks.Contracts.Payments;
 using MassTransit;
 using Haworks.BuildingBlocks.Telemetry;
-using Haworks.BuildingBlocks.Resilience;
 using Haworks.Payments.Infrastructure.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Polly;
 using System.Net.Http.Json;
 
 namespace Haworks.Payments.Infrastructure.PayPal;
@@ -21,14 +19,11 @@ internal sealed class PayPalWebhookProcessor(
     ISubscriptionManager subscriptionManager,
     IWebhookIdempotencyGuard idempotencyGuard,
     IPayPalClientFactory clientFactory,
-    IResiliencePolicyFactory resiliencePolicyFactory,
     IOptions<PaymentProviderOptions> providerOptions,
     ILogger<PayPalWebhookProcessor> logger,
     ITelemetryService telemetry) : IWebhookProcessor
 {
     private readonly PayPalOptions _options = providerOptions.Value.PayPal;
-    private readonly IAsyncPolicy _resiliencePolicy = 
-        resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
 
     public PaymentProvider Provider => PaymentProvider.PayPal;
 
@@ -132,56 +127,52 @@ internal sealed class PayPalWebhookProcessor(
         PayPalSignatureHeaders headers,
         CancellationToken ct)
     {
-        // Let transient exceptions propagate to Polly for retry.
+        // Let transient exceptions propagate to the caller's resilience handler.
         try
         {
-            return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+            var client = await clientFactory.GetAuthenticatedClientAsync(ct);
+
+            var verifyRequest = new PayPalVerifySignatureRequest
             {
-                var client = await clientFactory.GetAuthenticatedClientAsync(token);
+                WebhookId = _options.WebhookId,
+                TransmissionId = headers.TransmissionId,
+                TransmissionTime = headers.TransmissionTime,
+                TransmissionSig = headers.TransmissionSig,
+                CertUrl = headers.CertUrl,
+                AuthAlgo = headers.AuthAlgo,
+                WebhookEvent = JsonDocument.Parse(payload)
+            };
 
-                var verifyRequest = new PayPalVerifySignatureRequest
+            var response = await client.PostAsJsonAsync(
+                PayPalEndpoints.VerifyWebhookSignature,
+                verifyRequest,
+                PayPalJsonOptions.Default,
+                ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var code = (int)response.StatusCode;
+                if (code >= 400 && code < 500 && code != 429)
                 {
-                    WebhookId = _options.WebhookId,
-                    TransmissionId = headers.TransmissionId,
-                    TransmissionTime = headers.TransmissionTime,
-                    TransmissionSig = headers.TransmissionSig,
-                    CertUrl = headers.CertUrl,
-                    AuthAlgo = headers.AuthAlgo,
-                    WebhookEvent = JsonDocument.Parse(payload)
-                };
-
-                var response = await client.PostAsJsonAsync(
-                    PayPalEndpoints.VerifyWebhookSignature,
-                    verifyRequest,
-                    PayPalJsonOptions.Default,
-                    token);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var code = (int)response.StatusCode;
-                    if (code >= 400 && code < 500 && code != 429)
-                    {
-                        // Non-transient client error: signature invalid, no retry will help
-                        var errorBody = await response.Content.ReadAsStringAsync(token);
-                        logger.LogError("PayPal signature verification failed (non-transient): {Body}", errorBody);
-                        return false;
-                    }
-
-                    // Transient server error: throw so Polly retries
-                    response.EnsureSuccessStatusCode();
+                    // Non-transient client error: signature invalid
+                    var errorBody = await response.Content.ReadAsStringAsync(ct);
+                    logger.LogError("PayPal signature verification failed (non-transient): {Body}", errorBody);
+                    return false;
                 }
 
-                var result = await response.Content.ReadFromJsonAsync<PayPalVerifySignatureResponse>(
-                    PayPalJsonOptions.Default,
-                    token);
+                // Transient server error
+                response.EnsureSuccessStatusCode();
+            }
 
-                return result?.VerificationStatus?.Equals(PayPalVerificationStatuses.Success, StringComparison.OrdinalIgnoreCase) == true;
-            }, new Context(), ct);
+            var result = await response.Content.ReadFromJsonAsync<PayPalVerifySignatureResponse>(
+                PayPalJsonOptions.Default,
+                ct);
+
+            return result?.VerificationStatus?.Equals(PayPalVerificationStatuses.Success, StringComparison.OrdinalIgnoreCase) == true;
         }
         catch (HttpRequestException ex)
         {
-            // Polly exhausted retries for transient errors
-            logger.LogError(ex, "PayPal signature verification failed after retries exhausted");
+            logger.LogError(ex, "PayPal signature verification failed");
             return false;
         }
     }

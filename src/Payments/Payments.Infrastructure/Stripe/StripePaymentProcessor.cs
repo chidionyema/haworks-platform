@@ -1,4 +1,3 @@
-using Haworks.BuildingBlocks.Resilience;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Application.Common;
@@ -8,7 +7,6 @@ using Haworks.Payments.Domain;
 using Haworks.Payments.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Polly;
 using Stripe.Checkout;
 
 namespace Haworks.Payments.Infrastructure.Stripe;
@@ -27,13 +25,10 @@ internal sealed class StripePaymentProcessor(
     IPaymentRepository paymentRepository,
     IStripeClientFactory stripeClientFactory,
     IPaymentSessionCache sessionCache,
-    IResiliencePolicyFactory resiliencePolicyFactory,
     IPaymentAmountMismatchHandler amountMismatchHandler,
     ILogger<StripePaymentProcessor> logger,
     ITelemetryService telemetry) : IPaymentSessionProcessor
 {
-    private readonly IAsyncPolicy _resiliencePolicy =
-        resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.Stripe);
 
     private const decimal CentMultiplier = 100m;
 
@@ -163,36 +158,33 @@ internal sealed class StripePaymentProcessor(
             return false;
         }
 
-        // Verify with Stripe API using resilience policy.
-        // Let transient exceptions (5xx, 429, network) propagate to Polly for retry.
+        // Verify with Stripe API.
+        // Let transient exceptions (5xx, 429, network) propagate to the caller's resilience handler.
         try
         {
-            return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
-            {
-                var client = await stripeClientFactory.GetClientAsync(token).ConfigureAwait(false);
-                var session = await new SessionService(client).GetAsync(sessionId, cancellationToken: token).ConfigureAwait(false);
+            var client = await stripeClientFactory.GetClientAsync(ct).ConfigureAwait(false);
+            var session = await new SessionService(client).GetAsync(sessionId, cancellationToken: ct).ConfigureAwait(false);
 
-                if (!string.Equals(session.Status, StripeConstants.SessionStatuses.Complete, StringComparison.Ordinal) ||
+            if (!string.Equals(session.Status, StripeConstants.SessionStatuses.Complete, StringComparison.Ordinal) ||
 !string.Equals(session.PaymentStatus, StripeConstants.PaymentStatuses.Paid, StringComparison.Ordinal))
-                {
-                    logger.LogWarning("Session {SessionId} not complete", sessionId);
-                    return false;
-                }
+            {
+                logger.LogWarning("Session {SessionId} not complete", sessionId);
+                return false;
+            }
 
-                if (session.Metadata?.TryGetValue("orderId", out var orderId) == true &&
+            if (session.Metadata?.TryGetValue("orderId", out var orderId) == true &&
 !string.Equals(orderId, payment.OrderId.ToString(), StringComparison.Ordinal))
-                {
-                    logger.LogWarning("OrderId mismatch for session {SessionId}", sessionId);
-                    return false;
-                }
+            {
+                logger.LogWarning("OrderId mismatch for session {SessionId}", sessionId);
+                return false;
+            }
 
-                await sessionCache.SetAsync(sessionId, payment.OrderId, payment.UserId, token).ConfigureAwait(false);
-                return true;
-            }, new Context(), ct);
+            await sessionCache.SetAsync(sessionId, payment.OrderId, payment.UserId, ct).ConfigureAwait(false);
+            return true;
         }
         catch (global::Stripe.StripeException ex) when (IsNonTransientStripeError(ex))
         {
-            // Non-transient client errors (4xx except 429) — return false after Polly gives up
+            // Non-transient client errors (4xx except 429) — return false
             logger.LogError(ex, "Non-transient Stripe error validating session {SessionId}", sessionId);
             return false;
         }

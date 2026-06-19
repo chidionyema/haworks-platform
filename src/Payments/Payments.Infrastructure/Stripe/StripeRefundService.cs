@@ -2,10 +2,8 @@ using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.BuildingBlocks.Telemetry;
 using MassTransit;
-using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Microsoft.Extensions.Logging;
-using Polly;
 using Stripe;
 
 namespace Haworks.Payments.Infrastructure.Stripe;
@@ -18,12 +16,9 @@ internal sealed class StripeRefundService(
     IStripeClientFactory clientFactory,
     IPaymentRepository paymentRepository,
     IPublishEndpoint eventPublisher,
-    IResiliencePolicyFactory resiliencePolicyFactory,
     ILogger<StripeRefundService> logger,
     ITelemetryService telemetry) : IRefundService
 {
-    private readonly IAsyncPolicy _resiliencePolicy = 
-        resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.Stripe);
 
     /// <inheritdoc />
     public async Task<RefundResult> CreateRefundAsync(
@@ -38,7 +33,7 @@ internal sealed class StripeRefundService(
         });
 
         // Compute idempotency key OUTSIDE the retry block so the same key
-        // is reused across Polly retries — prevents duplicate Stripe refunds.
+        // Compute idempotency key upfront to prevent duplicate Stripe refunds.
         var stripeIdempotencyKey = !string.IsNullOrWhiteSpace(request.IdempotencyKey)
             ? request.IdempotencyKey
             : Guid.NewGuid().ToString();
@@ -46,34 +41,31 @@ internal sealed class StripeRefundService(
         global::Stripe.Refund refund;
         try
         {
-            refund = await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+            var client = await clientFactory.GetClientAsync(ct);
+            var service = new RefundService(client);
+
+            var options = new RefundCreateOptions
             {
-                var client = await clientFactory.GetClientAsync(token);
-                var service = new RefundService(client);
+                PaymentIntent = request.TransactionId,
+                Reason = MapRefundReason(request.Reason),
+                Metadata = request.Metadata ?? new Dictionary<string, string>()
+            };
 
-                var options = new RefundCreateOptions
-                {
-                    PaymentIntent = request.TransactionId,
-                    Reason = MapRefundReason(request.Reason),
-                    Metadata = request.Metadata ?? new Dictionary<string, string>()
-                };
+            if (request.AmountCents.HasValue)
+            {
+                options.Amount = request.AmountCents.Value;
+            }
 
-                if (request.AmountCents.HasValue)
-                {
-                    options.Amount = request.AmountCents.Value;
-                }
+            var requestOptions = new RequestOptions
+            {
+                IdempotencyKey = stripeIdempotencyKey
+            };
 
-                var requestOptions = new RequestOptions
-                {
-                    IdempotencyKey = stripeIdempotencyKey
-                };
+            logger.LogInformation(
+                "Creating Stripe refund for PaymentIntent {TransactionId}",
+                request.TransactionId);
 
-                logger.LogInformation(
-                    "Creating Stripe refund for PaymentIntent {TransactionId}",
-                    request.TransactionId);
-
-                return await service.CreateAsync(options, requestOptions, token);
-            }, new Context(), ct);
+            refund = await service.CreateAsync(options, requestOptions, ct);
         }
         catch (StripeException ex) when (IsNonTransientStripeError(ex))
         {
