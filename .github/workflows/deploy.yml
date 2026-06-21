@@ -73,7 +73,7 @@ jobs:
       localization: ${{ steps.filter.outputs.localization }}
       rulesengine: ${{ steps.filter.outputs.rulesengine }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -265,7 +265,7 @@ jobs:
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy -c fly.vault-pg.toml --remote-only
 
@@ -278,7 +278,7 @@ jobs:
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy -c fly.vault.toml --remote-only
 
@@ -297,7 +297,7 @@ jobs:
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Capture init keys + AppRole creds and stage on identity
         run: bash deploy/fly/ci-stage-vault-creds.sh
@@ -319,7 +319,7 @@ jobs:
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Deploy with canary health gate
         run: |
@@ -350,7 +350,7 @@ jobs:
       matrix:
         svc: ${{ fromJSON(needs.plan.outputs.services) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Build image locally for scanning
         run: docker build -t haworks-${{ matrix.svc }}:scan -f src/$(echo ${{ matrix.svc }} | sed 's/.*/\u&/')/${{ matrix.svc }}.Api/Dockerfile . 2>/dev/null || echo "::warning::Could not build image for ${{ matrix.svc }}"
       - name: Trivy vulnerability scan
@@ -372,7 +372,7 @@ jobs:
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Deploy BFF with smoke test
         run: |
@@ -399,7 +399,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup .NET 9
         uses: actions/setup-dotnet@v5
