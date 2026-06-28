@@ -43,7 +43,7 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -193,7 +193,7 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -215,7 +215,7 @@ jobs:
       # ~150MB compressed which is well within the 10GB cache budget.
       - name: Cache Docker test images
         id: docker-image-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: /tmp/docker-images
           key: docker-images-${{ runner.os }}-pg16-es8.17-kafka7.6-rabbit3
