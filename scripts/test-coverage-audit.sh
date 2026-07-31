@@ -200,4 +200,4 @@ $INFRA_CONTEXT
 $SRC_CONTEXT
 
 == EXISTING TESTS ==
-$TEST_CONTEXT" | claude --print --model claude-sonnet-4-20250514
+$TEST_CONTEXT" | claude --print --model claude-sonnet-5
