@@ -57,7 +57,7 @@ public class GetErasureStatusQueryHandler : IRequestHandler<GetErasureStatusQuer
         var status = saga.CurrentState switch
         {
             "Processing" => PrivacyRequestStatus.InProgress,
-            "Stalled"    => PrivacyRequestStatus.InProgress,
+            "Stalled"    => PrivacyRequestStatus.Stalled,
             "Completed"  => PrivacyRequestStatus.Completed,
             "Failed"     => PrivacyRequestStatus.Failed,
             _            => PrivacyRequestStatus.Pending
@@ -66,7 +66,7 @@ public class GetErasureStatusQueryHandler : IRequestHandler<GetErasureStatusQuer
         return new ErasureStatusDto(
             RequestId:      saga.CorrelationId,
             UserId:         saga.UserId,
-            Type:           PrivacyRequestType.Erasure,
+            Type:           saga.RequestType == "Export" ? PrivacyRequestType.Export : PrivacyRequestType.Erasure,
             Status:         status,
             CreatedAt:      saga.CreatedAt ?? DateTime.MinValue,
             CompletedAt:    saga.CompletedAt.HasValue ? new DateTimeOffset(saga.CompletedAt.Value, TimeSpan.Zero) : null,

@@ -4,6 +4,7 @@ public enum PrivacyRequestStatus
 {
     Pending,
     InProgress,
+    Stalled,
     Completed,
     Failed
 }
