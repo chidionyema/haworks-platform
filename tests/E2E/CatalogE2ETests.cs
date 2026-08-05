@@ -114,17 +114,28 @@ public class CatalogE2ETests : IAsyncLifetime
         var sagaId = confirmData?.GetProperty("sagaId").GetGuid();
 
         // 5. Verification: Wait for CheckoutSaga to progress to Payment Session Created
+        // Production event name is "CheckoutReady" with a single object payload
+        // (see PaymentSessionCreatedConsumer.cs) — not "OnPaymentSessionCreated"
+        // with two positional strings. Must match the wire contract exactly or
+        // the handler never fires and this test hangs to the 30s timeout.
         var hubUrl = $"{_fixture.BaseUrl}/hubs/checkout";
         var conn = new HubConnectionBuilder().WithUrl(hubUrl).Build();
         var tcs = new TaskCompletionSource<string>();
-        conn.On<string, string>("OnPaymentSessionCreated", (id, url) => tcs.TrySetResult(url));
+        conn.On<CheckoutReadyMessage>("CheckoutReady", msg =>
+        {
+            if (msg.SagaId == sagaId) tcs.TrySetResult(msg.CheckoutUrl);
+        });
         await conn.StartAsync();
         await conn.InvokeAsync("SubscribeToSaga", sagaId.ToString());
-        
+
         await Task.WhenAny(tcs.Task, Task.Delay(30000));
         tcs.Task.IsCompletedSuccessfully.Should().BeTrue("Confirmation should trigger the checkout saga");
         (await tcs.Task).Should().Be("https://checkout.stripe.com/e2e");
 
         await conn.StopAsync();
     }
+
+    private sealed record CheckoutReadyMessage(
+        Guid SagaId, Guid OrderId, Guid PaymentId,
+        string CheckoutUrl, string Provider, decimal Amount, string Currency);
 }

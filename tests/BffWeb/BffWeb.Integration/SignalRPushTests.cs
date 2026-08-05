@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using Haworks.BffWeb.Api.SignalR;
+using Haworks.BuildingBlocks.Testing;
 using Haworks.BuildingBlocks.Testing.Authentication;
 using Haworks.Contracts.Payments;
 
@@ -141,10 +142,12 @@ public sealed class SignalRPushTests : IClassFixture<BffWebFactory>, IAsyncLifet
         var harness = _factory.Services.GetRequiredService<ITestHarness>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         (await harness.Published.Any<PaymentSessionCreatedEvent>(cts.Token)).Should().BeTrue();
-        // Allow the consumer to finish processing and any SignalR push to settle.
-        await Task.Delay(2000);
 
-        unwantedReceived.Should().BeFalse(
+        // Allow the consumer to finish processing and any SignalR push to settle,
+        // while asserting the unwanted event never lands during the window.
+        await TestWait.NotHappens(
+            () => Task.FromResult(unwantedReceived),
+            TimeSpan.FromSeconds(2),
             "SignalR group push for a different sagaId must not reach this client");
 
         await hubConnection.StopAsync();

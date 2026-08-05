@@ -21,7 +21,6 @@ namespace Haworks.BuildingBlocks.Vault;
 ///   - <see cref="DatabaseOptions"/> (from <c>"Database"</c> config section)
 ///   - <see cref="ICertificateValidator"/>, <see cref="ISecretFileReader"/>
 ///   - <see cref="IVaultClientFactory"/>
-///   - <see cref="IResiliencePolicyFactory"/>
 ///   - <see cref="IVaultService"/>
 ///
 /// Idempotent — safe to call multiple times; each registration uses
