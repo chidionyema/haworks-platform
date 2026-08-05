@@ -1,11 +1,9 @@
 using Haworks.BuildingBlocks.Common;
-using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Infrastructure.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Polly;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -17,17 +15,14 @@ namespace Haworks.Payments.Infrastructure.PayPal;
 /// </summary>
 internal sealed class PayPalCheckoutService(
     IPayPalClientFactory clientFactory,
-    IResiliencePolicyFactory resiliencePolicyFactory,
     IOptions<BrandOptions> brandOptions,
     ILogger<PayPalCheckoutService> logger) : ICheckoutSessionService, ISubscriptionService
 {
     private const string DefaultCurrency = "USD";
-    private readonly IAsyncPolicy _resiliencePolicy =
-        resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
     private readonly BrandOptions _brand = brandOptions.Value;
 
     /// <inheritdoc />
-    public Task<CheckoutSessionResult> CreateSessionAsync(
+    public async Task<CheckoutSessionResult> CreateSessionAsync(
         CreateCheckoutSessionRequest request, 
         CancellationToken ct = default)
     {
@@ -41,82 +36,78 @@ internal sealed class PayPalCheckoutService(
         ValidateRedirectUrl(request.SuccessUrl, nameof(request.SuccessUrl));
         ValidateRedirectUrl(request.CancelUrl, nameof(request.CancelUrl));
 
-        // Compute idempotency key OUTSIDE the retry block so the same key
-        // is reused across Polly retries — prevents duplicate PayPal orders.
+        // Compute idempotency key to prevent duplicate PayPal orders.
         var paypalIdempotencyKey = !string.IsNullOrEmpty(request.IdempotencyKey)
             ? request.IdempotencyKey
             : Guid.NewGuid().ToString();
 
-        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        var client = await clientFactory.GetAuthenticatedClientAsync(ct);
+
+        var currency = !string.IsNullOrEmpty(request.Currency)
+            ? request.Currency.ToUpperInvariant()
+            : request.LineItems.Count > 0 ? request.LineItems[0].Currency?.ToUpperInvariant() ?? DefaultCurrency : DefaultCurrency;
+
+        var orderRequest = new PayPalOrderRequest
         {
-            var client = await clientFactory.GetAuthenticatedClientAsync(token);
-
-            var currency = !string.IsNullOrEmpty(request.Currency)
-                ? request.Currency.ToUpperInvariant()
-                : request.LineItems.Count > 0 ? request.LineItems[0].Currency?.ToUpperInvariant() ?? DefaultCurrency : DefaultCurrency;
-
-            var orderRequest = new PayPalOrderRequest
+            Intent = "CAPTURE",
+            PurchaseUnits = new List<PayPalPurchaseUnit>
             {
-                Intent = "CAPTURE",
-                PurchaseUnits = new List<PayPalPurchaseUnit>
+                new PayPalPurchaseUnit
                 {
-                    new PayPalPurchaseUnit
+                    ReferenceId = paypalIdempotencyKey,
+                    Amount = new PayPalAmount
                     {
-                        ReferenceId = paypalIdempotencyKey,
-                        Amount = new PayPalAmount
-                        {
-                            CurrencyCode = currency,
-                            Value = FormatAmount(totalCents)
-                        },
-                        Description = string.Join(", ", request.LineItems.OrderBy(i => i.Name).Take(3).Select(i => i.Name)),
-                        CustomId = request.Metadata?.GetValueOrDefault("orderId") ?? string.Empty
-                    }
-                },
-                ApplicationContext = new PayPalApplicationContext
-                {
-                    ReturnUrl = request.SuccessUrl,
-                    CancelUrl = request.CancelUrl,
-                    BrandName = _brand.Name,
-                    UserAction = "PAY_NOW"
+                        CurrencyCode = currency,
+                        Value = FormatAmount(totalCents)
+                    },
+                    Description = string.Join(", ", request.LineItems.OrderBy(i => i.Name).Take(3).Select(i => i.Name)),
+                    CustomId = request.Metadata?.GetValueOrDefault("orderId") ?? string.Empty
                 }
-            };
-
-            logger.LogInformation(
-                "Creating PayPal order with idempotency key {Key}",
-                paypalIdempotencyKey);
-
-            var httpRequest = new HttpRequestMessage(HttpMethod.Post, PayPalEndpoints.CheckoutOrders)
+            },
+            ApplicationContext = new PayPalApplicationContext
             {
-                Content = JsonContent.Create(orderRequest, options: PayPalJsonOptions.Default)
-            };
-
-            httpRequest.Headers.Add("PayPal-Request-Id", paypalIdempotencyKey);
-
-            var response = await client.SendAsync(httpRequest, token);
-            var responseBody = await response.Content.ReadAsStringAsync(token);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorMessage = TryParsePayPalError(responseBody) ?? responseBody;
-                logger.LogError("PayPal order creation failed: {Error}", errorMessage);
-                throw new HttpRequestException($"PayPal order failed: {response.StatusCode} - {errorMessage}");
+                ReturnUrl = request.SuccessUrl,
+                CancelUrl = request.CancelUrl,
+                BrandName = _brand.Name,
+                UserAction = "PAY_NOW"
             }
+        };
 
-            var order = JsonSerializer.Deserialize<PayPalOrder>(responseBody, PayPalJsonOptions.Default);
-            var approvalLink = order?.Links?.FirstOrDefault(l => string.Equals(l.Rel, "approve", StringComparison.Ordinal));
+        logger.LogInformation(
+            "Creating PayPal order with idempotency key {Key}",
+            paypalIdempotencyKey);
 
-            return new CheckoutSessionResult
-            {
-                SessionId = order!.Id!,
-                SessionUrl = approvalLink?.Href ?? string.Empty,
-                TransactionId = order.Id,
-                Provider = PaymentProvider.PayPal
-            };
-        }, new Context(), ct);
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, PayPalEndpoints.CheckoutOrders)
+        {
+            Content = JsonContent.Create(orderRequest, options: PayPalJsonOptions.Default)
+        };
+
+        httpRequest.Headers.Add("PayPal-Request-Id", paypalIdempotencyKey);
+
+        var response = await client.SendAsync(httpRequest, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorMessage = TryParsePayPalError(responseBody) ?? responseBody;
+            logger.LogError("PayPal order creation failed: {Error}", errorMessage);
+            throw new HttpRequestException($"PayPal order failed: {response.StatusCode} - {errorMessage}");
+        }
+
+        var order = JsonSerializer.Deserialize<PayPalOrder>(responseBody, PayPalJsonOptions.Default);
+        var approvalLink = order?.Links?.FirstOrDefault(l => string.Equals(l.Rel, "approve", StringComparison.Ordinal));
+
+        return new CheckoutSessionResult
+        {
+            SessionId = order!.Id!,
+            SessionUrl = approvalLink?.Href ?? string.Empty,
+            TransactionId = order.Id,
+            Provider = PaymentProvider.PayPal
+        };
     }
 
     /// <inheritdoc />
-    public Task<CheckoutSessionResult> CreateSubscriptionSessionAsync(
+    public async Task<CheckoutSessionResult> CreateSubscriptionSessionAsync(
         CreateSubscriptionSessionRequest request,
         CancellationToken ct = default)
     {
@@ -124,54 +115,51 @@ internal sealed class PayPalCheckoutService(
             ? request.IdempotencyKey
             : Guid.NewGuid().ToString();
 
-        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        var client = await clientFactory.GetAuthenticatedClientAsync(ct);
+
+        var subRequest = new PayPalSubscriptionRequest
         {
-            var client = await clientFactory.GetAuthenticatedClientAsync(token);
-
-            var subRequest = new PayPalSubscriptionRequest
+            PlanId = request.PlanId,
+            ApplicationContext = new PayPalApplicationContext
             {
-                PlanId = request.PlanId,
-                ApplicationContext = new PayPalApplicationContext
-                {
-                    ReturnUrl = request.SuccessUrl,
-                    CancelUrl = request.CancelUrl,
-                    BrandName = _brand.Name,
-                    UserAction = "SUBSCRIBE_NOW"
-                }
-            };
-
-            if (!string.IsNullOrEmpty(request.CustomerEmail))
-            {
-                subRequest.Subscriber = new PayPalSubscriber { EmailAddress = request.CustomerEmail };
+                ReturnUrl = request.SuccessUrl,
+                CancelUrl = request.CancelUrl,
+                BrandName = _brand.Name,
+                UserAction = "SUBSCRIBE_NOW"
             }
+        };
 
-            var httpRequest = new HttpRequestMessage(HttpMethod.Post, PayPalEndpoints.Subscriptions)
-            {
-                Content = JsonContent.Create(subRequest, options: PayPalJsonOptions.Default)
-            };
+        if (!string.IsNullOrEmpty(request.CustomerEmail))
+        {
+            subRequest.Subscriber = new PayPalSubscriber { EmailAddress = request.CustomerEmail };
+        }
 
-            httpRequest.Headers.Add("PayPal-Request-Id", idempotencyKey);
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, PayPalEndpoints.Subscriptions)
+        {
+            Content = JsonContent.Create(subRequest, options: PayPalJsonOptions.Default)
+        };
 
-            var response = await client.SendAsync(httpRequest, token);
-            var responseBody = await response.Content.ReadAsStringAsync(token);
+        httpRequest.Headers.Add("PayPal-Request-Id", idempotencyKey);
 
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogError("PayPal subscription creation failed: {Body}", responseBody);
-                throw new HttpRequestException($"PayPal sub failed: {response.StatusCode}");
-            }
+        var response = await client.SendAsync(httpRequest, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
 
-            var sub = JsonSerializer.Deserialize<PayPalSubscription>(responseBody, PayPalJsonOptions.Default);
-            var approvalLink = sub?.Links?.FirstOrDefault(l => string.Equals(l.Rel, "approve", StringComparison.Ordinal));
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError("PayPal subscription creation failed: {Body}", responseBody);
+            throw new HttpRequestException($"PayPal sub failed: {response.StatusCode}");
+        }
 
-            return new CheckoutSessionResult
-            {
-                SessionId = sub!.Id!,
-                SessionUrl = approvalLink?.Href ?? string.Empty,
-                TransactionId = sub.Id,
-                Provider = PaymentProvider.PayPal
-            };
-        }, new Context(), ct);
+        var sub = JsonSerializer.Deserialize<PayPalSubscription>(responseBody, PayPalJsonOptions.Default);
+        var approvalLink = sub?.Links?.FirstOrDefault(l => string.Equals(l.Rel, "approve", StringComparison.Ordinal));
+
+        return new CheckoutSessionResult
+        {
+            SessionId = sub!.Id!,
+            SessionUrl = approvalLink?.Href ?? string.Empty,
+            TransactionId = sub.Id,
+            Provider = PaymentProvider.PayPal
+        };
     }
 
     /// <inheritdoc />
@@ -179,35 +167,32 @@ internal sealed class PayPalCheckoutService(
     {
         if (string.IsNullOrEmpty(sessionId)) return null;
 
-        return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        var client = await clientFactory.GetAuthenticatedClientAsync(ct);
+        var response = await client.GetAsync(PayPalEndpoints.GetOrder(sessionId), ct);
+        
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        if (!response.IsSuccessStatusCode) return null;
+
+        var order = await response.Content.ReadFromJsonAsync<PayPalOrder>(PayPalJsonOptions.Default, ct);
+        if (order == null) return null;
+
+        var amountTotal = order.PurchaseUnits?
+            .Sum(pu => decimal.TryParse(pu.Amount?.Value, out var val) ? val : 0) ?? 0;
+
+        return new CheckoutSession
         {
-            var client = await clientFactory.GetAuthenticatedClientAsync(token);
-            var response = await client.GetAsync(PayPalEndpoints.GetOrder(sessionId), token);
-            
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
-            if (!response.IsSuccessStatusCode) return null;
-
-            var order = await response.Content.ReadFromJsonAsync<PayPalOrder>(PayPalJsonOptions.Default, token);
-            if (order == null) return null;
-
-            var amountTotal = order.PurchaseUnits?
-                .Sum(pu => decimal.TryParse(pu.Amount?.Value, out var val) ? val : 0) ?? 0;
-
-            return new CheckoutSession
+            SessionId = order.Id ?? string.Empty,
+            Status = MapOrderStatus(order.Status),
+            TransactionId = order.PurchaseUnits?.FirstOrDefault()?.Payments?.Captures?.FirstOrDefault()?.Id ?? order.Id,
+            CustomerId = order.Payer?.PayerId,
+            AmountTotal = (long)Math.Round(amountTotal * CheckoutConstants.CentMultiplier),
+            Currency = order.PurchaseUnits?.FirstOrDefault()?.Amount?.CurrencyCode ?? DefaultCurrency,
+            Provider = PaymentProvider.PayPal,
+            Metadata = new Dictionary<string, string>
             {
-                SessionId = order.Id ?? string.Empty,
-                Status = MapOrderStatus(order.Status),
-                TransactionId = order.PurchaseUnits?.FirstOrDefault()?.Payments?.Captures?.FirstOrDefault()?.Id ?? order.Id,
-                CustomerId = order.Payer?.PayerId,
-                AmountTotal = (long)Math.Round(amountTotal * CheckoutConstants.CentMultiplier),
-                Currency = order.PurchaseUnits?.FirstOrDefault()?.Amount?.CurrencyCode ?? DefaultCurrency,
-                Provider = PaymentProvider.PayPal,
-                Metadata = new Dictionary<string, string>
-                {
-                    ["orderId"] = order.PurchaseUnits?.FirstOrDefault()?.CustomId ?? string.Empty
-                }
-            };
-        }, new Context(), ct);
+                ["orderId"] = order.PurchaseUnits?.FirstOrDefault()?.CustomId ?? string.Empty
+            }
+        };
     }
 
     /// <inheritdoc />

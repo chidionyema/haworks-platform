@@ -2,11 +2,9 @@ using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.BuildingBlocks.Telemetry;
 using MassTransit;
-using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Infrastructure.Options;
 using Microsoft.Extensions.Logging;
-using Polly;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -20,13 +18,10 @@ internal sealed class PayPalRefundService(
     IPayPalClientFactory clientFactory,
     IPaymentRepository paymentRepository,
     IPublishEndpoint eventPublisher,
-    IResiliencePolicyFactory resiliencePolicyFactory,
     ILogger<PayPalRefundService> logger,
     ITelemetryService telemetry) : IRefundService
 {
     private const string DefaultCurrency = "USD";
-    private readonly IAsyncPolicy _resiliencePolicy = 
-        resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
 
     /// <inheritdoc />
     public async Task<RefundResult> CreateRefundAsync(
@@ -45,8 +40,7 @@ internal sealed class PayPalRefundService(
             ["Provider"] = PaymentProvider.PayPal.ToString()
         });
 
-        // Compute idempotency key OUTSIDE the retry block so the same key
-        // is reused across Polly retries — prevents duplicate PayPal refunds.
+        // Compute idempotency key upfront to prevent duplicate PayPal refunds.
         var paypalRequestId = !string.IsNullOrEmpty(request.IdempotencyKey)
             ? request.IdempotencyKey
             : Guid.NewGuid().ToString();
@@ -54,58 +48,54 @@ internal sealed class PayPalRefundService(
         string responseBody;
         try
         {
-            responseBody = await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+            var client = await clientFactory.GetAuthenticatedClientAsync(ct);
+
+            var refundReq = new PayPalRefundRequest();
+            if (request.Metadata != null && request.Metadata.TryGetValue("refund_id", out var sagaId))
             {
-                var client = await clientFactory.GetAuthenticatedClientAsync(token);
+                refundReq.CustomId = sagaId;
+            }
 
-                var refundReq = new PayPalRefundRequest();
-                if (request.Metadata != null && request.Metadata.TryGetValue("refund_id", out var sagaId))
+            if (request.AmountCents.HasValue)
+            {
+                refundReq.Amount = new PayPalRefundAmount
                 {
-                    refundReq.CustomId = sagaId;
-                }
-
-                if (request.AmountCents.HasValue)
-                {
-                    refundReq.Amount = new PayPalRefundAmount
-                    {
-                        CurrencyCode = request.Currency ?? DefaultCurrency,
-                        Value = Math.Round(request.AmountCents.Value / CheckoutConstants.CentMultiplier, 2, MidpointRounding.AwayFromZero).ToString("F2")
-                    };
-                }
-
-                if (!string.IsNullOrEmpty(request.Reason))
-                {
-                    refundReq.NoteToPayer = request.Reason;
-                }
-
-                var httpRequest = new HttpRequestMessage(HttpMethod.Post, PayPalEndpoints.RefundCapture(request.TransactionId))
-                {
-                    Content = JsonContent.Create(refundReq, options: PayPalJsonOptions.Default)
+                    CurrencyCode = request.Currency ?? DefaultCurrency,
+                    Value = Math.Round(request.AmountCents.Value / CheckoutConstants.CentMultiplier, 2, MidpointRounding.AwayFromZero).ToString("F2")
                 };
+            }
 
-                httpRequest.Headers.Add("PayPal-Request-Id", paypalRequestId);
+            if (!string.IsNullOrEmpty(request.Reason))
+            {
+                refundReq.NoteToPayer = request.Reason;
+            }
 
-                logger.LogInformation("Creating PayPal refund for capture {TransactionId}", request.TransactionId);
+            var httpRequest = new HttpRequestMessage(HttpMethod.Post, PayPalEndpoints.RefundCapture(request.TransactionId))
+            {
+                Content = JsonContent.Create(refundReq, options: PayPalJsonOptions.Default)
+            };
 
-                var response = await client.SendAsync(httpRequest, token);
-                var body = await response.Content.ReadAsStringAsync(token);
+            httpRequest.Headers.Add("PayPal-Request-Id", paypalRequestId);
 
-                if (!response.IsSuccessStatusCode)
+            logger.LogInformation("Creating PayPal refund for capture {TransactionId}", request.TransactionId);
+
+            var response = await client.SendAsync(httpRequest, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                // Non-transient client errors: return failure
+                if (IsNonTransientHttpError(response.StatusCode))
                 {
-                    // Non-transient client errors: return failure without retry
-                    if (IsNonTransientHttpError(response.StatusCode))
-                    {
-                        var errorMessage = TryParsePayPalError(body) ?? body;
-                        logger.LogError("PayPal refund non-transient error: {Error}", errorMessage);
-                        throw new PayPalNonTransientException(errorMessage);
-                    }
-
-                    // Transient errors (5xx, 429): throw so Polly retries
-                    response.EnsureSuccessStatusCode();
+                    var errorMessage = TryParsePayPalError(body) ?? body;
+                    logger.LogError("PayPal refund non-transient error: {Error}", errorMessage);
+                    throw new PayPalNonTransientException(errorMessage);
                 }
 
-                return body;
-            }, new Context(), ct);
+                response.EnsureSuccessStatusCode();
+            }
+
+            responseBody = body;
         }
         catch (PayPalNonTransientException ex)
         {

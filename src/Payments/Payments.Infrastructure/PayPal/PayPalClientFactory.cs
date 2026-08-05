@@ -3,10 +3,8 @@ using System.Text;
 using System.Text.Json;
 using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Infrastructure.Options;
-using Haworks.BuildingBlocks.Resilience;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Polly;
 
 namespace Haworks.Payments.Infrastructure.PayPal;
 
@@ -19,7 +17,6 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
     private readonly PayPalOptions _options;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<PayPalClientFactory> _logger;
-    private readonly IAsyncPolicy _resiliencePolicy;
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
 
     private string? _accessToken;
@@ -42,7 +39,6 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
     public PayPalClientFactory(
         IOptions<PaymentProviderOptions> providerOptions,
         IHttpClientFactory httpClientFactory,
-        IResiliencePolicyFactory resiliencePolicyFactory,
         ILogger<PayPalClientFactory> logger,
         IOptions<Haworks.BuildingBlocks.Resilience.HttpClientTimeoutOptions>? timeoutOptions = null)
     {
@@ -50,8 +46,6 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _httpClientTimeout = TimeSpan.FromSeconds(timeoutOptions?.Value.PayPalApiSeconds ?? 30);
-
-        _resiliencePolicy = resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
     }
 
     /// <inheritdoc />
@@ -74,11 +68,8 @@ internal sealed class PayPalClientFactory : IPayPalClientFactory, IDisposable
                 return CreateAuthenticatedClient(_accessToken!);
             }
 
-            // Fetch new token with resilience
-            var tokenResponse = await _resiliencePolicy.ExecuteAsync(
-                async (ctx, token) => await FetchOAuthTokenAsync(token),
-                new Context(),
-                ct);
+            // Fetch new token
+            var tokenResponse = await FetchOAuthTokenAsync(ct);
 
             _accessToken = tokenResponse.AccessToken;
             _expiresAt = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn);

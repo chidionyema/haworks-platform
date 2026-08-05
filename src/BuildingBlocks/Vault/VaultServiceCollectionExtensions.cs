@@ -1,4 +1,3 @@
-using Haworks.BuildingBlocks.Resilience;
 using Haworks.BuildingBlocks.Vault.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -61,8 +60,6 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<ISecretFileReader, SecretFileReader>();
         services.AddSingleton<IVaultAppRoleAuthenticator, VaultAppRoleAuthenticator>();
         services.AddSingleton<IVaultClientFactory, VaultClientFactory>();
-
-        services.AddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
 
         services.AddSingleton<IVaultService, VaultService>();
 

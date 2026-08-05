@@ -19,6 +19,12 @@ public class InitiatePrivacyRequestCommandValidator : AbstractValidator<Initiate
     {
         RuleFor(v => v.UserId).NotEmpty();
         RuleFor(v => v.Type).IsInEnum();
+        // The saga only implements erasure today (PrivacyRequestStateMachine unconditionally
+        // publishes PrivacyErasureRequested). Reject Export explicitly rather than silently
+        // processing it as erasure until export support is wired end-to-end.
+        RuleFor(v => v.Type)
+            .Must(t => t == PrivacyRequestType.Erasure)
+            .WithMessage("Export requests are not yet supported; only Erasure is currently implemented.");
     }
 }
 
@@ -35,18 +41,19 @@ public class InitiatePrivacyRequestCommandHandler : IRequestHandler<InitiatePriv
 
     public async Task<Guid> Handle(InitiatePrivacyRequestCommand request, CancellationToken cancellationToken)
     {
-        // Acquire an advisory row lock before the check-then-act to prevent two concurrent
-        // requests for the same user from both passing the "no active request" check.
-        // SKIP LOCKED means a concurrent transaction that already holds the lock will cause
-        // this query to return no rows; we then re-query to return the existing request.
-        // This implements the Three-Phase Gateway Law: Phase 1 (lock + check).
+        // pg_advisory_xact_lock serializes concurrent requests for the same user even when
+        // no PrivacyRequest row exists yet to lock with FOR UPDATE, and is automatically
+        // released at transaction end (commit or rollback) — no explicit unlock needed.
         // ExecuteSqlInterpolatedAsync is parameterized (safe against injection); userId is
         // passed as a typed FormattableString parameter, not concatenated as a string.
         var userId = request.UserId;
         var pending = (int)PrivacyRequestStatus.Pending;
         var inProgress = (int)PrivacyRequestStatus.InProgress;
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
         await _context.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM privacy.\"PrivacyRequests\" WHERE \"UserId\" = {userId} AND (\"Status\" = {pending} OR \"Status\" = {inProgress}) LIMIT 1 FOR UPDATE SKIP LOCKED",
+            $"SELECT pg_advisory_xact_lock(hashtext({userId.ToString()}))",
             cancellationToken);
 
         var existing = await _context.PrivacyRequests.FirstOrDefaultAsync(
@@ -55,7 +62,10 @@ public class InitiatePrivacyRequestCommandHandler : IRequestHandler<InitiatePriv
             cancellationToken);
 
         if (existing is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
             return existing.Id;
+        }
 
         var privacyRequest = PrivacyRequest.Create(request.UserId, request.Type);
 
@@ -69,6 +79,7 @@ public class InitiatePrivacyRequestCommandHandler : IRequestHandler<InitiatePriv
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
         {
@@ -78,7 +89,10 @@ public class InitiatePrivacyRequestCommandHandler : IRequestHandler<InitiatePriv
                      (r.Status == PrivacyRequestStatus.Pending || r.Status == PrivacyRequestStatus.InProgress),
                 cancellationToken);
             if (concurrentExisting is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
                 return concurrentExisting.Id;
+            }
             throw;
         }
 

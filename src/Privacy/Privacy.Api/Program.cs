@@ -55,10 +55,9 @@ var app = builder.Build();
 
 app.MigrateDatabase<PrivacyDbContext>();
 
-// Enable detailed errors so we can see what's crashing
-app.UseDeveloperExceptionPage();
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI();
 }
