@@ -9,6 +9,10 @@ public interface IShippingProvider
     Task<CreateShipmentResult> CreateShipmentAsync(CreateShipmentRequest request, CancellationToken ct);
     Task<BuyLabelResult> BuyLabelAsync(string shipmentId, string rateId, CancellationToken ct);
     Task<TrackingInfo> GetTrackingAsync(string trackingNumber, CancellationToken ct);
+
+    /// <summary>Validates an inbound provider webhook's signature against the
+    /// configured webhook secret. Returns false (never throws) on mismatch.</summary>
+    bool ValidateWebhookSignature(byte[] rawBody, IDictionary<string, string> headers);
 }
 
 public sealed record CreateShipmentRequest(

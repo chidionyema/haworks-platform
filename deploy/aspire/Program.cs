@@ -47,6 +47,7 @@ var payoutsDb       = postgres.AddDatabase("payouts");
 var schedulerDb     = postgres.AddDatabase("scheduler");
 var privacyDb       = postgres.AddDatabase("privacy");
 var merchantDb      = postgres.AddDatabase("merchant");
+var shippingDb      = postgres.AddDatabase("shipping");
 var redis = builder.AddRedis("redis")
     .WithLifetime(ContainerLifetime.Persistent)
     .WithDataVolume("haworks-platform-redis-data")
@@ -254,6 +255,21 @@ var orders = AddJwksConfig(builder.AddProject<Projects.Orders_Api>("orders-svc")
     .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
     .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("orders"))
     .WithEnvironment("Vault__SecretIdPath", SecretIdPath("orders"))
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
+
+// --- shipping-svc ------------------------------------------------------------
+var shipping = AddJwksConfig(builder.AddProject<Projects.Shipping_Api>("shipping-svc")
+    .WaitFor(vault)
+    .WaitFor(shippingDb)
+    .WithReference(shippingDb)
+    .WaitFor(rabbitmq)
+    .WithReference(rabbitmq)
+    .WaitFor(identity)
+    .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", tempo.GetEndpoint("grpc"))
+    .WithEnvironment("Vault__Enabled",      "false")
+    .WithEnvironment("Vault__Address",      vault.GetEndpoint("http"))
+    .WithEnvironment("Vault__RoleIdPath",   RoleIdPath("shipping"))
+    .WithEnvironment("Vault__SecretIdPath", SecretIdPath("shipping"))
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development"), identity);
 
 // --- payments-svc ----------------------------------------------------------

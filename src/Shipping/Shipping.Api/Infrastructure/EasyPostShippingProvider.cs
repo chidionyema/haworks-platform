@@ -1,7 +1,11 @@
 using EasyPost;
+using EasyPost.Exceptions.General;
 using EasyPost.Models.API;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.CircuitBreaker;
+using Polly.Retry;
 
 namespace Haworks.Shipping.Api.Infrastructure;
 
@@ -10,22 +14,47 @@ public sealed class EasyPostOptions
     public const string SectionName = "EasyPost";
     public string ApiKey { get; set; } = string.Empty;
     public bool TestMode { get; set; } = true;
+    public string WebhookSecret { get; set; } = string.Empty;
 }
+
+/// <summary>Thrown when a rate id sent by the caller no longer matches any
+/// rate on the EasyPost shipment (tampered/stale id). Lets the controller
+/// return an explicit 400 instead of silently substituting another rate.</summary>
+public sealed class RateNotFoundException(string rateId) : Exception($"Rate '{rateId}' not found on shipment.");
 
 public sealed class EasyPostShippingProvider : IShippingProvider
 {
-    private readonly Client _client;
+    private readonly IOptionsMonitor<EasyPostOptions> _optionsMonitor;
     private readonly ILogger<EasyPostShippingProvider> _logger;
+    private readonly ResiliencePipeline _resilience;
 
-    public EasyPostShippingProvider(IOptions<EasyPostOptions> opts, ILogger<EasyPostShippingProvider> logger)
+    public EasyPostShippingProvider(IOptionsMonitor<EasyPostOptions> optionsMonitor, ILogger<EasyPostShippingProvider> logger)
     {
-        _client = new Client(new ClientConfiguration(opts.Value.ApiKey));
+        _optionsMonitor = optionsMonitor;
         _logger = logger;
+        _resilience = new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                MaxRetryAttempts = 3,
+                BackoffType = DelayBackoffType.Exponential,
+                Delay = TimeSpan.FromMilliseconds(200),
+            })
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions
+            {
+                FailureRatio = 0.5,
+                MinimumThroughput = 5,
+                SamplingDuration = TimeSpan.FromSeconds(30),
+                BreakDuration = TimeSpan.FromSeconds(15),
+            })
+            .Build();
     }
+
+    private Client CreateClient() => new(new ClientConfiguration(_optionsMonitor.CurrentValue.ApiKey));
 
     public async Task<CreateShipmentResult> CreateShipmentAsync(CreateShipmentRequest request, CancellationToken ct)
     {
-        var shipment = await _client.Shipment.Create(new EasyPost.Parameters.Shipment.Create
+        var client = CreateClient();
+        var shipment = await _resilience.ExecuteAsync(async token => await client.Shipment.Create(new EasyPost.Parameters.Shipment.Create
         {
             FromAddress = new EasyPost.Parameters.Address.Create
             {
@@ -50,7 +79,7 @@ public sealed class EasyPostShippingProvider : IShippingProvider
                 Height = request.Parcel.HeightInches,
                 Weight = request.Parcel.WeightOz,
             },
-        }, ct);
+        }, token), ct);
 
         var rates = shipment.Rates?.Select(r => new RateDto(
             r.Id ?? "unknown",
@@ -69,13 +98,14 @@ public sealed class EasyPostShippingProvider : IShippingProvider
 
     public async Task<BuyLabelResult> BuyLabelAsync(string shipmentId, string rateId, CancellationToken ct)
     {
-        var shipment = await _client.Shipment.Retrieve(shipmentId, ct);
-        var rate = shipment.Rates?.FirstOrDefault(r => string.Equals(r.Id, rateId, StringComparison.Ordinal))
-            ?? shipment.LowestRate();
+        var client = CreateClient();
+        var shipment = await _resilience.ExecuteAsync(async token => await client.Shipment.Retrieve(shipmentId, token), ct);
+        var rate = shipment.Rates?.FirstOrDefault(r => string.Equals(r.Id, rateId, StringComparison.Ordinal));
+        if (rate == null)
+            throw new RateNotFoundException(rateId);
 
-#pragma warning disable CA2016, HWK050 // EasyPost SDK Buy() does not accept CancellationToken
-        var bought = await _client.Shipment.Buy(shipmentId, rate.Id);
-#pragma warning restore CA2016, HWK050
+        var bought = await _resilience.ExecuteAsync(
+            async token => await client.Shipment.Buy(shipmentId, rate.Id, insuranceValue: null, endShipperId: null, token), ct);
 
         return new BuyLabelResult(
             bought.TrackingCode ?? "",
@@ -88,12 +118,35 @@ public sealed class EasyPostShippingProvider : IShippingProvider
             bought.Tracker?.EstDeliveryDate);
     }
 
+    public bool ValidateWebhookSignature(byte[] rawBody, IDictionary<string, string> headers)
+    {
+        var secret = _optionsMonitor.CurrentValue.WebhookSecret;
+        if (string.IsNullOrEmpty(secret))
+        {
+            _logger.LogError("EasyPost webhook secret not configured; rejecting webhook");
+            return false;
+        }
+
+        var client = CreateClient();
+        var headerObjects = headers.ToDictionary(h => h.Key, object? (h) => h.Value);
+        try
+        {
+            client.Webhook.ValidateWebhook(rawBody, headerObjects, secret);
+            return true;
+        }
+        catch (SignatureVerificationError)
+        {
+            return false;
+        }
+    }
+
     public async Task<TrackingInfo> GetTrackingAsync(string trackingNumber, CancellationToken ct)
     {
-        var tracker = await _client.Tracker.Create(new EasyPost.Parameters.Tracker.Create
+        var client = CreateClient();
+        var tracker = await _resilience.ExecuteAsync(async token => await client.Tracker.Create(new EasyPost.Parameters.Tracker.Create
         {
             TrackingCode = trackingNumber,
-        }, ct);
+        }, token), ct);
 
         var events = tracker.TrackingDetails?.Select(d => new TrackingEvent
         {
