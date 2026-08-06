@@ -1,12 +1,8 @@
 using System.Collections.Concurrent;
 using Haworks.BuildingBlocks.Telemetry;
 using Haworks.BuildingBlocks.Vault.Options;
-using Haworks.BuildingBlocks.Resilience;
 using Microsoft.Extensions.Options;
 using Npgsql;
-using Polly;
-using Polly.CircuitBreaker;
-using Polly.Retry;
 using VaultSharp;
 
 namespace Haworks.BuildingBlocks.Vault;
@@ -29,7 +25,6 @@ public class VaultService : IVaultService
     private readonly VaultOptions _vaultOptions;
     private readonly DatabaseOptions _dbOptions;
     private readonly IVaultClientFactory _clientFactory;
-    private readonly IResiliencePolicyFactory _policyFactory;
 
     private sealed record CachedCredential(string Username, string Password, DateTime ExpiresAtUtc, TimeSpan LeaseDuration);
     private readonly ConcurrentDictionary<string, CachedCredential> _cache = new(StringComparer.Ordinal);
@@ -43,8 +38,6 @@ public class VaultService : IVaultService
     private IVaultClient? _client;
     private VaultClientHandle? _currentHandle;
     private DateTime _clientExpiresAtUtc;
-    private AsyncCircuitBreakerPolicy? _circuitBreaker;
-    private AsyncRetryPolicy? _retryPolicy;
     private bool _initialized;
     private bool _disposed;
 
@@ -52,19 +45,16 @@ public class VaultService : IVaultService
         IOptions<VaultOptions> vaultOpts,
         IOptions<DatabaseOptions> dbOpts,
         IVaultClientFactory clientFactory,
-        IResiliencePolicyFactory policyFactory,
         ILogger<VaultService> logger,
         ITelemetryService? telemetry = null)
     {
         _vaultOptions = vaultOpts.Value;
         _dbOptions = dbOpts.Value;
         _clientFactory = clientFactory;
-        _policyFactory = policyFactory;
         _logger = logger;
         _telemetry = telemetry ?? Haworks.BuildingBlocks.Telemetry.NullTelemetryService.Instance;
 
         ValidateConfiguration();
-        BuildPolicies();
     }
 
     private void ValidateConfiguration()
@@ -93,43 +83,6 @@ public class VaultService : IVaultService
         // GetDatabaseConnectionStringAsync will throw at call time instead
         // of at startup. Services on Neon use the static connection string
         // from bootstrap.sh with PeriodicPasswordProvider gracefully skipping.
-    }
-
-    private void BuildPolicies()
-    {
-        var resilienceOptions = new ResilienceOptions
-        {
-            MaxRetryAttempts = _vaultOptions.MaxRetryAttempts,
-            InitialRetryDelayMs = 200,
-            CircuitBreakerThreshold = _vaultOptions.CircuitBreakerThreshold,
-            CircuitBreakerDurationSeconds = _vaultOptions.CircuitBreakerDurationSeconds
-        };
-
-        _circuitBreaker = _policyFactory.CreateCircuitBreaker(resilienceOptions,
-            onBreak: (ex, ts) =>
-            {
-                _logger.LogError(ex, "Circuit broken for {Duration}s", ts.TotalSeconds);
-                _telemetry.TrackEvent("VaultCircuitBroken", new Dictionary<string, string>
-                {
-                    ["DurationSeconds"] = ts.TotalSeconds.ToString()
-                });
-            },
-            onReset: () =>
-            {
-                _logger.LogInformation("Circuit reset");
-                _telemetry.TrackEvent("VaultCircuitReset");
-            });
-
-        _retryPolicy = _policyFactory.CreateRetryPolicy(resilienceOptions,
-            onRetry: (ex, ts, retryCount) =>
-            {
-                _logger.LogWarning(ex, "Retry {RetryCount} after {Seconds}s", retryCount, ts.TotalSeconds);
-                _telemetry.TrackEvent("VaultRetry", new Dictionary<string, string>
-                {
-                    ["RetryCount"] = retryCount.ToString(),
-                    ["DelaySeconds"] = ts.TotalSeconds.ToString()
-                });
-            });
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -235,8 +188,7 @@ public class VaultService : IVaultService
         await InitializeAsync(ct);
         ValidateRoleName(roleName);
 
-        var combined = Policy.WrapAsync(_circuitBreaker!, _retryPolicy!);
-        await combined.ExecuteAsync(token => RefreshCredentialsInternal(roleName, token), ct);
+        await RefreshCredentialsInternal(roleName, ct);
     }
 
     private async Task<(string Username, string Password)> RefreshCredentialsInternal(string roleName, CancellationToken ct)
@@ -304,21 +256,18 @@ public class VaultService : IVaultService
 
         try
         {
-            var combined = Policy.WrapAsync(_circuitBreaker!, _retryPolicy!);
-            return await combined.ExecuteAsync(async innerCt =>
-            {
-                var client = await GetClientAsync(innerCt);
-                var mountPoint = _vaultOptions.KvMountPoint ?? "secret";
-                var kvStart = DateTime.UtcNow;
-                var secret = await client.V1.Secrets.KeyValue.V2.ReadSecretAsync(
-                    path: path, mountPoint: mountPoint);
-                VaultMetrics.KvReadDuration.Record((DateTime.UtcNow - kvStart).TotalSeconds, new KeyValuePair<string, object?>("path", path));
+            var client = await GetClientAsync(ct);
+            var mountPoint = _vaultOptions.KvMountPoint ?? "secret";
+            var kvStart = DateTime.UtcNow;
+            var secret = await client.V1.Secrets.KeyValue.V2.ReadSecretAsync(
+                path: path, mountPoint: mountPoint);
+            VaultMetrics.KvReadDuration.Record((DateTime.UtcNow - kvStart).TotalSeconds, new KeyValuePair<string, object?>("path", path));
 
-                if (secret?.Data?.Data == null)
-                {
-                    _logger.LogWarning("Secret at path {Path} not found in Vault", path);
-                    return null;
-                }
+            if (secret?.Data?.Data == null)
+            {
+                _logger.LogWarning("Secret at path {Path} not found in Vault", path);
+                return null;
+            }
 
                 if (secret.Data.Data.TryGetValue(key, out var value))
                 {
@@ -327,8 +276,7 @@ public class VaultService : IVaultService
                 }
 
                 _logger.LogWarning("Key {Key} not found in secret at path {Path}", key, path);
-                return null;
-            }, ct);
+            return null;
         }
         catch (Exception ex)
         {

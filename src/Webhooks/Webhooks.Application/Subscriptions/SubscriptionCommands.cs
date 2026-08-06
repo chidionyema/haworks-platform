@@ -1,5 +1,6 @@
 using Haworks.BuildingBlocks.Common;
 using Haworks.BuildingBlocks.Idempotency;
+using Haworks.Webhooks.Application.Common;
 using Haworks.Webhooks.Application.Subscriptions;
 using MediatR;
 
@@ -11,7 +12,7 @@ public sealed record CreateWebhookSubscriptionCommand(
     string[] Events,
     string? Secret,
     bool IsActive,
-    string IdempotencyKey = "") : IIdempotentCommand, IRequest<Result<Guid>>;
+    string IdempotencyKey = "") : IIdempotentCommand, IRequest<Result<CreateWebhookSubscriptionResult>>;
 
 public sealed record UpdateWebhookSubscriptionCommand(
     Guid Id,
@@ -30,3 +31,8 @@ public sealed record RotateWebhookSubscriptionSecretCommand(
     string IdempotencyKey = "") : IIdempotentCommand, IRequest<Result<string>>;
 
 public sealed record GetWebhookSubscriptionQuery(Guid Id, Guid CallerPartnerId = default) : IRequest<Result<WebhookSubscriptionDto>>;
+
+public sealed record ListWebhookSubscriptionsQuery(
+    Guid CallerPartnerId,
+    int Skip = 0,
+    int Take = 20) : IRequest<Result<PagedResult<WebhookSubscriptionDto>>>;

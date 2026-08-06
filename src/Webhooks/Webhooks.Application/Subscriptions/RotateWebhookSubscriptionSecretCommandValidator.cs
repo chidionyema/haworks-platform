@@ -7,5 +7,6 @@ internal sealed class RotateWebhookSubscriptionSecretCommandValidator : Abstract
     public RotateWebhookSubscriptionSecretCommandValidator()
     {
         RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.Secret).MaximumLength(200).When(x => x.Secret != null);
     }
 }

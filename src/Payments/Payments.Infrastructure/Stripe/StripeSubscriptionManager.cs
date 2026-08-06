@@ -2,10 +2,8 @@ using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using MassTransit;
 using Haworks.BuildingBlocks.Telemetry;
-using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Microsoft.Extensions.Logging;
-using Polly;
 using Stripe;
 using NativeStripeSubService = Stripe.SubscriptionService;
 using DomainSubscription = Haworks.Payments.Domain.Subscription;
@@ -20,13 +18,10 @@ namespace Haworks.Payments.Infrastructure.Stripe;
 public sealed class StripeSubscriptionManager(
     IPaymentRepository paymentRepository,
     IStripeClientFactory clientFactory,
-    IResiliencePolicyFactory resiliencePolicyFactory,
     ILogger<StripeSubscriptionManager> logger,
     ITelemetryService telemetry) : ISubscriptionManager
 {
     private const string DefaultCurrency = "USD";
-    private readonly IAsyncPolicy _resiliencePolicy = 
-        resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.Stripe);
 
     /// <inheritdoc />
     public async Task<SubscriptionStatusResult> GetStatusAsync(string userId, CancellationToken ct = default)
@@ -61,35 +56,32 @@ public sealed class StripeSubscriptionManager(
     {
         try
         {
-            return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+            var client = await clientFactory.GetClientAsync(ct);
+            var service = new NativeStripeSubService(client);
+
+            if (immediate)
             {
-                var client = await clientFactory.GetClientAsync(token);
-                var service = new NativeStripeSubService(client);
-
-                if (immediate)
+                await service.CancelAsync(subscriptionId, cancellationToken: ct);
+            }
+            else
+            {
+                await service.UpdateAsync(subscriptionId, new SubscriptionUpdateOptions
                 {
-                    await service.CancelAsync(subscriptionId, cancellationToken: token);
-                }
-                else
-                {
-                    await service.UpdateAsync(subscriptionId, new SubscriptionUpdateOptions
-                    {
-                        CancelAtPeriodEnd = true
-                    }, cancellationToken: token);
-                }
+                    CancelAtPeriodEnd = true
+                }, cancellationToken: ct);
+            }
 
-                // Note: Local DB update and events are handled via webhooks (customer.subscription.deleted/updated)
-                // to maintain single source of truth and handle async completion.
+            // Note: Local DB update and events are handled via webhooks (customer.subscription.deleted/updated)
+            // to maintain single source of truth and handle async completion.
 
-                telemetry.TrackEvent("SubscriptionCancellationRequested", new Dictionary<string, string>
-                {
-                    ["Provider"] = PaymentProvider.Stripe.ToString(),
-                    ["SubscriptionId"] = subscriptionId,
-                    ["Immediate"] = immediate.ToString()
-                });
+            telemetry.TrackEvent("SubscriptionCancellationRequested", new Dictionary<string, string>
+            {
+                ["Provider"] = PaymentProvider.Stripe.ToString(),
+                ["SubscriptionId"] = subscriptionId,
+                ["Immediate"] = immediate.ToString()
+            });
 
-                return true;
-            }, new Context(), ct);
+            return true;
         }
         catch (StripeException ex) when (string.Equals(ex.StripeError?.Code, "resource_missing", StringComparison.Ordinal))
         {
@@ -103,24 +95,21 @@ public sealed class StripeSubscriptionManager(
     {
         try
         {
-            return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+            var client = await clientFactory.GetClientAsync(ct);
+            var service = new NativeStripeSubService(client);
+
+            await service.UpdateAsync(subscriptionId, new SubscriptionUpdateOptions
             {
-                var client = await clientFactory.GetClientAsync(token);
-                var service = new NativeStripeSubService(client);
+                CancelAtPeriodEnd = false
+            }, cancellationToken: ct);
 
-                await service.UpdateAsync(subscriptionId, new SubscriptionUpdateOptions
-                {
-                    CancelAtPeriodEnd = false
-                }, cancellationToken: token);
+            telemetry.TrackEvent("SubscriptionResumeRequested", new Dictionary<string, string>
+            {
+                ["Provider"] = PaymentProvider.Stripe.ToString(),
+                ["SubscriptionId"] = subscriptionId
+            });
 
-                telemetry.TrackEvent("SubscriptionResumeRequested", new Dictionary<string, string>
-                {
-                    ["Provider"] = PaymentProvider.Stripe.ToString(),
-                    ["SubscriptionId"] = subscriptionId
-                });
-
-                return true;
-            }, new Context(), ct);
+            return true;
         }
         catch (StripeException ex) when (string.Equals(ex.StripeError?.Code, "resource_missing", StringComparison.Ordinal))
         {

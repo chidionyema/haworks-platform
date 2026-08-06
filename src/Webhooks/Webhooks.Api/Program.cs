@@ -49,7 +49,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks()
-    .AddDbHealthCheck<WebhooksDbContext>();
+    .AddDbHealthCheck<WebhooksDbContext>()
+    .AddCheck<Haworks.Webhooks.Infrastructure.Svix.SvixHealthCheck>("svix", tags: ["ready"]);
 
 var app = builder.Build();
 

@@ -2,11 +2,9 @@ using Haworks.Payments.Application.Interfaces;
 using Haworks.Payments.Domain.Interfaces;
 using Haworks.BuildingBlocks.Telemetry;
 using MassTransit;
-using Haworks.BuildingBlocks.Resilience;
 using Haworks.Contracts.Payments;
 using Haworks.Payments.Infrastructure.Options;
 using Microsoft.Extensions.Logging;
-using Polly;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DomainSubscription = Haworks.Payments.Domain.Subscription;
@@ -21,13 +19,10 @@ namespace Haworks.Payments.Infrastructure.PayPal;
 internal sealed class PayPalSubscriptionManager(
     IPaymentRepository paymentRepository,
     IPayPalClientFactory clientFactory,
-    IResiliencePolicyFactory resiliencePolicyFactory,
     ILogger<PayPalSubscriptionManager> logger,
     ITelemetryService telemetry) : ISubscriptionManager
 {
     private const string DefaultCurrency = "USD";
-    private readonly IAsyncPolicy _resiliencePolicy = 
-        resiliencePolicyFactory.CreateCombinedPolicy(ResilienceOptions.PayPal);
 
     /// <inheritdoc />
     public async Task<SubscriptionStatusResult> GetStatusAsync(string userId, CancellationToken ct = default)
@@ -38,112 +33,104 @@ internal sealed class PayPalSubscriptionManager(
             return new SubscriptionStatusResult { IsActive = false, Provider = PaymentProvider.PayPal };
         }
 
-        // Let transient exceptions propagate to Polly for retry.
+        // Let transient exceptions propagate to the caller's resilience handler.
         try
         {
-            return await _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+            var client = await clientFactory.GetAuthenticatedClientAsync(ct);
+            var response = await client.GetAsync(PayPalEndpoints.GetSubscription(subscription.ProviderSubscriptionId), ct);
+
+            if (!response.IsSuccessStatusCode)
             {
-                var client = await clientFactory.GetAuthenticatedClientAsync(token);
-                var response = await client.GetAsync(PayPalEndpoints.GetSubscription(subscription.ProviderSubscriptionId), token);
-
-                if (!response.IsSuccessStatusCode)
+                var code = (int)response.StatusCode;
+                if (code >= 400 && code < 500 && code != 429)
                 {
-                    var code = (int)response.StatusCode;
-                    if (code >= 400 && code < 500 && code != 429)
-                    {
-                        // Non-transient client error: return local data without retry
-                        logger.LogWarning("Non-transient error fetching PayPal subscription {SubscriptionId}: {StatusCode}",
-                            subscription.ProviderSubscriptionId, response.StatusCode);
-                        return MapToStatusResult(subscription);
-                    }
-
-                    // Transient server error: throw so Polly retries
-                    response.EnsureSuccessStatusCode();
+                    // Non-transient client error: return local data
+                    logger.LogWarning("Non-transient error fetching PayPal subscription {SubscriptionId}: {StatusCode}",
+                        subscription.ProviderSubscriptionId, response.StatusCode);
+                    return MapToStatusResult(subscription);
                 }
 
-                var paypalSub = await response.Content.ReadFromJsonAsync<PayPalSubscriptionResponse>(PayPalJsonOptions.Default, token);
-                var newStatus = MapSubscriptionStatus(paypalSub?.Status);
+                // Transient server error
+                response.EnsureSuccessStatusCode();
+            }
 
-                // Update local record if status changed
-                if (subscription.Status != newStatus)
-                {
-                    subscription.UpdateStatus(newStatus);
-                    await paymentRepository.SaveChangesAsync(token);
-                }
+            var paypalSub = await response.Content.ReadFromJsonAsync<PayPalSubscriptionResponse>(PayPalJsonOptions.Default, ct);
+            var newStatus = MapSubscriptionStatus(paypalSub?.Status);
 
-                return new SubscriptionStatusResult
-                {
-                    IsActive = subscription.IsActive,
-                    SubscriptionId = subscription.ProviderSubscriptionId,
-                    PlanId = subscription.PlanId,
-                    Status = subscription.Status,
-                    CurrentPeriodEnd = subscription.ExpiresAt,
-                    CanceledAt = subscription.CanceledAt,
-                    Provider = PaymentProvider.PayPal
-                };
-            }, new Context(), ct);
+            // Update local record if status changed
+            if (subscription.Status != newStatus)
+            {
+                subscription.UpdateStatus(newStatus);
+                await paymentRepository.SaveChangesAsync(ct);
+            }
+
+            return new SubscriptionStatusResult
+            {
+                IsActive = subscription.IsActive,
+                SubscriptionId = subscription.ProviderSubscriptionId,
+                PlanId = subscription.PlanId,
+                Status = subscription.Status,
+                CurrentPeriodEnd = subscription.ExpiresAt,
+                CanceledAt = subscription.CanceledAt,
+                Provider = PaymentProvider.PayPal
+            };
         }
         catch (HttpRequestException ex)
         {
-            // Polly exhausted retries for transient errors — fall back to local data
-            logger.LogError(ex, "Error verifying PayPal subscription {SubscriptionId} after retries exhausted",
+            // Fall back to local data
+            logger.LogError(ex, "Error verifying PayPal subscription {SubscriptionId}",
                 subscription.ProviderSubscriptionId);
             return MapToStatusResult(subscription);
         }
     }
 
     /// <inheritdoc />
-    public Task<bool> CancelAsync(string subscriptionId, bool immediate = false, CancellationToken ct = default)
+    public async Task<bool> CancelAsync(string subscriptionId, bool immediate = false, CancellationToken ct = default)
     {
-        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        var client = await clientFactory.GetAuthenticatedClientAsync(ct);
+        
+        // PayPal doesn't have a direct "cancel at period end" update like Stripe.
+        // We usually cancel and let the local record manage access until expiry.
+        var cancelRequest = new PayPalCancelSubscriptionRequest { Reason = "User requested cancellation" };
+        var response = await client.PostAsJsonAsync(PayPalEndpoints.CancelSubscription(subscriptionId), cancelRequest, ct);
+        
+        if (response.IsSuccessStatusCode)
         {
-            var client = await clientFactory.GetAuthenticatedClientAsync(token);
+            logger.LogInformation("PayPal subscription {SubscriptionId} cancellation requested", subscriptionId);
             
-            // PayPal doesn't have a direct "cancel at period end" update like Stripe.
-            // We usually cancel and let the local record manage access until expiry.
-            var cancelRequest = new PayPalCancelSubscriptionRequest { Reason = "User requested cancellation" };
-            var response = await client.PostAsJsonAsync(PayPalEndpoints.CancelSubscription(subscriptionId), cancelRequest, token);
+            // Note: Domain events and DB updates are typically handled by webhooks (BILLING.SUBSCRIPTION.CANCELLED)
+            // for consistency across all async flows.
             
-            if (response.IsSuccessStatusCode)
+            telemetry.TrackEvent("SubscriptionCancellationRequested", new Dictionary<string, string>
             {
-                logger.LogInformation("PayPal subscription {SubscriptionId} cancellation requested", subscriptionId);
-                
-                // Note: Domain events and DB updates are typically handled by webhooks (BILLING.SUBSCRIPTION.CANCELLED)
-                // for consistency across all async flows.
-                
-                telemetry.TrackEvent("SubscriptionCancellationRequested", new Dictionary<string, string>
-                {
-                    ["Provider"] = PaymentProvider.PayPal.ToString(),
-                    ["SubscriptionId"] = subscriptionId
-                });
+                ["Provider"] = PaymentProvider.PayPal.ToString(),
+                ["SubscriptionId"] = subscriptionId
+            });
 
-                return true;
-            }
+            return true;
+        }
 
-            var errorBody = await response.Content.ReadAsStringAsync(token);
-            logger.LogError("PayPal subscription cancellation failed: {Body}", errorBody);
-            return false;
-        }, new Context(), ct);
+        var errorBody = await response.Content.ReadAsStringAsync(ct);
+        logger.LogError("PayPal subscription cancellation failed: {Body}", errorBody);
+        return false;
     }
 
     /// <inheritdoc />
     public Task<bool> ResumeAsync(string subscriptionId, CancellationToken ct = default)
+    public async Task<bool> ResumeAsync(string subscriptionId, CancellationToken ct = default)
     {
-        return _resiliencePolicy.ExecuteAsync(async (ctx, token) =>
+        var client = await clientFactory.GetAuthenticatedClientAsync(ct);
+        
+        // Activate previously suspended subscription
+        var response = await client.PostAsJsonAsync(PayPalEndpoints.ActivateSubscription(subscriptionId), new { reason = "User resumed" }, ct);
+        
+        if (response.IsSuccessStatusCode)
         {
-            var client = await clientFactory.GetAuthenticatedClientAsync(token);
-            
-            // Activate previously suspended subscription
-            var response = await client.PostAsJsonAsync(PayPalEndpoints.ActivateSubscription(subscriptionId), new { reason = "User resumed" }, token);
-            
-            if (response.IsSuccessStatusCode)
-            {
-                logger.LogInformation("PayPal subscription {SubscriptionId} activation requested", subscriptionId);
-                return true;
-            }
+            logger.LogInformation("PayPal subscription {SubscriptionId} activation requested", subscriptionId);
+            return true;
+        }
 
-            return false;
-        }, new Context(), ct);
+        return false;
     }
 
     /// <inheritdoc />

@@ -21,7 +21,6 @@ public class SubscriptionIntegrationTests(WebhooksWebAppFactory factory) : IClas
     {
         // Arrange
         var request = new CreateWebhookSubscriptionRequest(
-            PartnerId: TestPartnerId,
             Url: "https://partner.com/webhook",
             Events: ["order.created"],
             Secret: "super-secret"
@@ -32,10 +31,11 @@ public class SubscriptionIntegrationTests(WebhooksWebAppFactory factory) : IClas
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var subscriptionId = await response.Content.ReadFromJsonAsync<Guid>();
-        subscriptionId.Should().NotBeEmpty();
+        var created = await response.Content.ReadFromJsonAsync<CreateWebhookSubscriptionResult>();
+        created.Should().NotBeNull();
+        created!.Id.Should().NotBeEmpty();
 
-        var getResponse = await _client.GetAsync($"/api/v1/webhooks/subscriptions/{subscriptionId}");
+        var getResponse = await _client.GetAsync($"/api/v1/webhooks/subscriptions/{created.Id}");
         getResponse.EnsureSuccessStatusCode();
         var sub = await getResponse.Content.ReadFromJsonAsync<WebhookSubscriptionDto>();
         
