@@ -194,4 +194,4 @@ $DRIFT_INFO
 $CONTEXT
 
 == TEST FILES ==
-$TEST_CONTEXT" | claude --print --model claude-sonnet-4-20250514
+$TEST_CONTEXT" | claude --print --model claude-sonnet-5

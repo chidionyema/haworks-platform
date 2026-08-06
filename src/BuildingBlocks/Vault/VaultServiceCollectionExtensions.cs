@@ -1,4 +1,3 @@
-using Haworks.BuildingBlocks.Resilience;
 using Haworks.BuildingBlocks.Vault.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +21,6 @@ namespace Haworks.BuildingBlocks.Vault;
 ///   - <see cref="DatabaseOptions"/> (from <c>"Database"</c> config section)
 ///   - <see cref="ICertificateValidator"/>, <see cref="ISecretFileReader"/>
 ///   - <see cref="IVaultClientFactory"/>
-///   - <see cref="IResiliencePolicyFactory"/>
 ///   - <see cref="IVaultService"/>
 ///
 /// Idempotent — safe to call multiple times; each registration uses
@@ -61,8 +59,6 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<ISecretFileReader, SecretFileReader>();
         services.AddSingleton<IVaultAppRoleAuthenticator, VaultAppRoleAuthenticator>();
         services.AddSingleton<IVaultClientFactory, VaultClientFactory>();
-
-        services.AddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
 
         services.AddSingleton<IVaultService, VaultService>();
 

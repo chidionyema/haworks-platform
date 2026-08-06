@@ -20,6 +20,7 @@ public class ShipmentTests
     public void MarkLabelPurchased_TransitionsToLabelPurchased()
     {
         var shipment = Shipment.Create(Guid.NewGuid(), "ep_test");
+        shipment.BeginPurchase();
 
         shipment.MarkLabelPurchased("usps", "Priority", "9400111899223", "https://track.example.com", "https://label.example.com/pdf", 795L, "USD", DateTime.UtcNow.AddDays(3));
 
@@ -34,12 +35,48 @@ public class ShipmentTests
     public void UpdateStatus_ToDelivered_SetsDeliveredAt()
     {
         var shipment = Shipment.Create(Guid.NewGuid(), "ep_test");
+        shipment.BeginPurchase();
         shipment.MarkLabelPurchased("ups", "Ground", "1Z999", "url", "label", 1250L, "USD", null);
 
         shipment.UpdateStatus(ShipmentStatus.Delivered);
 
         shipment.Status.Should().Be(ShipmentStatus.Delivered);
         shipment.DeliveredAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void BeginPurchase_WhenAlreadyPurchasing_Throws()
+    {
+        var shipment = Shipment.Create(Guid.NewGuid(), "ep_test");
+        shipment.BeginPurchase();
+
+        var act = () => shipment.BeginPurchase();
+
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void RevertPurchase_FromPurchasing_ReturnsToCreated()
+    {
+        var shipment = Shipment.Create(Guid.NewGuid(), "ep_test");
+        shipment.BeginPurchase();
+
+        shipment.RevertPurchase();
+
+        shipment.Status.Should().Be(ShipmentStatus.Created);
+    }
+
+    [Fact]
+    public void UpdateStatus_FromDelivered_IgnoresRegression()
+    {
+        var shipment = Shipment.Create(Guid.NewGuid(), "ep_test");
+        shipment.BeginPurchase();
+        shipment.MarkLabelPurchased("ups", "Ground", "1Z999", "url", "label", 1250L, "USD", null);
+        shipment.UpdateStatus(ShipmentStatus.Delivered);
+
+        shipment.UpdateStatus(ShipmentStatus.InTransit);
+
+        shipment.Status.Should().Be(ShipmentStatus.Delivered);
     }
 
     [Fact]

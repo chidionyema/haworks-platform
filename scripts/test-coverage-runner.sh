@@ -103,7 +103,7 @@ VALIDATE_EOF
 echo "$VALIDATE_PROMPT
 
 $(cat "$AUDIT_FILE")
-" | claude --print --model claude-sonnet-4-20250514 > "$VALIDATED_FILE" 2>&1
+" | claude --print --model claude-sonnet-5 > "$VALIDATED_FILE" 2>&1
 
 CONFIRMED_COUNT=$(grep -c "^####\|^### .*CONFIRMED\|^\[MISSING\]" "$VALIDATED_FILE" 2>/dev/null || true)
 CONFIRMED_COUNT=${CONFIRMED_COUNT:-0}
@@ -199,7 +199,7 @@ $(cat "$VALIDATED_FILE")
 FIX_EOF
 )
 
-FIX_OUTPUT=$(echo "$FIX_PROMPT" | claude --model claude-sonnet-4-20250514 2>&1)
+FIX_OUTPUT=$(echo "$FIX_PROMPT" | claude --model claude-sonnet-5 2>&1)
 echo "$FIX_OUTPUT" | tail -60 > "$SERVICE_REPORT_DIR/${DATE}-tests-added.md"
 
 # ============================================================
