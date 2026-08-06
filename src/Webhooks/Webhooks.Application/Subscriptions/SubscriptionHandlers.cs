@@ -1,4 +1,5 @@
 using Haworks.BuildingBlocks.Common;
+using Haworks.Webhooks.Application.Common;
 using Haworks.Webhooks.Domain;
 using Haworks.Webhooks.Application.Interfaces;
 using MediatR;
@@ -12,24 +13,25 @@ internal sealed class SubscriptionHandlers(
     IWebhooksDbContext db,
     IHttpClientFactory httpFactory,
     ILogger<SubscriptionHandlers> logger) :
-    IRequestHandler<CreateWebhookSubscriptionCommand, Result<Guid>>,
+    IRequestHandler<CreateWebhookSubscriptionCommand, Result<CreateWebhookSubscriptionResult>>,
     IRequestHandler<UpdateWebhookSubscriptionCommand, Result<WebhookSubscriptionDto>>,
     IRequestHandler<DeleteWebhookSubscriptionCommand, Result>,
     IRequestHandler<RotateWebhookSubscriptionSecretCommand, Result<string>>,
-    IRequestHandler<GetWebhookSubscriptionQuery, Result<WebhookSubscriptionDto>>
+    IRequestHandler<GetWebhookSubscriptionQuery, Result<WebhookSubscriptionDto>>,
+    IRequestHandler<ListWebhookSubscriptionsQuery, Result<PagedResult<WebhookSubscriptionDto>>>
 {
     private static readonly Error SubscriptionNotFound = Error.NotFound("Webhook.SubscriptionNotFound", "Webhook subscription not found.");
 
-    public async Task<Result<Guid>> Handle(CreateWebhookSubscriptionCommand request, CancellationToken ct)
+    public async Task<Result<CreateWebhookSubscriptionResult>> Handle(CreateWebhookSubscriptionCommand request, CancellationToken ct)
     {
         var isValid = await ValidateWebhookUrlAsync(request.Url, ct);
         if (!isValid)
         {
-            return Result.Failure<Guid>(Error.Validation("Webhooks.InvalidUrl", "The webhook URL did not return a successful response during validation."));
+            return Result.Failure<CreateWebhookSubscriptionResult>(Error.Validation("Webhooks.InvalidUrl", "The webhook URL did not return a successful response during validation."));
         }
 
         var secret = request.Secret ?? Guid.NewGuid().ToString("N");
-        var secretHash = BCrypt.Net.BCrypt.HashPassword(secret);
+        var secretHash = await Task.Run(() => BCrypt.Net.BCrypt.HashPassword(secret), ct);
         var secretPreview = secret.Length > 4 ? secret[^4..] : secret;
 
         var sub = new WebhookSubscription(
@@ -44,7 +46,7 @@ internal sealed class SubscriptionHandlers(
         db.Subscriptions.Add(sub);
         await db.SaveChangesAsync(ct);
 
-        return Result.Success(sub.Id);
+        return Result.Success(new CreateWebhookSubscriptionResult(sub.Id, secret));
     }
 
     public async Task<Result<WebhookSubscriptionDto>> Handle(UpdateWebhookSubscriptionCommand request, CancellationToken ct)
@@ -75,14 +77,13 @@ internal sealed class SubscriptionHandlers(
         if (sub == null) return Result.Failure<string>(SubscriptionNotFound);
 
         var secret = request.Secret ?? Guid.NewGuid().ToString("N");
-        var secretHash = BCrypt.Net.BCrypt.HashPassword(secret);
+        var secretHash = await Task.Run(() => BCrypt.Net.BCrypt.HashPassword(secret), ct);
         var secretPreview = secret.Length > 4 ? secret[^4..] : secret;
 
         sub.RotateSecret(secret, secretHash, secretPreview);
         await db.SaveChangesAsync(ct);
 
-        var masked = secret.Length > 8 ? string.Concat(secret.AsSpan(0, 8), "...") : secret;
-        return Result.Success(masked);
+        return Result.Success(secret);
     }
 
     public async Task<Result<WebhookSubscriptionDto>> Handle(GetWebhookSubscriptionQuery request, CancellationToken ct)
@@ -91,6 +92,18 @@ internal sealed class SubscriptionHandlers(
         if (sub == null) return Result.Failure<WebhookSubscriptionDto>(SubscriptionNotFound);
 
         return Result.Success(Map(sub));
+    }
+
+    public async Task<Result<PagedResult<WebhookSubscriptionDto>>> Handle(ListWebhookSubscriptionsQuery request, CancellationToken ct)
+    {
+        var query = db.Subscriptions
+            .AsNoTracking()
+            .Where(s => s.PartnerId == request.CallerPartnerId && s.DeletedAt == null);
+
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderByDescending(s => s.CreatedAt).Skip(request.Skip).Take(request.Take).ToListAsync(ct);
+
+        return Result.Success(new PagedResult<WebhookSubscriptionDto>(items.Select(Map).ToList(), total, request.Skip, request.Take));
     }
 
     private async Task<bool> ValidateWebhookUrlAsync(string url, CancellationToken ct)

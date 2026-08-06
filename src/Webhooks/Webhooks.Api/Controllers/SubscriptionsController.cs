@@ -5,7 +5,6 @@ using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace Haworks.Webhooks.Api.Controllers;
 
@@ -16,7 +15,7 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
 {
     private Guid GetPartnerId()
     {
-        var raw = User.FindFirst("partner_id")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var raw = User.FindFirst("partner_id")?.Value;
         return Guid.TryParse(raw, out var id) ? id : Guid.Empty;
     }
 
@@ -34,8 +33,13 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
             request.IsActive);
 
         var result = await mediator.Send(command, ct);
-        return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value : Guid.Empty });
+        return result.ToCreatedActionResult(nameof(Get), new { id = result.IsSuccess ? result.Value.Id : Guid.Empty });
     }
+
+    [HttpGet]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> List([FromQuery] int skip = 0, [FromQuery] int take = 20, CancellationToken ct = default)
+        => (await mediator.Send(new ListWebhookSubscriptionsQuery(GetPartnerId(), skip, take), ct)).ToActionResult();
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -43,7 +47,7 @@ public sealed class SubscriptionsController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
         => (await mediator.Send(new GetWebhookSubscriptionQuery(id, GetPartnerId()), ct)).ToActionResult();
 
-    [HttpPatch("{id:guid}")]
+    [HttpPut("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateWebhookSubscriptionCommand command, CancellationToken ct)

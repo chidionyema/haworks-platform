@@ -11,9 +11,10 @@ public sealed record WebhookSubscriptionDto(
     DateTime UpdatedAt);
 
 public sealed record CreateWebhookSubscriptionRequest(
-    Guid PartnerId,
     string Url,
     string[] Events,
     string? Secret,
     bool IsActive = true,
     string? Description = null);
+
+public sealed record CreateWebhookSubscriptionResult(Guid Id, string Secret);

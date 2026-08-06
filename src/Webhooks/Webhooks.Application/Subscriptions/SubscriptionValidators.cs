@@ -24,10 +24,11 @@ public sealed class CreateWebhookSubscriptionValidator : AbstractValidator<Creat
                 return string.Equals(uri.Scheme, "https", StringComparison.Ordinal);
             })
             .WithMessage("Only HTTPS URLs are allowed.")
-            .Must(url =>
+            .MustAsync(async (url, ct) =>
             {
                 if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
-                return !BlockedHosts.Contains(uri.Host) && !IsPrivateIp(uri.Host);
+                if (BlockedHosts.Contains(uri.Host)) return false;
+                return await IsHostSafeAsync(uri.Host, ct);
             })
             .WithMessage("Private or internal URLs are not allowed.");
         RuleFor(x => x.Events).NotEmpty().WithMessage("At least one event must be selected.");
@@ -45,7 +46,11 @@ public sealed class CreateWebhookSubscriptionValidator : AbstractValidator<Creat
     internal static bool IsPrivateIp(string host)
     {
         if (!System.Net.IPAddress.TryParse(host, out var ip)) return false;
+        return IsPrivateIp(ip);
+    }
 
+    public static bool IsPrivateIp(System.Net.IPAddress ip)
+    {
         // IPv6: block loopback (::1), link-local (fe80::/10), unique-local (fc00::/7)
         if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
         {
@@ -73,6 +78,31 @@ public sealed class CreateWebhookSubscriptionValidator : AbstractValidator<Creat
             (bytes[0] == 203 && bytes[1] == 0 && bytes[2] == 113) ||    // 203.0.113.0/24 (TEST-NET-3)
             bytes[0] >= 224;                                             // 224.0.0.0/4+ (multicast+reserved)
     }
+
+    /// <summary>
+    /// Resolves <paramref name="host"/> via DNS and rejects it if any resolved address is
+    /// private/link-local/loopback/multicast. Prevents SSRF via hostnames that don't parse
+    /// as a literal IP (the check literal-IP path above never triggers DNS resolution).
+    /// </summary>
+    public static async Task<bool> IsHostSafeAsync(string host, CancellationToken ct)
+    {
+        if (System.Net.IPAddress.TryParse(host, out var literalIp))
+        {
+            return !IsPrivateIp(literalIp);
+        }
+
+        try
+        {
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+            var addresses = await System.Net.Dns.GetHostAddressesAsync(host, linkedCts.Token);
+            return addresses.Length > 0 && addresses.All(a => !IsPrivateIp(a));
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 
 public sealed class UpdateWebhookSubscriptionValidator : AbstractValidator<UpdateWebhookSubscriptionCommand>
@@ -95,10 +125,11 @@ public sealed class UpdateWebhookSubscriptionValidator : AbstractValidator<Updat
                 return string.Equals(uri.Scheme, "https", StringComparison.Ordinal);
             })
             .WithMessage("Only HTTPS URLs are allowed.")
-            .Must(url =>
+            .MustAsync(async (url, ct) =>
             {
                 if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
-                return !BlockedHosts.Contains(uri.Host) && !CreateWebhookSubscriptionValidator.IsPrivateIp(uri.Host);
+                if (BlockedHosts.Contains(uri.Host)) return false;
+                return await CreateWebhookSubscriptionValidator.IsHostSafeAsync(uri.Host, ct);
             })
             .WithMessage("Private or internal URLs are not allowed.");
         RuleFor(x => x.Events).NotEmpty().WithMessage("At least one event must be selected.");
@@ -118,5 +149,15 @@ public sealed class GetWebhookSubscriptionQueryValidator : AbstractValidator<Get
     public GetWebhookSubscriptionQueryValidator()
     {
         RuleFor(x => x.Id).NotEmpty();
+    }
+}
+
+public sealed class ListWebhookSubscriptionsQueryValidator : AbstractValidator<ListWebhookSubscriptionsQuery>
+{
+    public ListWebhookSubscriptionsQueryValidator()
+    {
+        RuleFor(x => x.CallerPartnerId).NotEmpty();
+        RuleFor(x => x.Skip).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Take).InclusiveBetween(1, 100);
     }
 }
