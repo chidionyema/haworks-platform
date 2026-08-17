@@ -78,4 +78,41 @@ public class InitiateUploadTests
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("Media.Unauthorized");
     }
+
+    [Fact]
+    public async Task Handle_FileLargerThanSinglePutMax_ShouldInitiateMultipartUpload()
+    {
+        // 50MB > default SinglePutMaxBytes (8MB); PartSizeBytes default 26,214,400 -> 2 parts
+        var command = new InitiateUploadCommand("large.mp4", new string('d', 64), 50_000_000, "video/mp4");
+        _s3ServiceMock.Setup(x => x.InitiateMultipartUploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("s3-upload-id-1");
+        _s3ServiceMock.Setup(x => x.GeneratePartPresignedUrl(It.IsAny<string>(), "s3-upload-id-1", It.IsAny<int>()))
+            .Returns<string, string, int>((key, uploadId, partNumber) => $"http://upload-url/part-{partNumber}");
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.IsMultipart.Should().BeTrue();
+        result.Value.S3UploadId.Should().Be("s3-upload-id-1");
+        result.Value.PartCount.Should().Be(2);
+        result.Value.PartUrls.Should().HaveCount(2);
+        result.Value.UploadUrl.Should().BeNull();
+
+        var file = await _context.MediaFiles.FindAsync(result.Value.Id);
+        file!.UploadKind.Should().Be(UploadKind.Multipart);
+        file.S3UploadId.Should().Be("s3-upload-id-1");
+    }
+
+    [Fact]
+    public async Task Handle_PartCountExceedsTenThousand_ShouldReturnTooManyPartsFailure()
+    {
+        // 270GB / 26,214,400 bytes-per-part -> ~10,300 parts, still under 256GB MaxFileSizeBytes
+        var command = new InitiateUploadCommand("huge.mp4", new string('f', 64), 270_000_000_000, "video/mp4");
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("Media.TooManyParts");
+        _s3ServiceMock.Verify(x => x.InitiateMultipartUploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }
