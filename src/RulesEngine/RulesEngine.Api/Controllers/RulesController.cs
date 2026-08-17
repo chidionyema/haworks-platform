@@ -32,6 +32,7 @@ public class RulesController : ControllerBase
 
     // ── CRUD ──────────────────────────────────────────────────────────────────
 
+    [Authorize(Roles = "admin")]
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -41,6 +42,7 @@ public class RulesController : ControllerBase
         return result.ToActionResult();
     }
 
+    [Authorize(Roles = "admin")]
     [HttpGet("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

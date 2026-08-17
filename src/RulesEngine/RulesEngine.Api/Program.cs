@@ -103,8 +103,15 @@ if (!app.Environment.IsEnvironment("Test"))
             new Rule { Id = Guid.NewGuid(), Name = "fraud:high-risk-country", Expression = "countryCode == \"XX\" OR countryCode == \"YY\"", IsActive = true, CreatedAt = DateTime.UtcNow },
         };
         db.Set<Rule>().AddRange(fraudRules);
-        await db.SaveChangesAsync(CancellationToken.None);
-        logger.LogInformation("Seeded {Count} fraud detection rules", fraudRules.Length);
+        try
+        {
+            await db.SaveChangesAsync(CancellationToken.None);
+            logger.LogInformation("Seeded {Count} fraud detection rules", fraudRules.Length);
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogInformation(ex, "Fraud rules already seeded by another instance, skipping.");
+        }
     }
 }
 

@@ -15,6 +15,7 @@ public class Rule
 public interface IRulesEvaluator
 {
     Task<Result<RuleEvaluationResult>> EvaluateAsync(Guid ruleId, Dictionary<string, object> inputs, CancellationToken cancellationToken);
+    Task<Result<RuleEvaluationResult>> EvaluateAsync(Rule rule, Dictionary<string, object> inputs, CancellationToken cancellationToken);
 }
 
 public sealed record RuleEvaluationResult(bool Outcome, string Expression, string Trace);

@@ -3,6 +3,7 @@ using System.Linq.Dynamic.Core.CustomTypeProviders;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using Haworks.BuildingBlocks.Common;
 using Haworks.RulesEngine.Api.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -39,12 +40,7 @@ public class RulesEvaluator : IRulesEvaluator
     private readonly ILogger<RulesEvaluator> _logger;
 
     // SQL injection guard: block common injection patterns in expressions
-    private static readonly string[] ForbiddenTokens =
-    [
-        "--", ";", "DROP", "DELETE", "INSERT", "UPDATE", "EXEC", "EXECUTE",
-        "SELECT", "UNION", "xp_", "sp_", "CAST(", "CONVERT(", "CHAR(",
-        "NCHAR(", "VARCHAR(", "DECLARE"
-    ];
+    private static readonly string[] ForbiddenTokens = Application.ExpressionRules.ForbiddenTokens;
 
     public RulesEvaluator(RulesDbContext db, ILogger<RulesEvaluator> logger)
     {
@@ -57,24 +53,62 @@ public class RulesEvaluator : IRulesEvaluator
         Dictionary<string, object> inputs,
         CancellationToken cancellationToken)
     {
-        var rule = await _db.Rules
-            .AsNoTracking()
-            .FirstOrDefaultAsync(r => r.Id == ruleId && r.IsActive, cancellationToken);
+        try
+        {
+            var rule = await _db.Rules
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.Id == ruleId && r.IsActive, cancellationToken);
 
-        if (rule is null)
+            if (rule is null)
+                return Result.Failure<RuleEvaluationResult>(
+                    Error.NotFound("RulesEngine.RuleNotFound", $"Active rule '{ruleId}' not found."));
+
+            return EvaluateCore(rule, inputs);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error evaluating rule {RuleId}", ruleId);
             return Result.Failure<RuleEvaluationResult>(
-                Error.NotFound("RulesEngine.RuleNotFound", $"Active rule '{ruleId}' not found."));
+                Error.Internal("RulesEngine.EvaluationError", $"Evaluation failed: {ex.Message}"));
+        }
+    }
+
+    // Avoids re-fetching a Rule already loaded by the caller (e.g. FraudCheckConsumer,
+    // which loads all active fraud rules in one query before evaluating each).
+    public Task<Result<RuleEvaluationResult>> EvaluateAsync(
+        Rule rule,
+        Dictionary<string, object> inputs,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Task.FromResult(EvaluateCore(rule, inputs));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error evaluating rule {RuleId}", rule.Id);
+            return Task.FromResult(Result.Failure<RuleEvaluationResult>(
+                Error.Internal("RulesEngine.EvaluationError", $"Evaluation failed: {ex.Message}")));
+        }
+    }
+
+    private Result<RuleEvaluationResult> EvaluateCore(Rule rule, Dictionary<string, object> inputs)
+    {
+        var ruleId = rule.Id;
 
         var validationError = ValidateExpression(rule.Expression);
         if (validationError is not null)
             return Result.Failure<RuleEvaluationResult>(validationError);
 
-        try
-        {
-            var trace = new StringBuilder();
+        var trace = new StringBuilder();
             trace.Append($"Rule: {rule.Name} | Expression: {rule.Expression} | Inputs: ");
             foreach (var kv in inputs)
                 trace.Append($"{kv.Key}={kv.Value} ");
+
+            var transformedExpression = TransformExpression(rule.Expression, inputs);
+            var substitutedValidationError = ValidateExpression(transformedExpression);
+            if (substitutedValidationError is not null)
+                return Result.Failure<RuleEvaluationResult>(substitutedValidationError);
 
             // Use Dynamic LINQ to parse and evaluate the boolean expression
             bool outcome;
@@ -94,7 +128,7 @@ public class RulesEvaluator : IRulesEvaluator
                     parsingConfig,
                     new[] { parameter },
                     typeof(bool),
-                    TransformExpression(rule.Expression, inputs),
+                    transformedExpression,
                     []);
 
                 var compiled = (Func<Dictionary<string, object>, bool>)lambdaExpression.Compile();
@@ -116,13 +150,6 @@ public class RulesEvaluator : IRulesEvaluator
                 rule.Name, ruleId, outcome, trace);
 
             return Result.Success(new RuleEvaluationResult(outcome, rule.Expression, trace.ToString()));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error evaluating rule {RuleId}", ruleId);
-            return Result.Failure<RuleEvaluationResult>(
-                Error.Internal("RulesEngine.EvaluationError", $"Evaluation failed: {ex.Message}"));
-        }
     }
 
     /// <summary>
@@ -180,13 +207,22 @@ public class RulesEvaluator : IRulesEvaluator
 
     private static string ToLiteral(object value) => value switch
     {
+        JsonElement je => ToLiteral(je),
         bool b => b ? "true" : "false",
         string s => $"\"{s.Replace("\"", "\\\"")}\"",
         null => "null",
         _ => value.ToString() ?? "null"
     };
 
-    private static object[] BuildDynamicArgs(Dictionary<string, object> inputs) => [];
+    private static string ToLiteral(JsonElement je) => je.ValueKind switch
+    {
+        JsonValueKind.String => $"\"{je.GetString()!.Replace("\"", "\\\"")}\"",
+        JsonValueKind.Number => je.GetRawText(),
+        JsonValueKind.True => "true",
+        JsonValueKind.False => "false",
+        JsonValueKind.Null => "null",
+        _ => $"\"{je.GetRawText().Replace("\"", "\\\"")}\""
+    };
 
     private static Error? ValidateExpression(string expression)
     {

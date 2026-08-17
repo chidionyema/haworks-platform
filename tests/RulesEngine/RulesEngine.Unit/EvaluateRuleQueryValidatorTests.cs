@@ -16,7 +16,7 @@ public class EvaluateRuleQueryValidatorTests
     [Fact]
     public void Should_HaveError_When_RuleIdIsEmpty()
     {
-        var query = new EvaluateRuleQuery(string.Empty, new Dictionary<string, object>());
+        var query = new EvaluateRuleQuery(Guid.Empty, new Dictionary<string, object>());
         var result = _validator.TestValidate(query);
         result.ShouldHaveValidationErrorFor(x => x.RuleId);
     }
@@ -24,7 +24,7 @@ public class EvaluateRuleQueryValidatorTests
     [Fact]
     public void Should_HaveError_When_InputsIsNull()
     {
-        var query = new EvaluateRuleQuery("rule-1", null!);
+        var query = new EvaluateRuleQuery(Guid.NewGuid(), null!);
         var result = _validator.TestValidate(query);
         result.ShouldHaveValidationErrorFor(x => x.Inputs);
     }
@@ -32,7 +32,7 @@ public class EvaluateRuleQueryValidatorTests
     [Fact]
     public void Should_NotHaveError_When_QueryIsValid()
     {
-        var query = new EvaluateRuleQuery("rule-1", new Dictionary<string, object>());
+        var query = new EvaluateRuleQuery(Guid.NewGuid(), new Dictionary<string, object>());
         var result = _validator.TestValidate(query);
         result.ShouldNotHaveAnyValidationErrors();
     }

@@ -24,7 +24,15 @@ public class CreateRuleCommandHandler : IRequestHandler<CreateRuleCommand, Resul
         };
 
         _db.Rules.Add(rule);
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            return Result.Failure<Rule>(
+                Error.Conflict("RulesEngine.DuplicateName", $"A rule named '{request.Name}' already exists."));
+        }
         return Result.Success(rule);
     }
 }
@@ -97,6 +105,7 @@ public class ListRulesQueryHandler : IRequestHandler<ListRulesQuery, Result<IRea
 
         var rules = (IReadOnlyList<Rule>)await query
             .OrderBy(r => r.Name)
+            .Take(1000)
             .ToListAsync(cancellationToken);
 
         return Result.Success(rules);

@@ -24,40 +24,40 @@ public class EvaluateRuleQueryHandlerTests
     public async Task Handle_ShouldReturnSuccess_WhenEvaluationSucceeds()
     {
         // Arrange
-        var query = new EvaluateRuleQuery("rule-1", new Dictionary<string, object> { { "age", 25 } });
-        _rulesEvaluatorMock.Setup(x => x.EvaluateAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, object>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success(true));
+        var query = new EvaluateRuleQuery(Guid.NewGuid(), new Dictionary<string, object> { { "age", 25 } });
+        _rulesEvaluatorMock.Setup(x => x.EvaluateAsync(It.IsAny<Guid>(), It.IsAny<Dictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(new RuleEvaluationResult(true, "age > 18", "trace")));
 
         // Act
         var result = await _handler.Handle(query, CancellationToken.None);
 
         // Assert
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
+        Assert.True(result.Value.Outcome);
     }
 
     [Fact]
     public async Task Handle_ShouldReturnFailure_WhenEvaluationFails()
     {
         // Arrange
-        var query = new EvaluateRuleQuery("rule-1", new Dictionary<string, object> { { "age", 15 } });
-        _rulesEvaluatorMock.Setup(x => x.EvaluateAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, object>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success(false));
+        var query = new EvaluateRuleQuery(Guid.NewGuid(), new Dictionary<string, object> { { "age", 15 } });
+        _rulesEvaluatorMock.Setup(x => x.EvaluateAsync(It.IsAny<Guid>(), It.IsAny<Dictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(new RuleEvaluationResult(false, "age > 18", "trace")));
 
         // Act
         var result = await _handler.Handle(query, CancellationToken.None);
 
         // Assert
         Assert.True(result.IsSuccess);
-        Assert.False(result.Value);
+        Assert.False(result.Value.Outcome);
     }
 
     [Fact]
     public async Task Handle_ShouldReturnTimeout_WhenCanceled()
     {
         // Arrange
-        var query = new EvaluateRuleQuery("rule-1", new Dictionary<string, object>());
-        _rulesEvaluatorMock.Setup(x => x.EvaluateAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, object>>(), It.IsAny<CancellationToken>()))
+        var query = new EvaluateRuleQuery(Guid.NewGuid(), new Dictionary<string, object>());
+        _rulesEvaluatorMock.Setup(x => x.EvaluateAsync(It.IsAny<Guid>(), It.IsAny<Dictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new OperationCanceledException());
 
         // Act

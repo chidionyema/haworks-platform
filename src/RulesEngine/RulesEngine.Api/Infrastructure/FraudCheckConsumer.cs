@@ -48,11 +48,17 @@ public sealed class FraudCheckConsumer(
 
         foreach (var rule in rules)
         {
-            var result = await evaluator.EvaluateAsync(rule.Id, variables, ct);
+            var result = await evaluator.EvaluateAsync(rule, variables, ct);
             if (result.IsSuccess && result.Value.Outcome)
             {
                 triggeredRules.Add(rule.Name);
                 riskScore += 25; // Each triggered rule adds 25 points
+            }
+            else if (!result.IsSuccess)
+            {
+                logger.LogWarning(
+                    "Fraud rule {RuleName} ({RuleId}) failed to evaluate for order {OrderId}: {Error}",
+                    rule.Name, rule.Id, msg.OrderId, result.Error.Message);
             }
         }
 
