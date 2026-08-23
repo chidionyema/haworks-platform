@@ -1,0 +1,1094 @@
+diff --git a/docs/reviews/.review-state b/docs/reviews/.review-state
+index b6a7d89c..d00491fd 100644
+--- a/docs/reviews/.review-state
++++ b/docs/reviews/.review-state
+@@ -1 +1 @@
+-16
++1
+diff --git a/docs/reviews/.test-coverage-state b/docs/reviews/.test-coverage-state
+index 7ed6ff82..ec635144 100644
+--- a/docs/reviews/.test-coverage-state
++++ b/docs/reviews/.test-coverage-state
+@@ -1 +1 @@
+-5
++9
+diff --git a/src/BuildingBlocks/Common/Error.cs b/src/BuildingBlocks/Common/Error.cs
+index a0a24ed0..dec2d259 100644
+--- a/src/BuildingBlocks/Common/Error.cs
++++ b/src/BuildingBlocks/Common/Error.cs
+@@ -33,19 +33,6 @@ public sealed record Error(string Code, string Message, ErrorType Type = ErrorTy
+     public static Error Forbidden(string code, string message) => new(code, message, ErrorType.Forbidden);
+     public static Error Conflict(string code, string message) => new(code, message, ErrorType.Conflict);
+ 
+-    public static class Payment
+-    {
+-        public static readonly Error DuplicateOrder = new("Payment.Duplicate", "Duplicate order detected");
+-        public static readonly Error InsufficientStock = new("Payment.InsufficientStock", "Insufficient stock for one or more products");
+-        public static readonly Error SessionNotFound = new("Payment.SessionNotFound", "Payment session not found");
+-        public static readonly Error ProductNotFound = new("Payment.ProductNotFound", "Product not found");
+-        public static readonly Error InvalidSession = new("Payment.InvalidSession", "Invalid or expired payment session");
+-        public static readonly Error PaymentFailed = new("Payment.Failed", "Payment processing failed");
+-        public static readonly Error OrderNotFound = new("Payment.OrderNotFound", "Order not found");
+-        public static readonly Error ProcessingError = new("Payment.ProcessingError", "An error occurred while processing the payment");
+-        public static readonly Error SessionCreationFailed = new("Payment.SessionCreationFailed", "Order created but payment session failed to initialize");
+-    }
+-
+     public static class ValidationErrors
+     {
+         public static readonly Error InvalidEmail = new("Validation.InvalidEmail", "Invalid email format");
+@@ -53,162 +40,4 @@ public sealed record Error(string Code, string Message, ErrorType Type = ErrorTy
+         public static readonly Error InvalidQuantity = new("Validation.InvalidQuantity", "Quantity must be greater than zero");
+         public static readonly Error TooManyItems = new("Validation.TooManyItems", "Too many items in order");
+     }
+-
+-    public static class Auth
+-    {
+-        public static readonly Error InvalidCredentials = new("Auth.InvalidCredentials", "Invalid username or password", ErrorType.Unauthorized);
+-        public static readonly Error TokenExpired = new("Auth.TokenExpired", "Token has expired", ErrorType.Unauthorized);
+-        public static readonly Error TokenRevoked = new("Auth.TokenRevoked", "Token has been revoked", ErrorType.Unauthorized);
+-        public static readonly Error Unauthorized = new("Auth.Unauthorized", "User is not authorized", ErrorType.Unauthorized);
+-        public static readonly Error UserNotFound = new("Auth.UserNotFound", "User not found", ErrorType.Unauthorized);
+-        public static readonly Error MissingTokens = new("Auth.MissingTokens", "Access and refresh tokens are required.", ErrorType.Validation);
+-        public static readonly Error InvalidAccessToken = new("Auth.InvalidAccessToken", "Invalid access token structure.", ErrorType.Unauthorized);
+-        public static readonly Error MissingUserId = new("Auth.MissingUserId", "Token claims are missing user identification.", ErrorType.Unauthorized);
+-        public static readonly Error InvalidRefreshToken = new("Auth.InvalidRefreshToken", "Session invalid. Please log in again.", ErrorType.Unauthorized);
+-        public static readonly Error TokenProcessingError = new("Auth.TokenProcessingError", "Invalid token signature.", ErrorType.Unauthorized);
+-        public static readonly Error RefreshFailed = new("Auth.RefreshFailed", "An internal error occurred.", ErrorType.Internal);
+-        // Surfaced as 400 (not 404) so callers attempting to unlink a provider
+-        // they don't have a login for get a clear bad-request response rather
+-        // than an ambiguous resource-not-found.
+-        public static readonly Error LoginNotFound = new("Auth.LoginNotFound", "External login not found.", ErrorType.Validation);
+-        public static readonly Error LinkFailed = new("Auth.LinkFailed", "Unable to link external login.", ErrorType.Internal);
+-        public static readonly Error UnlinkFailed = new("Auth.UnlinkFailed", "Unable to unlink external login.", ErrorType.Internal);
+-        public static readonly Error RegistrationFailed = new("Auth.RegistrationFailed", "Registration failed.", ErrorType.Validation);
+-        public static readonly Error RoleAssignmentFailed = new("Auth.RoleAssignmentFailed", "Role assignment failed.", ErrorType.Internal);
+-        public static readonly Error ClaimAssignmentFailed = new("Auth.ClaimAssignmentFailed", "Claim assignment failed.", ErrorType.Internal);
+-        public static readonly Error InvalidProviderKey = new("Auth.InvalidProviderKey", "External login information is incomplete.", ErrorType.Validation);
+-        public static readonly Error InvalidContext = new("Auth.InvalidContext", "HTTP context is required.", ErrorType.Validation);
+-        public static readonly Error ExternalLoginFailed = new("Auth.ExternalLoginFailed", "Unable to retrieve external login information.", ErrorType.Validation);
+-        public static readonly Error MissingEmail = new("Auth.MissingEmail", "Email is required but not provided by the external login.", ErrorType.Validation);
+-        public static readonly Error UnverifiedEmail = new("Auth.UnverifiedEmail", "Email must be verified by the external provider before linking accounts.", ErrorType.Validation);
+-        public static readonly Error AlreadyLinked = new("Auth.AlreadyLinked", "This external account is already connected to another user.", ErrorType.Conflict);
+-        public static readonly Error UserInconsistency = new("Auth.UserInconsistency", "Account inconsistency detected.", ErrorType.Internal);
+-        public static readonly Error CreateFailed = new("Auth.CreateFailed", "Could not create a new account.", ErrorType.Internal);
+-
+-        public static readonly Error AccountDeactivated = new("Auth.AccountDeactivated", "Account is deactivated.", ErrorType.Forbidden);
+-
+-        /// <summary>
+-        /// Creates an error indicating the account is locked out.
+-        /// </summary>
+-        /// <param name="lockoutMinutes">Duration of lockout in minutes.</param>
+-        public static Error AccountLocked(int lockoutMinutes) =>
+-            new("Auth.AccountLocked", $"Account is locked. Please try again after {lockoutMinutes} minutes.", ErrorType.Forbidden);
+-    }
+-
+-    public static class Content
+-    {
+-        public static readonly Error FileNotFound = new("Content.FileNotFound", "File not found");
+-        public static readonly Error InvalidFileType = new("Content.InvalidFileType", "Invalid file type");
+-        public static readonly Error FileTooLarge = new("Content.FileTooLarge", "File exceeds maximum size");
+-        public static readonly Error UploadFailed = new("Content.UploadFailed", "File upload failed");
+-        public static readonly Error VirusDetected = new("Content.VirusDetected", "Virus detected in file");
+-        public static readonly Error NotFound = new("Content.NotFound", "Content not found.", ErrorType.NotFound);
+-        public static readonly Error SessionNotFound = new("Content.SessionNotFound", "Upload session not found.", ErrorType.NotFound);
+-        public static readonly Error EmptyFile = new("Content.EmptyFile", "No file provided or file is empty.", ErrorType.Validation);
+-        public static readonly Error ValidationFailed = new("Content.ValidationFailed", "File validation failed.", ErrorType.Validation);
+-        public static readonly Error CompletionFailed = new("Content.CompletionFailed", "Failed to complete upload session.", ErrorType.Internal);
+-        public static readonly Error InvalidOperation = new("Content.InvalidOperation", "Invalid operation.", ErrorType.Validation);
+-        public static readonly Error Forbidden = new("Content.Forbidden", "Access denied.", ErrorType.Forbidden);
+-        public static readonly Error InvalidChunk = new("Content.InvalidChunk", "Invalid or empty chunk file.", ErrorType.Validation);
+-        public static readonly Error InvalidChunkIndex = new("Content.InvalidChunkIndex", "Chunk index cannot be negative.", ErrorType.Validation);
+-        public static readonly Error ChunkOutOfRange = new("Content.ChunkOutOfRange", "Chunk index out of range.", ErrorType.Validation);
+-        public static readonly Error StreamError = new("Content.StreamError", "Stream processing error.", ErrorType.Internal);
+-        public static readonly Error InvalidChunkParams = new("Content.InvalidChunkParams", "Invalid chunk parameters.", ErrorType.Validation);
+-        public static readonly Error MetadataValidationFailed = new("Content.MetadataValidationFailed", "Metadata validation failed.", ErrorType.Validation);
+-        public static readonly Error InvalidArgument = new("Content.InvalidArgument", "Invalid argument.", ErrorType.Validation);
+-    }
+-
+-    public static class Vault
+-    {
+-        public static readonly Error ConnectionFailed = new("Vault.ConnectionFailed", "Failed to connect to Vault");
+-        public static readonly Error CredentialRefreshFailed = new("Vault.CredentialRefreshFailed", "Failed to refresh credentials");
+-        public static readonly Error CertificateValidationFailed = new("Vault.CertificateValidationFailed", "Certificate validation failed");
+-    }
+-
+-    public static class Orders
+-    {
+-        public static readonly Error NotFound = new("Orders.NotFound", "Order not found.", ErrorType.NotFound);
+-        public static readonly Error Forbidden = new("Orders.Forbidden", "You are not authorized to view this order.", ErrorType.Forbidden);
+-        public static readonly Error NoItems = new("Orders.NoItems", "No items provided for checkout.", ErrorType.Validation);
+-        public static readonly Error MissingGuestInfo = new("Orders.MissingGuestInfo", "Guest checkout requires shipping information.", ErrorType.Validation);
+-        public static readonly Error IncompleteGuestInfo = new("Orders.IncompleteGuestInfo", "Incomplete guest information provided.", ErrorType.Validation);
+-        public static readonly Error InvalidEmail = new("Orders.InvalidEmail", "Invalid email format.", ErrorType.Validation);
+-        public static readonly Error InvalidUser = new("Orders.InvalidUser", "User ID is required.", ErrorType.Validation);
+-        public static readonly Error InvalidRequest = new("Orders.InvalidRequest", "Invalid request parameters.", ErrorType.Validation);
+-        public static readonly Error InvalidSession = new("Orders.InvalidSession", "Invalid session ID.", ErrorType.Validation);
+-        public static readonly Error PaymentNotFound = new("Orders.PaymentNotFound", "Payment record not found.", ErrorType.NotFound);
+-        public static readonly Error OrderNotFound = new("Orders.OrderNotFound", "Order not found for the provided session.", ErrorType.NotFound);
+-        public static readonly Error RetrievalFailed = new("Orders.RetrievalFailed", "An error occurred while retrieving the order.", ErrorType.Internal);
+-        public static readonly Error VerificationFailed = new("Orders.VerificationFailed", "An error occurred while verifying the order.", ErrorType.Internal);
+-        public static readonly Error FetchFailed = new("Orders.FetchFailed", "Failed to fetch order.", ErrorType.Internal);
+-
+-        // Factory methods for dynamic messages
+-        public static Error NotFoundWithId(Guid orderId) =>
+-            new("Orders.NotFound", $"Order with ID {orderId} not found.", ErrorType.NotFound);
+-    }
+-
+-    public static class Reviews
+-    {
+-        public static readonly Error NotFound = new("Reviews.NotFound", "Review not found.", ErrorType.NotFound);
+-        public static readonly Error ProductNotFound = new("Reviews.ProductNotFound", "Product not found.", ErrorType.NotFound);
+-        public static readonly Error InvalidProduct = new("Reviews.InvalidProduct", "Review does not belong to the specified product.", ErrorType.Validation);
+-        public static readonly Error Forbidden = new("Reviews.Forbidden", "You are not authorized to modify this review.", ErrorType.Forbidden);
+-        public static readonly Error CreateFailed = new("Reviews.CreateFailed", "Failed to create review.", ErrorType.Internal);
+-        public static readonly Error UpdateFailed = new("Reviews.UpdateFailed", "Failed to update review.", ErrorType.Internal);
+-        public static readonly Error DeleteFailed = new("Reviews.DeleteFailed", "Failed to delete review.", ErrorType.Internal);
+-        public static readonly Error ApproveFailed = new("Reviews.ApproveFailed", "Failed to approve review.", ErrorType.Internal);
+-        public static readonly Error FetchFailed = new("Reviews.FetchFailed", "Failed to fetch reviews.", ErrorType.Internal);
+-
+-        // Factory methods for dynamic messages
+-        public static Error ProductNotFoundWithId(Guid productId) =>
+-            new("Reviews.ProductNotFound", $"Product with ID {productId} not found.", ErrorType.NotFound);
+-    }
+-
+-    public static class Categories
+-    {
+-        public static readonly Error NotFound = new("Categories.NotFound", "Category not found.", ErrorType.NotFound);
+-        public static readonly Error InvalidName = new("Categories.InvalidName", "Category name is required.", ErrorType.Validation);
+-
+-        // Factory methods for dynamic messages
+-        public static Error NotFoundWithId(Guid categoryId) =>
+-            new("Categories.NotFound", $"Category with ID {categoryId} not found.", ErrorType.NotFound);
+-    }
+-
+-    public static class Products
+-    {
+-        public static readonly Error NotFound = new("Products.NotFound", "Product not found.", ErrorType.NotFound);
+-        public static readonly Error InvalidCategory = new("Products.InvalidCategory", "Invalid category ID.", ErrorType.Validation);
+-        public static readonly Error CreateFailed = new("Products.CreateFailed", "Failed to create product.", ErrorType.Internal);
+-        public static readonly Error UpdateFailed = new("Products.UpdateFailed", "Failed to update product.", ErrorType.Internal);
+-        public static readonly Error DeleteFailed = new("Products.DeleteFailed", "Failed to delete product.", ErrorType.Internal);
+-
+-        // Factory methods for dynamic messages
+-        public static Error NotFoundWithId(Guid productId) =>
+-            new("Products.NotFound", $"Product with ID {productId} not found.", ErrorType.NotFound);
+-    }
+-
+-    public static class Users
+-    {
+-        public static readonly Error NotFound = new("Users.NotFound", "User not found.", ErrorType.NotFound);
+-        public static readonly Error MissingUserId = new("Users.MissingUserId", "User ID is required.", ErrorType.Validation);
+-        public static readonly Error UpdateFailed = new("Users.UpdateFailed", "Failed to update user profile.", ErrorType.Internal);
+-        public static readonly Error FetchFailed = new("Users.FetchFailed", "Failed to fetch user profile.", ErrorType.Internal);
+-    }
+-
+-    public static class Checkout
+-    {
+-        public static readonly Error SessionNotFound = new("Checkout.SessionNotFound", "Checkout session not found.", ErrorType.NotFound);
+-        public static readonly Error FetchFailed = new("Checkout.FetchFailed", "Failed to fetch checkout session.", ErrorType.Internal);
+-        public static readonly Error CreationFailed = new("Checkout.CreationFailed", "Failed to create checkout session.", ErrorType.Internal);
+-    }
+-
+-    public static class Subscription
+-    {
+-        public static readonly Error InvalidUser = new("Subscription.InvalidUser", "User ID is required.", ErrorType.Validation);
+-        public static readonly Error InvalidPriceId = new("Subscription.InvalidPriceId", "Price ID is required.", ErrorType.Validation);
+-        public static readonly Error SessionCreationFailed = new("Subscription.SessionCreationFailed", "Failed to create subscription session.", ErrorType.Internal);
+-        public static readonly Error InvalidRequest = new("Subscription.InvalidRequest", "Invalid subscription request.", ErrorType.Validation);
+-        public static readonly Error StripeError = new("Subscription.StripeError", "Stripe API error.", ErrorType.Internal);
+-        public static readonly Error FetchFailed = new("Subscription.FetchFailed", "Failed to fetch subscription status.", ErrorType.Internal);
+-    }
+ }
+diff --git a/src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs b/src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs
+index 4dd9d46d..e34f54b5 100644
+--- a/src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs
++++ b/src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs
+@@ -21,7 +21,6 @@ namespace Haworks.BuildingBlocks.Vault;
+ ///   - <see cref="DatabaseOptions"/> (from <c>"Database"</c> config section)
+ ///   - <see cref="ICertificateValidator"/>, <see cref="ISecretFileReader"/>
+ ///   - <see cref="IVaultClientFactory"/>
+-///   - <see cref="IResiliencePolicyFactory"/>
+ ///   - <see cref="IVaultService"/>
+ ///
+ /// Idempotent — safe to call multiple times; each registration uses
+diff --git a/src/Catalog/Catalog.Application/Commands/CreateProductCommand.cs b/src/Catalog/Catalog.Application/Commands/CreateProductCommand.cs
+index 26070187..e6d71eb6 100644
+--- a/src/Catalog/Catalog.Application/Commands/CreateProductCommand.cs
++++ b/src/Catalog/Catalog.Application/Commands/CreateProductCommand.cs
+@@ -1,5 +1,6 @@
+ using FluentValidation;
+ using Haworks.BuildingBlocks.Idempotency;
++using Haworks.Catalog.Domain.Errors;
+ using MediatR;
+ 
+ namespace Haworks.Catalog.Application.Commands;
+@@ -24,7 +25,7 @@ internal sealed class CreateProductCommandHandler(
+         var category = await categories.GetByIdAsync(request.CategoryId, ct);
+         if (category is null)
+         {
+-            return Result.Failure<Guid>(Error.Categories.NotFoundWithId(request.CategoryId));
++            return Result.Failure<Guid>(CategoryErrors.NotFoundWithId(request.CategoryId));
+         }
+ 
+         var product = Product.Create(request.Name, request.Description, request.UnitPriceCents, request.CategoryId);
+diff --git a/src/Catalog/Catalog.Application/Commands/Reservations/CreateReservationCommand.cs b/src/Catalog/Catalog.Application/Commands/Reservations/CreateReservationCommand.cs
+index 25236b64..deb65670 100644
+--- a/src/Catalog/Catalog.Application/Commands/Reservations/CreateReservationCommand.cs
++++ b/src/Catalog/Catalog.Application/Commands/Reservations/CreateReservationCommand.cs
+@@ -71,7 +71,7 @@ internal sealed class CreateReservationCommandHandler(
+         {
+             // Map the domain exception to a typed error so the controller
+             // can surface 409 without leaking exception details. Don't reuse
+-            // Error.Payment.InsufficientStock — that's ErrorType.Internal
++            // PaymentErrors.InsufficientStock — that's ErrorType.Internal
+             // and would map to 500.
+             logger.LogWarning(
+                 "Insufficient stock for product {ProductId}: requested {Requested}, available {Available}",
+diff --git a/src/Catalog/Catalog.Application/Commands/ReserveStockCommand.cs b/src/Catalog/Catalog.Application/Commands/ReserveStockCommand.cs
+index ae357055..325c669b 100644
+--- a/src/Catalog/Catalog.Application/Commands/ReserveStockCommand.cs
++++ b/src/Catalog/Catalog.Application/Commands/ReserveStockCommand.cs
+@@ -1,5 +1,6 @@
+ using FluentValidation;
+ using Haworks.BuildingBlocks.Common;
++using Haworks.Catalog.Domain.Errors;
+ using MassTransit;
+ using MediatR;
+ using Microsoft.EntityFrameworkCore;
+@@ -45,7 +46,7 @@ internal sealed class ReserveStockCommandHandler(
+         var product = await products.GetByIdTrackedAsync(request.ProductId, ct);
+         if (product is null)
+         {
+-            return Result.Failure<Guid>(Error.Products.NotFoundWithId(request.ProductId));
++            return Result.Failure<Guid>(ProductErrors.NotFoundWithId(request.ProductId));
+         }
+ 
+         if (!product.ReserveStock(request.Quantity))
+@@ -55,7 +56,7 @@ internal sealed class ReserveStockCommandHandler(
+                 product.Id, request.Quantity, product.StockQuantity);
+             // Conflict (409) is the right HTTP semantic — the request is well-formed,
+             // but the resource state (stock) won't satisfy it. Don't reuse
+-            // Error.Payment.InsufficientStock — that one is ErrorType.Internal
++            // PaymentErrors.InsufficientStock — that one is ErrorType.Internal
+             // (500), wrong for a domain-level "no" answer.
+             return Result.Failure<Guid>(Error.Conflict(
+                 "Stock.Insufficient",
+diff --git a/src/Catalog/Catalog.Application/Queries/GetProductByIdQuery.cs b/src/Catalog/Catalog.Application/Queries/GetProductByIdQuery.cs
+index 78dc3a15..47a93e0d 100644
+--- a/src/Catalog/Catalog.Application/Queries/GetProductByIdQuery.cs
++++ b/src/Catalog/Catalog.Application/Queries/GetProductByIdQuery.cs
+@@ -1,5 +1,6 @@
+ using MediatR;
+ using Haworks.Catalog.Application.DTOs;
++using Haworks.Catalog.Domain.Errors;
+ 
+ namespace Haworks.Catalog.Application.Queries;
+ 
+@@ -13,7 +14,7 @@ internal sealed class GetProductByIdQueryHandler(IProductRepository products)
+         var product = await products.GetByIdAsync(request.Id, ct);
+         if (product is null)
+         {
+-            return Result.Failure<ProductDto>(Error.Products.NotFoundWithId(request.Id));
++            return Result.Failure<ProductDto>(ProductErrors.NotFoundWithId(request.Id));
+         }
+ 
+         return Result.Success(new ProductDto(
+diff --git a/src/Identity/Identity.Application/Commands/Users/SaveShippingInfoCommand.cs b/src/Identity/Identity.Application/Commands/Users/SaveShippingInfoCommand.cs
+index e5d3734a..a3b8b4ba 100644
+--- a/src/Identity/Identity.Application/Commands/Users/SaveShippingInfoCommand.cs
++++ b/src/Identity/Identity.Application/Commands/Users/SaveShippingInfoCommand.cs
+@@ -1,6 +1,7 @@
+ using Haworks.BuildingBlocks.Common;
+ using Haworks.BuildingBlocks.Idempotency;
+ using Haworks.Identity.Domain;
++using Haworks.Identity.Domain.Errors;
+ using Haworks.Identity.Domain.Interfaces;
+ using MediatR;
+ 
+@@ -32,7 +33,7 @@ internal sealed class SaveShippingInfoCommandHandler : IRequestHandler<SaveShipp
+     {
+         if (string.IsNullOrEmpty(request.UserId))
+         {
+-            return Result.Failure(Error.Users.MissingUserId);
++            return Result.Failure(UserErrors.MissingUserId);
+         }
+ 
+         var profile = await _userProfileRepository.GetByUserIdAsync(request.UserId, cancellationToken);
+diff --git a/src/Identity/Identity.Application/Commands/Users/UpdateUserProfileCommand.cs b/src/Identity/Identity.Application/Commands/Users/UpdateUserProfileCommand.cs
+index 4ad756b0..d84da30f 100644
+--- a/src/Identity/Identity.Application/Commands/Users/UpdateUserProfileCommand.cs
++++ b/src/Identity/Identity.Application/Commands/Users/UpdateUserProfileCommand.cs
+@@ -1,6 +1,7 @@
+ using Haworks.BuildingBlocks.Common;
+ using Haworks.BuildingBlocks.Idempotency;
+ using Haworks.Identity.Domain;
++using Haworks.Identity.Domain.Errors;
+ using Haworks.Identity.Domain.Interfaces;
+ using MediatR;
+ 
+@@ -35,7 +36,7 @@ internal sealed class UpdateUserProfileCommandHandler : IRequestHandler<UpdateUs
+     {
+         if (string.IsNullOrEmpty(request.UserId))
+         {
+-            return Result.Failure(Error.Users.MissingUserId);
++            return Result.Failure(UserErrors.MissingUserId);
+         }
+ 
+         var profile = await _userProfileRepository.GetByUserIdAsync(request.UserId, cancellationToken);
+diff --git a/src/Identity/Identity.Application/ExternalLoginCallbackCommand.cs b/src/Identity/Identity.Application/ExternalLoginCallbackCommand.cs
+index c5803442..ee747c23 100644
+--- a/src/Identity/Identity.Application/ExternalLoginCallbackCommand.cs
++++ b/src/Identity/Identity.Application/ExternalLoginCallbackCommand.cs
+@@ -72,14 +72,14 @@ internal sealed class ExternalLoginCallbackCommandHandler
+         // 1. Validate inputs
+         // -----------------------------------------------------------------
+         if (request.HttpContext == null)
+-            return Result.Failure<AuthResponseDto>(Error.Auth.InvalidContext);
++            return Result.Failure<AuthResponseDto>(AuthErrors.InvalidContext);
+ 
+         var loginInfo = await _signInManager.GetExternalLoginInfoAsync();
+         if (loginInfo == null)
+-            return Result.Failure<AuthResponseDto>(Error.Auth.ExternalLoginFailed);
++            return Result.Failure<AuthResponseDto>(AuthErrors.ExternalLoginFailed);
+ 
+         if (string.IsNullOrWhiteSpace(loginInfo.ProviderKey))
+-            return Result.Failure<AuthResponseDto>(Error.Auth.InvalidProviderKey);
++            return Result.Failure<AuthResponseDto>(AuthErrors.InvalidProviderKey);
+ 
+         _logger.LogInformation("Processing external login callback. Provider: {Provider}", loginInfo.LoginProvider);
+ 
+@@ -100,7 +100,7 @@ internal sealed class ExternalLoginCallbackCommandHandler
+             if (user == null)
+             {
+                 _logger.LogError("Inconsistency: ExternalLoginSignIn succeeded but FindByLoginAsync returned null.");
+-                return Result.Failure<AuthResponseDto>(Error.Auth.UserInconsistency);
++                return Result.Failure<AuthResponseDto>(AuthErrors.UserInconsistency);
+             }
+ 
+             _logger.LogInformation("User {UserId} signed in via external provider {Provider}.", user.Id, loginInfo.LoginProvider);
+@@ -114,7 +114,7 @@ internal sealed class ExternalLoginCallbackCommandHandler
+         if (string.IsNullOrWhiteSpace(email))
+         {
+             _logger.LogWarning("External provider {Provider} did not return an email claim.", loginInfo.LoginProvider);
+-            return Result.Failure<AuthResponseDto>(Error.Auth.MissingEmail);
++            return Result.Failure<AuthResponseDto>(AuthErrors.MissingEmail);
+         }
+ 
+         // -----------------------------------------------------------------
+@@ -126,7 +126,7 @@ internal sealed class ExternalLoginCallbackCommandHandler
+             _logger.LogWarning(
+                 "External provider {Provider} returned unverified email {Email}. Blocking account linking.",
+                 loginInfo.LoginProvider, email);
+-            return Result.Failure<AuthResponseDto>(Error.Auth.UnverifiedEmail);
++            return Result.Failure<AuthResponseDto>(AuthErrors.UnverifiedEmail);
+         }
+ 
+         // -----------------------------------------------------------------
+@@ -138,7 +138,7 @@ internal sealed class ExternalLoginCallbackCommandHandler
+         {
+             _logger.LogWarning("External login {Provider} already linked to user {UserId}.",
+                 loginInfo.LoginProvider, existingLoginUser.Id);
+-            return Result.Failure<AuthResponseDto>(Error.Auth.AlreadyLinked);
++            return Result.Failure<AuthResponseDto>(AuthErrors.AlreadyLinked);
+         }
+ 
+         // -----------------------------------------------------------------
+@@ -153,7 +153,7 @@ internal sealed class ExternalLoginCallbackCommandHandler
+                 var errors = string.Join(", ", linkResult.Errors.Select(e => e.Description));
+                 _logger.LogWarning("Failed to link external login to existing user {UserId}: {Errors}",
+                     userByEmail.Id, errors);
+-                return Result.Failure<AuthResponseDto>(Error.Auth.LinkFailed);
++                return Result.Failure<AuthResponseDto>(AuthErrors.LinkFailed);
+             }
+ 
+             _logger.LogInformation("Linked external login {Provider} to existing user {UserId}.",
+@@ -190,7 +190,7 @@ internal sealed class ExternalLoginCallbackCommandHandler
+             {
+                 // TransactionScope disposes without Complete = auto-rollback.
+                 _logger.LogWarning("Failed to link external login to new user {Email}. Rolling back.", email);
+-                return Result.Failure<AuthResponseDto>(Error.Auth.LinkFailed);
++                return Result.Failure<AuthResponseDto>(AuthErrors.LinkFailed);
+             }
+ 
+             var roleResult = await _userManager.AddToRoleAsync(newUser, "ContentUploader");
+@@ -367,7 +367,7 @@ internal sealed class ExternalLoginCallbackCommandHandler
+             }
+         }
+ 
+-        return Result.Failure<AuthResponseDto>(Error.Auth.CreateFailed);
++        return Result.Failure<AuthResponseDto>(AuthErrors.CreateFailed);
+     }
+ 
+     private async Task<Result<AuthResponseDto>> GenerateAuthResponseAsync(
+diff --git a/src/Identity/Identity.Application/LinkExternalLoginCommand.cs b/src/Identity/Identity.Application/LinkExternalLoginCommand.cs
+index a730d323..a0188aec 100644
+--- a/src/Identity/Identity.Application/LinkExternalLoginCommand.cs
++++ b/src/Identity/Identity.Application/LinkExternalLoginCommand.cs
+@@ -1,6 +1,7 @@
+ using Haworks.BuildingBlocks.Common;
+ using Haworks.BuildingBlocks.Idempotency;
+ using Haworks.Identity.Domain;
++using Haworks.Identity.Domain.Errors;
+ using MediatR;
+ using Microsoft.AspNetCore.Identity;
+ 
+@@ -39,7 +40,7 @@ internal sealed class LinkExternalLoginCommandHandler
+         // Issue #1, #3: Validate LoginInfo early if provided
+         if (request.LoginInfo != null && string.IsNullOrEmpty(request.LoginInfo.ProviderKey))
+         {
+-            return Result.Failure<LinkExternalLoginResult>(Error.Auth.InvalidProviderKey);
++            return Result.Failure<LinkExternalLoginResult>(AuthErrors.InvalidProviderKey);
+         }
+ 
+         // Issue #2, #7: Check existing external login before attempting to add
+@@ -48,7 +49,7 @@ internal sealed class LinkExternalLoginCommandHandler
+             var userForCheck = await _userManager.FindByIdAsync(request.UserId);
+             if (userForCheck == null)
+             {
+-                return Result.Failure<LinkExternalLoginResult>(Error.Auth.UserNotFound);
++                return Result.Failure<LinkExternalLoginResult>(AuthErrors.UserNotFound);
+             }
+ 
+             var existingLogins = await _userManager.GetLoginsAsync(userForCheck);
+@@ -62,13 +63,13 @@ internal sealed class LinkExternalLoginCommandHandler
+         // Validate UserId (existing check)
+         if (string.IsNullOrEmpty(request.UserId))
+         {
+-            return Result.Failure<LinkExternalLoginResult>(Error.Auth.MissingUserId);
++            return Result.Failure<LinkExternalLoginResult>(AuthErrors.MissingUserId);
+         }
+ 
+         var user = await _userManager.FindByIdAsync(request.UserId);
+         if (user == null)
+         {
+-            return Result.Failure<LinkExternalLoginResult>(Error.Auth.UserNotFound);
++            return Result.Failure<LinkExternalLoginResult>(AuthErrors.UserNotFound);
+         }
+ 
+         // No LoginInfo -> need to challenge
+@@ -86,7 +87,7 @@ internal sealed class LinkExternalLoginCommandHandler
+             _logger.LogWarning("Failed to link external login for user {UserId}, provider {Provider}: {Errors}",
+                 user.Id, request.Provider, errors);
+ 
+-            return Result.Failure<LinkExternalLoginResult>(Error.Auth.LinkFailed);
++            return Result.Failure<LinkExternalLoginResult>(AuthErrors.LinkFailed);
+         }
+ 
+         // Issue #10: Add success audit log
+diff --git a/src/Identity/Identity.Application/LoginCommand.cs b/src/Identity/Identity.Application/LoginCommand.cs
+index 6f3e99f9..88a8bc78 100644
+--- a/src/Identity/Identity.Application/LoginCommand.cs
++++ b/src/Identity/Identity.Application/LoginCommand.cs
+@@ -4,6 +4,7 @@ using Haworks.Identity.Application.Telemetry;
+ using Haworks.BuildingBlocks.Common;
+ using Haworks.BuildingBlocks.Idempotency;
+ using Haworks.Identity.Domain;
++using Haworks.Identity.Domain.Errors;
+ using MediatR;
+ using Microsoft.AspNetCore.Identity;
+ using Microsoft.Extensions.Options;
+@@ -76,7 +77,7 @@ internal sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result
+                 CorrelationId = correlationId
+             }, cancellationToken);
+ 
+-            return Result.Failure<AuthResponseDto>(Error.Auth.InvalidCredentials);
++            return Result.Failure<AuthResponseDto>(AuthErrors.InvalidCredentials);
+         }
+ 
+         // Check if user is locked out
+@@ -100,7 +101,7 @@ internal sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result
+             }, cancellationToken);
+ 
+             return Result.Failure<AuthResponseDto>(
+-                Error.Auth.AccountLocked(AuthConstants.LockoutDurationMinutes));
++                AuthErrors.AccountLocked(AuthConstants.LockoutDurationMinutes));
+         }
+ 
+         // Use CheckPasswordSignInAsync to track failed attempts and handle lockout
+@@ -126,7 +127,7 @@ internal sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result
+             }, cancellationToken);
+ 
+             return Result.Failure<AuthResponseDto>(
+-                Error.Auth.AccountLocked(AuthConstants.LockoutDurationMinutes));
++                AuthErrors.AccountLocked(AuthConstants.LockoutDurationMinutes));
+         }
+ 
+         if (!signInResult.Succeeded)
+@@ -150,7 +151,7 @@ internal sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result
+                 CorrelationId = correlationId
+             }, cancellationToken);
+ 
+-            return Result.Failure<AuthResponseDto>(Error.Auth.InvalidCredentials);
++            return Result.Failure<AuthResponseDto>(AuthErrors.InvalidCredentials);
+         }
+ 
+         // Reset failed access count on successful login
+@@ -173,7 +174,7 @@ internal sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result
+                 CorrelationId = correlationId
+             }, cancellationToken);
+ 
+-            return Result.Failure<AuthResponseDto>(Error.Auth.AccountDeactivated);
++            return Result.Failure<AuthResponseDto>(AuthErrors.AccountDeactivated);
+         }
+ 
+         activity?.SetTag("user.id", user.Id);
+diff --git a/src/Identity/Identity.Application/RefreshTokenCommand.cs b/src/Identity/Identity.Application/RefreshTokenCommand.cs
+index 36623dd3..5a12ccda 100644
+--- a/src/Identity/Identity.Application/RefreshTokenCommand.cs
++++ b/src/Identity/Identity.Application/RefreshTokenCommand.cs
+@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
+ using System.Security.Claims;
+ using Haworks.Identity.Application.DTOs;
+ using Haworks.BuildingBlocks.Common;
++using Haworks.Identity.Domain.Errors;
+ using Haworks.BuildingBlocks.Idempotency;
+ using Haworks.Identity.Domain;
+ using MediatR;
+@@ -68,25 +69,25 @@ internal sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenC
+ 
+         // 1. Basic Validation
+         if (string.IsNullOrEmpty(request.AccessToken) || string.IsNullOrEmpty(request.RefreshToken))
+-            return Result.Failure<AuthResponseDto>(Error.Auth.MissingTokens);
++            return Result.Failure<AuthResponseDto>(AuthErrors.MissingTokens);
+ 
+         try
+         {
+             // 2. Validate Access Token (Ignore lifetime because it's expected to be expired)
+             var principal = await _jwtTokenService.ValidateTokenAsync(request.AccessToken, validateLifetime: false, ct: cancellationToken);
+             if (principal == null)
+-                return Result.Failure<AuthResponseDto>(Error.Auth.InvalidAccessToken);
++                return Result.Failure<AuthResponseDto>(AuthErrors.InvalidAccessToken);
+ 
+             // 3. Extract Identity
+             var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                          principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
+ 
+             if (string.IsNullOrEmpty(userId))
+-                return Result.Failure<AuthResponseDto>(Error.Auth.MissingUserId);
++                return Result.Failure<AuthResponseDto>(AuthErrors.MissingUserId);
+ 
+             var user = await _userManager.FindByIdAsync(userId);
+             if (user == null)
+-                return Result.Failure<AuthResponseDto>(Error.Auth.UserNotFound);
++                return Result.Failure<AuthResponseDto>(AuthErrors.UserNotFound);
+ 
+             // Reject deactivated users — invalidate their session
+             if (!user.IsActive)
+@@ -105,7 +106,7 @@ internal sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenC
+                     CorrelationId = correlationId
+                 }, cancellationToken);
+ 
+-                return Result.Failure<AuthResponseDto>(Error.Auth.AccountDeactivated);
++                return Result.Failure<AuthResponseDto>(AuthErrors.AccountDeactivated);
+             }
+ 
+             // 4. Atomic Token Rotation with transaction
+@@ -130,7 +131,7 @@ internal sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenC
+                     CorrelationId = correlationId
+                 }, cancellationToken);
+ 
+-                return Result.Failure<AuthResponseDto>(Error.Auth.InvalidRefreshToken);
++                return Result.Failure<AuthResponseDto>(AuthErrors.InvalidRefreshToken);
+             }
+ 
+             if (storedToken.Expires < DateTime.UtcNow)
+@@ -151,7 +152,7 @@ internal sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenC
+                     CorrelationId = correlationId
+                 }, cancellationToken);
+ 
+-                return Result.Failure<AuthResponseDto>(Error.Auth.TokenExpired);
++                return Result.Failure<AuthResponseDto>(AuthErrors.TokenExpired);
+             }
+ 
+             // 5. Revoke old and Issue new
+@@ -196,12 +197,12 @@ internal sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenC
+         catch (SecurityTokenException ex)
+         {
+             _logger.LogWarning("SecurityTokenException during refresh: {Message}", ex.Message);
+-            return Result.Failure<AuthResponseDto>(Error.Auth.TokenProcessingError);
++            return Result.Failure<AuthResponseDto>(AuthErrors.TokenProcessingError);
+         }
+         catch (Exception ex)
+         {
+             _logger.LogError(ex, "Unexpected error in RefreshTokenHandler");
+-            return Result.Failure<AuthResponseDto>(Error.Auth.RefreshFailed);
++            return Result.Failure<AuthResponseDto>(AuthErrors.RefreshFailed);
+         }
+     }
+ }
+diff --git a/src/Identity/Identity.Application/RegisterCommand.cs b/src/Identity/Identity.Application/RegisterCommand.cs
+index 5df8278c..1ce18918 100644
+--- a/src/Identity/Identity.Application/RegisterCommand.cs
++++ b/src/Identity/Identity.Application/RegisterCommand.cs
+@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
+ using System.Security.Claims;
+ using Haworks.Identity.Application.DTOs;
+ using Haworks.BuildingBlocks.Common;
++using Haworks.Identity.Domain.Errors;
+ using Haworks.BuildingBlocks.Idempotency;
+ using Haworks.Identity.Domain;
+ using MediatR;
+@@ -94,7 +95,7 @@ internal sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand,
+             {
+                 _logger.LogError("Failed to add user {UserId} to role 'ContentUploader'. Errors: {Errors}",
+                     user.Id, string.Join(", ", roleResult.Errors.Select(e => e.Description)));
+-                return Result.Failure<AuthResponseDto>(Error.Auth.RoleAssignmentFailed);
++                return Result.Failure<AuthResponseDto>(AuthErrors.RoleAssignmentFailed);
+             }
+ 
+             var claimResult = await _userManager.AddClaimAsync(user, new Claim("permission", "upload_content"));
+@@ -102,7 +103,7 @@ internal sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand,
+             {
+                 _logger.LogError("Failed to add claim 'permission:upload_content' for user {UserId}. Errors: {Errors}",
+                     user.Id, string.Join(", ", claimResult.Errors.Select(e => e.Description)));
+-                return Result.Failure<AuthResponseDto>(Error.Auth.ClaimAssignmentFailed);
++                return Result.Failure<AuthResponseDto>(AuthErrors.ClaimAssignmentFailed);
+             }
+ 
+             txScope.Complete();
+diff --git a/src/Identity/Identity.Application/UnlinkExternalLoginCommand.cs b/src/Identity/Identity.Application/UnlinkExternalLoginCommand.cs
+index 887df980..3c136378 100644
+--- a/src/Identity/Identity.Application/UnlinkExternalLoginCommand.cs
++++ b/src/Identity/Identity.Application/UnlinkExternalLoginCommand.cs
+@@ -1,6 +1,7 @@
+ using Haworks.BuildingBlocks.Common;
+ using Haworks.BuildingBlocks.Idempotency;
+ using Haworks.Identity.Domain;
++using Haworks.Identity.Domain.Errors;
+ using MediatR;
+ using Microsoft.AspNetCore.Identity;
+ 
+@@ -29,20 +30,20 @@ internal sealed class UnlinkExternalLoginCommandHandler : IRequestHandler<Unlink
+     {
+         if (string.IsNullOrEmpty(request.UserId))
+         {
+-            return Result.Failure(Error.Auth.MissingUserId);
++            return Result.Failure(AuthErrors.MissingUserId);
+         }
+ 
+         var user = await _userManager.FindByIdAsync(request.UserId);
+         if (user == null)
+         {
+-            return Result.Failure(Error.Auth.UserNotFound);
++            return Result.Failure(AuthErrors.UserNotFound);
+         }
+ 
+         var logins = await _userManager.GetLoginsAsync(user);
+         var loginToRemove = logins.FirstOrDefault(l => string.Equals(l.LoginProvider, request.Provider, StringComparison.Ordinal));
+         if (loginToRemove == null)
+         {
+-            return Result.Failure(Error.Auth.LoginNotFound);
++            return Result.Failure(AuthErrors.LoginNotFound);
+         }
+ 
+         var result = await _userManager.RemoveLoginAsync(user, loginToRemove.LoginProvider, loginToRemove.ProviderKey);
+@@ -50,7 +51,7 @@ internal sealed class UnlinkExternalLoginCommandHandler : IRequestHandler<Unlink
+         {
+             var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+             _logger.LogWarning("Failed to unlink external login: {Errors}", errors);
+-            return Result.Failure(Error.Auth.UnlinkFailed);
++            return Result.Failure(AuthErrors.UnlinkFailed);
+         }
+ 
+         _logger.LogInformation("Removed {Provider} login from user {UserId}", request.Provider, request.UserId);
+diff --git a/src/Orders/Orders.Application/Queries/GetOrderByIdQuery.cs b/src/Orders/Orders.Application/Queries/GetOrderByIdQuery.cs
+index fcecf6b2..d7685055 100644
+--- a/src/Orders/Orders.Application/Queries/GetOrderByIdQuery.cs
++++ b/src/Orders/Orders.Application/Queries/GetOrderByIdQuery.cs
+@@ -1,5 +1,6 @@
+ using MediatR;
+ using Haworks.Orders.Application.DTOs;
++using Haworks.Orders.Domain.Errors;
+ 
+ namespace Haworks.Orders.Application.Queries;
+ 
+@@ -13,12 +14,12 @@ internal sealed class GetOrderByIdQueryHandler(IOrderRepository orders)
+         var order = await orders.GetByIdAsync(request.Id, ct);
+         if (order is null)
+         {
+-            return Result.Failure<OrderDto>(Error.Orders.NotFoundWithId(request.Id));
++            return Result.Failure<OrderDto>(OrderErrors.NotFoundWithId(request.Id));
+         }
+ 
+         if (!string.Equals(order.UserId, request.UserId, StringComparison.Ordinal))
+         {
+-            return Result.Failure<OrderDto>(Error.Orders.Forbidden);
++            return Result.Failure<OrderDto>(OrderErrors.Forbidden);
+         }
+ 
+         return Result.Success(MapToDto(order));
+diff --git a/src/Orders/Orders.Application/Queries/ListUserOrdersQuery.cs b/src/Orders/Orders.Application/Queries/ListUserOrdersQuery.cs
+index 9777528c..da123460 100644
+--- a/src/Orders/Orders.Application/Queries/ListUserOrdersQuery.cs
++++ b/src/Orders/Orders.Application/Queries/ListUserOrdersQuery.cs
+@@ -1,4 +1,5 @@
+ using MediatR;
++using Haworks.Orders.Domain.Errors;
+ using Haworks.Orders.Application.DTOs;
+ 
+ namespace Haworks.Orders.Application.Queries;
+@@ -15,7 +16,7 @@ internal sealed class ListUserOrdersQueryHandler(IOrderRepository orders)
+     {
+         if (string.IsNullOrWhiteSpace(request.UserId))
+         {
+-            return Result.Failure<PagedResult<OrderDto>>(Error.Users.MissingUserId);
++            return Result.Failure<PagedResult<OrderDto>>(OrderErrors.InvalidUser);
+         }
+ 
+         var skip = Math.Max(0, request.Skip);
+diff --git a/src/Payments/Payments.Infrastructure/PayPal/PayPalSubscriptionManager.cs b/src/Payments/Payments.Infrastructure/PayPal/PayPalSubscriptionManager.cs
+index afb065e6..2845a31f 100644
+--- a/src/Payments/Payments.Infrastructure/PayPal/PayPalSubscriptionManager.cs
++++ b/src/Payments/Payments.Infrastructure/PayPal/PayPalSubscriptionManager.cs
+@@ -116,7 +116,6 @@ internal sealed class PayPalSubscriptionManager(
+     }
+ 
+     /// <inheritdoc />
+-    public Task<bool> ResumeAsync(string subscriptionId, CancellationToken ct = default)
+     public async Task<bool> ResumeAsync(string subscriptionId, CancellationToken ct = default)
+     {
+         var client = await clientFactory.GetAuthenticatedClientAsync(ct);
+diff --git a/src/Search/Search.Infrastructure/Catalog/CatalogProductsApiClient.cs b/src/Search/Search.Infrastructure/Catalog/CatalogProductsApiClient.cs
+index de7a578c..c04aafa2 100644
+--- a/src/Search/Search.Infrastructure/Catalog/CatalogProductsApiClient.cs
++++ b/src/Search/Search.Infrastructure/Catalog/CatalogProductsApiClient.cs
+@@ -1,7 +1,6 @@
+ using Haworks.BuildingBlocks.Resilience;
+ using Haworks.Search.Application.Catalog;
+ using Microsoft.Extensions.Logging;
+-using Polly;
+ using System.Net;
+ using System.Net.Http.Json;
+ 
+@@ -10,50 +9,34 @@ namespace Haworks.Search.Infrastructure.Catalog;
+ /// <summary>
+ /// Concrete <see cref="ICatalogProductsApi"/> using <see cref="HttpClient"/>
+ /// (injected by <see cref="IHttpClientFactory"/> via the typed-client overload
+-/// of <c>AddHttpClient</c>) and wrapping every call in the platform's
+-/// standard combined policy from <see cref="IResiliencePolicyFactory"/>.
+-///
+-/// This matches the established pattern in Stripe/PayPal services — wrap
+-/// at call site, not via Polly's <c>AddPolicyHandler</c>, because the
+-/// non-generic <c>IAsyncPolicy</c> doesn't fit the HTTP-handler signature.
++/// of <c>AddHttpClient</c>). Resilience is provided by the global
++/// <c>AddStandardResilienceHandler</c> in ServiceDefaults.ConfigureHttpClientDefaults.
+ /// </summary>
+ internal sealed class CatalogProductsApiClient : ICatalogProductsApi
+ {
+     private readonly HttpClient _http;
+-    private readonly IAsyncPolicy _policy;
+ 
+-    public CatalogProductsApiClient(
+-        HttpClient http,
+-        IResiliencePolicyFactory resiliencePolicyFactory,
+-        ILogger<CatalogProductsApiClient> logger)
++    public CatalogProductsApiClient(HttpClient http)
+     {
+         _http = http;
+-        _policy = resiliencePolicyFactory.CreateCombinedPolicy(
+-            ResilienceOptions.ForExternalApi("catalog"));
+     }
+ 
+-    public Task<CatalogProductDto> GetProductAsync(Guid id, CancellationToken ct = default)
++    public async Task<CatalogProductDto> GetProductAsync(Guid id, CancellationToken ct = default)
+     {
+-        return _policy.ExecuteAsync(async innerCt =>
+-        {
+-            using var resp = await _http.GetAsync($"/api/v1/products/{id}", innerCt).ConfigureAwait(false);
+-            resp.EnsureSuccessStatusCode();
+-            var dto = await resp.Content.ReadFromJsonAsync<CatalogProductDto>(cancellationToken: innerCt).ConfigureAwait(false);
+-            return dto ?? throw new HttpRequestException($"Catalog returned null body for product {id}");
+-        }, ct);
++        using var resp = await _http.GetAsync($"/api/v1/products/{id}", ct).ConfigureAwait(false);
++        resp.EnsureSuccessStatusCode();
++        var dto = await resp.Content.ReadFromJsonAsync<CatalogProductDto>(cancellationToken: ct).ConfigureAwait(false);
++        return dto ?? throw new HttpRequestException($"Catalog returned null body for product {id}");
+     }
+ 
+-    public Task<CatalogProductPage> ListProductsAsync(int skip, int take, Guid? categoryId, CancellationToken ct = default)
++    public async Task<CatalogProductPage> ListProductsAsync(int skip, int take, Guid? categoryId, CancellationToken ct = default)
+     {
+-        return _policy.ExecuteAsync(async innerCt =>
+-        {
+-            var query = $"/api/v1/products?skip={skip}&take={take}";
+-            if (categoryId is { } cat) query += $"&categoryId={cat}";
++        var query = $"/api/v1/products?skip={skip}&take={take}";
++        if (categoryId is { } cat) query += $"&categoryId={cat}";
+ 
+-            using var resp = await _http.GetAsync(query, innerCt).ConfigureAwait(false);
+-            resp.EnsureSuccessStatusCode();
+-            var page = await resp.Content.ReadFromJsonAsync<CatalogProductPage>(cancellationToken: innerCt).ConfigureAwait(false);
+-            return page ?? throw new HttpRequestException("Catalog returned null body for product list");
+-        }, ct);
++        using var resp = await _http.GetAsync(query, ct).ConfigureAwait(false);
++        resp.EnsureSuccessStatusCode();
++        var page = await resp.Content.ReadFromJsonAsync<CatalogProductPage>(cancellationToken: ct).ConfigureAwait(false);
++        return page ?? throw new HttpRequestException("Catalog returned null body for product list");
+     }
+ }
+diff --git a/src/Search/Search.Infrastructure/DependencyInjection.cs b/src/Search/Search.Infrastructure/DependencyInjection.cs
+index 0835d5a9..63e73b37 100644
+--- a/src/Search/Search.Infrastructure/DependencyInjection.cs
++++ b/src/Search/Search.Infrastructure/DependencyInjection.cs
+@@ -38,10 +38,8 @@ public static class DependencyInjection
+ 
+         services.AddScoped<ISearchIndex, ElasticsearchIndex>();
+ 
+-        // Catalog HTTP client. The resilience policy is constructed inside
+-        // CatalogProductsApiClient and wraps each call — matching the
+-        // Stripe/PayPal pattern — so AddPolicyHandler isn't needed here.
+-        services.AddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
++        // Catalog HTTP client. Resilience is handled by the global
++        // AddStandardResilienceHandler in ServiceDefaults.
+         services.AddHttpClient<ICatalogProductsApi, CatalogProductsApiClient>((sp, c) =>
+         {
+             c.BaseAddress = new Uri(configuration["Catalog:BaseAddress"]
+diff --git a/tests/BuildingBlocks/BuildingBlocks.Unit/Vault/VaultServiceTests.cs b/tests/BuildingBlocks/BuildingBlocks.Unit/Vault/VaultServiceTests.cs
+index 272d8adf..a527934e 100644
+--- a/tests/BuildingBlocks/BuildingBlocks.Unit/Vault/VaultServiceTests.cs
++++ b/tests/BuildingBlocks/BuildingBlocks.Unit/Vault/VaultServiceTests.cs
+@@ -23,7 +23,6 @@ namespace Haworks.BuildingBlocks.Unit.Vault;
+ public class VaultServiceTests
+ {
+     private readonly Mock<IVaultClientFactory> _clientFactoryMock = new();
+-    private readonly Mock<IResiliencePolicyFactory> _policyFactoryMock = new();
+     private readonly Mock<ITelemetryService> _telemetryMock = new();
+     private readonly Mock<ILogger<VaultService>> _loggerMock = new();
+ 
+@@ -42,13 +41,6 @@ public class VaultServiceTests
+ 
+     public VaultServiceTests()
+     {
+-        _policyFactoryMock
+-            .Setup(p => p.CreateCircuitBreaker(It.IsAny<ResilienceOptions>(), It.IsAny<Action<Exception, TimeSpan>>(), It.IsAny<Action>()))
+-            .Returns(Policy.Handle<Exception>().CircuitBreakerAsync(5, TimeSpan.FromSeconds(30)));
+-
+-        _policyFactoryMock
+-            .Setup(p => p.CreateRetryPolicy(It.IsAny<ResilienceOptions>(), It.IsAny<Action<Exception, TimeSpan, int>>()))
+-            .Returns(Policy.Handle<Exception>().WaitAndRetryAsync(3, _ => TimeSpan.FromMilliseconds(1)));
+     }
+ 
+     // ── Helper: build a mock IVaultClient with database + KV + auth stubs ──
+@@ -565,7 +557,6 @@ public class VaultServiceTests
+             Options.Create(_vaultOptions),
+             Options.Create(_dbOptions),
+             _clientFactoryMock.Object,
+-            _policyFactoryMock.Object,
+             _loggerMock.Object,
+             _telemetryMock.Object);
+     }
+diff --git a/tests/Orders/Orders.Unit/Controllers/OrdersControllerTests.cs b/tests/Orders/Orders.Unit/Controllers/OrdersControllerTests.cs
+index 67e0de0d..37e6d5f1 100644
+--- a/tests/Orders/Orders.Unit/Controllers/OrdersControllerTests.cs
++++ b/tests/Orders/Orders.Unit/Controllers/OrdersControllerTests.cs
+@@ -2,6 +2,7 @@ using Haworks.Orders.Api.Controllers;
+ using Haworks.Orders.Application.Commands;
+ using Haworks.Orders.Application.Queries;
+ using Haworks.Orders.Application.DTOs;
++using Haworks.Orders.Domain.Errors;
+ using Haworks.BuildingBlocks.Common;
+ using Haworks.BuildingBlocks.Testing;
+ using MediatR;
+@@ -96,7 +97,7 @@ public class OrdersControllerTests : TestBase
+ 
+         _mediatorMock
+             .Setup(m => m.Send(It.IsAny<GetOrderByIdQuery>(), It.IsAny<CancellationToken>()))
+-            .ReturnsAsync(Result.Failure<OrderDto>(Error.Orders.Forbidden));
++            .ReturnsAsync(Result.Failure<OrderDto>(OrderErrors.Forbidden));
+ 
+         var result = await _controller.Get(orderId, CancellationToken.None);
+ 
+diff --git a/tests/Payments/Payments.Integration/PaymentsWebAppFactory.cs b/tests/Payments/Payments.Integration/PaymentsWebAppFactory.cs
+index 6792e003..8217eafd 100644
+--- a/tests/Payments/Payments.Integration/PaymentsWebAppFactory.cs
++++ b/tests/Payments/Payments.Integration/PaymentsWebAppFactory.cs
+@@ -127,7 +127,6 @@ public class PaymentsWebAppFactory : WebApplicationFactory<Program>, IAsyncLifet
+             });
+ 
+             services.AddSingleton<ITelemetryService>(_ => NullTelemetryService.Instance);
+-            services.AddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
+ 
+             // [Authorize]-decorated endpoints need an authentication scheme.
+             services.AddAuthentication(TestAuthenticationHandler.SchemeName).AddTestAuth();
+diff --git a/tests/Payments/Payments.Unit/Resilience/StripeCheckoutResilienceTests.cs b/tests/Payments/Payments.Unit/Resilience/StripeCheckoutResilienceTests.cs
+deleted file mode 100644
+index f5df39a7..00000000
+--- a/tests/Payments/Payments.Unit/Resilience/StripeCheckoutResilienceTests.cs
++++ /dev/null
+@@ -1,151 +0,0 @@
+-using FluentAssertions;
+-using Haworks.BuildingBlocks.Caching;
+-using Haworks.BuildingBlocks.Resilience;
+-using Haworks.Contracts.Payments;
+-using Haworks.Payments.Application.Interfaces;
+-using Haworks.Payments.Infrastructure.Stripe;
+-using Moq;
+-using Polly;
+-using Xunit;
+-
+-namespace Haworks.Payments.Unit.Resilience;
+-
+-/// <summary>
+-/// Stripe checkout-session calls go through the platform's combined
+-/// resilience policy (retry + circuit breaker + bulkhead, profile
+-/// <see cref="ResilienceOptions.Stripe"/>). Without this wrapping a
+-/// stuck Stripe API call hangs the saga consumer thread and a flapping
+-/// Stripe cascades into saga timeouts.
+-///
+-/// These tests drive the StripeCheckoutSessionService with a mocked
+-/// IStripeClientFactory that throws transient HTTP exceptions, and
+-/// verify the policy is actually applied (ExecuteAsync called, retries
+-/// fire, the right profile is used).
+-/// </summary>
+-public sealed class StripeCheckoutResilienceTests
+-{
+-    [Fact]
+-    public void Constructor_uses_Stripe_resilience_profile()
+-    {
+-        // The profile drives the retry count, CB threshold, bulkhead
+-        // limits — all dimensions of "how the service degrades under
+-        // pressure". Hardcoding the wrong profile (e.g. PayPal) gets
+-        // a quietly-different operational signature, so verify it
+-        // explicitly.
+-        var factory = new Mock<IResiliencePolicyFactory>();
+-        // Setup with explicit nulls for the optional parameters — Moq's
+-        // expression-tree compiler can't handle Setup() against methods
+-        // with optional args unless every argument is matched explicitly.
+-        factory.Setup(f => f.CreateCombinedPolicy(
+-                It.IsAny<ResilienceOptions>(),
+-                It.IsAny<Action<Exception, TimeSpan, int>?>(),
+-                It.IsAny<Action<Exception, TimeSpan>?>(),
+-                It.IsAny<Action?>()))
+-               .Returns(Policy.NoOpAsync());
+-
+-        _ = new StripeCheckoutSessionService(
+-            Mock.Of<IStripeClientFactory>(),
+-            Mock.Of<IPaymentSessionCache>(),
+-            factory.Object);
+-
+-        factory.Verify(
+-            f => f.CreateCombinedPolicy(
+-                It.Is<ResilienceOptions>(o => o.ServiceName == ResilienceOptions.Stripe.ServiceName),
+-                It.IsAny<Action<Exception, TimeSpan, int>?>(),
+-                It.IsAny<Action<Exception, TimeSpan>?>(),
+-                It.IsAny<Action?>()),
+-            Times.Once,
+-            "the service must request the dedicated Stripe resilience profile, not the generic Default");
+-    }
+-
+-    [Fact]
+-    public async Task CreateSessionAsync_wraps_call_in_policy_and_retries_on_transient_failure()
+-    {
+-        // Capture how many times the wrapped delegate runs. Each retry
+-        // is a separate execution; the wrapping logic in the service
+-        // must hit ExecuteAsync, and the policy must invoke the
+-        // delegate enough times to satisfy the retry profile.
+-        var executions = 0;
+-        var clientFactory = new Mock<IStripeClientFactory>();
+-        clientFactory.Setup(f => f.GetClientAsync(It.IsAny<CancellationToken>()))
+-                     .Returns(() =>
+-                     {
+-                         executions++;
+-                         throw new HttpRequestException("simulated upstream Stripe blip");
+-                     });
+-
+-        var policyFactory = new Mock<IResiliencePolicyFactory>();
+-        // Real retry policy with a low retry count so the test runs fast.
+-        // Default Stripe profile has 3 retries; we configure 2 here for
+-        // determinism in assertion math.
+-        policyFactory.Setup(f => f.CreateCombinedPolicy(
+-                It.IsAny<ResilienceOptions>(),
+-                It.IsAny<Action<Exception, TimeSpan, int>?>(),
+-                It.IsAny<Action<Exception, TimeSpan>?>(),
+-                It.IsAny<Action?>()))
+-                     .Returns(Policy.Handle<HttpRequestException>()
+-                                    .WaitAndRetryAsync(2, _ => TimeSpan.FromMilliseconds(10)));
+-
+-        var sut = new StripeCheckoutSessionService(
+-            clientFactory.Object,
+-            Mock.Of<IPaymentSessionCache>(),
+-            policyFactory.Object);
+-
+-        var act = async () => await sut.CreateSessionAsync(
+-            new CreateCheckoutSessionRequest
+-            {
+-                LineItems = Array.Empty<LineItem>(),
+-                SuccessUrl = "https://example.test/ok",
+-                CancelUrl = "https://example.test/cancel",
+-                CustomerEmail = "buyer@example.com",
+-                Metadata = new Dictionary<string, string>
+-                {
+-                    ["orderId"] = Guid.NewGuid().ToString(),
+-                    ["userId"] = "u1",
+-                },
+-                IdempotencyKey = "k",
+-            });
+-
+-        // Final attempt still throws (we exhausted the retries) — that's
+-        // expected; we care that the policy *retried* before throwing.
+-        await act.Should().ThrowAsync<HttpRequestException>();
+-
+-        executions.Should().Be(3,
+-            "policy gives 1 original + 2 retries = 3 total executions before surfacing the failure");
+-    }
+-
+-    [Fact]
+-    public async Task GetSessionAsync_also_routes_through_policy()
+-    {
+-        // Same wrapping must apply to GetSessionAsync (used by webhook
+-        // verification + admin views). Mirror the retry assertion to
+-        // prove the wrapping isn't only on Create.
+-        var executions = 0;
+-        var clientFactory = new Mock<IStripeClientFactory>();
+-        clientFactory.Setup(f => f.GetClientAsync(It.IsAny<CancellationToken>()))
+-                     .Returns(() =>
+-                     {
+-                         executions++;
+-                         throw new HttpRequestException("transient");
+-                     });
+-
+-        var policyFactory = new Mock<IResiliencePolicyFactory>();
+-        policyFactory.Setup(f => f.CreateCombinedPolicy(
+-                It.IsAny<ResilienceOptions>(),
+-                It.IsAny<Action<Exception, TimeSpan, int>?>(),
+-                It.IsAny<Action<Exception, TimeSpan>?>(),
+-                It.IsAny<Action?>()))
+-                     .Returns(Policy.Handle<HttpRequestException>()
+-                                    .WaitAndRetryAsync(1, _ => TimeSpan.FromMilliseconds(10)));
+-
+-        var sut = new StripeCheckoutSessionService(
+-            clientFactory.Object,
+-            Mock.Of<IPaymentSessionCache>(),
+-            policyFactory.Object);
+-
+-        var act = async () => await sut.GetSessionAsync("sess_test");
+-        await act.Should().ThrowAsync<HttpRequestException>();
+-
+-        executions.Should().Be(2, "1 original + 1 retry = 2 executions");
+-    }
+-}
+diff --git a/tests/Platform.ArchitecturalGuards/PlatformGuardTests.cs b/tests/Platform.ArchitecturalGuards/PlatformGuardTests.cs
+index b621adc5..0e8084bb 100644
+--- a/tests/Platform.ArchitecturalGuards/PlatformGuardTests.cs
++++ b/tests/Platform.ArchitecturalGuards/PlatformGuardTests.cs
+@@ -2945,7 +2945,7 @@ string.Equals(referenced, "BuildingBlocks.Testing", StringComparison.Ordinal) ||
+             if (Regex.IsMatch(content, @"\(HttpClient\s+\w+[,)]")) continue; // primary constructor injection
+             // File uses HTTP — check for timeout/resilience
+             if (!content.Contains("Timeout") && !content.Contains("ResiliencePolicy") &&
+-                !content.Contains("IResiliencePolicyFactory") && !content.Contains("Polly") &&
++                !content.Contains("AddStandardResilienceHandler") &&
+                 !content.Contains("CancelAfter") && !content.Contains("IHttpClientFactory"))
+             {
+                 violations.Add($"{Relative(file)}: HTTP calls without timeout or resilience policy — indefinite hang risk");
+diff --git a/tests/Search/Search.Integration/CatalogProductsApiTests.cs b/tests/Search/Search.Integration/CatalogProductsApiTests.cs
+index d1aa5564..0bd1ff0d 100644
+--- a/tests/Search/Search.Integration/CatalogProductsApiTests.cs
++++ b/tests/Search/Search.Integration/CatalogProductsApiTests.cs
+@@ -30,7 +30,6 @@ public sealed class CatalogProductsApiTests : IDisposable
+         _wiremock = WireMockServer.Start();
+ 
+         var collection = new ServiceCollection();
+-        collection.AddSingleton<IResiliencePolicyFactory, ResiliencePolicyFactory>();
+         collection.AddSingleton(NullLoggerFactory.Instance);
+         collection.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
+             typeof(Microsoft.Extensions.Logging.Abstractions.NullLogger<>));
