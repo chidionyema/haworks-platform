@@ -8,4 +8,15 @@ useDefault = true
 title = "haworks-platform"
 [allowlist]
 description = "dev compose Svix token signed with the public SVIX_JWT_SECRET change-me-in-production (anyone can mint it); and a prose match in a review note"
-regexes = [ '''^eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdml4LXNlcnZ''', '''^bounces/complaints$''' ]
+paths = [
+  # test-only signing keys generated for the test host, never used outside a test run
+  '''^src/BuildingBlocks\.Testing/Authentication/JwtTestDefaults\.cs$''',
+  '''^tests/BffWeb\.Integration/(BffWebFactory|UserIdentityForwardingTests)\.cs$''',
+]
+regexes = [
+  # literal test strings in unit tests: named test-key-*, Stripe sk_test_/sk_live_abc123/whsec_test_ fakes, base64 "ThisIsAVerySecureKeyForTesting123"
+  '''^test-key-[A-Za-z0-9-]+$''',
+  '''^sk_test_51234567890abcdef$''',
+  '''^sk_live_abc123$''',
+  '''^whsec_test_secret_1234567890abcdef$''',
+  '''^VGhpc0lzQVZlcnlTZWN1cmVLZXlGb3JUZXN0aW5nMTIz$''', '''^eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdml4LXNlcnZ''', '''^bounces/complaints$''' ]
