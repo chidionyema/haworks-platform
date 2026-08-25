@@ -1,14 +1,22 @@
-# Gitleaks configuration — allowlist for test fixtures and constants.
-# These are fake/deterministic keys used exclusively in unit tests.
-# Real secrets are stored in HashiCorp Vault, never in source.
-
+# gitleaks allow-list for this repository. The estate security gate
+# (chidionyema/idp/.github/actions/security-scan) runs gitleaks over the full
+# history; every entry here is a match that is not a credential, with the
+# reason. A real secret is never allow-listed: it is rotated (crew#240).
 [extend]
 useDefault = true
 
+title = "haworks-platform"
 [allowlist]
-description = "Test fixtures and constants — not real secrets"
-
+description = "dev compose Svix token signed with the public SVIX_JWT_SECRET change-me-in-production (anyone can mint it); and a prose match in a review note"
 paths = [
-  '''tests/''',
-  '''src/BuildingBlocks\.Testing/''',
+  # test-only signing keys generated for the test host, never used outside a test run
+  '''^src/BuildingBlocks\.Testing/Authentication/JwtTestDefaults\.cs$''',
+  '''^tests/BffWeb\.Integration/(BffWebFactory|UserIdentityForwardingTests)\.cs$''',
 ]
+regexes = [
+  # literal test strings in unit tests: named test-key-*, Stripe sk_test_/sk_live_abc123/whsec_test_ fakes, base64 "ThisIsAVerySecureKeyForTesting123"
+  '''^test-key-[A-Za-z0-9-]+$''',
+  '''^sk_test_51234567890abcdef$''',
+  '''^sk_live_abc123$''',
+  '''^whsec_test_secret_1234567890abcdef$''',
+  '''^VGhpc0lzQVZlcnlTZWN1cmVLZXlGb3JUZXN0aW5nMTIz$''', '''^eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdml4LXNlcnZ''', '''^bounces/complaints$''' ]
