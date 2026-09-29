@@ -30,6 +30,8 @@ public sealed class DemoIdempotencyController(
     OrderDbContext db,
     ILogger<DemoIdempotencyController> logger) : ControllerBase
 {
+    private const int MinTtlSeconds = 5;
+    private const int MaxTtlSeconds = 600;
     private static int s_tableInitialized;
 
     /// <summary>
@@ -50,8 +52,8 @@ public sealed class DemoIdempotencyController(
         {
             return BadRequest(new { error = "X-Idempotency-Key header is required" });
         }
-        if (ttlSeconds < 5) ttlSeconds = 5;
-        if (ttlSeconds > 600) ttlSeconds = 600;
+        if (ttlSeconds < MinTtlSeconds) ttlSeconds = MinTtlSeconds;
+        if (ttlSeconds > MaxTtlSeconds) ttlSeconds = MaxTtlSeconds;
 
         try
         {
@@ -113,11 +115,7 @@ public sealed class DemoIdempotencyController(
             logger.LogWarning(ex, "Idempotency claim failed for key={Key}", key);
             // Honest failure: surfaces as a real 503 to the BFF/topology
             // when postgres is paused via the chaos panel.
-            return StatusCode(503, new
-            {
-                error = "Idempotency store unreachable",
-                message = ex.Message,
-            });
+            return StatusCode(503, new { error = "Service temporarily unavailable" });
         }
     }
 
@@ -134,7 +132,7 @@ public sealed class DemoIdempotencyController(
         CancellationToken ct)
     {
         var count = Math.Clamp(body.Count, 2, 10);
-        var ttlSeconds = Math.Clamp(body.TtlSeconds ?? 30, 5, 600);
+        var ttlSeconds = Math.Clamp(body.TtlSeconds ?? 30, MinTtlSeconds, MaxTtlSeconds);
         if (string.IsNullOrWhiteSpace(body.Key))
         {
             return BadRequest(new { error = "key is required" });
