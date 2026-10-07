@@ -79,26 +79,4 @@ public class GuestOrderInfo
             orderId, null, null, null, null, null, null, null, null, null, orderToken, false);
     }
 
-    public void Complete(
-        string email,
-        string firstName,
-        string lastName,
-        string address,
-        string city,
-        string state,
-        string postalCode,
-        string country,
-        string? phone)
-    {
-        Email = email;
-        FirstName = firstName;
-        LastName = lastName;
-        Address = address;
-        City = city;
-        State = state;
-        PostalCode = postalCode;
-        Country = country;
-        Phone = phone;
-        IsComplete = true;
-    }
 }

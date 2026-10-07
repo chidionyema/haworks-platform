@@ -28,7 +28,8 @@ namespace Haworks.Orders.Api.Controllers;
 [AllowAnonymous]
 public sealed class DemoIdempotencyController(
     OrderDbContext db,
-    ILogger<DemoIdempotencyController> logger) : ControllerBase
+    ILogger<DemoIdempotencyController> logger,
+    IWebHostEnvironment environment) : ControllerBase
 {
     private static int s_tableInitialized;
 
@@ -46,6 +47,11 @@ public sealed class DemoIdempotencyController(
         [FromQuery] int ttlSeconds = 30,
         CancellationToken ct = default)
     {
+        if (!environment.IsDevelopment())
+        {
+            return StatusCode(404, new { error = "Demo endpoints are only available in development environment" });
+        }
+
         if (string.IsNullOrWhiteSpace(key))
         {
             return BadRequest(new { error = "X-Idempotency-Key header is required" });
@@ -133,6 +139,11 @@ public sealed class DemoIdempotencyController(
         [FromBody] RaceRequest body,
         CancellationToken ct)
     {
+        if (!environment.IsDevelopment())
+        {
+            return StatusCode(404, new { error = "Demo endpoints are only available in development environment" });
+        }
+
         var count = Math.Clamp(body.Count, 2, 10);
         var ttlSeconds = Math.Clamp(body.TtlSeconds ?? 30, 5, 600);
         if (string.IsNullOrWhiteSpace(body.Key))
@@ -145,7 +156,7 @@ public sealed class DemoIdempotencyController(
         // Clear any prior claim of this exact key so the race always has
         // a fresh row to fight over.
         await db.Database.ExecuteSqlRawAsync(
-            "DELETE FROM demo_idempotency_keys WHERE key = {0}", new object[] { body.Key! }, ct);
+            "DELETE FROM orders.demo_idempotency_keys WHERE key = {0}", new object[] { body.Key! }, ct);
 
         var connStr = db.Database.GetConnectionString();
         var tasks = Enumerable.Range(0, count).Select(async i =>
